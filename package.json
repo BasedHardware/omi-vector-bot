@@ -1,0 +1,20 @@
+{
+  "name": "omi-vector-bot",
+  "version": "1.0.0",
+  "description": "Discord support bot with OpenClaw AI, Telegram escalation, and Postgres knowledge base",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.1",
+    "pg": "^8.13.1"
+  }
+}
