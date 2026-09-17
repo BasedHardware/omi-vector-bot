@@ -214,4 +214,5 @@ module.exports = {
   DUPLICATE_FOOTER,
   CONFIDENCE_THRESHOLD,
   needsHumanAccess,
+  stripPingNarration: dropPingNarration,
 };

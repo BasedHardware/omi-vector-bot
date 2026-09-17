@@ -1,5 +1,5 @@
 const telegram = require('./telegram');
-const { clipForDiscord } = require('./utils');
+const { clipForDiscord, stripPingNarration } = require('./utils');
 
 const DEDUPE_MS = 15 * 60_000;
 const lastHandoff = new Map();
@@ -38,28 +38,44 @@ function resetHandoffMemory() {
   lastHandoff.clear();
 }
 
+function clipUserQuestion(text) {
+  const raw = String(text || '').trim();
+  const cleaned = raw
+    .split('\n')
+    .filter((line) => !/^want:\s/i.test(line.trim()))
+    .join('\n')
+    .trim();
+  return clipForDiscord(cleaned || raw, 1000);
+}
+
 function formatStaffTicket({ message, question, reason, draft }) {
   const why = clipForDiscord(reason || 'Vector cannot finish this. Needs a person.', 200);
-  const asked = clipForDiscord(question || '(no text)', 1000);
+  const asked = clipUserQuestion(question);
   const jump = message?.url || '';
   const from = message?.author?.id ? `<@${message.author.id}>` : 'unknown user';
   const channel = message?.channel?.id ? `<#${message.channel.id}>` : '';
   const mentions = staffMentions();
   const { users, roles } = staffMentionIds();
+  const cleanDraft = stripPingNarration(draft || '');
 
   const embed = {
     title: 'Needs a human',
     color: 0xe67e22,
-    description: asked,
+    description: asked || '(no text)',
     fields: [
       { name: 'Why', value: why, inline: false },
-      { name: 'From', value: [from, channel].filter(Boolean).join(' · '), inline: true },
+      { name: 'From', value: [from, channel].filter(Boolean).join(' · ') || 'unknown', inline: true },
     ],
   };
-  if (jump) embed.fields.push({ name: 'Jump', value: jump, inline: true });
-  const clippedDraft = clipForDiscord(draft || '', 300);
-  if (clippedDraft) {
-    embed.fields.push({ name: 'Vector draft', value: clippedDraft, inline: false });
+  if (jump) {
+    embed.fields.push({ name: 'Jump', value: `[Open message](${jump})`, inline: true });
+  }
+  if (cleanDraft) {
+    embed.fields.push({
+      name: 'Vector told the user',
+      value: clipForDiscord(cleanDraft, 300),
+      inline: false,
+    });
   }
 
   return {
@@ -71,8 +87,8 @@ function formatStaffTicket({ message, question, reason, draft }) {
     plain: {
       threadId: message?.channel?.id,
       jumpUrl: jump,
-      userQuestion: question,
-      botDraft: draft,
+      userQuestion: asked,
+      botDraft: cleanDraft,
       missingInfo: why,
     },
   };
@@ -106,9 +122,9 @@ async function sendToStaffChannel(client, payload) {
   return true;
 }
 
-async function notifyStaff({ client, message, question, reason, draft }) {
+async function notifyStaff({ client, message, question, reason, draft, skipDedupe = false }) {
   const channelId = message?.channel?.id;
-  if (recentlyHandedOff(channelId)) {
+  if (!skipDedupe && recentlyHandedOff(channelId)) {
     return { ok: true, via: 'recent', duplicate: true };
   }
 
@@ -172,6 +188,7 @@ module.exports = {
   recentlyHandedOff,
   resetHandoffMemory,
   formatStaffTicket,
+  clipUserQuestion,
   notifyStaff,
   isHandoffThread,
   staffMentions,

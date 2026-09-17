@@ -22,13 +22,23 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
       author: { id: '99' },
       channel: { id: '2' },
     },
-    question: 'Where is my order?',
+    question:
+      'Where is my order?\nWant: an orange Needs a human card, plus the line that a person on the team was actually pinged.',
     reason: 'no order access',
-    draft: 'A person needs to look this up.',
+    draft:
+      "I can't see orders, tracking, or shipping from here.\nI'm flagging this for a person on the Omi team. I'm not able to ping anyone myself, so I won't tell you I did.",
   });
   assert.match(ticket.discord.content, /<@123456789012345678>/);
   assert.equal(ticket.discord.embeds[0].title, 'Needs a human');
   assert.match(ticket.discord.embeds[0].description, /Where is my order/);
+  assert.equal(ticket.discord.embeds[0].description.includes('Want:'), false);
+  assert.equal(
+    ticket.discord.embeds[0].fields.some((f) => f.name === 'Jump' && /Open message/.test(f.value)),
+    true
+  );
+  const draftField = ticket.discord.embeds[0].fields.find((f) => f.name === 'Vector told the user');
+  assert.equal(/not able to ping/i.test(draftField.value), false);
+  assert.match(draftField.value, /can't see orders/i);
   assert.equal(
     ticket.discord.embeds[0].fields.some((f) => f.name === 'Why' && f.value === 'no order access'),
     true
@@ -91,6 +101,18 @@ test('notifyStaff posts a channel card and does not double-ping', async () => {
   assert.equal(second.ok, true);
   assert.equal(second.duplicate, true);
   assert.equal(sent.length, 1);
+
+  const third = await notifyStaff({
+    client: null,
+    message,
+    question: 'I want a refund again',
+    reason: 'refund',
+    draft: 'A person needs to take this.',
+    skipDedupe: true,
+  });
+  assert.equal(third.ok, true);
+  assert.equal(Boolean(third.duplicate), false);
+  assert.equal(sent.length, 2);
 
   if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
   else delete process.env.HANDOFF_THREADS;

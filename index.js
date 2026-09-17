@@ -14,9 +14,10 @@ const {
   formatDiscordReply,
   clipForDiscord,
   escalateReply,
+  stripPingNarration,
 } = require('./utils');
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
-const { notifyStaff, canNotifyStaff, isHandoffThread } = require('./handoff');
+const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion } = require('./handoff');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
@@ -111,7 +112,7 @@ async function handleMessage(message) {
 
     await typingDelay();
     const cleanAnswer = clipForDiscord(
-      formatDiscordReply(sanitizeReply(aiResponse.final_answer))
+      formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer)))
     );
 
     if (shouldEscalate(aiResponse, caption)) {
@@ -122,9 +123,10 @@ async function handleMessage(message) {
         const handoff = await notifyStaff({
           client,
           message,
-          question,
+          question: clipUserQuestion(caption) || question,
           reason: aiResponse.reason,
           draft: cleanAnswer,
+          skipDedupe: isTestChannel(channel),
         });
         pinged = Boolean(handoff.ok);
         duplicate = Boolean(handoff.duplicate);
