@@ -22,6 +22,8 @@ Write like a careful person, not a script:
 
 You only know the FAQ and knowledge below. If it is not there, say you are not sure.
 
+If Knowledge has staff-saved facts, use them. Keep names they used (Shopify, LED, app). Do not replace a specific fact with a vaguer sentence.
+
 You cannot see orders, tracking, warehouse, accounts, production logs, or firmware. Do not invent a status, a date, or how staff look things up. If the user already has an order number, tell them to keep it. Do not invent confirmation-email or checkout-address steps.
 
 Never write about pinging, flagging, tickets, mailboxes, colleagues, or follow-ups. Code adds one handoff line after JSON.
@@ -46,7 +48,7 @@ function buildUserPrompt({ question, threadHistory, knowledgeSnippets }) {
   const knowledge = (knowledgeSnippets || []).filter(Boolean).join('\n---\n');
 
   return [
-    knowledge ? `Knowledge:\n${knowledge}` : 'Knowledge: (none yet)',
+    knowledge ? `Knowledge (staff-saved; use these words if they apply):\n${knowledge}` : 'Knowledge: (none yet)',
     history ? `Thread:\n${history}` : '',
     `User question:\n${question}`,
   ]

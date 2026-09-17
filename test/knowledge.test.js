@@ -47,3 +47,15 @@ test('normal Handoff sentences are not faq commands so Vector stays quiet', () =
   assert.equal(isHandoffThread({ isThread: () => true, name: 'Handoff · astar6969' }), true);
   assert.equal(parseFaqCommand('I will look up the order in Shopify.'), null);
 });
+
+test('user prompt tells the model to use staff-saved knowledge words', () => {
+  const { buildUserPrompt, buildSystemPrompt } = require('../prompt');
+  const user = buildUserPrompt({
+    question: 'Where is my order?',
+    threadHistory: [],
+    knowledgeSnippets: ['Order and tracking lookups need a person. Vector cannot see Shopify.'],
+  });
+  assert.match(user, /staff-saved/i);
+  assert.match(user, /Shopify/);
+  assert.match(buildSystemPrompt(), /Keep names they used/);
+});
