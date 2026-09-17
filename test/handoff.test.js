@@ -36,9 +36,11 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
     ticket.discord.embeds[0].fields.some((f) => f.name === 'Jump' && /Open message/.test(f.value)),
     true
   );
-  const draftField = ticket.discord.embeds[0].fields.find((f) => f.name === 'Vector told the user');
-  assert.equal(/not able to ping/i.test(draftField.value), false);
-  assert.match(draftField.value, /can't see orders/i);
+  assert.equal(
+    ticket.discord.embeds[0].fields.some((f) => f.name === 'Vector told the user'),
+    false
+  );
+  assert.equal(/not able to ping/i.test(ticket.plain.botDraft), false);
   assert.equal(
     ticket.discord.embeds[0].fields.some((f) => f.name === 'Why' && f.value === 'no order access'),
     true

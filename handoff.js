@@ -70,13 +70,6 @@ function formatStaffTicket({ message, question, reason, draft }) {
   if (jump) {
     embed.fields.push({ name: 'Jump', value: `[Open message](${jump})`, inline: true });
   }
-  if (cleanDraft) {
-    embed.fields.push({
-      name: 'Vector told the user',
-      value: clipForDiscord(cleanDraft, 300),
-      inline: false,
-    });
-  }
 
   return {
     discord: {
