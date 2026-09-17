@@ -1,6 +1,6 @@
 const { looksLikeStaffLie, stripStaffLies } = require('../honesty');
 const { parseAgentJson } = require('../opencode');
-const { shouldEscalate, clipForDiscord, escalateReply, sanitizeReply, formatDiscordReply, needsHumanAccess, PINGED_FOOTER } = require('../utils');
+const { shouldEscalate, clipForDiscord, clipThreadHistory, escalateReply, sanitizeReply, formatDiscordReply, needsHumanAccess, PINGED_FOOTER } = require('../utils');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
@@ -68,19 +68,19 @@ test('escalate footer is generic and skipped if the answer already said no ping'
   );
   assert.equal(german.includes('Refunds'), false);
   assert.match(german, /LED-Farbe/);
-  assert.match(german, /have not pinged a human yet/i);
+  assert.match(german, /have not pinged anyone yet/i);
 });
 
 test('escalate footer only claims a ping after a real handoff', () => {
   const pinged = escalateReply('I have not pinged a human yet.\nThis needs a person.', {
     pinged: true,
   });
-  assert.match(pinged, /sent this to a person/i);
+  assert.match(pinged, /person on the team has this now/i);
   assert.equal(pinged.includes('I have not pinged'), false);
   assert.equal(pinged.includes(PINGED_FOOTER), true);
 
   const failed = escalateReply('This needs a person.', { pinged: false });
-  assert.match(failed, /have not pinged a human yet/i);
+  assert.match(failed, /have not pinged anyone yet/i);
 });
 
 test('does not contradict a real handoff with I cannot ping anyone', () => {
@@ -94,7 +94,7 @@ test('does not contradict a real handoff with I cannot ping anyone', () => {
   );
   assert.match(live, /can't see orders/i);
   assert.match(live, /order number handy/i);
-  assert.match(live, /sent this to a person/i);
+  assert.match(live, /person on the team has this now/i);
   assert.equal(/not able to ping/i.test(live), false);
   assert.equal(/won't tell you i did/i.test(live), false);
   assert.equal(/flagging this/i.test(live), false);
@@ -122,6 +122,21 @@ test('sanitizeReply keeps paragraph breaks', () => {
   assert.equal(out.includes('\n\n'), true);
   assert.match(out, /First point/);
   assert.match(out, /Second point/);
+});
+
+test('clipThreadHistory drops empty lines and caps length', () => {
+  const out = clipThreadHistory(
+    [
+      { author: 'bot', content: '' },
+      { author: 'david', content: 'a'.repeat(800) },
+      { author: 'user', content: 'Where is my order?' },
+    ],
+    40,
+    8
+  );
+  assert.equal(out.length, 2);
+  assert.equal(out[0].content.endsWith('…'), true);
+  assert.equal(out[1].content, 'Where is my order?');
 });
 
 test('formatDiscordReply turns LED pipe lists into bullets', () => {

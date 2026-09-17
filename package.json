@@ -1,7 +1,7 @@
 {
   "name": "omi-vector-bot",
   "version": "1.0.0",
-  "description": "Omi Discord support bot. OpenCode for answers; Discord in a private test channel first.",
+  "description": "Omi Discord support helper. Hands unsolvable tickets to a person instead of inventing a ping.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

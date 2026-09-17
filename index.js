@@ -13,6 +13,7 @@ const {
   sanitizeReply,
   formatDiscordReply,
   clipForDiscord,
+  clipThreadHistory,
   escalateReply,
   stripPingNarration,
 } = require('./utils');
@@ -57,14 +58,16 @@ function shouldHandle(message) {
   return false;
 }
 
-async function getHistory(channel, limit = 10) {
-  const messages = await channel.messages.fetch({ limit });
-  return [...messages.values()]
+async function getHistory(channel, excludeId) {
+  const messages = await channel.messages.fetch({ limit: 12 });
+  const entries = [...messages.values()]
     .reverse()
+    .filter((m) => m.id !== excludeId)
     .map((m) => ({
       author: m.author.bot ? 'bot' : m.author.username,
       content: m.content,
     }));
+  return clipThreadHistory(entries);
 }
 
 async function searchKnowledge(question) {
@@ -88,8 +91,9 @@ async function handleMessage(message) {
   }
 
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
+  const asked = clipUserQuestion(caption) || caption;
   const files = await fetchTextAttachments(message.attachments);
-  const question = formatQuestion(caption, files);
+  const question = formatQuestion(asked, files);
   if (question.length < 5) return;
 
   console.log(`[Bot] Processing in ${channel.id}`);
@@ -98,8 +102,8 @@ async function handleMessage(message) {
     await channel.sendTyping();
 
     const [threadHistory, knowledgeSnippets] = await Promise.all([
-      getHistory(channel),
-      searchKnowledge(caption || question),
+      getHistory(channel, message.id),
+      searchKnowledge(asked || question),
     ]);
 
     const aiResponse = await queryAgent({
@@ -123,7 +127,7 @@ async function handleMessage(message) {
         const handoff = await notifyStaff({
           client,
           message,
-          question: clipUserQuestion(caption) || question,
+          question: asked,
           reason: aiResponse.reason,
           draft: cleanAnswer,
           skipDedupe: isTestChannel(channel),
@@ -152,7 +156,7 @@ async function handleMessage(message) {
     console.error(`[Bot] Error in ${channel.id}:`, err.message);
     try {
       await message.reply(
-        'I hit an error answering that. I have not messaged anyone — try again in a bit.'
+        'Something broke on my side. I have not pinged anyone. Try that again in a moment.'
       );
     } catch (replyErr) {
       console.error('[Bot] Reply failed:', replyErr.message);

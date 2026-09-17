@@ -1,13 +1,5 @@
 const { stripStaffLies } = require('./honesty');
 
-const GREETINGS = [
-  'Hey!',
-  'Hi there!',
-  'Hey, thanks for reaching out!',
-  'Hi! Good question.',
-  'Hey! Let me help with that.',
-];
-
 const ESCALATION_PATTERNS = [
   /\bbilling\b/i,
   /\brefunds?\b/i,
@@ -61,10 +53,6 @@ setInterval(() => {
   }
 }, 2 * 60_000).unref();
 
-function randomGreeting() {
-  return GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
-}
-
 function containsEscalationKeyword(text) {
   const s = String(text || '');
   return ESCALATION_PATTERNS.some((re) => re.test(s));
@@ -84,8 +72,7 @@ function shouldEscalate(aiResponse, userMessage) {
 }
 
 function typingDelay() {
-  // 1–2 second delay to feel human
-  const ms = 1000 + Math.random() * 1000;
+  const ms = 400 + Math.random() * 500;
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -132,6 +119,17 @@ function formatDiscordReply(text) {
 
 const DISCORD_REPLY_MAX = 1900;
 
+function clipThreadHistory(entries, maxEach = 400, maxItems = 8) {
+  return (entries || [])
+    .map((m) => {
+      const content = clipForDiscord(String(m.content || '').trim(), maxEach);
+      if (!content) return null;
+      return { author: m.author, content };
+    })
+    .filter(Boolean)
+    .slice(-maxItems);
+}
+
 function clipForDiscord(text, max = DISCORD_REPLY_MAX) {
   const s = String(text || '').trim();
   if (s.length <= max) return s;
@@ -139,13 +137,12 @@ function clipForDiscord(text, max = DISCORD_REPLY_MAX) {
 }
 
 const ESCALATE_FOOTER =
-  'I have not pinged a human yet. A person on the team needs to take this.';
+  'A person on the team needs to take this. I have not pinged anyone yet.';
 
-const PINGED_FOOTER =
-  'I sent this to a person on the team. I cannot see orders, warehouse, or production logs myself.';
+const PINGED_FOOTER = 'A person on the team has this now.';
 
 const DUPLICATE_FOOTER =
-  'This is still with a person from earlier. I have not sent a second ping.';
+  'A person on the team already has this. I have not sent another ping.';
 
 const PING_NARRATION = [
   /have not (pinged|messaged|contacted|notified)/i,
@@ -164,6 +161,7 @@ const PING_NARRATION = [
 const ALREADY_SAID_PINGED = [
   /sent this to a person/i,
   /posted this to the team/i,
+  /person on the team has this now/i,
 ];
 
 function dropPingNarration(text) {
@@ -191,7 +189,7 @@ function escalateReply(answer, opts = {}) {
   if (pinged) {
     const footer = duplicate ? DUPLICATE_FOOTER : PINGED_FOOTER;
     if (!duplicate && ALREADY_SAID_PINGED.some((re) => re.test(body))) return body;
-    if (duplicate && /still with a person/i.test(body)) return body;
+    if (duplicate && /already has this/i.test(body)) return body;
     return [body, footer].filter(Boolean).join('\n\n');
   }
 
@@ -201,13 +199,13 @@ function escalateReply(answer, opts = {}) {
 module.exports = {
   isOnCooldown,
   markReplied,
-  randomGreeting,
   containsEscalationKeyword,
   shouldEscalate,
   typingDelay,
   sanitizeReply,
   formatDiscordReply,
   clipForDiscord,
+  clipThreadHistory,
   escalateReply,
   ESCALATE_FOOTER,
   PINGED_FOOTER,
