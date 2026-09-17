@@ -1,11 +1,14 @@
 {
   "name": "omi-vector-bot",
   "version": "1.0.0",
-  "description": "Discord support bot with OpenClaw AI, Telegram escalation, and Postgres knowledge base",
+  "description": "Omi Discord support bot. OpenCode for answers; Discord in a private test channel first.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "ask": "node ask.js",
+    "invite": "node invite.js",
+    "test": "node --test test/*.js"
   },
   "engines": {
     "node": ">=20.0.0"

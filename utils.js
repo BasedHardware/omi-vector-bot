@@ -1,3 +1,5 @@
+const { stripStaffLies } = require('./honesty');
+
 const GREETINGS = [
   'Hey!',
   'Hi there!',
@@ -67,8 +69,17 @@ function typingDelay() {
 }
 
 function sanitizeReply(text) {
-  // Strip any "As an AI" phrasing
-  return text.replace(/\bas an ai\b/gi, '').replace(/\s{2,}/g, ' ').trim();
+  return stripStaffLies(
+    text.replace(/\bas an ai\b/gi, '').replace(/\s{2,}/g, ' ').trim()
+  );
+}
+
+const DISCORD_REPLY_MAX = 1900;
+
+function clipForDiscord(text, max = DISCORD_REPLY_MAX) {
+  const s = String(text || '').trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, Math.max(0, max - 1))}…`;
 }
 
 module.exports = {
@@ -79,5 +90,6 @@ module.exports = {
   shouldEscalate,
   typingDelay,
   sanitizeReply,
+  clipForDiscord,
   CONFIDENCE_THRESHOLD,
 };

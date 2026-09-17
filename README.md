@@ -1,48 +1,35 @@
 # omi-vector-bot
 
-Discord support bot that answers help forum threads using OpenClaw AI, escalates to Telegram when unsure, and builds a knowledge base over time.
+Omi Discord support helper. Brain is OpenCode. Discord is optional until we have a bot token.
 
-## Setup
+## Right now
 
-1. Copy `.env.example` to `.env` and fill in all values
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Ensure Postgres is running and `DATABASE_URL` is set (tables are created automatically on startup)
-4. Start the bot:
-   ```
-   npm start
-   ```
+1. Copy `.env.example` to `.env` and put `OPENCODE_API_KEY` there. Never commit `.env`.
+2. `npm install`
+3. Ask a question in the terminal (no Discord):
 
-## How It Works
-
-- Monitors threads in the configured help forum channel
-- Sends user questions + thread history + knowledge snippets to OpenClaw `/agent`
-- If confidence is high enough, replies directly in-thread
-- If confidence is low, contains escalation keywords, or OpenClaw flags escalation — sends to Telegram for manual review
-- Aarav replies on Telegram with `A: <answer>` (and optionally `KB: <snippet>`) — bot posts the answer back to Discord and saves the snippet
-
-## Telegram Reply Format
-
-Reply to an escalation message with:
 ```
-A: Your answer here
-KB: Optional knowledge snippet to save for future questions
+npm test
+npm run ask -- "How do I pair my Omi?"
+npm run ask -- "I want a refund"
 ```
 
-## Environment Variables
+Refunds/shipping should print `ESCALATE` and must not claim a human was already pinged.
 
-| Variable | Description |
-|---|---|
-| `DISCORD_TOKEN` | Discord bot token |
-| `TELEGRAM_TOKEN` | Telegram bot token |
-| `TELEGRAM_CHAT_ID` | Telegram chat ID for escalations |
-| `OPENCLAW_URL` | Base URL for OpenClaw API |
-| `DATABASE_URL` | Postgres connection string |
-| `HELP_FORUM_CHANNEL_ID` | Discord forum channel ID to monitor |
-| `PORT` | Health endpoint port (default: 3000) |
+## Discord (private test channel)
 
-## Deployment
+Needs `DISCORD_TOKEN`. Optional `VECTOR_TEST_CHANNEL_ID` (answers every message there). If no channel is set, it answers when @mentioned.
 
-Designed for Railway. The `/health` endpoint returns `OK` for health checks.
+```
+npm start
+```
+
+Do not put it in the public help forum until that private channel looks right.
+
+Create the Discord app: Developer Portal → New Application → Bot → enable **Message Content Intent** → copy token. Then:
+
+```
+npm run invite
+```
+
+Invite the bot to a **private test channel**, not the public help forum.
