@@ -40,4 +40,4 @@ In the Handoff thread, reply as a person (Vector stays quiet). To save a fact fo
 faq: Order and tracking lookups need a person. Vector cannot see Shopify.
 ```
 
-Saved facts live in memory on the host (and Postgres if `DATABASE_URL` is set). A Railway redeploy clears memory unless Postgres is on.
+Saved facts live in memory on the host (and Postgres if `DATABASE_URL` is set). On boot, Vector also reloads `faq:` lines already sitting in Handoff threads in the test channel, so a Railway redeploy does not wipe them.

@@ -227,7 +227,7 @@ client.on(Events.MessageCreate, async (message) => {
   await handleMessage(message);
 });
 
-client.once(Events.ClientReady, () => {
+client.once(Events.ClientReady, async () => {
   console.log(`[Bot] Logged in as ${client.user.tag}`);
   if (VECTOR_TEST_CHANNEL_ID) {
     console.log(`[Bot] Test channel ${VECTOR_TEST_CHANNEL_ID}`);
@@ -241,6 +241,12 @@ client.once(Events.ClientReady, () => {
   console.log(
     `[Bot] Handoff staff-channel=${Boolean(process.env.STAFF_ALERT_CHANNEL_ID)} telegram=${telegramReady} threads=${process.env.HANDOFF_THREADS !== '0'}`
   );
+  try {
+    const n = await knowledge.hydrateFromDiscord(client);
+    console.log(`[Knowledge] hydrated ${n} faq line(s) from Handoff threads`);
+  } catch (err) {
+    console.error('[Knowledge] hydrate failed:', err.message);
+  }
 });
 
 async function start() {

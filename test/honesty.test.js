@@ -30,6 +30,14 @@ test('strips invented checkout-email lookup from order replies', () => {
   assert.equal(/email address you used/i.test(out), false);
 });
 
+test('strips repeating-the-question lecture from order replies', () => {
+  const out = sanitizeReply(
+    "I can't see orders, tracking, or shipping from here, so I won't guess at a status or a delivery date — and repeating the question won't change what I have access to."
+  );
+  assert.match(out, /can't see orders/i);
+  assert.equal(/repeating the question/i.test(out), false);
+});
+
 test('refund questions escalate without needing the model', () => {
   assert.equal(
     shouldEscalate({ confidence: 0.99, escalate: false }, 'I want a refund'),

@@ -10,11 +10,16 @@ const LIE_PATTERNS = [
   /someone will follow up/i,
 ];
 
-const INVENTED_LOOKUP = [
+const DROP_SENTENCE = [
   /\bcheckout\b/i,
   /confirmation email/i,
   /email address you used/i,
   /email you used/i,
+  /repeating the question/i,
+  /nothing new i can add/i,
+  /nothing now i can add/i,
+  /won'?t change what i (have|can) access/i,
+  /won'?t change what i have access to/i,
 ];
 
 function looksLikeStaffLie(text) {
@@ -23,7 +28,7 @@ function looksLikeStaffLie(text) {
 }
 
 function looksLikeInventedLookup(text) {
-  return INVENTED_LOOKUP.some((re) => re.test(String(text || '')));
+  return DROP_SENTENCE.some((re) => re.test(String(text || '')));
 }
 
 function stripInventedLookup(text) {
@@ -32,7 +37,7 @@ function stripInventedLookup(text) {
     .map((line) => {
       if (!looksLikeInventedLookup(line)) return line;
       return line
-        .split(/(?<=[.!?])\s+/)
+        .split(/(?<=[.!?])\s+|\s+[—–]\s+/)
         .filter((sentence) => !looksLikeInventedLookup(sentence))
         .join(' ');
     })

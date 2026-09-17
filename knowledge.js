@@ -121,6 +121,47 @@ async function searchAll(query, limit = SEARCH_LIMIT) {
   }
 }
 
+function collectFaqFromMessages(messages) {
+  const found = [];
+  for (const m of messages || []) {
+    if (m?.author?.bot) continue;
+    const snippet = parseFaqCommand(m.content);
+    if (snippet) found.push(snippet);
+  }
+  return found;
+}
+
+async function hydrateFromDiscord(client) {
+  const channelId = process.env.VECTOR_TEST_CHANNEL_ID;
+  if (!channelId || !client?.channels?.fetch) return 0;
+  const channel = await client.channels.fetch(channelId);
+  if (!channel?.threads?.fetchActive) return 0;
+
+  const threads = [];
+  const active = await channel.threads.fetchActive();
+  if (active?.threads) threads.push(...active.threads.values());
+  try {
+    const archived = await channel.threads.fetchArchived({ limit: 20 });
+    if (archived?.threads) threads.push(...archived.threads.values());
+  } catch (err) {
+    console.error('[Knowledge] archived threads:', err.message);
+  }
+
+  let added = 0;
+  const seen = new Set();
+  for (const thread of threads) {
+    if (!/^Handoff\b/i.test(thread.name || '')) continue;
+    if (seen.has(thread.id)) continue;
+    seen.add(thread.id);
+    const fetched = await thread.messages.fetch({ limit: 50 });
+    for (const snippet of collectFaqFromMessages([...fetched.values()].reverse())) {
+      const saved = addSnippet(snippet);
+      if (saved.ok && !saved.duplicate) added += 1;
+    }
+  }
+  return added;
+}
+
 module.exports = {
   MAX_SNIPPET,
   parseFaqCommand,
@@ -131,4 +172,6 @@ module.exports = {
   search,
   searchAll,
   applyStaffFacts,
+  collectFaqFromMessages,
+  hydrateFromDiscord,
 };

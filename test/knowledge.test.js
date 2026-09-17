@@ -6,6 +6,8 @@ const {
   search,
   resetKnowledge,
   applyStaffFacts,
+  collectFaqFromMessages,
+  hydrateFromDiscord,
 } = require('../knowledge');
 const { canSaveFaq, isHandoffThread } = require('../handoff');
 
@@ -63,6 +65,20 @@ test('applyStaffFacts prepends Shopify when the model dropped it', () => {
   assert.equal((already.match(/Shopify/g) || []).length, 1);
 });
 
+test('collectFaqFromMessages reads faq lines from Handoff history and skips bots', () => {
+  const found = collectFaqFromMessages([
+    { author: { bot: true }, content: 'faq: ignore the bot' },
+    { author: { bot: false }, content: 'any update on it' },
+    {
+      author: { bot: false },
+      content: 'faq: Order and tracking lookups need a person. Vector cannot see Shopify.',
+    },
+  ]);
+  assert.deepEqual(found, [
+    'Order and tracking lookups need a person. Vector cannot see Shopify.',
+  ]);
+});
+
 test('user prompt tells the model to use staff-saved knowledge words', () => {
   const { buildUserPrompt, buildSystemPrompt } = require('../prompt');
   const user = buildUserPrompt({
@@ -73,4 +89,40 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   assert.match(user, /staff-saved/i);
   assert.match(user, /Shopify/);
   assert.match(buildSystemPrompt(), /Keep names they used/);
+});
+
+test('hydrateFromDiscord reloads faq lines from Handoff threads', async () => {
+  resetKnowledge();
+  const previous = process.env.VECTOR_TEST_CHANNEL_ID;
+  process.env.VECTOR_TEST_CHANNEL_ID = 'chan1';
+  const messages = new Map([
+    [
+      '1',
+      {
+        author: { bot: false },
+        content: 'faq: Order and tracking lookups need a person. Vector cannot see Shopify.',
+      },
+    ],
+  ]);
+  const thread = {
+    id: 't1',
+    name: 'Handoff · astar6969',
+    messages: { fetch: async () => messages },
+  };
+  const client = {
+    channels: {
+      fetch: async () => ({
+        threads: {
+          fetchActive: async () => ({ threads: new Map([['t1', thread]]) }),
+          fetchArchived: async () => ({ threads: new Map() }),
+        },
+      }),
+    },
+  };
+  const added = await hydrateFromDiscord(client);
+  assert.equal(added, 1);
+  assert.match(search('order')[0], /Shopify/);
+  resetKnowledge();
+  if (previous === undefined) delete process.env.VECTOR_TEST_CHANNEL_ID;
+  else process.env.VECTOR_TEST_CHANNEL_ID = previous;
 });
