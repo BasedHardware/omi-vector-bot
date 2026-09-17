@@ -36,6 +36,9 @@ test('addSnippet stores searchable facts and rejects empty or staff-lie lines', 
   const hits = search('where is my order');
   assert.equal(hits.length >= 1, true);
   assert.match(hits[0], /cannot see Shopify/);
+  const punctuated = search('Where is my order?');
+  assert.equal(punctuated.length >= 1, true);
+  assert.match(punctuated[0], /Shopify/);
   assert.equal(search('pairing bluetooth').length, 0);
   resetKnowledge();
 });

@@ -18,6 +18,8 @@ const DROP_SENTENCE = [
   /repeating the question/i,
   /nothing new i can add/i,
   /nothing now i can add/i,
+  /nothing in what i can access has changed/i,
+  /has changed since your last (message|question)/i,
   /won'?t change what i (have|can) access/i,
   /won'?t change what i have access to/i,
 ];

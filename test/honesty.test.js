@@ -38,6 +38,19 @@ test('strips repeating-the-question lecture from order replies', () => {
   assert.equal(/repeating the question/i.test(out), false);
 });
 
+test('strips nothing-has-changed lecture from order replies', () => {
+  const out = sanitizeReply(
+    [
+      "I can't see order, tracking, or shipping status from here, so I won't guess at where your order is or when it will arrive.",
+      'Nothing in what I can access has changed since your last message.',
+      'Your order number is the piece that matters for looking this up, so keep it handy if you have it.',
+    ].join('\n\n')
+  );
+  assert.match(out, /can't see order/i);
+  assert.match(out, /order number/);
+  assert.equal(/has changed since your last/i.test(out), false);
+});
+
 test('refund questions escalate without needing the model', () => {
   assert.equal(
     shouldEscalate({ confidence: 0.99, escalate: false }, 'I want a refund'),

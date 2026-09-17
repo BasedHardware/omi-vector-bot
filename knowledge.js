@@ -42,12 +42,17 @@ async function persistSnippet(snippet) {
   }
 }
 
-function search(query, limit = SEARCH_LIMIT) {
-  const words = String(query || '')
+function searchWords(query) {
+  return String(query || '')
     .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter((w) => w.length > 3)
     .slice(0, 5);
+}
+
+function search(query, limit = SEARCH_LIMIT) {
+  const words = searchWords(query);
 
   const pool = words.length
     ? snippets.filter((s) => {
