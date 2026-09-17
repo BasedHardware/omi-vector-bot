@@ -147,9 +147,18 @@ const PINGED_FOOTER =
 const DUPLICATE_FOOTER =
   'This is still with a person from earlier. I have not sent a second ping.';
 
-const ALREADY_SAID_NO_PING = [
+const PING_NARRATION = [
   /have not (pinged|messaged|contacted|notified)/i,
   /noch niemanden/i,
+  /not able to ping/i,
+  /can'?t ping/i,
+  /cannot ping/i,
+  /won'?t tell you i (did|pinged)/i,
+  /will not tell you i (did|pinged)/i,
+  /ping anyone myself/i,
+  /handoff happens/i,
+  /flagging this/i,
+  /i('m| am) not able to ping/i,
 ];
 
 const ALREADY_SAID_PINGED = [
@@ -157,10 +166,18 @@ const ALREADY_SAID_PINGED = [
   /posted this to the team/i,
 ];
 
-function dropMatchingLines(text, patterns) {
+function dropPingNarration(text) {
   return String(text || '')
     .split('\n')
-    .filter((line) => !patterns.some((re) => re.test(line)))
+    .map((line) => {
+      if (!PING_NARRATION.some((re) => re.test(line))) return line;
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => !PING_NARRATION.some((re) => re.test(sentence)))
+        .join(' ');
+    })
+    .map((line) => line.trim())
+    .filter(Boolean)
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -169,18 +186,16 @@ function dropMatchingLines(text, patterns) {
 function escalateReply(answer, opts = {}) {
   const pinged = Boolean(opts.pinged);
   const duplicate = Boolean(opts.duplicate);
-  let body = String(answer || '').trim();
+  let body = dropPingNarration(String(answer || '').trim());
 
   if (pinged) {
-    body = dropMatchingLines(body, ALREADY_SAID_NO_PING);
     const footer = duplicate ? DUPLICATE_FOOTER : PINGED_FOOTER;
     if (!duplicate && ALREADY_SAID_PINGED.some((re) => re.test(body))) return body;
     if (duplicate && /still with a person/i.test(body)) return body;
     return [body, footer].filter(Boolean).join('\n\n');
   }
 
-  if (ALREADY_SAID_NO_PING.some((re) => re.test(body))) return body;
-  return `${body}\n\n${ESCALATE_FOOTER}`;
+  return [body, ESCALATE_FOOTER].filter(Boolean).join('\n\n');
 }
 
 module.exports = {

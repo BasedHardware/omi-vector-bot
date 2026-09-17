@@ -67,7 +67,8 @@ test('escalate footer is generic and skipped if the answer already said no ping'
     'Ich habe noch niemanden kontaktiert. Bitte halte die LED-Farbe bereit.'
   );
   assert.equal(german.includes('Refunds'), false);
-  assert.equal(german.includes('I have not pinged'), false);
+  assert.match(german, /LED-Farbe/);
+  assert.match(german, /have not pinged a human yet/i);
 });
 
 test('escalate footer only claims a ping after a real handoff', () => {
@@ -80,6 +81,23 @@ test('escalate footer only claims a ping after a real handoff', () => {
 
   const failed = escalateReply('This needs a person.', { pinged: false });
   assert.match(failed, /have not pinged a human yet/i);
+});
+
+test('does not contradict a real handoff with I cannot ping anyone', () => {
+  const live = escalateReply(
+    [
+      "I can't see orders, tracking, or shipping from here — I have no access to any of that, so I won't guess at a status or a date.",
+      "I'm flagging this for a person on the Omi team. That handoff happens on my side after I answer; I'm not able to ping anyone myself, so I won't tell you I did.",
+      'If you already have an order confirmation, keep the order number handy — that\'s what a human will need to look it up.',
+    ].join('\n\n'),
+    { pinged: true }
+  );
+  assert.match(live, /can't see orders/i);
+  assert.match(live, /order number handy/i);
+  assert.match(live, /sent this to a person/i);
+  assert.equal(/not able to ping/i.test(live), false);
+  assert.equal(/won't tell you i did/i.test(live), false);
+  assert.equal(/flagging this/i.test(live), false);
 });
 
 test('parses fenced JSON from the model', () => {

@@ -46,7 +46,7 @@ async function queryAgent({ question, threadHistory, knowledgeSnippets, sessionI
         model: OPENCODE_MODEL,
         temperature: 0.2,
         messages: [
-          { role: 'system', content: buildSystemPrompt({ canNotifyStaff: Boolean(canNotifyStaff) }) },
+          { role: 'system', content: buildSystemPrompt() },
           {
             role: 'user',
             content: buildUserPrompt({ question, threadHistory, knowledgeSnippets }),
