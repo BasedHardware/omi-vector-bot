@@ -68,9 +68,44 @@ function typingDelay() {
 }
 
 function sanitizeReply(text) {
-  return stripStaffLies(
-    text.replace(/\bas an ai\b/gi, '').replace(/\s{2,}/g, ' ').trim()
-  );
+  const cleaned = String(text || '')
+    .replace(/\bas an ai\b/gi, '')
+    .split('\n')
+    .map((line) => line.replace(/[^\S\n]{2,}/g, ' ').trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return stripStaffLies(cleaned);
+}
+
+function expandPipeLists(text) {
+  return String(text || '')
+    .split('\n')
+    .flatMap((line) => {
+      if (!/=/.test(line) || !/\s\|\s/.test(line)) return [line];
+      const items = line
+        .split(/\s*\|\s*/)
+        .map((part) => part.replace(/^[-*]\s+/, '').trim())
+        .filter(Boolean);
+      if (items.length < 2) return [line];
+
+      const first = items[0];
+      const labeled = first.match(/^(.*?:\s*)(.+?\s*=\s*.+)$/);
+      const rest = items.slice(1).map((item) => `- ${item}`);
+      if (labeled) {
+        const intro = labeled[1].trim();
+        const bullets = [`- ${labeled[2].trim()}`, ...rest];
+        return intro ? [intro, ...bullets] : bullets;
+      }
+      return items.map((item) => `- ${item}`);
+    })
+    .join('\n');
+}
+
+function formatDiscordReply(text) {
+  return expandPipeLists(String(text || '').trim())
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 const DISCORD_REPLY_MAX = 1900;
@@ -103,6 +138,7 @@ module.exports = {
   shouldEscalate,
   typingDelay,
   sanitizeReply,
+  formatDiscordReply,
   clipForDiscord,
   escalateReply,
   ESCALATE_FOOTER,

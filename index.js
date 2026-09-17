@@ -11,6 +11,7 @@ const {
   shouldEscalate,
   typingDelay,
   sanitizeReply,
+  formatDiscordReply,
   clipForDiscord,
   escalateReply,
 } = require('./utils');
@@ -106,7 +107,9 @@ async function handleMessage(message) {
     });
 
     await typingDelay();
-    const cleanAnswer = clipForDiscord(sanitizeReply(aiResponse.final_answer));
+    const cleanAnswer = clipForDiscord(
+      formatDiscordReply(sanitizeReply(aiResponse.final_answer))
+    );
 
     if (shouldEscalate(aiResponse, caption)) {
       console.log(`[Bot] Escalating ${channel.id} (confidence: ${aiResponse.confidence})`);

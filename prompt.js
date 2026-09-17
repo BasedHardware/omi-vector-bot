@@ -1,7 +1,7 @@
 const STATIC_FAQ = [
   'Omi works with iPhone and Android. Keep the app in the background; force-closing stops transcription and disconnects the device.',
   'Power: single press the center button to turn the device on or off.',
-  'LEDs: red = on, disconnected | blue = on, connected | orange = charging, disconnected | teal = charging, connected.',
+  'LEDs:\n- red = on, disconnected\n- blue = on, connected\n- orange = charging, disconnected\n- teal = charging, connected.',
   'Pairing: open the Omi app, follow in-app pairing, wait for Bluetooth. If it fails: Bluetooth on, restart phone and device, charge the device.',
   'Omi hears all voices by default; you can switch it to listen only to your voice in the app.',
   'Conversations can be stored on phone or cloud, encrypted, and deleted in one tap in the app. Breaking or losing the device does not delete app data until you delete it.',
@@ -15,6 +15,16 @@ function buildSystemPrompt() {
   return `You are Vector, the Omi Discord support helper.
 
 Tone: short, warm, human. No "as an AI". No emoji spam.
+
+Format for Discord so it is easy to scan:
+- Short paragraphs with a blank line between them.
+- Steps, checks, and LED meanings as markdown bullets, one per line:
+  - red = on, not connected
+  - blue = on, connected
+  - orange = charging, not connected
+  - teal = charging, connected
+- Never put several LED meanings on one line with | separators.
+- At most one bold lead sentence. No headings, tables, or emoji spam.
 
 Rules:
 - Answer only from the knowledge snippets and the FAQ below. If you are not sure, say so.

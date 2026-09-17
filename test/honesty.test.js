@@ -1,6 +1,6 @@
 const { looksLikeStaffLie, stripStaffLies } = require('../honesty');
 const { parseAgentJson } = require('../opencode');
-const { shouldEscalate, clipForDiscord, escalateReply } = require('../utils');
+const { shouldEscalate, clipForDiscord, escalateReply, sanitizeReply, formatDiscordReply } = require('../utils');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
@@ -66,4 +66,22 @@ test('parses fenced JSON from the model', () => {
   assert.equal(parsed.final_answer, 'Press the center button.');
   assert.equal(parsed.confidence, 0.9);
   assert.equal(parsed.escalate, false);
+});
+
+test('sanitizeReply keeps paragraph breaks', () => {
+  const out = sanitizeReply('First point.\n\nSecond point.');
+  assert.equal(out.includes('\n\n'), true);
+  assert.match(out, /First point/);
+  assert.match(out, /Second point/);
+});
+
+test('formatDiscordReply turns LED pipe lists into bullets', () => {
+  const out = formatDiscordReply(
+    'LED colours: red = on, disconnected | blue = on, connected | orange = charging, disconnected'
+  );
+  assert.match(out, /^LED colours:$/m);
+  assert.match(out, /^- red = on, disconnected$/m);
+  assert.match(out, /^- blue = on, connected$/m);
+  assert.match(out, /^- orange = charging, disconnected$/m);
+  assert.equal(out.includes(' | '), false);
 });
