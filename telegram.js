@@ -1,35 +1,57 @@
 const axios = require('axios');
-const db = require('./db');
 
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const BASE = `https://api.telegram.org/bot${TOKEN}`;
+const BASE = TOKEN ? `https://api.telegram.org/bot${TOKEN}` : '';
 const POLL_INTERVAL_MS = 3_000;
+const TELEGRAM_MAX = 3500;
 
 let offset = 0;
 let pollTimer = null;
 let discordClient = null;
 
+function isReady() {
+  return Boolean(TOKEN && CHAT_ID);
+}
+
 function setDiscordClient(client) {
   discordClient = client;
 }
 
-async function sendEscalation({ threadId, userQuestion, botDraft, missingInfo }) {
-  const text = [
-    `Thread: ${threadId}`,
-    `User asked: ${userQuestion}`,
-    `Bot draft: ${botDraft}`,
-    `Missing info: ${missingInfo}`,
-  ].join('\n');
+function clipField(value, max) {
+  const text = String(value || '').trim();
+  if (!text) return '(none)';
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1))}…`;
+}
 
-  await axios.post(`${BASE}/sendMessage`, {
-    chat_id: CHAT_ID,
-    text,
-    parse_mode: 'HTML',
-  });
+function formatEscalationText({ threadId, userQuestion, botDraft, missingInfo, jumpUrl }) {
+  const lines = [
+    `Thread: ${threadId || '(unknown)'}`,
+    jumpUrl ? `Jump: ${jumpUrl}` : '',
+    `User asked: ${clipField(userQuestion, 1200)}`,
+    `Why: ${clipField(missingInfo, 300)}`,
+    `Bot draft: ${clipField(botDraft, 800)}`,
+  ].filter(Boolean);
+  return lines.join('\n').slice(0, TELEGRAM_MAX);
+}
+
+async function sendEscalation(payload) {
+  if (!isReady()) return false;
+  try {
+    await axios.post(`${BASE}/sendMessage`, {
+      chat_id: CHAT_ID,
+      text: formatEscalationText(payload),
+    });
+    return true;
+  } catch (err) {
+    console.error('[Telegram] send failed:', err.message);
+    return false;
+  }
 }
 
 async function pollUpdates() {
+  if (!isReady()) return;
   try {
     const { data } = await axios.get(`${BASE}/getUpdates`, {
       params: { offset, timeout: 2 },
@@ -79,35 +101,43 @@ async function handleUpdate(update) {
 
   console.log(`[Telegram] Got reply for thread ${threadId}`);
 
-  // Post answer to Discord thread
+  // Post answer to Discord (thread or text channel)
   if (discordClient) {
     try {
       const channel = await discordClient.channels.fetch(threadId);
-      if (channel?.isThread()) {
+      if (channel?.isTextBased?.() && typeof channel.send === 'function') {
         await channel.send(answer);
-        console.log(`[Telegram] Posted answer to thread ${threadId}`);
+        console.log(`[Telegram] Posted answer to ${threadId}`);
       }
     } catch (err) {
-      console.error(`[Telegram] Failed to post to thread ${threadId}:`, err.message);
+      console.error(`[Telegram] Failed to post to ${threadId}:`, err.message);
     }
   }
 
-  // Save KB snippet if provided
-  if (kbSnippet) {
+  // Save KB snippet if provided (needs DATABASE_URL)
+  if (kbSnippet && process.env.DATABASE_URL) {
+    const db = require('./db');
     await db.addKnowledge(kbSnippet);
     console.log('[Telegram] Saved knowledge snippet');
   }
 
   // Resolve escalation
-  const escalation = await db.getPendingEscalation(threadId);
-  if (escalation) {
-    await db.resolveEscalation(escalation.id);
-    console.log(`[Telegram] Resolved escalation #${escalation.id}`);
+  if (process.env.DATABASE_URL) {
+    const db = require('./db');
+    const escalation = await db.getPendingEscalation(threadId);
+    if (escalation) {
+      await db.resolveEscalation(escalation.id);
+      console.log(`[Telegram] Resolved escalation #${escalation.id}`);
+    }
   }
 }
 
 function startPolling() {
   if (pollTimer) return;
+  if (!isReady()) {
+    console.log('[Telegram] Not configured, polling skipped');
+    return;
+  }
   console.log('[Telegram] Polling started');
 
   async function tick() {
@@ -126,6 +156,8 @@ function stopPolling() {
 }
 
 module.exports = {
+  isReady,
+  formatEscalationText,
   sendEscalation,
   startPolling,
   stopPolling,

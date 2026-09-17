@@ -1,6 +1,6 @@
 const { looksLikeStaffLie, stripStaffLies } = require('../honesty');
 const { parseAgentJson } = require('../opencode');
-const { shouldEscalate, clipForDiscord, escalateReply, sanitizeReply, formatDiscordReply } = require('../utils');
+const { shouldEscalate, clipForDiscord, escalateReply, sanitizeReply, formatDiscordReply, needsHumanAccess, PINGED_FOOTER } = require('../utils');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
@@ -39,6 +39,17 @@ test('device charging does not keyword-escalate; billed charge does', () => {
   );
 });
 
+test('order/firmware/tracking need a human; pairing does not', () => {
+  assert.equal(needsHumanAccess('where is my order'), true);
+  assert.equal(needsHumanAccess('tracking number for order #1234'), true);
+  assert.equal(needsHumanAccess('what firmware should I flash'), true);
+  assert.equal(needsHumanAccess('in order to pair, I press the button'), false);
+  assert.equal(
+    shouldEscalate({ confidence: 0.99, escalate: false }, 'where is my order'),
+    true
+  );
+});
+
 test('clips Discord replies under the length cap', () => {
   const long = 'a'.repeat(2000);
   const out = clipForDiscord(long, 100);
@@ -59,6 +70,18 @@ test('escalate footer is generic and skipped if the answer already said no ping'
   assert.equal(german.includes('I have not pinged'), false);
 });
 
+test('escalate footer only claims a ping after a real handoff', () => {
+  const pinged = escalateReply('I have not pinged a human yet.\nThis needs a person.', {
+    pinged: true,
+  });
+  assert.match(pinged, /sent this to a person/i);
+  assert.equal(pinged.includes('I have not pinged'), false);
+  assert.equal(pinged.includes(PINGED_FOOTER), true);
+
+  const failed = escalateReply('This needs a person.', { pinged: false });
+  assert.match(failed, /have not pinged a human yet/i);
+});
+
 test('parses fenced JSON from the model', () => {
   const parsed = parseAgentJson(
     '```json\n{"final_answer":"Press the center button.","confidence":0.9,"escalate":false}\n```'
@@ -66,6 +89,14 @@ test('parses fenced JSON from the model', () => {
   assert.equal(parsed.final_answer, 'Press the center button.');
   assert.equal(parsed.confidence, 0.9);
   assert.equal(parsed.escalate, false);
+});
+
+test('parses escalate reason from the model', () => {
+  const parsed = parseAgentJson(
+    '{"final_answer":"A person needs to look up the order.","confidence":0.4,"escalate":true,"reason":"no order access"}'
+  );
+  assert.equal(parsed.escalate, true);
+  assert.equal(parsed.reason, 'no order access');
 });
 
 test('sanitizeReply keeps paragraph breaks', () => {

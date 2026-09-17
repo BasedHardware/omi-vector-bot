@@ -11,6 +11,7 @@ const permissions = String(
     2048n + // Send Messages
     16384n + // Embed Links
     65536n + // Read Message History
+    17179869184n + // Create Public Threads (handoff threads)
     274877906944n // Send Messages in Threads
 );
 

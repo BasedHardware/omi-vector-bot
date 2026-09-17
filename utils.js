@@ -21,6 +21,22 @@ const ESCALATION_PATTERNS = [
   /\bgdpr\b/i,
 ];
 
+// Things Vector cannot see or change. Do not bluff — hand off.
+const ACCESS_GAP_PATTERNS = [
+  /\border\s*(#|number|id|status|num)\b/i,
+  /\b(my|the)\s+order\b/i,
+  /\btracking\b/i,
+  /\bfirmware\b/i,
+  /\brma\b/i,
+  /\bwarehouse\b/i,
+  /\bcustoms\b/i,
+  /\bproduction logs?\b/i,
+  /\bserver logs?\b/i,
+  /\bserial( number)?\b/i,
+  /\breplacement (device|unit|omi)\b/i,
+  /\bdelete my (account|data)\b/i,
+];
+
 const CONFIDENCE_THRESHOLD = 0.72;
 const COOLDOWN_MS = 60_000;
 
@@ -54,10 +70,16 @@ function containsEscalationKeyword(text) {
   return ESCALATION_PATTERNS.some((re) => re.test(s));
 }
 
+function needsHumanAccess(text) {
+  const s = String(text || '');
+  return ACCESS_GAP_PATTERNS.some((re) => re.test(s));
+}
+
 function shouldEscalate(aiResponse, userMessage) {
   if (aiResponse.confidence < CONFIDENCE_THRESHOLD) return true;
   if (aiResponse.escalate === true) return true;
   if (containsEscalationKeyword(userMessage)) return true;
+  if (needsHumanAccess(userMessage)) return true;
   return false;
 }
 
@@ -119,13 +141,44 @@ function clipForDiscord(text, max = DISCORD_REPLY_MAX) {
 const ESCALATE_FOOTER =
   'I have not pinged a human yet. A person on the team needs to take this.';
 
+const PINGED_FOOTER =
+  'I sent this to a person on the team. I cannot see orders, warehouse, or production logs myself.';
+
+const DUPLICATE_FOOTER =
+  'This is still with a person from earlier. I have not sent a second ping.';
+
 const ALREADY_SAID_NO_PING = [
   /have not (pinged|messaged|contacted|notified)/i,
   /noch niemanden/i,
 ];
 
-function escalateReply(answer) {
-  const body = String(answer || '').trim();
+const ALREADY_SAID_PINGED = [
+  /sent this to a person/i,
+  /posted this to the team/i,
+];
+
+function dropMatchingLines(text, patterns) {
+  return String(text || '')
+    .split('\n')
+    .filter((line) => !patterns.some((re) => re.test(line)))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function escalateReply(answer, opts = {}) {
+  const pinged = Boolean(opts.pinged);
+  const duplicate = Boolean(opts.duplicate);
+  let body = String(answer || '').trim();
+
+  if (pinged) {
+    body = dropMatchingLines(body, ALREADY_SAID_NO_PING);
+    const footer = duplicate ? DUPLICATE_FOOTER : PINGED_FOOTER;
+    if (!duplicate && ALREADY_SAID_PINGED.some((re) => re.test(body))) return body;
+    if (duplicate && /still with a person/i.test(body)) return body;
+    return [body, footer].filter(Boolean).join('\n\n');
+  }
+
   if (ALREADY_SAID_NO_PING.some((re) => re.test(body))) return body;
   return `${body}\n\n${ESCALATE_FOOTER}`;
 }
@@ -142,5 +195,8 @@ module.exports = {
   clipForDiscord,
   escalateReply,
   ESCALATE_FOOTER,
+  PINGED_FOOTER,
+  DUPLICATE_FOOTER,
   CONFIDENCE_THRESHOLD,
+  needsHumanAccess,
 };

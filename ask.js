@@ -19,11 +19,12 @@ async function main() {
 
   console.log(escalate ? 'ESCALATE' : 'ANSWER');
   console.log(`confidence ${ai.confidence}`);
+  if (ai.reason) console.log(`reason ${ai.reason}`);
   console.log('');
   console.log(ai.final_answer);
   if (escalate) {
     console.log('');
-    console.log('(No human was pinged. Discord/Telegram is not wired yet.)');
+    console.log('(CLI: no Discord staff ping from here.)');
   }
 }
 

@@ -27,11 +27,11 @@ function parseAgentJson(raw) {
     final_answer: stripStaffLies(data.final_answer.trim()),
     confidence: Number.isFinite(confidence) ? confidence : 0.4,
     escalate: Boolean(data.escalate),
-    escalation_question_for_aarav: data.escalation_question_for_aarav || '',
+    reason: String(data.reason || data.escalation_question_for_aarav || '').trim(),
   };
 }
 
-async function queryAgent({ question, threadHistory, knowledgeSnippets, sessionId }) {
+async function queryAgent({ question, threadHistory, knowledgeSnippets, sessionId, canNotifyStaff }) {
   const key = process.env.OPENCODE_API_KEY;
   if (!key) {
     throw new Error('Missing OPENCODE_API_KEY');
@@ -46,7 +46,7 @@ async function queryAgent({ question, threadHistory, knowledgeSnippets, sessionI
         model: OPENCODE_MODEL,
         temperature: 0.2,
         messages: [
-          { role: 'system', content: buildSystemPrompt() },
+          { role: 'system', content: buildSystemPrompt({ canNotifyStaff: Boolean(canNotifyStaff) }) },
           {
             role: 'user',
             content: buildUserPrompt({ question, threadHistory, knowledgeSnippets }),

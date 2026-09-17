@@ -16,6 +16,7 @@ const {
   escalateReply,
 } = require('./utils');
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
+const { notifyStaff, canNotifyStaff, isHandoffThread } = require('./handoff');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
@@ -46,6 +47,7 @@ function isTestChannel(channel) {
 
 function shouldHandle(message) {
   if (message.author.bot) return false;
+  if (isHandoffThread(message.channel)) return false;
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   if (caption.length < 5 && !hasUsableAttachment(message)) return false;
   if (isTestChannel(message.channel)) return true;
@@ -104,6 +106,7 @@ async function handleMessage(message) {
       threadHistory,
       knowledgeSnippets,
       sessionId: `discord-${channel.id}`,
+      canNotifyStaff: canNotifyStaff({ discordReady: true }),
     });
 
     await typingDelay();
@@ -113,15 +116,25 @@ async function handleMessage(message) {
 
     if (shouldEscalate(aiResponse, caption)) {
       console.log(`[Bot] Escalating ${channel.id} (confidence: ${aiResponse.confidence})`);
-      await message.reply(escalateReply(cleanAnswer));
-      if (telegramReady) {
-        await telegram.sendEscalation({
-          threadId: channel.id,
-          userQuestion: question,
-          botDraft: cleanAnswer,
-          missingInfo: aiResponse.escalation_question_for_aarav,
+      let pinged = false;
+      let duplicate = false;
+      try {
+        const handoff = await notifyStaff({
+          client,
+          message,
+          question,
+          reason: aiResponse.reason,
+          draft: cleanAnswer,
         });
+        pinged = Boolean(handoff.ok);
+        duplicate = Boolean(handoff.duplicate);
+        console.log(
+          `[Bot] Handoff ${channel.id} via=${handoff.via || 'none'} ok=${pinged}`
+        );
+      } catch (err) {
+        console.error('[Bot] Handoff failed:', err.message);
       }
+      await message.reply(escalateReply(cleanAnswer, { pinged, duplicate }));
       if (dbReady) {
         await db.createEscalation(channel.id);
       }
@@ -146,6 +159,8 @@ async function handleMessage(message) {
 }
 
 client.on(Events.ThreadCreate, async (thread) => {
+  if (client.user && thread.ownerId === client.user.id) return;
+  if (isHandoffThread(thread)) return;
   if (!isHelpThread(thread) && !isTestChannel(thread)) return;
   try {
     const starter = await thread.fetchStarterMessage();
@@ -172,6 +187,9 @@ client.once(Events.ClientReady, () => {
   if (!VECTOR_TEST_CHANNEL_ID && !HELP_FORUM_CHANNEL_ID) {
     console.log('[Bot] No channel pinned — will answer when @mentioned');
   }
+  console.log(
+    `[Bot] Handoff staff-channel=${Boolean(process.env.STAFF_ALERT_CHANNEL_ID)} telegram=${telegramReady} threads=${process.env.HANDOFF_THREADS !== '0'}`
+  );
 });
 
 async function start() {
