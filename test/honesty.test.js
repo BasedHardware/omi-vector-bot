@@ -25,6 +25,20 @@ test('refund questions escalate without needing the model', () => {
   );
 });
 
+test('device charging does not keyword-escalate; billed charge does', () => {
+  assert.equal(
+    shouldEscalate(
+      { confidence: 0.99, escalate: false },
+      'the LED is orange, the device is charging'
+    ),
+    false
+  );
+  assert.equal(
+    shouldEscalate({ confidence: 0.99, escalate: false }, 'I was charged twice'),
+    true
+  );
+});
+
 test('clips Discord replies under the length cap', () => {
   const long = 'a'.repeat(2000);
   const out = clipForDiscord(long, 100);

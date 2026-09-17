@@ -8,18 +8,17 @@ const GREETINGS = [
   'Hey! Let me help with that.',
 ];
 
-const ESCALATION_KEYWORDS = [
-  'billing',
-  'refund',
-  'privacy',
-  'shipping',
-  'charge',
-  'charged',
-  'invoice',
-  'payment',
-  'cancel subscription',
-  'delete my data',
-  'gdpr',
+const ESCALATION_PATTERNS = [
+  /\bbilling\b/i,
+  /\brefunds?\b/i,
+  /\bprivacy\b/i,
+  /\bshipping\b/i,
+  /\bcharged\b/i,
+  /\binvoice\b/i,
+  /\bpayment\b/i,
+  /cancel subscription/i,
+  /delete my data/i,
+  /\bgdpr\b/i,
 ];
 
 const CONFIDENCE_THRESHOLD = 0.72;
@@ -51,8 +50,8 @@ function randomGreeting() {
 }
 
 function containsEscalationKeyword(text) {
-  const lower = text.toLowerCase();
-  return ESCALATION_KEYWORDS.some((kw) => lower.includes(kw));
+  const s = String(text || '');
+  return ESCALATION_PATTERNS.some((re) => re.test(s));
 }
 
 function shouldEscalate(aiResponse, userMessage) {

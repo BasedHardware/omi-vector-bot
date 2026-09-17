@@ -8,13 +8,13 @@ const telegram = require('./telegram');
 const {
   isOnCooldown,
   markReplied,
-  randomGreeting,
   shouldEscalate,
   typingDelay,
   sanitizeReply,
   clipForDiscord,
   escalateReply,
 } = require('./utils');
+const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
@@ -45,7 +45,8 @@ function isTestChannel(channel) {
 
 function shouldHandle(message) {
   if (message.author.bot) return false;
-  if (message.content.trim().length < 5) return false;
+  const caption = message.content.replace(/<@!?\d+>/g, '').trim();
+  if (caption.length < 5 && !hasUsableAttachment(message)) return false;
   if (isTestChannel(message.channel)) return true;
   if (isHelpThread(message.channel)) return true;
   if (client.user && message.mentions.has(client.user)) return true;
@@ -82,7 +83,9 @@ async function handleMessage(message) {
     return;
   }
 
-  const question = message.content.replace(/<@!?\d+>/g, '').trim();
+  const caption = message.content.replace(/<@!?\d+>/g, '').trim();
+  const files = await fetchTextAttachments(message.attachments);
+  const question = formatQuestion(caption, files);
   if (question.length < 5) return;
 
   console.log(`[Bot] Processing in ${channel.id}`);
@@ -92,7 +95,7 @@ async function handleMessage(message) {
 
     const [threadHistory, knowledgeSnippets] = await Promise.all([
       getHistory(channel),
-      searchKnowledge(question),
+      searchKnowledge(caption || question),
     ]);
 
     const aiResponse = await queryAgent({
@@ -105,7 +108,7 @@ async function handleMessage(message) {
     await typingDelay();
     const cleanAnswer = clipForDiscord(sanitizeReply(aiResponse.final_answer));
 
-    if (shouldEscalate(aiResponse, question)) {
+    if (shouldEscalate(aiResponse, caption)) {
       console.log(`[Bot] Escalating ${channel.id} (confidence: ${aiResponse.confidence})`);
       await message.reply(escalateReply(cleanAnswer));
       if (telegramReady) {
@@ -120,7 +123,7 @@ async function handleMessage(message) {
         await db.createEscalation(channel.id);
       }
     } else {
-      await message.reply(`${randomGreeting()} ${cleanAnswer}`);
+      await message.reply(cleanAnswer);
     }
 
     markReplied(channel.id);
