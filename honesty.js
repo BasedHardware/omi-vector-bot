@@ -20,7 +20,7 @@ function stripStaffLies(text) {
   const lines = text.split('\n').filter((line) => !looksLikeStaffLie(line));
   const joined = lines.join('\n').trim();
   if (!joined || looksLikeStaffLie(joined)) {
-    return 'I do not have a human on this yet. I can help with product/how-to questions. For refunds, shipping, or account issues, a person on the team needs to reply — I have not messaged anyone.';
+    return 'I do not have a human on this yet. I have not messaged anyone. A person on the team needs to take this.';
   }
   return joined;
 }

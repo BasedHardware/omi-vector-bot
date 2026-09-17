@@ -1,6 +1,6 @@
 const { looksLikeStaffLie, stripStaffLies } = require('../honesty');
 const { parseAgentJson } = require('../opencode');
-const { shouldEscalate, clipForDiscord } = require('../utils');
+const { shouldEscalate, clipForDiscord, escalateReply } = require('../utils');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
@@ -30,6 +30,19 @@ test('clips Discord replies under the length cap', () => {
   const out = clipForDiscord(long, 100);
   assert.equal(out.length, 100);
   assert.equal(out.endsWith('…'), true);
+});
+
+test('escalate footer is generic and skipped if the answer already said no ping', () => {
+  const withFooter = escalateReply('This needs a person.');
+  assert.match(withFooter, /person on the team needs to take this/i);
+  assert.equal(withFooter.includes('Refunds'), false);
+  assert.equal(withFooter.includes('shipping'), false);
+
+  const german = escalateReply(
+    'Ich habe noch niemanden kontaktiert. Bitte halte die LED-Farbe bereit.'
+  );
+  assert.equal(german.includes('Refunds'), false);
+  assert.equal(german.includes('I have not pinged'), false);
 });
 
 test('parses fenced JSON from the model', () => {

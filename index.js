@@ -13,6 +13,7 @@ const {
   typingDelay,
   sanitizeReply,
   clipForDiscord,
+  escalateReply,
 } = require('./utils');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -106,9 +107,7 @@ async function handleMessage(message) {
 
     if (shouldEscalate(aiResponse, question)) {
       console.log(`[Bot] Escalating ${channel.id} (confidence: ${aiResponse.confidence})`);
-      await message.reply(
-        `${cleanAnswer}\n\nI have not pinged a human yet. Refunds, shipping, and account issues need a person on the team.`
-      );
+      await message.reply(escalateReply(cleanAnswer));
       if (telegramReady) {
         await telegram.sendEscalation({
           threadId: channel.id,

@@ -82,6 +82,20 @@ function clipForDiscord(text, max = DISCORD_REPLY_MAX) {
   return `${s.slice(0, Math.max(0, max - 1))}…`;
 }
 
+const ESCALATE_FOOTER =
+  'I have not pinged a human yet. A person on the team needs to take this.';
+
+const ALREADY_SAID_NO_PING = [
+  /have not (pinged|messaged|contacted|notified)/i,
+  /noch niemanden/i,
+];
+
+function escalateReply(answer) {
+  const body = String(answer || '').trim();
+  if (ALREADY_SAID_NO_PING.some((re) => re.test(body))) return body;
+  return `${body}\n\n${ESCALATE_FOOTER}`;
+}
+
 module.exports = {
   isOnCooldown,
   markReplied,
@@ -91,5 +105,7 @@ module.exports = {
   typingDelay,
   sanitizeReply,
   clipForDiscord,
+  escalateReply,
+  ESCALATE_FOOTER,
   CONFIDENCE_THRESHOLD,
 };
