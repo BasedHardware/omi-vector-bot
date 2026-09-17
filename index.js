@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const express = require('express');
 const db = require('./db');
-const { queryAgent } = require('./openclaw');
+const { queryAgent } = require('./opencode');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -77,11 +77,11 @@ async function handleMessage(message) {
       db.searchKnowledge(message.content),
     ]);
 
-    // Call OpenClaw
     const aiResponse = await queryAgent({
       question: message.content,
       threadHistory,
       knowledgeSnippets,
+      sessionId: `discord-${thread.id}`,
     });
 
     // Human-like delay
@@ -174,7 +174,7 @@ async function start() {
     'DISCORD_TOKEN',
     'TELEGRAM_TOKEN',
     'TELEGRAM_CHAT_ID',
-    'OPENCLAW_URL',
+    'OPENCODE_API_KEY',
     'DATABASE_URL',
     'HELP_FORUM_CHANNEL_ID',
   ];

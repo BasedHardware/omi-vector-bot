@@ -1,3 +1,5 @@
+const { stripStaffLies } = require('./honesty');
+
 const GREETINGS = [
   'Hey!',
   'Hi there!',
@@ -67,8 +69,9 @@ function typingDelay() {
 }
 
 function sanitizeReply(text) {
-  // Strip any "As an AI" phrasing
-  return text.replace(/\bas an ai\b/gi, '').replace(/\s{2,}/g, ' ').trim();
+  return stripStaffLies(
+    text.replace(/\bas an ai\b/gi, '').replace(/\s{2,}/g, ' ').trim()
+  );
 }
 
 module.exports = {
