@@ -18,6 +18,18 @@ test('pure lie is replaced with an honest fallback', () => {
   assert.match(out, /have not messaged anyone/i);
 });
 
+test('strips invented checkout-email lookup from order replies', () => {
+  const out = sanitizeReply(
+    [
+      "I still can't see order or shipping status from here.",
+      "If you have your order number, keep it handy — it's what's needed to look the order up. If you don't, the email address you used at checkout is the other useful thing.",
+    ].join('\n\n')
+  );
+  assert.match(out, /order number, keep it handy/);
+  assert.equal(/checkout/i.test(out), false);
+  assert.equal(/email address you used/i.test(out), false);
+});
+
 test('refund questions escalate without needing the model', () => {
   assert.equal(
     shouldEscalate({ confidence: 0.99, escalate: false }, 'I want a refund'),

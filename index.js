@@ -157,7 +157,10 @@ async function handleMessage(message) {
 
     await typingDelay();
     const cleanAnswer = clipForDiscord(
-      formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer)))
+      knowledge.applyStaffFacts(
+        formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
+        knowledgeSnippets
+      )
     );
 
     if (shouldEscalate(aiResponse, caption)) {

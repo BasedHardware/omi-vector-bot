@@ -10,9 +10,37 @@ const LIE_PATTERNS = [
   /someone will follow up/i,
 ];
 
+const INVENTED_LOOKUP = [
+  /\bcheckout\b/i,
+  /confirmation email/i,
+  /email address you used/i,
+  /email you used/i,
+];
+
 function looksLikeStaffLie(text) {
   if (!text) return false;
   return LIE_PATTERNS.some((re) => re.test(text));
+}
+
+function looksLikeInventedLookup(text) {
+  return INVENTED_LOOKUP.some((re) => re.test(String(text || '')));
+}
+
+function stripInventedLookup(text) {
+  const cleaned = String(text || '')
+    .split('\n')
+    .map((line) => {
+      if (!looksLikeInventedLookup(line)) return line;
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => !looksLikeInventedLookup(sentence))
+        .join(' ');
+    })
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return cleaned;
 }
 
 function stripStaffLies(text) {
@@ -25,4 +53,4 @@ function stripStaffLies(text) {
   return joined;
 }
 
-module.exports = { looksLikeStaffLie, stripStaffLies };
+module.exports = { looksLikeStaffLie, stripStaffLies, stripInventedLookup, looksLikeInventedLookup };

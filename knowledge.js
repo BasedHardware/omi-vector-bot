@@ -59,6 +59,46 @@ function search(query, limit = SEARCH_LIMIT) {
   return pool.slice(0, limit);
 }
 
+const STOP = new Set([
+  'order',
+  'orders',
+  'tracking',
+  'lookups',
+  'lookup',
+  'person',
+  'cannot',
+  'vector',
+  'need',
+  'needs',
+  'and',
+  'the',
+  'from',
+  'here',
+  'status',
+  'shipping',
+]);
+
+function factAlreadyUsed(body, fact) {
+  const b = String(body || '').toLowerCase();
+  const f = String(fact || '').trim();
+  if (!f) return true;
+  if (b.includes(f.toLowerCase().slice(0, Math.min(48, f.length)))) return true;
+  const tokens = f
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ''))
+    .filter((w) => w.length > 5 && !STOP.has(w.toLowerCase()));
+  return tokens.some((w) => b.includes(w.toLowerCase()));
+}
+
+function applyStaffFacts(answer, factsIn) {
+  const facts = (factsIn || []).map((s) => String(s || '').trim()).filter(Boolean);
+  if (!facts.length) return String(answer || '').trim();
+  const body = String(answer || '').trim();
+  const unused = facts.filter((fact) => !factAlreadyUsed(body, fact));
+  if (!unused.length) return body;
+  return [unused[0], body].filter(Boolean).join('\n\n');
+}
+
 async function searchAll(query, limit = SEARCH_LIMIT) {
   const local = search(query, limit);
   if (!process.env.DATABASE_URL) return local;
@@ -90,4 +130,5 @@ module.exports = {
   persistSnippet,
   search,
   searchAll,
+  applyStaffFacts,
 };

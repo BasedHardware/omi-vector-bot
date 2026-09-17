@@ -5,6 +5,7 @@ const {
   addSnippet,
   search,
   resetKnowledge,
+  applyStaffFacts,
 } = require('../knowledge');
 const { canSaveFaq, isHandoffThread } = require('../handoff');
 
@@ -46,6 +47,20 @@ test('only named staff can save when an allow list is set', () => {
 test('normal Handoff sentences are not faq commands so Vector stays quiet', () => {
   assert.equal(isHandoffThread({ isThread: () => true, name: 'Handoff · astar6969' }), true);
   assert.equal(parseFaqCommand('I will look up the order in Shopify.'), null);
+});
+
+test('applyStaffFacts prepends Shopify when the model dropped it', () => {
+  const out = applyStaffFacts(
+    "I can't see orders, tracking, or shipping from here, so I won't guess at a status or a date.",
+    ['Order and tracking lookups need a person. Vector cannot see Shopify.']
+  );
+  assert.match(out, /Shopify/);
+  assert.match(out, /can't see orders/);
+  const already = applyStaffFacts(
+    'Vector cannot see Shopify. Keep the order number handy.',
+    ['Order and tracking lookups need a person. Vector cannot see Shopify.']
+  );
+  assert.equal((already.match(/Shopify/g) || []).length, 1);
 });
 
 test('user prompt tells the model to use staff-saved knowledge words', () => {

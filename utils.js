@@ -1,4 +1,4 @@
-const { stripStaffLies } = require('./honesty');
+const { stripStaffLies, stripInventedLookup } = require('./honesty');
 
 const ESCALATION_PATTERNS = [
   /\bbilling\b/i,
@@ -84,7 +84,7 @@ function sanitizeReply(text) {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-  return stripStaffLies(cleaned);
+  return stripInventedLookup(stripStaffLies(cleaned));
 }
 
 function expandPipeLists(text) {
