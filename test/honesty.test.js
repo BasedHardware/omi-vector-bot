@@ -1,6 +1,6 @@
 const { looksLikeStaffLie, stripStaffLies } = require('../honesty');
 const { parseAgentJson } = require('../opencode');
-const { shouldEscalate } = require('../utils');
+const { shouldEscalate, clipForDiscord } = require('../utils');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
@@ -23,6 +23,13 @@ test('refund questions escalate without needing the model', () => {
     shouldEscalate({ confidence: 0.99, escalate: false }, 'I want a refund'),
     true
   );
+});
+
+test('clips Discord replies under the length cap', () => {
+  const long = 'a'.repeat(2000);
+  const out = clipForDiscord(long, 100);
+  assert.equal(out.length, 100);
+  assert.equal(out.endsWith('…'), true);
 });
 
 test('parses fenced JSON from the model', () => {

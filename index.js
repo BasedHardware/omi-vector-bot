@@ -12,12 +12,14 @@ const {
   shouldEscalate,
   typingDelay,
   sanitizeReply,
+  clipForDiscord,
 } = require('./utils');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
+const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
 const PORT = process.env.PORT || 3000;
-
-// ── Discord Client ──────────────────────────────────────────────────────────
+const telegramReady = Boolean(process.env.TELEGRAM_TOKEN && process.env.TELEGRAM_CHAT_ID);
+const dbReady = Boolean(process.env.DATABASE_URL);
 
 const client = new Client({
   intents: [
@@ -27,19 +29,30 @@ const client = new Client({
   ],
 });
 
-// ── Health Server ───────────────────────────────────────────────────────────
-
 const app = express();
 app.get('/health', (_req, res) => res.send('OK'));
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
 function isHelpThread(channel) {
-  return channel.isThread() && channel.parentId === HELP_FORUM_CHANNEL_ID;
+  return Boolean(HELP_FORUM_CHANNEL_ID) && channel.isThread() && channel.parentId === HELP_FORUM_CHANNEL_ID;
 }
 
-async function getThreadHistory(thread, limit = 10) {
-  const messages = await thread.messages.fetch({ limit });
+function isTestChannel(channel) {
+  if (!VECTOR_TEST_CHANNEL_ID) return false;
+  if (channel.id === VECTOR_TEST_CHANNEL_ID) return true;
+  return channel.isThread() && channel.parentId === VECTOR_TEST_CHANNEL_ID;
+}
+
+function shouldHandle(message) {
+  if (message.author.bot) return false;
+  if (message.content.trim().length < 5) return false;
+  if (isTestChannel(message.channel)) return true;
+  if (isHelpThread(message.channel)) return true;
+  if (client.user && message.mentions.has(client.user)) return true;
+  return false;
+}
+
+async function getHistory(channel, limit = 10) {
+  const messages = await channel.messages.fetch({ limit });
   return [...messages.values()]
     .reverse()
     .map((m) => ({
@@ -48,106 +61,87 @@ async function getThreadHistory(thread, limit = 10) {
     }));
 }
 
+async function searchKnowledge(question) {
+  if (!dbReady) return [];
+  try {
+    return await db.searchKnowledge(question);
+  } catch (err) {
+    console.error('[DB] search failed:', err.message);
+    return [];
+  }
+}
+
 async function handleMessage(message) {
-  // Ignore bots
-  if (message.author.bot) return;
+  if (!shouldHandle(message)) return;
 
-  // Must be in a help forum thread
-  const thread = message.channel;
-  if (!isHelpThread(thread)) return;
-
-  // Ignore very short messages
-  if (message.content.trim().length < 5) return;
-
-  // Anti-spam: 60s cooldown per thread
-  if (isOnCooldown(thread.id)) {
-    console.log(`[Bot] Cooldown active for thread ${thread.id}, skipping`);
+  const channel = message.channel;
+  // Test channel: do not silently drop a second question. Help-forum cooldown stays.
+  if (isOnCooldown(channel.id) && !isTestChannel(channel)) {
+    console.log(`[Bot] Cooldown active for ${channel.id}, skipping`);
     return;
   }
 
-  console.log(`[Bot] Processing message in thread ${thread.id}`);
+  const question = message.content.replace(/<@!?\d+>/g, '').trim();
+  if (question.length < 5) return;
+
+  console.log(`[Bot] Processing in ${channel.id}`);
 
   try {
-    // Show typing indicator
-    await thread.sendTyping();
+    await channel.sendTyping();
 
-    // Gather context
     const [threadHistory, knowledgeSnippets] = await Promise.all([
-      getThreadHistory(thread),
-      db.searchKnowledge(message.content),
+      getHistory(channel),
+      searchKnowledge(question),
     ]);
 
     const aiResponse = await queryAgent({
-      question: message.content,
+      question,
       threadHistory,
       knowledgeSnippets,
-      sessionId: `discord-${thread.id}`,
+      sessionId: `discord-${channel.id}`,
     });
 
-    // Human-like delay
     await typingDelay();
+    const cleanAnswer = clipForDiscord(sanitizeReply(aiResponse.final_answer));
 
-    const cleanAnswer = sanitizeReply(aiResponse.final_answer);
-
-    // Decide: escalate or reply directly
-    if (shouldEscalate(aiResponse, message.content)) {
-      console.log(`[Bot] Escalating thread ${thread.id} (confidence: ${aiResponse.confidence})`);
-
-      // Send placeholder to user
-      await thread.send(
-        'Got this — checking internally to give you the right answer \u{1F64F}'
+    if (shouldEscalate(aiResponse, question)) {
+      console.log(`[Bot] Escalating ${channel.id} (confidence: ${aiResponse.confidence})`);
+      await message.reply(
+        `${cleanAnswer}\n\nI have not pinged a human yet. Refunds, shipping, and account issues need a person on the team.`
       );
-
-      // Send escalation to Telegram
-      await telegram.sendEscalation({
-        threadId: thread.id,
-        userQuestion: message.content,
-        botDraft: cleanAnswer,
-        missingInfo: aiResponse.escalation_question_for_aarav,
-      });
-
-      // Store escalation
-      await db.createEscalation(thread.id);
+      if (telegramReady) {
+        await telegram.sendEscalation({
+          threadId: channel.id,
+          userQuestion: question,
+          botDraft: cleanAnswer,
+          missingInfo: aiResponse.escalation_question_for_aarav,
+        });
+      }
+      if (dbReady) {
+        await db.createEscalation(channel.id);
+      }
     } else {
-      // Direct reply with a greeting
-      const greeting = randomGreeting();
-      await thread.send(`${greeting} ${cleanAnswer}`);
+      await message.reply(`${randomGreeting()} ${cleanAnswer}`);
     }
 
-    // Update tracking
-    markReplied(thread.id);
-    await db.upsertThread(thread.id, message.id);
+    markReplied(channel.id);
+    if (dbReady) {
+      await db.upsertThread(channel.id, message.id);
+    }
   } catch (err) {
-    console.error(`[Bot] Error handling message in ${thread.id}:`, err.message);
-
-    // If OpenClaw is down, escalate gracefully
-    if (!isOnCooldown(thread.id)) {
-      try {
-        await thread.send(
-          'Got this — checking internally to give you the right answer \u{1F64F}'
-        );
-        await telegram.sendEscalation({
-          threadId: thread.id,
-          userQuestion: message.content,
-          botDraft: '[OpenClaw unreachable]',
-          missingInfo: 'Bot failed to generate a response — needs manual reply.',
-        });
-        await db.createEscalation(thread.id);
-        markReplied(thread.id);
-      } catch (fallbackErr) {
-        console.error('[Bot] Fallback escalation failed:', fallbackErr.message);
-      }
+    console.error(`[Bot] Error in ${channel.id}:`, err.message);
+    try {
+      await message.reply(
+        'I hit an error answering that. I have not messaged anyone — try again in a bit.'
+      );
+    } catch (replyErr) {
+      console.error('[Bot] Reply failed:', replyErr.message);
     }
   }
 }
 
-// ── Events ──────────────────────────────────────────────────────────────────
-
 client.on(Events.ThreadCreate, async (thread) => {
-  if (!isHelpThread(thread)) return;
-  console.log(`[Bot] New help thread created: ${thread.id}`);
-
-  // Wait for the first message to arrive
+  if (!isHelpThread(thread) && !isTestChannel(thread)) return;
   try {
     const starter = await thread.fetchStarterMessage();
     if (starter && !starter.author.bot) {
@@ -164,55 +158,53 @@ client.on(Events.MessageCreate, async (message) => {
 
 client.once(Events.ClientReady, () => {
   console.log(`[Bot] Logged in as ${client.user.tag}`);
+  if (VECTOR_TEST_CHANNEL_ID) {
+    console.log(`[Bot] Test channel ${VECTOR_TEST_CHANNEL_ID}`);
+  }
+  if (HELP_FORUM_CHANNEL_ID) {
+    console.log(`[Bot] Help forum ${HELP_FORUM_CHANNEL_ID}`);
+  }
+  if (!VECTOR_TEST_CHANNEL_ID && !HELP_FORUM_CHANNEL_ID) {
+    console.log('[Bot] No channel pinned — will answer when @mentioned');
+  }
 });
 
-// ── Startup ─────────────────────────────────────────────────────────────────
-
 async function start() {
-  // Validate env
-  const required = [
-    'DISCORD_TOKEN',
-    'TELEGRAM_TOKEN',
-    'TELEGRAM_CHAT_ID',
-    'OPENCODE_API_KEY',
-    'DATABASE_URL',
-    'HELP_FORUM_CHANNEL_ID',
-  ];
+  const required = ['DISCORD_TOKEN', 'OPENCODE_API_KEY'];
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length) {
     console.error(`[Boot] Missing env variables: ${missing.join(', ')}`);
     process.exit(1);
   }
 
-  // Init DB schema
-  await db.initSchema();
+  if (dbReady) {
+    await db.initSchema();
+  }
 
-  // Start health server
   app.listen(PORT, () => {
     console.log(`[Health] Listening on port ${PORT}`);
   });
 
-  // Give Telegram module access to Discord client for posting replies
-  telegram.setDiscordClient(client);
-  telegram.startPolling();
+  if (telegramReady) {
+    telegram.setDiscordClient(client);
+    telegram.startPolling();
+  }
 
-  // Login to Discord
   await client.login(process.env.DISCORD_TOKEN);
 }
-
-// ── Graceful Shutdown ───────────────────────────────────────────────────────
 
 async function shutdown(signal) {
   console.log(`[Bot] Received ${signal}, shutting down...`);
   telegram.stopPolling();
   client.destroy();
-  await db.shutdown();
+  if (dbReady) {
+    await db.shutdown();
+  }
   process.exit(0);
 }
 
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
-
 process.on('unhandledRejection', (err) => {
   console.error('[Bot] Unhandled rejection:', err);
 });

@@ -16,6 +16,20 @@ npm run ask -- "I want a refund"
 
 Refunds/shipping should print `ESCALATE` and must not claim a human was already pinged.
 
-## Discord (later)
+## Discord (private test channel)
 
-Needs `DISCORD_TOKEN` and `HELP_FORUM_CHANNEL_ID`, then `npm start`. Do not run this in the live Omi help forum until it has been smoked in a private test channel.
+Needs `DISCORD_TOKEN`. Optional `VECTOR_TEST_CHANNEL_ID` (answers every message there). If no channel is set, it answers when @mentioned.
+
+```
+npm start
+```
+
+Do not put it in the public help forum until that private channel looks right.
+
+Create the Discord app: Developer Portal → New Application → Bot → enable **Message Content Intent** → copy token. Then:
+
+```
+npm run invite
+```
+
+Invite the bot to a **private test channel**, not the public help forum.

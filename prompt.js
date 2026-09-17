@@ -6,6 +6,7 @@ const STATIC_FAQ = [
   'Omi hears all voices by default; you can switch it to listen only to your voice in the app.',
   'Conversations can be stored on phone or cloud, encrypted, and deleted in one tap in the app. Breaking or losing the device does not delete app data until you delete it.',
   'Omi (CV1) vs Dev Kit 2: Omi has 2 mics, dual SoCs (nrf5340 + nrf7002), Wi-Fi, no speaker, 150mAh battery, ~19h recording. Dev Kit 2 has 1 mic, single SoC (nrf52840), no Wi-Fi, has a speaker, 250mAh battery, ~36h recording.',
+  'Transcription unavailable / listen socket dropping: force-closing the app stops transcription. Recurring WebSocket 1011 server_error on wss://api.omi.me/v4/listen is a backend STT/listen failure. Vector cannot read production logs or reprocess stored audio.',
   'Do not invent order status, tracking numbers, refunds, ship dates, firmware versions, or “I told the team.” Those need a human.',
 ].join('\n');
 

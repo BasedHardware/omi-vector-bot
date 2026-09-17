@@ -74,6 +74,14 @@ function sanitizeReply(text) {
   );
 }
 
+const DISCORD_REPLY_MAX = 1900;
+
+function clipForDiscord(text, max = DISCORD_REPLY_MAX) {
+  const s = String(text || '').trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, Math.max(0, max - 1))}…`;
+}
+
 module.exports = {
   isOnCooldown,
   markReplied,
@@ -82,5 +90,6 @@ module.exports = {
   shouldEscalate,
   typingDelay,
   sanitizeReply,
+  clipForDiscord,
   CONFIDENCE_THRESHOLD,
 };

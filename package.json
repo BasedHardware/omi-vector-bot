@@ -1,12 +1,13 @@
 {
   "name": "omi-vector-bot",
   "version": "1.0.0",
-  "description": "Omi Discord support bot. OpenCode for answers; Discord when a token exists.",
+  "description": "Omi Discord support bot. OpenCode for answers; Discord in a private test channel first.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
     "ask": "node ask.js",
+    "invite": "node invite.js",
     "test": "node --test test/*.js"
   },
   "engines": {
