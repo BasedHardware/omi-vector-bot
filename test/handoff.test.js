@@ -45,6 +45,9 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
     ticket.discord.embeds[0].fields.some((f) => f.name === 'Why' && f.value === 'no order access'),
     true
   );
+  const staff = ticket.discord.embeds[0].fields.find((f) => f.name === 'Staff');
+  assert.match(staff.value, /Reply in this thread/i);
+  assert.match(staff.value, /faq:/i);
   delete process.env.STAFF_USER_IDS;
   assert.equal(staffMentions(), '');
 });

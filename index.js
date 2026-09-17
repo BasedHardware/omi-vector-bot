@@ -18,7 +18,8 @@ const {
   stripPingNarration,
 } = require('./utils');
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
-const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion } = require('./handoff');
+const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion, canSaveFaq } = require('./handoff');
+const knowledge = require('./knowledge');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
@@ -71,13 +72,53 @@ async function getHistory(channel, excludeId) {
 }
 
 async function searchKnowledge(question) {
-  if (!dbReady) return [];
   try {
-    return await db.searchKnowledge(question);
+    return await knowledge.searchAll(question);
   } catch (err) {
-    console.error('[DB] search failed:', err.message);
-    return [];
+    console.error('[Knowledge] search failed:', err.message);
+    return knowledge.search(question);
   }
+}
+
+async function handleFaqSave(message) {
+  if (message.author?.bot) return false;
+  if (!isHandoffThread(message.channel)) return false;
+
+  const snippet = knowledge.parseFaqCommand(message.content);
+  if (snippet === null) return true;
+
+  if (!canSaveFaq(message.author.id)) {
+    try {
+      await message.reply('Only named staff can save a faq line.');
+    } catch (err) {
+      console.error('[Knowledge] reply failed:', err.message);
+    }
+    return true;
+  }
+
+  const saved = knowledge.addSnippet(snippet);
+  if (!saved.ok) {
+    const why =
+      saved.reason === 'lie'
+        ? 'I will not save that. It claims a ping I did not make.'
+        : 'Nothing to save. Use `faq: short true sentence`.';
+    try {
+      await message.reply(why);
+    } catch (err) {
+      console.error('[Knowledge] reply failed:', err.message);
+    }
+    return true;
+  }
+
+  if (!saved.duplicate) {
+    await knowledge.persistSnippet(saved.snippet);
+  }
+  try {
+    await message.reply('Saved. I will use this on later questions.');
+  } catch (err) {
+    console.error('[Knowledge] reply failed:', err.message);
+  }
+  return true;
 }
 
 async function handleMessage(message) {
@@ -179,6 +220,7 @@ client.on(Events.ThreadCreate, async (thread) => {
 });
 
 client.on(Events.MessageCreate, async (message) => {
+  if (await handleFaqSave(message)) return;
   await handleMessage(message);
 });
 

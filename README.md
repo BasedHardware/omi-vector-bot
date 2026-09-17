@@ -33,3 +33,11 @@ Needs `DISCORD_TOKEN`, `OPENCODE_API_KEY`, and `VECTOR_TEST_CHANNEL_ID`. Host wi
 4. Optional Telegram: `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID`.
 
 The user reply only claims a ping if one of those sends succeeded. Optional `STAFF_USER_IDS` / `STAFF_ROLE_ID` mention staff on the card.
+
+In the Handoff thread, reply as a person (Vector stays quiet). To save a fact for later questions:
+
+```
+faq: Order and tracking lookups need a person. Vector cannot see Shopify.
+```
+
+Saved facts live in memory on the host (and Postgres if `DATABASE_URL` is set). A Railway redeploy clears memory unless Postgres is on.

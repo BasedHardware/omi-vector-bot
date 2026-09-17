@@ -70,6 +70,12 @@ function formatStaffTicket({ message, question, reason, draft }) {
   if (jump) {
     embed.fields.push({ name: 'Jump', value: `[Open message](${jump})`, inline: true });
   }
+  embed.fields.push({
+    name: 'Staff',
+    value:
+      'Reply in this thread. The user can read it.\nTo save a fact for next time: `faq: short true sentence`',
+    inline: false,
+  });
 
   return {
     discord: {
@@ -175,6 +181,12 @@ function isHandoffThread(channel) {
   return Boolean(channel?.isThread?.() && /^Handoff\b/i.test(channel.name || ''));
 }
 
+function canSaveFaq(userId, allowList) {
+  const users = allowList !== undefined ? allowList : staffMentionIds().users;
+  if (!users.length) return true;
+  return users.includes(String(userId || ''));
+}
+
 module.exports = {
   DEDUPE_MS,
   canNotifyStaff,
@@ -184,5 +196,6 @@ module.exports = {
   clipUserQuestion,
   notifyStaff,
   isHandoffThread,
+  canSaveFaq,
   staffMentions,
 };
