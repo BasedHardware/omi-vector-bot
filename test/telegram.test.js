@@ -36,8 +36,20 @@ test('fails closed when the bot id is unknown', () => {
   assert.equal(isBotEscalationReply(msg, null), false);
 });
 
-test('reply mention policy blocks everyone/here/roles but keeps user pings', () => {
-  assert.deepEqual([...SAFE_REPLY_MENTIONS.parse].sort(), ['users']);
+test('reply mention policy does not parse users or roles', () => {
+  const { SAFE_REPLY_MENTIONS, replyMentions, rewriteUserMentions } = require('../utils');
+  assert.deepEqual(SAFE_REPLY_MENTIONS.parse, []);
   assert.deepEqual(SAFE_REPLY_MENTIONS.roles, []);
-  assert.equal(SAFE_REPLY_MENTIONS.repliedUser, true);
+  const message = {
+    author: { id: '111111111111111111', username: 'customer' },
+    mentions: { users: new Map([['99', { id: '99', username: 'staffer' }]]) },
+  };
+  const mentions = replyMentions(message, { pingAuthor: true, repliedUser: true });
+  assert.deepEqual(mentions.parse, []);
+  assert.deepEqual(mentions.users, ['111111111111111111']);
+  assert.equal(mentions.repliedUser, true);
+  const out = rewriteUserMentions('Hey @customer and @staffer', message);
+  assert.match(out, /<@111111111111111111>/);
+  assert.equal(out.includes('<@99>'), false);
+  assert.match(out, /@staffer/);
 });

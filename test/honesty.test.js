@@ -175,6 +175,14 @@ test('plain @username becomes a real Discord mention for the author', () => {
     attachAuthorMention('Apple Watch recordings still missing.', message),
     /^<@564270044599812096> /
   );
+  const staffCopied = rewriteUserMentions(
+    'I will ping <@99> too',
+    {
+      author: { id: '111111111111111111', username: 'astar' },
+      mentions: { users: [{ id: '99', username: 'otherstaff' }] },
+    }
+  );
+  assert.equal(staffCopied.includes('<@99>'), false);
 });
 
 test('issue replies drop person-on-the-team narration', () => {

@@ -16,10 +16,11 @@ const {
   clipThreadHistory,
   escalateReply,
   stripPingNarration,
-  SAFE_REPLY_MENTIONS,
   rewriteUserMentions,
   wantsAuthorPing,
   attachAuthorMention,
+  replyMentions,
+  isUnknownMessageRef,
 } = require('./utils');
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
 const {
@@ -83,13 +84,25 @@ app.post('/github-webhook', express.raw({ type: 'application/json' }), async (re
   res.send('ok');
 });
 
-function replySafe(message, content, { pingAuthor = false } = {}) {
+async function replySafe(message, content, { pingAuthor = false } = {}) {
   let text = rewriteUserMentions(content, message);
   if (pingAuthor) text = attachAuthorMention(text, message);
-  return message.reply({
+  const payload = {
     content: text,
-    allowedMentions: SAFE_REPLY_MENTIONS,
-  });
+    allowedMentions: replyMentions(message, { pingAuthor, repliedUser: false }),
+  };
+  try {
+    await message.reply({
+      ...payload,
+      allowedMentions: replyMentions(message, { pingAuthor, repliedUser: true }),
+    });
+  } catch (err) {
+    if (!isUnknownMessageRef(err) || typeof message.channel?.send !== 'function') {
+      throw err;
+    }
+    console.error('[Bot] reply reference missing, sending in channel:', err.message);
+    await message.channel.send(payload);
+  }
 }
 
 function isHelpThread(channel) {
@@ -403,7 +416,7 @@ async function handleMessage(message) {
               escalateReply(cleanAnswer, { conversation: true }),
               message
             ),
-            allowedMentions: { parse: ['users'], roles: [], repliedUser: false },
+            allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
           });
         } catch (err) {
           console.error('[Bot] reuse thread reply failed:', err.message);

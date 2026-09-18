@@ -123,7 +123,7 @@ const DISCORD_REPLY_MAX = 1900;
 // pings (see issue: Vector mentions should notify), but never everyone/here
 // or role mentions — a crafted question must not turn Vector into a
 // mass-ping or role-ping amplifier.
-const SAFE_REPLY_MENTIONS = { parse: ['users'], roles: [], repliedUser: true };
+const SAFE_REPLY_MENTIONS = { parse: [], users: [], roles: [], repliedUser: false };
 
 function escapeRegExp(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -146,12 +146,6 @@ function mentionablePeople(message) {
     people.push({ id, names: mentionNamesForUser(user, member) });
   };
   add(message?.author, message?.member);
-  const mentioned = message?.mentions?.users;
-  if (mentioned && typeof mentioned.values === 'function') {
-    for (const user of mentioned.values()) add(user, null);
-  } else if (Array.isArray(mentioned)) {
-    for (const user of mentioned) add(user, null);
-  }
   return people;
 }
 
@@ -165,7 +159,21 @@ function rewriteUserMentions(text, message) {
       out = out.replace(re, `$1<@${person.id}>`);
     }
   }
-  return out;
+  const authorId = String(message?.author?.id || '');
+  out = out.replace(/<@!?(\d+)>/g, (token, id) => (id === authorId ? token : ''));
+  return out.replace(/[^\S\n]{2,}/g, ' ').trim();
+}
+
+function replyMentions(message, { pingAuthor = false, repliedUser = false } = {}) {
+  const users = [];
+  const id = String(message?.author?.id || '');
+  if (pingAuthor && /^\d{5,}$/.test(id)) users.push(id);
+  return { parse: [], users, roles: [], repliedUser: Boolean(repliedUser) };
+}
+
+function isUnknownMessageRef(err) {
+  const text = `${err?.message || ''} ${err?.code || ''} ${JSON.stringify(err?.rawError || {})}`;
+  return /Unknown message|MESSAGE_REFERENCE_UNKNOWN_MESSAGE/i.test(text);
 }
 
 function wantsAuthorPing(text) {
@@ -299,6 +307,8 @@ module.exports = {
   rewriteUserMentions,
   wantsAuthorPing,
   attachAuthorMention,
+  replyMentions,
+  isUnknownMessageRef,
   clipThreadHistory,
   escalateReply,
   ESCALATE_FOOTER,
