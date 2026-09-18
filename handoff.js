@@ -71,28 +71,50 @@ function clipUserQuestion(text) {
   return clipForDiscord(cleaned || raw, 1000);
 }
 
-function ticketLabels({ area, lane } = {}) {
+function ticketLabels({ area, lane, question } = {}) {
   const labels = [];
   if (area && area !== 'unknown') labels.push(String(area));
   if (lane && lane !== 'unknown' && lane !== 'faq' && !labels.includes(String(lane))) {
     labels.push(String(lane));
   }
+  const q = String(question || '');
+  if (
+    (area === 'shop' || lane === 'shop' || lane === 'money') &&
+    /\b(taxes?|refunds?|payment)\b/i.test(q) &&
+    !labels.includes('money')
+  ) {
+    labels.push('money');
+  }
   if (!labels.length) labels.push('needs-human');
   return labels;
 }
 
+function isThreadNoise(line) {
+  const part = String(line || '').trim();
+  if (!part || part.length < 8) return true;
+  if (/^want:\s/i.test(part) || /^chatgpt/i.test(part)) return true;
+  if (/^e abaixo/i.test(part)) return true;
+  if (/^[A-Z0-9 ,/|:.—–-]{3,60}$/.test(part) && part === part.toUpperCase()) return true;
+  if (/^[A-Z]{2,} — /.test(part) && part.length < 48) return true;
+  if (/^["“]/.test(part) && !/\border\s*#/i.test(part)) return true;
+  return false;
+}
+
 function threadTopic(question) {
-  const line = String(question || '')
-    .split('\n')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .filter((part) => !/^want:\s/i.test(part))
-    .filter((part) => !/^chatgpt/i.test(part))[0] || 'needs a person';
+  const raw = String(question || '');
+  const numbered = raw.match(/\border\s*#\s*(\d{3,})\b/i);
+  if (numbered) return `Order #${numbered[1]}`;
+  const line =
+    raw
+      .split('\n')
+      .map((part) => part.trim())
+      .filter((part) => !isThreadNoise(part))
+      .find((part) => part.length > 12) || 'needs a person';
   return clipForDiscord(line.replace(/["*_`]/g, ''), 70);
 }
 
 function handoffThreadName({ question, area, lane } = {}) {
-  const labels = ticketLabels({ area, lane });
+  const labels = ticketLabels({ area, lane, question });
   return clipForDiscord(`Handoff · ${labels.join(' · ')} · ${threadTopic(question)}`, 100);
 }
 
@@ -118,7 +140,7 @@ function formatStaffTicket({
   const mentions = [staffMentions(), extraMentions].filter(Boolean).join(' ').trim();
   const { users, roles } = staffMentionIds();
   const cleanDraft = stripPingNarration(draft || '');
-  const labels = ticketLabels({ area, lane });
+  const labels = ticketLabels({ area, lane, question });
 
   const embed = {
     title: 'Needs a human',

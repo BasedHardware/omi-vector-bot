@@ -108,6 +108,21 @@ test('handoff threads are skipped by name', () => {
   assert.equal(/ChatGPT/i.test(named), false);
   assert.equal(named.length <= 100, true);
   assert.equal(isHandoffThread({ isThread: () => true, name: named }), true);
+  const brazil = handoffThreadName({
+    question: [
+      'OMI — AUGUST 11:',
+      '"Duties and import taxes are prepaid."',
+      'BRAZIL — SEPTEMBER 14',
+      'AWAITING PAYMENT OF TAXES/SERVICES',
+      'Omi, can someone please explain this and take ownership of Order #20716?',
+    ].join('\n'),
+    area: 'shop',
+    lane: 'shop',
+  });
+  assert.match(brazil, /Order #20716/);
+  assert.equal(/AUGUST 11/i.test(brazil), false);
+  assert.match(brazil, /shop/);
+  assert.match(brazil, /money/);
 });
 
 test('notifyStaff posts a channel card and does not double-ping', async () => {
