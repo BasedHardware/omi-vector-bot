@@ -117,8 +117,51 @@ function isSameHandoff(threadName, { question, topic } = {}) {
   return sub.filter((word) => hay.has(word)).length >= 2;
 }
 
+const rememberedHandoffs = new Map();
+
+function rememberOpenHandoff(parentId, userId, thread) {
+  if (!parentId || !userId || !thread?.id) return;
+  const key = `${parentId}:${userId}`;
+  const rest = (rememberedHandoffs.get(key) || []).filter((item) => item.id !== thread.id);
+  rememberedHandoffs.set(
+    key,
+    [{ id: thread.id, name: thread.name, thread, at: Date.now() }, ...rest].slice(0, 12)
+  );
+}
+
+function recallOpenHandoff(parentId, userId, hint) {
+  const list = rememberedHandoffs.get(`${parentId}:${userId}`) || [];
+  const hit = list.find((item) => isSameHandoff(item.name, hint));
+  return hit?.thread || null;
+}
+
+async function threadBelongsToUser(thread, userId) {
+  if (!thread || !userId) return false;
+  try {
+    if (typeof thread.fetchStarterMessage === 'function') {
+      const starter = await thread.fetchStarterMessage();
+      if (String(starter?.author?.id || '') === String(userId)) return true;
+    }
+  } catch {
+    // Starter can be missing on old threads; fall through to members.
+  }
+  try {
+    const cached = thread.members?.cache;
+    if (cached && typeof cached.has === 'function' && cached.has(userId)) return true;
+    const members = await thread.members?.fetch?.();
+    if (members && typeof members.has === 'function' && members.has(userId)) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 async function findOpenHandoff(channel, { userId, question, topic } = {}) {
   const parent = channel?.isThread?.() ? channel.parent : channel;
+  const parentId = parent?.id || channel?.id;
+  const hint = { question, topic };
+  const remembered = recallOpenHandoff(parentId, userId, hint);
+  if (remembered && !remembered.archived) return remembered;
   if (!parent?.threads?.fetchActive || !userId) return null;
   let active;
   try {
@@ -130,18 +173,10 @@ async function findOpenHandoff(channel, { userId, question, topic } = {}) {
   if (!threads || typeof threads.values !== 'function') return null;
   for (const thread of threads.values()) {
     if (thread?.archived) continue;
-    if (!isSameHandoff(thread.name, { question, topic })) continue;
-    try {
-      const cached = thread.members?.cache;
-      const members =
-        cached && typeof cached.has === 'function' && cached.has(userId)
-          ? cached
-          : await thread.members?.fetch?.();
-      if (members && typeof members.has === 'function' && members.has(userId)) {
-        return thread;
-      }
-    } catch {
-      continue;
+    if (!isSameHandoff(thread.name, hint)) continue;
+    if (await threadBelongsToUser(thread, userId)) {
+      rememberOpenHandoff(parentId, userId, thread);
+      return thread;
     }
   }
   return null;
@@ -527,6 +562,7 @@ module.exports = {
   applyThreadName,
   isSameHandoff,
   findOpenHandoff,
+  rememberOpenHandoff,
   notifyStaff,
   isHandoffThread,
   canSaveFaq,

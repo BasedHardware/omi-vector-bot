@@ -192,6 +192,22 @@ test('enough-for-a-person-on-the-team sentences are dropped', () => {
   assert.match(out, /Apple Watch/i);
 });
 
+test('cannot-mention-you and passing-on lines are dropped', () => {
+  const out = escalateReply(
+    [
+      'Still the 2.5 hours from your Apple Watch and the two small clips, and still nothing showing up in the app.',
+      "I'm passing on, I can't see your phone from here.",
+      "I can't send you a mention myself, but you don't need to keep re-explaining. This needs a person who can look at the app side.",
+    ].join('\n\n'),
+    { conversation: true }
+  );
+  assert.match(out, /Apple Watch/i);
+  assert.equal(/mention myself/i.test(out), false);
+  assert.equal(/passing on/i.test(out), false);
+  assert.equal(/re-explaining/i.test(out), false);
+  assert.equal(/person who can look/i.test(out), false);
+});
+
 test('escalate footer is generic and skipped if the answer already said no ping', () => {
   const withFooter = escalateReply('This needs a person.');
   assert.match(withFooter, /person on the team needs to take this/i);

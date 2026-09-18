@@ -373,4 +373,29 @@ test('open Handoff threads match the same Watch ticket, not a refund', async () 
     }
   );
   assert.equal(found?.id, 'old');
+  const byStarter = await findOpenHandoff(
+    {
+      threads: {
+        fetchActive: async () => ({
+          threads: new Map([
+            [
+              'starter',
+              {
+                id: 'starter',
+                name: watch,
+                archived: false,
+                fetchStarterMessage: async () => ({ author: { id: '99' } }),
+              },
+            ],
+          ]),
+        }),
+      },
+    },
+    {
+      userId: '99',
+      question: 'Apple Watch recordings still missing.',
+      topic: 'Apple Watch recordings missing from app',
+    }
+  );
+  assert.equal(byStarter?.id, 'starter');
 });

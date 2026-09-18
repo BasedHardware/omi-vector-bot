@@ -32,6 +32,7 @@ const {
   recentlyHandedOff,
   staffMentionIds,
   findOpenHandoff,
+  rememberOpenHandoff,
 } = require('./handoff');
 const knowledge = require('./knowledge');
 const shopify = require('./shopify');
@@ -369,7 +370,10 @@ async function handleMessage(message) {
           pinged = Boolean(handoff.ok);
           duplicate = Boolean(handoff.duplicate);
           handoffThread = handoff.thread || handoffThread;
-          if (handoff.thread) await applyThreadName(handoff.thread, nameMeta);
+          if (handoff.thread) {
+            rememberOpenHandoff(channel.id, message.author?.id, handoff.thread);
+            await applyThreadName(handoff.thread, nameMeta);
+          }
           if (handoff.threadId && githubHit?.duplicate?.number) {
             github.linkIssueThread(githubHit.duplicate.number, handoff.threadId);
           }

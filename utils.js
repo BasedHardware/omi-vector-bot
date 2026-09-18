@@ -219,6 +219,12 @@ const PING_NARRATION = [
   /i('m| am) not able to ping/i,
   /person on the team/i,
   /going into your account/i,
+  /can'?t send you a mention/i,
+  /cannot send you a mention/i,
+  /send you a mention myself/i,
+  /i('m| am) passing on/i,
+  /keep re-explaining/i,
+  /needs a person who can look/i,
 ];
 
 const ALREADY_SAID_PINGED = [
@@ -229,15 +235,18 @@ const ALREADY_SAID_PINGED = [
 
 function dropPingNarration(text) {
   return String(text || '')
+    .replace(/\bi can('t|not) send you a mention( myself)?\b/gi, '')
+    .replace(/\bi('m| am) passing on\b/gi, '')
+    .replace(/\byou don'?t need to keep re-explaining\b/gi, '')
     .split('\n')
     .map((line) => {
       if (!PING_NARRATION.some((re) => re.test(line))) return line;
       return line
-        .split(/(?<=[.!?])\s+/)
+        .split(/(?<=[.!?])\s+|\s+[—–]\s+/)
         .filter((sentence) => !PING_NARRATION.some((re) => re.test(sentence)))
         .join(' ');
     })
-    .map((line) => line.trim())
+    .map((line) => line.replace(/^[,\s]+/, '').replace(/\s{2,}/g, ' ').trim())
     .filter(Boolean)
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
