@@ -26,6 +26,14 @@ function addSnippet(text) {
   const snippet = clipForDiscord(String(text || '').trim(), MAX_SNIPPET);
   if (!snippet) return { ok: false, reason: 'empty' };
   if (looksLikeStaffLie(snippet)) return { ok: false, reason: 'lie' };
+  try {
+    const shopify = require('./shopify');
+    if (shopify.isConfigured() && /cannot see shopify/i.test(snippet)) {
+      return { ok: false, reason: 'stale' };
+    }
+  } catch {
+    /* shopify optional */
+  }
   if (snippets[0] === snippet) return { ok: true, snippet, duplicate: true };
   snippets.unshift(snippet);
   if (snippets.length > MAX_STORED) snippets.length = MAX_STORED;

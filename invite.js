@@ -11,11 +11,12 @@ const permissions = String(
     2048n + // Send Messages
     16384n + // Embed Links
     65536n + // Read Message History
-    17179869184n + // Create Public Threads (handoff threads)
+    17179869184n + // Manage Threads (/done archive)
+    34359738368n + // Create Public Threads (handoff)
     274877906944n // Send Messages in Threads
 );
 
-const url = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=${permissions}&scope=bot`;
+const url = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=${permissions}&scope=bot%20applications.commands`;
 console.log(url);
 console.log('');
 console.log('Invite this bot to a private test channel, not public help.');

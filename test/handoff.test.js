@@ -48,9 +48,22 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
   const staff = ticket.discord.embeds[0].fields.find((f) => f.name === 'Staff');
   assert.match(staff.value, /Reply in this thread/i);
   assert.match(staff.value, /faq:/i);
+  assert.match(staff.value, /\/done/);
   assert.equal(
     ticket.discord.embeds[0].fields.some((f) => f.name === 'Shopify'),
     false
+  );
+  assert.equal(
+    formatStaffTicket({
+      message: {
+        url: 'https://discord.com/channels/1/2/3',
+        author: { id: '99' },
+        channel: { id: '2' },
+      },
+      question: 'app crashed',
+      area: 'app',
+    }).discord.embeds[0].fields.some((f) => f.name === 'Area' && f.value === 'app'),
+    true
   );
   delete process.env.STAFF_USER_IDS;
   assert.equal(staffMentions(), '');
@@ -144,6 +157,51 @@ test('notifyStaff posts a channel card and does not double-ping', async () => {
   if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
   else delete process.env.HANDOFF_THREADS;
   if (prevStaff !== undefined) process.env.STAFF_ALERT_CHANNEL_ID = prevStaff;
+  resetHandoffMemory();
+});
+
+test('staff ticket pings the area owner when AREA_OWNERS is set', async () => {
+  resetHandoffMemory();
+  const prevThread = process.env.HANDOFF_THREADS;
+  const prevStaff = process.env.STAFF_ALERT_CHANNEL_ID;
+  const prevOwners = process.env.AREA_OWNERS;
+  process.env.HANDOFF_THREADS = '0';
+  delete process.env.STAFF_ALERT_CHANNEL_ID;
+  process.env.AREA_OWNERS = 'shop:555555555555555555';
+
+  const sent = [];
+  const message = {
+    url: 'https://discord.com/channels/1/2/3',
+    author: { id: '99', username: 'david' },
+    channel: {
+      id: 'chan-owner',
+      isTextBased: () => true,
+      isThread: () => false,
+      send: async (payload) => {
+        sent.push(payload);
+        return payload;
+      },
+    },
+    hasThread: false,
+  };
+  await notifyStaff({
+    client: null,
+    message,
+    question: 'I want a refund',
+    reason: 'refund',
+    area: 'shop',
+    route: { area: 'shop', lane: 'money', escalate: true },
+    skipDedupe: true,
+  });
+  assert.match(sent[0].content, /<@555555555555555555>/);
+  assert.equal(sent[0].allowedMentions.users.includes('555555555555555555'), true);
+
+  if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
+  else delete process.env.HANDOFF_THREADS;
+  if (prevStaff !== undefined) process.env.STAFF_ALERT_CHANNEL_ID = prevStaff;
+  else delete process.env.STAFF_ALERT_CHANNEL_ID;
+  if (prevOwners !== undefined) process.env.AREA_OWNERS = prevOwners;
+  else delete process.env.AREA_OWNERS;
   resetHandoffMemory();
 });
 

@@ -1,5 +1,6 @@
 const telegram = require('./telegram');
 const { clipForDiscord, stripPingNarration } = require('./utils');
+const { ownerMention, ownerRef, shouldPingOwner, parseAreaOwners } = require('./router');
 
 const DEDUPE_MS = 15 * 60_000;
 const lastHandoff = new Map();
@@ -17,6 +18,28 @@ function staffMentionIds() {
 function staffMentions() {
   const { users, roles } = staffMentionIds();
   return [...users.map((id) => `<@${id}>`), ...roles.map((id) => `<@&${id}>`)].join(' ');
+}
+
+function isTestHandoffChannel(channel) {
+  const testId = process.env.VECTOR_TEST_CHANNEL_ID;
+  if (!testId || !channel) return false;
+  if (channel.id === testId) return true;
+  return Boolean(channel.isThread?.() && channel.parentId === testId);
+}
+
+function canStaffAct(interaction) {
+  const userId = String(interaction?.user?.id || '');
+  const { users, roles } = staffMentionIds();
+  if (users.includes(userId)) return true;
+  const cache = interaction?.member?.roles?.cache;
+  if (roles.length && cache) {
+    if (typeof cache.has === 'function' && roles.some((id) => cache.has(id))) return true;
+    if (typeof cache.includes === 'function' && roles.some((id) => cache.includes(id))) return true;
+  }
+  if (!users.length && !roles.length && isTestHandoffChannel(interaction?.channel)) {
+    return true;
+  }
+  return false;
 }
 
 function canNotifyStaff({ discordReady = false } = {}) {
@@ -48,13 +71,25 @@ function clipUserQuestion(text) {
   return clipForDiscord(cleaned || raw, 1000);
 }
 
-function formatStaffTicket({ message, question, reason, draft, shopify }) {
+function formatStaffTicket({
+  message,
+  question,
+  reason,
+  draft,
+  shopify,
+  area,
+  github,
+  fileIssueId,
+  extraMentions,
+  extraUsers,
+  extraRoles,
+}) {
   const why = clipForDiscord(reason || 'Vector cannot finish this. Needs a person.', 200);
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
   const from = message?.author?.id ? `<@${message.author.id}>` : 'unknown user';
   const channel = message?.channel?.id ? `<#${message.channel.id}>` : '';
-  const mentions = staffMentions();
+  const mentions = [staffMentions(), extraMentions].filter(Boolean).join(' ').trim();
   const { users, roles } = staffMentionIds();
   const cleanDraft = stripPingNarration(draft || '');
 
@@ -66,9 +101,16 @@ function formatStaffTicket({ message, question, reason, draft, shopify }) {
       { name: 'Why', value: why, inline: false },
     ],
   };
+  if (area) {
+    embed.fields.push({ name: 'Area', value: String(area), inline: true });
+  }
   const shopifyFacts = clipForDiscord(String(shopify || '').trim(), 500);
   if (shopifyFacts) {
     embed.fields.push({ name: 'Shopify', value: shopifyFacts, inline: false });
+  }
+  const githubFacts = clipForDiscord(String(github || '').trim(), 400);
+  if (githubFacts) {
+    embed.fields.push({ name: 'GitHub', value: githubFacts, inline: false });
   }
   embed.fields.push({
     name: 'From',
@@ -81,16 +123,37 @@ function formatStaffTicket({ message, question, reason, draft, shopify }) {
   embed.fields.push({
     name: 'Staff',
     value:
-      'Reply in this thread. The user can read it.\nTo save a fact for next time: `faq: short true sentence`',
+      'Reply in this thread. The user can read it.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
     inline: false,
   });
 
-  return {
-    discord: {
-      content: mentions || undefined,
-      embeds: [embed],
-      allowedMentions: { parse: [], users, roles },
+  const discord = {
+    content: mentions || undefined,
+    embeds: [embed],
+    allowedMentions: {
+      parse: [],
+      users: [...users, ...(extraUsers || [])],
+      roles: [...roles, ...(extraRoles || [])],
     },
+  };
+  if (fileIssueId) {
+    discord.components = [
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 1,
+            custom_id: `file:${fileIssueId}`,
+            label: 'File issue',
+          },
+        ],
+      },
+    ];
+  }
+
+  return {
+    discord,
     plain: {
       threadId: message?.channel?.id,
       jumpUrl: jump,
@@ -129,13 +192,48 @@ async function sendToStaffChannel(client, payload) {
   return true;
 }
 
-async function notifyStaff({ client, message, question, reason, draft, shopify, skipDedupe = false }) {
+async function notifyStaff({
+  client,
+  message,
+  question,
+  reason,
+  draft,
+  shopify,
+  area,
+  github,
+  fileIssueId,
+  route,
+  skipDedupe = false,
+}) {
   const channelId = message?.channel?.id;
   if (!skipDedupe && recentlyHandedOff(channelId)) {
     return { ok: true, via: 'recent', duplicate: true };
   }
 
-  const ticket = formatStaffTicket({ message, question, reason, draft, shopify });
+  let extraMentions = '';
+  const extraUsers = [];
+  const extraRoles = [];
+  if (shouldPingOwner(route || { area, escalate: true, lane: area })) {
+    const owners = parseAreaOwners();
+    extraMentions = ownerMention(area, owners);
+    const ref = ownerRef(area, owners);
+    if (ref?.kind === 'user') extraUsers.push(ref.id);
+    if (ref?.kind === 'role') extraRoles.push(ref.id);
+  }
+
+  const ticket = formatStaffTicket({
+    message,
+    question,
+    reason,
+    draft,
+    shopify,
+    area,
+    github,
+    fileIssueId,
+    extraMentions,
+    extraUsers,
+    extraRoles,
+  });
   const errors = [];
 
   try {
@@ -205,5 +303,7 @@ module.exports = {
   notifyStaff,
   isHandoffThread,
   canSaveFaq,
+  canStaffAct,
   staffMentions,
+  staffMentionIds,
 };
