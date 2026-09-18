@@ -123,6 +123,14 @@ test('handoff threads are skipped by name', () => {
   assert.equal(/AUGUST 11/i.test(brazil), false);
   assert.match(brazil, /shop/);
   assert.match(brazil, /money/);
+  const win = handoffThreadName({
+    question: "I'm getting this error\nnpm error ERESOLVE\nWhile resolving: omi-windows@1.0.35",
+    area: 'desktop',
+    lane: 'tech',
+  });
+  assert.match(win, /omi-windows/i);
+  assert.match(win, /ERESOLVE/);
+  assert.match(win, /desktop/);
 });
 
 test('notifyStaff posts a channel card and does not double-ping', async () => {

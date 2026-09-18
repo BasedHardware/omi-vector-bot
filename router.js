@@ -46,6 +46,9 @@ const DESKTOP = [
   /\bdesktop app\b/i,
   /\bomi desktop\b/i,
   /\bdesktop voice\b/i,
+  /\bomi-windows\b/i,
+  /\bomi windows\b/i,
+  /\bwindows app\b/i,
 ];
 
 const APP = [

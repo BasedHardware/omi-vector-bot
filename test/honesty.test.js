@@ -60,12 +60,12 @@ test('strips repeating-the-question lecture from order replies', () => {
   assert.equal(/repeating the question/i.test(out), false);
 });
 
-test('strips in plain words prompt leak', () => {
+test('strips invented npm --legacy-peer-deps fixes', () => {
   const out = sanitizeReply(
-    'The computer app heard you. I am not sure in plain words what billing reasons means, so I will not guess.'
+    'Two packages want different React versions. The quickest thing to try is to run the same command with --legacy-peer-deps. A person on the team needs this.'
   );
-  assert.equal(/in plain words/i.test(out), false);
-  assert.match(out, /will not guess/i);
+  assert.equal(/legacy-peer-deps/i.test(out), false);
+  assert.match(out, /different React/i);
 });
 
 test('strips nothing-has-changed lecture from order replies', () => {

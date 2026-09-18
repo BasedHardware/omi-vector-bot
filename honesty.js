@@ -23,6 +23,8 @@ const DROP_SENTENCE = [
   /has changed since your last (message|question)/i,
   /won'?t change what i (have|can) access/i,
   /won'?t change what i have access to/i,
+  /--legacy-peer-deps/i,
+  /retry this command with --force/i,
 ];
 
 function looksLikeStaffLie(text) {

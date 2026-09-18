@@ -24,6 +24,11 @@ test('app crash and macOS are tech; pairing how-to is faq', () => {
   assert.equal(router.classify('How do I pair my Omi?').lane, 'faq');
   assert.equal(router.classify('How do I pair my Omi?').escalate, false);
   assert.equal(router.classify('in order to pair, I press the button').lane, 'faq');
+  const win = router.classify(
+    "I'm getting this error when trying to do the command\nnpm error ERESOLVE unable to resolve dependency tree\nWhile resolving: omi-windows@1.0.35\npeer react@\">=19 <19.3\" from @react-three/fiber"
+  );
+  assert.equal(win.area, 'desktop');
+  assert.equal(win.lane, 'tech');
 });
 
 test('firmware death escalates; talk to a human always does', () => {

@@ -26,7 +26,7 @@ function buildToolFacts({ route, shopifyText, githubText } = {}) {
   const lines = [`Lane: ${lane}. Area: ${area}.`];
   if (lane === 'tech' || lane === 'firmware') {
     lines.push(
-      'You cannot open their phone, computer, or device. Do not give pairing, Bluetooth, or light-colour steps. Do not guess API keys, OpenRouter, BYOK, or Settings paths. escalate=true. First sentence: show you understood. Then say a person on the team needs this.'
+      'You cannot open their phone, computer, or device. Do not give pairing, Bluetooth, or light-colour steps. Do not guess API keys, OpenRouter, BYOK, or Settings paths. Do not tell them to rerun npm with --force or --legacy-peer-deps. Do not invent a command that changes their project. escalate=true. First sentence: show you understood. Then say a person on the team needs this.'
     );
   }
   if (lane === 'shop') {

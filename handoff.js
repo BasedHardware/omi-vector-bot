@@ -104,6 +104,10 @@ function threadTopic(question) {
   const raw = String(question || '');
   const numbered = raw.match(/\border\s*#\s*(\d{3,})\b/i);
   if (numbered) return `Order #${numbered[1]}`;
+  const pack = raw.match(/\b(omi-windows|omi-desktop)\b/i);
+  const code = raw.match(/\b(ERESOLVE|EPERM|ENOENT)\b/);
+  if (pack && code) return `${pack[1]} ${code[1]}`;
+  if (pack) return pack[1];
   const line =
     raw
       .split('\n')
