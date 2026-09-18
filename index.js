@@ -29,7 +29,6 @@ const {
   clipUserQuestion,
   canSaveFaq,
   applyThreadName,
-  recentlyHandedOff,
   staffMentionIds,
   findOpenHandoff,
   rememberOpenHandoff,
@@ -350,7 +349,7 @@ async function handleMessage(message) {
           console.log(`[Bot] Reusing Handoff ${existing.id} for ${channel.id}`);
         }
       }
-      if (!reused && (!inHandoff || !recentlyHandedOff(channel.id))) {
+      if (!reused && !inHandoff) {
         try {
           const handoff = await notifyStaff({
             client,
@@ -386,6 +385,7 @@ async function handleMessage(message) {
       }
       if (
         !reused &&
+        !inHandoff &&
         triaged.fileIssue &&
         handoffThread &&
         triaged.area !== 'shop' &&
