@@ -28,20 +28,31 @@ async function registerSlashCommands(client) {
   return guildIds.size;
 }
 
+async function archiveHandoff(channel) {
+  // One PATCH. Lock-then-archive as two calls returns Missing Access on public threads.
+  if (typeof channel.edit === 'function') {
+    await channel.edit({ archived: true, locked: true, reason: 'Resolved with /done' });
+    return;
+  }
+  if (typeof channel.setArchived === 'function') {
+    await channel.setArchived(true, 'Resolved with /done');
+  }
+}
+
 async function closeHandoff(channel, user) {
   if (!isHandoffThread(channel)) {
     return { ok: false, reason: 'Use /done in a Handoff thread.' };
   }
-  await channel.send(`This is resolved. Closed by <@${user.id}>.`);
-  if (typeof channel.setLocked === 'function') {
-    try {
-      await channel.setLocked(true, 'Resolved with /done');
-    } catch (err) {
-      console.error('[Bot] lock thread failed:', err.message);
-    }
+  try {
+    await channel.send(`This is resolved. Closed by <@${user.id}>.`);
+  } catch (err) {
+    console.error('[Bot] /done notice failed:', err.message);
+    return { ok: false, reason: 'Could not post the resolved message.' };
   }
-  if (typeof channel.setArchived === 'function') {
-    await channel.setArchived(true, 'Resolved with /done');
+  try {
+    await archiveHandoff(channel);
+  } catch (err) {
+    console.error('[Bot] /done archive failed:', err.message);
   }
   return { ok: true };
 }
@@ -55,7 +66,13 @@ async function handleDone(interaction) {
     return;
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const result = await closeHandoff(interaction.channel, interaction.user);
+  let result;
+  try {
+    result = await closeHandoff(interaction.channel, interaction.user);
+  } catch (err) {
+    console.error('[Bot] /done close failed:', err.message);
+    result = { ok: false, reason: 'Could not close the thread.' };
+  }
   try {
     await interaction.editReply(result.ok ? 'Marked resolved.' : result.reason);
   } catch (err) {
@@ -110,6 +127,7 @@ async function handleInteraction(interaction) {
     }
   } catch (err) {
     console.error('[Bot] interaction failed:', err.message);
+    if (interaction.commandName === 'done') return;
     try {
       if (interaction.deferred || interaction.replied) {
         await interaction.followUp({ content: 'That command failed.', flags: MessageFlags.Ephemeral });

@@ -31,6 +31,68 @@ test('/done still archives if the later Discord ack would fail', async () => {
   assert.equal(sent.some((t) => /That command failed/i.test(t)), false);
 });
 
+test('/done still resolves when Discord refuses archive after lock', async () => {
+  const sent = [];
+  const channel = {
+    isThread: () => true,
+    name: 'Handoff · astar6969',
+    send: async (text) => {
+      sent.push(text);
+      return text;
+    },
+    edit: async () => {
+      throw new Error('Missing Access');
+    },
+    setLocked: async () => {},
+    setArchived: async () => {
+      throw new Error('Missing Access');
+    },
+  };
+  const result = await closeHandoff(channel, { id: '99' });
+  assert.equal(result.ok, true);
+  assert.match(sent[0], /resolved/i);
+});
+
+test('/done interaction does not say the command failed after a close', async () => {
+  const { handleInteraction } = require('../commands');
+  const prevStaff = process.env.STAFF_USER_IDS;
+  process.env.STAFF_USER_IDS = '123456789012345678';
+  const replies = [];
+  const interaction = {
+    commandName: 'done',
+    user: { id: '123456789012345678' },
+    isChatInputCommand: () => true,
+    deferReply: async () => {
+      interaction.deferred = true;
+    },
+    editReply: async (text) => {
+      replies.push(text);
+    },
+    followUp: async ({ content }) => {
+      replies.push(content);
+    },
+    reply: async ({ content }) => {
+      replies.push(content);
+    },
+    channel: {
+      isThread: () => true,
+      name: 'Handoff · astar6969',
+      send: async (text) => text,
+      edit: async () => {
+        throw new Error('Missing Access');
+      },
+    },
+  };
+  try {
+    await handleInteraction(interaction);
+    assert.equal(replies.some((t) => /command failed/i.test(String(t))), false);
+    assert.equal(replies[0], 'Marked resolved.');
+  } finally {
+    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prevStaff;
+  }
+});
+
 test('/done archives a Handoff thread and does not file GitHub', async () => {
   const sent = [];
   const channel = {
