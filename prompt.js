@@ -1,3 +1,5 @@
+const { describe } = require('./router');
+
 const HOWTO_FAQ = [
   'Omi works with iPhone and Android. Keep the Omi app open. If you fully close it (swipe it away), it stops writing down what was said and the device disconnects.',
   'Power: press the center button once to turn the device on or off.',
@@ -25,7 +27,7 @@ function faqTextForLane(lane) {
 function buildToolFacts({ route, shopifyText, githubText } = {}) {
   const lane = route?.lane || 'unknown';
   const area = route?.area || 'unknown';
-  const lines = [`Lane: ${lane}. Area: ${area}.`];
+  const lines = [`Lane: ${lane}. Area: ${area}.`, `This ticket: ${describe(route)}`];
   if (lane === 'tech' || lane === 'firmware') {
     lines.push(
       'Read what they already did. If they paired, pairing is done — do not teach Bluetooth, lights, or keeping the app open. You cannot open their phone, computer, or device. Do not guess API keys, OpenRouter, BYOK, or Settings paths. Do not tell them to rerun npm with --force or --legacy-peer-deps. Do not invent a command that changes their project. escalate=true. First sentence: show you understood their case (video, seconds, error text). Then say a person on the team needs this.'
@@ -61,6 +63,7 @@ function buildSystemPrompt(route) {
 The person asking is a customer. They may have never used a developer word in their life.
 
 Think about their message before you look at the FAQ. What did they already do? What still fails? Answer that, not a generic setup guide.
+If they numbered questions (1, 2, 3 or A, B), answer each one in order with what you actually know. Skip a number rather than guessing.
 
 Write like you are sitting with them, not like a log or a ticket:
 - Everyday words. If you must use a tech word they did not use, say what it means in the same sentence.

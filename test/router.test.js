@@ -29,6 +29,7 @@ test('app crash and macOS are tech; pairing how-to is faq', () => {
   );
   assert.equal(win.area, 'desktop');
   assert.equal(win.lane, 'tech');
+  assert.equal(router.classify('npm error ERESOLVE unable to resolve dependency tree').area, 'desktop');
 });
 
 test('firmware death escalates; talk to a human always does', () => {

@@ -53,6 +53,8 @@ const DESKTOP = [
   /\bomi-windows\b/i,
   /\bomi windows\b/i,
   /\bwindows app\b/i,
+  /\bnpm error\b/i,
+  /\bERESOLVE\b/,
 ];
 
 const APP = [
@@ -239,6 +241,24 @@ function staffReason(route) {
   return 'Needs a person';
 }
 
+function describe(route) {
+  const lane = route?.lane;
+  const area = route?.area;
+  if (lane === 'account') {
+    return 'Account limits and plans. Answer phone vs computer if they asked. Do not invent prices.';
+  }
+  if (lane === 'firmware' || area === 'firmware') {
+    return 'The device itself is failing. They may already have paired.';
+  }
+  if (area === 'desktop') return 'Computer app install or bug.';
+  if (area === 'app') return 'Phone app bug.';
+  if (lane === 'shop') return 'Order or shipping.';
+  if (lane === 'money') return 'Refund, charge, or address. Do not promise money back.';
+  if (lane === 'privacy') return 'Delete account or data.';
+  if (lane === 'faq') return 'How-to they asked for. Do not dump extra setup.';
+  return 'Read their message. Answer what they asked. Do not change the subject.';
+}
+
 module.exports = {
   AREAS,
   classify,
@@ -252,4 +272,5 @@ module.exports = {
   skipModel,
   cannedReply,
   staffReason,
+  describe,
 };

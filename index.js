@@ -174,7 +174,7 @@ async function handleMessage(message) {
   try {
     await channel.sendTyping();
 
-    const route = router.classify(asked || question);
+    const route = router.classify(question);
     if (isHelpThread(channel) && !router.isPublicForumSafe(asked || question)) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }

@@ -1,6 +1,6 @@
 const telegram = require('./telegram');
 const { clipForDiscord, stripPingNarration } = require('./utils');
-const { ownerMention, ownerRef, shouldPingOwner, parseAreaOwners } = require('./router');
+const { ownerMention, ownerRef, shouldPingOwner, parseAreaOwners, classify } = require('./router');
 
 const DEDUPE_MS = 15 * 60_000;
 const lastHandoff = new Map();
@@ -71,15 +71,47 @@ function clipUserQuestion(text) {
   return clipForDiscord(cleaned || raw, 1000);
 }
 
+function resolveRoute({ area, lane, question } = {}) {
+  const inferred = question ? classify(question) : { area: 'unknown', lane: 'unknown' };
+  const inferredWins = inferred.area !== 'unknown' && (!area || area === 'unknown');
+  const resolvedArea = inferredWins ? inferred.area : area && area !== 'unknown' ? area : inferred.area;
+  const resolvedLane = inferredWins
+    ? inferred.lane
+    : lane && lane !== 'unknown'
+      ? lane
+      : inferred.lane;
+  return {
+    area: resolvedArea || 'unknown',
+    lane: resolvedLane || 'unknown',
+  };
+}
+
+function defaultTopic(area, lane) {
+  if (lane === 'account') return 'fair use and plans';
+  if (lane === 'money') return 'refund or charge';
+  if (lane === 'shop') return 'order';
+  if (lane === 'firmware' || area === 'firmware') return 'device problem';
+  if (area === 'desktop') return 'computer app';
+  if (area === 'app') return 'phone app';
+  if (lane === 'privacy') return 'privacy';
+  if (lane === 'faq') return 'how-to';
+  if (lane === 'tech') return 'app bug';
+  return 'needs a person';
+}
+
 function ticketLabels({ area, lane, question } = {}) {
+  const resolved = resolveRoute({ area, lane, question });
   const labels = [];
-  if (area && area !== 'unknown') labels.push(String(area));
-  if (lane && lane !== 'unknown' && lane !== 'faq' && !labels.includes(String(lane))) {
-    labels.push(String(lane));
+  if (resolved.area && resolved.area !== 'unknown') labels.push(String(resolved.area));
+  if (resolved.lane && resolved.lane !== 'unknown' && !labels.includes(String(resolved.lane))) {
+    labels.push(String(resolved.lane));
   }
   const q = String(question || '');
   if (
-    (area === 'shop' || lane === 'shop' || lane === 'money') &&
+    (resolved.area === 'shop' ||
+      resolved.lane === 'shop' ||
+      resolved.lane === 'money' ||
+      resolved.lane === 'account') &&
     /\b(taxes?|refunds?|payment)\b/i.test(q) &&
     !labels.includes('money')
   ) {
@@ -97,10 +129,16 @@ function isThreadNoise(line) {
   if (/^[A-Z0-9 ,/|:.—–-]{3,60}$/.test(part) && part === part.toUpperCase()) return true;
   if (/^[A-Z]{2,} — /.test(part) && part.length < 48) return true;
   if (/^["“]/.test(part) && !/\border\s*#/i.test(part)) return true;
+  if (/^(hi|hello|hey)[,!.\s]/i.test(part) && !/\?/.test(part)) return true;
+  if (/nintendo kid|lost that enthusiasm/i.test(part)) return true;
+  if (/just got .{0,80}(in the mail|my omi)/i.test(part) && !/fair[- ]use|turns? off|crash/i.test(part)) {
+    return true;
+  }
+  if (/^i('m| am) getting this error\b/i.test(part) && part.length < 90) return true;
   return false;
 }
 
-function threadTopic(question) {
+function threadTopic(question, route = {}) {
   const raw = String(question || '');
   const numbered = raw.match(/\border\s*#\s*(\d{3,})\b/i);
   if (numbered) return `Order #${numbered[1]}`;
@@ -115,18 +153,23 @@ function threadTopic(question) {
   if (/fair[- ]use/i.test(raw)) {
     return /plan|memory/i.test(raw) ? 'fair use and plans' : 'fair use warning';
   }
-  const line =
-    raw
-      .split('\n')
-      .map((part) => part.trim())
-      .filter((part) => !isThreadNoise(part))
-      .find((part) => part.length > 12) || 'needs a person';
-  return clipForDiscord(line.replace(/["*_`]/g, ''), 70);
+  const line = raw
+    .split('\n')
+    .map((part) => part.trim())
+    .filter((part) => !isThreadNoise(part))
+    .find((part) => part.length > 12 && part.length <= 70);
+  if (line) return clipForDiscord(line.replace(/["*_`]/g, ''), 70);
+  const resolved = resolveRoute({ area: route.area, lane: route.lane, question });
+  return defaultTopic(resolved.area, resolved.lane);
 }
 
 function handoffThreadName({ question, area, lane } = {}) {
-  const labels = ticketLabels({ area, lane, question });
-  return clipForDiscord(`Handoff · ${labels.join(' · ')} · ${threadTopic(question)}`, 100);
+  const resolved = resolveRoute({ area, lane, question });
+  const labels = ticketLabels({ area: resolved.area, lane: resolved.lane, question });
+  return clipForDiscord(
+    `Handoff · ${labels.join(' · ')} · ${threadTopic(question, resolved)}`,
+    100
+  );
 }
 
 function formatStaffTicket({
@@ -151,7 +194,8 @@ function formatStaffTicket({
   const mentions = [staffMentions(), extraMentions].filter(Boolean).join(' ').trim();
   const { users, roles } = staffMentionIds();
   const cleanDraft = stripPingNarration(draft || '');
-  const labels = ticketLabels({ area, lane, question });
+  const resolved = resolveRoute({ area, lane, question });
+  const labels = ticketLabels({ area: resolved.area, lane: resolved.lane, question });
 
   const embed = {
     title: 'Needs a human',
@@ -166,8 +210,9 @@ function formatStaffTicket({
     value: labels.map((label) => `\`${label}\``).join('  '),
     inline: true,
   });
-  if (area) {
-    embed.fields.push({ name: 'Area', value: String(area), inline: true });
+  const areaValue = resolved.area !== 'unknown' ? resolved.area : resolved.lane !== 'unknown' ? resolved.lane : '';
+  if (areaValue) {
+    embed.fields.push({ name: 'Area', value: String(areaValue), inline: true });
   }
   const shopifyFacts = clipForDiscord(String(shopify || '').trim(), 500);
   if (shopifyFacts) {

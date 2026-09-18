@@ -62,7 +62,7 @@ async function queryAgent({
       OPENCODE_URL,
       {
         model: OPENCODE_MODEL,
-        temperature: 0.2,
+        temperature: 0.4,
         messages: [
           { role: 'system', content: buildSystemPrompt(route) },
           {

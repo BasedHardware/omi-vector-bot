@@ -73,6 +73,29 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
   assert.equal(staffMentions(), '');
 });
 
+test('staff ticket infers shop/account labels from fair-use text', () => {
+  const ticket = formatStaffTicket({
+    message: {
+      url: 'https://discord.com/channels/1/2/3',
+      author: { id: '99' },
+      channel: { id: '2' },
+    },
+    question:
+      'Just got omi in the mail. FAIR USE WARNING. FILLED the memory. What are all these plans?',
+    reason: 'Fair use, memory limit, or plan question',
+  });
+  assert.match(ticket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value, /`shop`/);
+  assert.match(ticket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value, /`account`/);
+  assert.equal(
+    /needs-human/i.test(ticket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value),
+    false
+  );
+  assert.equal(
+    ticket.discord.embeds[0].fields.some((f) => f.name === 'Area' && f.value === 'shop'),
+    true
+  );
+});
+
 test('staff ticket can carry Shopify facts without street or email', () => {
   const ticket = formatStaffTicket({
     message: {
@@ -155,6 +178,21 @@ test('handoff threads are skipped by name', () => {
   assert.match(fair, /fair use and plans/i);
   assert.equal(/nintendo/i.test(fair), false);
   assert.equal(/needs-human/i.test(fair), false);
+  const inferredFair = handoffThreadName({
+    question: [
+      'Just got omi in the mail on Wed and was like nintendo kid excited to set it up.',
+      'A) a "FAIR USE WARNING"',
+      'B) FILLED the memory. What are all these plans?',
+    ].join('\n'),
+  });
+  assert.equal(/needs-human/i.test(inferredFair), false);
+  assert.equal(/nintendo/i.test(inferredFair), false);
+  assert.match(inferredFair, /shop/);
+  assert.match(inferredFair, /account/);
+  assert.match(inferredFair, /fair use and plans/i);
+  const { ticketLabels } = require('../handoff');
+  assert.deepEqual(ticketLabels({ area: 'unknown', lane: 'faq' }), ['faq']);
+  assert.equal(ticketLabels({ question: 'How do I pair my Omi?' }).includes('faq'), true);
 });
 
 test('notifyStaff posts a channel card and does not double-ping', async () => {
