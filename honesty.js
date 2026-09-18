@@ -100,10 +100,42 @@ function stripHowtoBleed(text, lane) {
   return "I can't see the app or the device from here, so I won't guess a fix.";
 }
 
+const SHOP_BLEED = [
+  /keep your order number/i,
+  /keep (the|your) order number if you have one/i,
+  /\border number if you have one\b/i,
+];
+
+function looksLikeShopBleed(text) {
+  return SHOP_BLEED.some((re) => re.test(String(text || '')));
+}
+
+function stripShopBleed(text, lane) {
+  const raw = String(text || '');
+  if (lane === 'shop' || lane === 'money') return raw;
+  const cleaned = raw
+    .replace(/\s*,?\s*and keep your order number if you have one\.?/gi, '.')
+    .replace(/\s*keep your order number if you have one\.?/gi, '')
+    .split('\n')
+    .map((line) => {
+      if (!looksLikeShopBleed(line)) return line;
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => !looksLikeShopBleed(sentence))
+        .join(' ');
+    })
+    .map((line) => line.replace(/\s{2,}/g, ' ').replace(/\s+\./g, '.').trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+  return cleaned || raw;
+}
+
 module.exports = {
   looksLikeStaffLie,
   stripStaffLies,
   stripInventedLookup,
   looksLikeInventedLookup,
   stripHowtoBleed,
+  stripShopBleed,
 };

@@ -18,7 +18,7 @@ test('passed this along is treated as a staff lie', () => {
 });
 
 test('crash replies lose pairing and Bluetooth steps', () => {
-  const { stripHowtoBleed } = require('../honesty');
+  const { stripHowtoBleed, stripShopBleed } = require('../honesty');
   const out = stripHowtoBleed(
     [
       'The phone app closed on its own.',
@@ -36,6 +36,14 @@ test('crash replies lose pairing and Bluetooth steps', () => {
   );
   assert.match(lights, /Blue on the device means it is on and connected/i);
   assert.equal(/\bunpair\b/i.test(lights), false);
+  const orderBleed = stripShopBleed(
+    'If any error wording shows on the app screen, keep that exact text, and keep your order number if you have one.',
+    'tech'
+  );
+  assert.match(orderBleed, /keep that exact text/i);
+  assert.equal(/order number/i.test(orderBleed), false);
+  const shopKeep = stripShopBleed('If you have your order number, keep it handy.', 'shop');
+  assert.match(shopKeep, /order number/i);
   const pairing = stripHowtoBleed('Turn Bluetooth on and pair from the Omi app.', 'faq');
   assert.match(pairing, /Bluetooth/);
   const autoOff = stripHowtoBleed(

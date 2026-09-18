@@ -39,7 +39,7 @@ const router = require('./router');
 const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts } = require('./prompt');
-const { stripHowtoBleed } = require('./honesty');
+const { stripHowtoBleed, stripShopBleed } = require('./honesty');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -293,10 +293,13 @@ async function handleMessage(message) {
     const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
     if (!skipModel) {
       cleanAnswer = clipForDiscord(
-        stripHowtoBleed(
-          knowledge.applyStaffFacts(
-            formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
-            snippets
+        stripShopBleed(
+          stripHowtoBleed(
+            knowledge.applyStaffFacts(
+              formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
+              snippets
+            ),
+            triaged.lane
           ),
           triaged.lane
         )
