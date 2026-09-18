@@ -225,6 +225,8 @@ const PING_NARRATION = [
   /i('m| am) passing on/i,
   /keep re-explaining/i,
   /needs a person who can look/i,
+  /this one needs a person/i,
+  /not sure what the (blue|red|orange|teal) (dot|light)/i,
 ];
 
 const ALREADY_SAID_PINGED = [

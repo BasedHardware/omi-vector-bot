@@ -35,6 +35,11 @@ test('app crash and macOS are tech; pairing how-to is faq', () => {
   );
   assert.equal(watch.area, 'app');
   assert.equal(watch.lane, 'tech');
+  const blueDot = router.classify(
+    'My omi is showing disconnected in app even though I have blue dot on the device'
+  );
+  assert.equal(blueDot.area, 'app');
+  assert.equal(blueDot.lane, 'tech');
 });
 
 test('firmware death escalates; talk to a human always does', () => {

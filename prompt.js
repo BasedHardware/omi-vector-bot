@@ -15,6 +15,7 @@ const RAILS_FAQ = [
   'The necklace works with the Omi app on your phone. You do not need a computer for the device to work. A computer app is extra. Do not invent that they must buy a different plan for every device.',
   'Fair use warnings and a full memory mean the account hit a limit. Do not invent how many hours they get, plan names, or prices. A person with account access needs this. If they are thinking of returning the device, do not process a return from chat.',
   'Do not invent order status, tracking numbers, refunds, ship dates, software versions, or “I told the team.” Those need a human.',
+  'Device lights: red = on, not connected to the phone; blue = on, connected; orange = charging, not connected; teal = charging and connected. If they name a colour, say what it means. Never say you do not know what blue, red, orange, or teal means. If the light says connected and the app says disconnected or offline, that is an app bug — escalate. Do not tell them to unpair or pair again.',
 ];
 
 const STATIC_FAQ = [...HOWTO_FAQ, ...RAILS_FAQ].join('\n');
@@ -30,7 +31,7 @@ function buildToolFacts({ route, shopifyText, githubText } = {}) {
   const lines = [`Lane: ${lane}. Area: ${area}.`, `This ticket: ${describe(route)}`];
   if (lane === 'tech' || lane === 'firmware') {
     lines.push(
-      'Read what they already did. If they paired, pairing is done — do not teach Bluetooth, lights, or keeping the app open. You cannot open their phone, computer, or device. Do not guess API keys, OpenRouter, BYOK, or Settings paths. Do not tell them to rerun npm with --force or --legacy-peer-deps. Do not invent a command that changes their project. escalate=true. First sentence: show you understood their case (video, seconds, error text). Do not write that a person on the team will look.'
+      'Read what they already did. If they paired, pairing is done — do not teach Bluetooth, pairing steps, or keeping the app open. If they named a light colour, say what that colour means. Do not say you are not sure what blue, red, orange, or teal means. You cannot open their phone, computer, or device. Do not guess API keys, OpenRouter, BYOK, or Settings paths. Do not tell them to rerun npm with --force or --legacy-peer-deps. Do not invent a command that changes their project. Do not tell them to unpair. escalate=true. First sentence: show you understood their case (video, seconds, error text). Do not write that a person on the team will look.'
     );
   }
   if (lane === 'shop') {
@@ -75,7 +76,7 @@ Write like you are sitting with them, not like a log or a ticket:
 - Tell them what to tap or press only when they asked how to do something. Do not name internal systems, error codes, chip names, or log files unless they pasted one — then one short plain sentence.
 - Do not lecture. Do not dump setup they already did. If they already paired, do not teach pairing.
 
-FAQ is backup for how-to they asked for. Do not paste pairing, lights, or “keep the app open” unless they asked how to pair or what a light means.
+FAQ is backup for how-to they asked for. Do not paste pairing or “keep the app open” unless they asked how to pair. If they mention a device light, say what that colour means.
 
 You may use common sense about what they wrote. Do not invent order status, refunds, tracking, software versions, or commands that change their project. If a fact you would need is not in Knowledge or tool facts, say you are not sure in plain words and escalate — do not guess a fix.
 

@@ -118,6 +118,8 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   assert.equal(/Pairing|swipe it away/i.test(faqTextForLane('account')), false);
   assert.match(faqTextForLane('account'), /do not need a computer/i);
   assert.match(faqTextForLane('tech'), /Do not invent order status/);
+  assert.match(faqTextForLane('tech'), /blue = on, connected/);
+  assert.equal(/Pairing: turn the device/i.test(faqTextForLane('tech')), false);
   const accountTools = buildToolFacts({
     route: { lane: 'account', area: 'shop' },
   });
@@ -129,7 +131,8 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   });
   assert.match(tools, /cannot open their phone/i);
   assert.match(tools, /This ticket:/i);
-  assert.match(tools, /If they paired, pairing is done/i);
+  assert.match(tools, /If they named a light colour/i);
+  assert.equal(/do not teach Bluetooth, lights/i.test(tools), false);
   assert.match(tools, /OpenRouter/);
   assert.equal(/paid, shipped/i.test(tools), false);
 });

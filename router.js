@@ -68,6 +68,8 @@ const APP = [
   /\bwss:\/\/api\.omi/i,
   /\bdidn'?t sync\b/i,
   /\b(recordings?|clips?) (are )?(missing|gone)\b/i,
+  /\b(disconnected|offline).{0,40}\bapp\b/i,
+  /\bapp.{0,40}(disconnected|offline)\b/i,
 ];
 
 const FAQ = [

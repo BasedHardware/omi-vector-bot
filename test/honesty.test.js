@@ -30,6 +30,12 @@ test('crash replies lose pairing and Bluetooth steps', () => {
   assert.match(out, /phone app/i);
   assert.equal(/bluetooth/i.test(out), false);
   assert.equal(/pair the device/i.test(out), false);
+  const lights = stripHowtoBleed(
+    'Blue on the device means it is on and connected. The app showing disconnected is the bug. Do not unpair it.',
+    'tech'
+  );
+  assert.match(lights, /Blue on the device means it is on and connected/i);
+  assert.equal(/\bunpair\b/i.test(lights), false);
   const pairing = stripHowtoBleed('Turn Bluetooth on and pair from the Omi app.', 'faq');
   assert.match(pairing, /Bluetooth/);
   const autoOff = stripHowtoBleed(
