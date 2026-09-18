@@ -1,16 +1,18 @@
 const AREAS = ['shop', 'app', 'desktop', 'firmware', 'privacy', 'unknown'];
 
-const MONEY = [
+// Refunds and charges always beat a product bug. "billing reasons" in a
+// desktop 402 report is not a Shopify refund.
+const STRONG_MONEY = [
   /\brefunds?\b/i,
   /\bcharged\b/i,
-  /\bbilling\b/i,
   /\binvoice\b/i,
-  /\bpayment\b/i,
   /\btax\b/i,
   /\bwrong address\b/i,
   /\bchange (my )?(the )?(shipping )?address\b/i,
   /\bcancel (my )?(the )?(order|purchase)\b/i,
 ];
+
+const WEAK_MONEY = [/\bbilling\b/i, /\bpayment\b/i];
 
 const PRIVACY = [/\bprivacy\b/i, /\bgdpr\b/i, /\bdelete my (account|data)\b/i];
 
@@ -129,14 +131,14 @@ function classify(text) {
   const s = String(text || '');
   const wantHuman = any(s, WANT_HUMAN);
 
-  if (/\bin order to\b/i.test(s) && !any(s, SHOP) && !any(s, MONEY)) {
+  if (/\bin order to\b/i.test(s) && !any(s, SHOP) && !any(s, STRONG_MONEY) && !any(s, WEAK_MONEY)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
 
   if (any(s, PRIVACY)) {
     return { area: 'privacy', lane: 'privacy', escalate: true, wantHuman };
   }
-  if (any(s, MONEY)) {
+  if (any(s, STRONG_MONEY)) {
     return { area: 'shop', lane: 'money', escalate: true, wantHuman };
   }
   if (any(s, SHOP)) {
@@ -150,6 +152,9 @@ function classify(text) {
   }
   if (any(s, APP)) {
     return { area: 'app', lane: 'tech', escalate: true, wantHuman };
+  }
+  if (any(s, WEAK_MONEY)) {
+    return { area: 'shop', lane: 'money', escalate: true, wantHuman };
   }
   if (any(s, FAQ)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };

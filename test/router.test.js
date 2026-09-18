@@ -38,6 +38,33 @@ test('PII and orders are not public-forum safe', () => {
   assert.equal(router.isPublicForumSafe('How do I pair my Omi?'), true);
 });
 
+test('desktop voice 402 is tech, not a refund', () => {
+  const part1 = [
+    'Hello Omi Support, problem with voice replies in the Omi macOS desktop app.',
+    'Omi can transcribe. It does not speak a response.',
+    'Couldn’t get a voice reply.',
+    "Omi’s AI service declined this request for billing reasons.",
+  ].join(' ');
+  const route1 = router.classify(part1);
+  assert.equal(route1.area, 'desktop');
+  assert.equal(route1.lane, 'tech');
+  assert.equal(router.skipModel(route1), true);
+  assert.match(router.cannedReply(route1), /logs/);
+  assert.equal(/refund/i.test(router.cannedReply(route1)), false);
+
+  const part2 = [
+    'The AI response fails with a billing-related error. HTTP 402.',
+    "Omi Desktop's local API is working. OpenRouter key is configured.",
+    'Should OpenRouter BYOK work for voice replies?',
+  ].join(' ');
+  const route2 = router.classify(part2);
+  assert.equal(route2.area, 'desktop');
+  assert.equal(route2.lane, 'tech');
+
+  assert.equal(router.classify('I have a billing question').lane, 'money');
+  assert.equal(router.classify('I was charged twice on the macOS desktop app').lane, 'money');
+});
+
 test('refund, privacy, and app crash skip the model and do not use pairing steps', () => {
   const refund = router.classify('I want a refund');
   assert.equal(router.skipModel(refund), true);
