@@ -125,6 +125,49 @@ const DISCORD_REPLY_MAX = 1900;
 // mass-ping or role-ping amplifier.
 const SAFE_REPLY_MENTIONS = { parse: ['users'], roles: [], repliedUser: true };
 
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mentionNamesForUser(user, member) {
+  const names = [user?.username, user?.globalName, member?.nickname, member?.displayName]
+    .map((name) => String(name || '').trim())
+    .filter((name) => name.length >= 2 && !/\s/.test(name) && !/^everyone$|^here$/i.test(name));
+  return [...new Set(names)].sort((a, b) => b.length - a.length);
+}
+
+function mentionablePeople(message) {
+  const people = [];
+  const seen = new Set();
+  const add = (user, member) => {
+    const id = String(user?.id || '');
+    if (!/^\d{5,}$/.test(id) || seen.has(id)) return;
+    seen.add(id);
+    people.push({ id, names: mentionNamesForUser(user, member) });
+  };
+  add(message?.author, message?.member);
+  const mentioned = message?.mentions?.users;
+  if (mentioned && typeof mentioned.values === 'function') {
+    for (const user of mentioned.values()) add(user, null);
+  } else if (Array.isArray(mentioned)) {
+    for (const user of mentioned) add(user, null);
+  }
+  return people;
+}
+
+// Discord only pings <@USER_ID>. Plain @username is decoration. Only rewrite
+// people we already know (the author, or users they @'d) — never guild-scan.
+function rewriteUserMentions(text, message) {
+  let out = String(text || '');
+  for (const person of mentionablePeople(message)) {
+    for (const name of person.names) {
+      const re = new RegExp(`(^|[^<\\w])@${escapeRegExp(name)}\\b`, 'gi');
+      out = out.replace(re, `$1<@${person.id}>`);
+    }
+  }
+  return out;
+}
+
 function clipThreadHistory(entries, maxEach = 400, maxItems = 8) {
   return (entries || [])
     .map((m) => {
@@ -225,6 +268,7 @@ module.exports = {
   formatDiscordReply,
   clipForDiscord,
   SAFE_REPLY_MENTIONS,
+  rewriteUserMentions,
   clipThreadHistory,
   escalateReply,
   ESCALATE_FOOTER,

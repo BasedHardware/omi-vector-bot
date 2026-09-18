@@ -141,6 +141,23 @@ test('clips Discord replies under the length cap', () => {
   assert.equal(out.endsWith('…'), true);
 });
 
+test('plain @username becomes a real Discord mention for the author', () => {
+  const { rewriteUserMentions } = require('../utils');
+  const message = {
+    author: { id: '564270044599812096', username: 'twilsonco', globalName: 'TWilson' },
+    member: { displayName: 'twilsonco' },
+  };
+  const out = rewriteUserMentions('Hey @twilsonco, keep the order number.', message);
+  assert.equal(out.includes('@twilsonco'), false);
+  assert.match(out, /<@564270044599812096>/);
+  assert.equal(
+    rewriteUserMentions('@everyone look', message).includes('@everyone'),
+    true
+  );
+  const already = rewriteUserMentions('ping <@564270044599812096> please', message);
+  assert.equal(already, 'ping <@564270044599812096> please');
+});
+
 test('issue replies drop person-on-the-team narration', () => {
   const { ISSUE_FOOTER } = require('../utils');
   const out = escalateReply(
