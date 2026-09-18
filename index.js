@@ -16,6 +16,7 @@ const {
   clipThreadHistory,
   escalateReply,
   stripPingNarration,
+  SAFE_REPLY_MENTIONS,
 } = require('./utils');
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
 const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion, canSaveFaq, applyThreadName, recentlyHandedOff, staffMentionIds } = require('./handoff');
@@ -125,7 +126,10 @@ async function handleFaqSave(message) {
 
   if (!canSaveFaq(message.author.id)) {
     try {
-      await message.reply('Only named staff can save a faq line.');
+      await message.reply({
+        content: 'Only named staff can save a faq line.',
+        allowedMentions: SAFE_REPLY_MENTIONS,
+      });
     } catch (err) {
       console.error('[Knowledge] reply failed:', err.message);
     }
@@ -141,7 +145,7 @@ async function handleFaqSave(message) {
           ? 'Order lookup is already on. I will not save that I cannot see Shopify.'
         : 'Nothing to save. Use `faq: short true sentence`.';
     try {
-      await message.reply(why);
+      await message.reply({ content: why, allowedMentions: SAFE_REPLY_MENTIONS });
     } catch (err) {
       console.error('[Knowledge] reply failed:', err.message);
     }
@@ -152,7 +156,10 @@ async function handleFaqSave(message) {
     await knowledge.persistSnippet(saved.snippet);
   }
   try {
-    await message.reply('Saved. I will use this on later questions.');
+    await message.reply({
+      content: 'Saved. I will use this on later questions.',
+      allowedMentions: SAFE_REPLY_MENTIONS,
+    });
   } catch (err) {
     console.error('[Knowledge] reply failed:', err.message);
   }
@@ -340,22 +347,23 @@ async function handleMessage(message) {
           console.error('[Bot] Handoff failed:', err.message);
         }
       }
-  if (triaged.fileIssue && handoffThread && triaged.area !== 'shop' && triaged.area !== 'privacy') {
-    await postIssueCard(handoffThread, draft, githubHit);
-  }
-      await message.reply(
-        escalateReply(cleanAnswer, {
+      if (triaged.fileIssue && handoffThread && triaged.area !== 'shop' && triaged.area !== 'privacy') {
+        await postIssueCard(handoffThread, draft, githubHit);
+      }
+      await message.reply({
+        content: escalateReply(cleanAnswer, {
           pinged,
           duplicate,
           conversation: inHandoff,
           issue: triaged.fileIssue && !inHandoff,
-        })
-      );
+        }),
+        allowedMentions: SAFE_REPLY_MENTIONS,
+      });
       if (dbReady) {
         await db.createEscalation(channel.id);
       }
     } else {
-      await message.reply(cleanAnswer);
+      await message.reply({ content: cleanAnswer, allowedMentions: SAFE_REPLY_MENTIONS });
     }
 
     markReplied(channel.id);
@@ -365,9 +373,10 @@ async function handleMessage(message) {
   } catch (err) {
     console.error(`[Bot] Error in ${channel.id}:`, err.message);
     try {
-      await message.reply(
-        'Something broke on my side. I have not pinged anyone. Try that again in a moment.'
-      );
+      await message.reply({
+        content: 'Something broke on my side. I have not pinged anyone. Try that again in a moment.',
+        allowedMentions: SAFE_REPLY_MENTIONS,
+      });
     } catch (replyErr) {
       console.error('[Bot] Reply failed:', replyErr.message);
     }
