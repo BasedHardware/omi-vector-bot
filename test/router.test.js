@@ -62,6 +62,11 @@ test('desktop voice 402 is tech, not a refund', () => {
   assert.equal(route2.area, 'desktop');
   assert.equal(route2.lane, 'tech');
 
+  const shortSmoke = router.classify('The Mac voice / "billing reasons"');
+  assert.equal(shortSmoke.area, 'desktop');
+  assert.equal(shortSmoke.lane, 'tech');
+  assert.equal(router.skipModel(shortSmoke), false);
+
   assert.equal(router.classify('I have a billing question').lane, 'money');
   assert.equal(router.classify('I was charged twice on the macOS desktop app').lane, 'money');
 });

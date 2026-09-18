@@ -12,7 +12,11 @@ const STRONG_MONEY = [
   /\bcancel (my )?(the )?(order|purchase)\b/i,
 ];
 
-const WEAK_MONEY = [/\bbilling\b/i, /\bpayment\b/i];
+const WEAK_MONEY = [
+  /\bmy billing\b/i,
+  /\bbilling (issue|question|problem|for)\b/i,
+  /\bpayment\b/i,
+];
 
 const PRIVACY = [/\bprivacy\b/i, /\bgdpr\b/i, /\bdelete my (account|data)\b/i];
 
@@ -35,7 +39,14 @@ const FIRMWARE = [
   /turns? off .+ (100\s*%|battery)/i,
 ];
 
-const DESKTOP = [/\bmac\s?os\b/i, /\bmacos\b/i, /\bdesktop app\b/i, /\bomi desktop\b/i];
+const DESKTOP = [
+  /\bmac\s?os\b/i,
+  /\bmacos\b/i,
+  /\bmac\b/i,
+  /\bdesktop app\b/i,
+  /\bomi desktop\b/i,
+  /\bdesktop voice\b/i,
+];
 
 const APP = [
   /\b(android|iphone|ios)\b/i,
