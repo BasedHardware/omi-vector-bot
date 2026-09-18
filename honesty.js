@@ -7,6 +7,7 @@ const LIE_PATTERNS = [
   /ticket has been (created|opened|filed)/i,
   /i (just )?contacted (support|staff|aarav|the team)/i,
   /passing this along/i,
+  /passed this along/i,
   /someone will follow up/i,
 ];
 
@@ -22,6 +23,8 @@ const DROP_SENTENCE = [
   /has changed since your last (message|question)/i,
   /won'?t change what i (have|can) access/i,
   /won'?t change what i have access to/i,
+  /--legacy-peer-deps/i,
+  /retry this command with --force/i,
 ];
 
 function looksLikeStaffLie(text) {
@@ -46,6 +49,8 @@ function stripInventedLookup(text) {
     .map((line) => line.trimEnd())
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/\bin plain words\b/gi, '')
+    .replace(/[^\S\n]{2,}/g, ' ')
     .trim();
   return cleaned;
 }
@@ -60,4 +65,46 @@ function stripStaffLies(text) {
   return joined;
 }
 
-module.exports = { looksLikeStaffLie, stripStaffLies, stripInventedLookup, looksLikeInventedLookup };
+const HOWTO_BLEED = [
+  /\bbluetooth\b/i,
+  /\bre-?pair/i,
+  /\bpair(ing)? (it|the|from|with|your|again)\b/i,
+  /\bteal\b/i,
+  /\bleds?\b/i,
+  /center button/i,
+  /swiped away/i,
+  /keep the (omi )?app open/i,
+  /app is open on your phone/i,
+];
+
+function looksLikeHowtoBleed(text) {
+  return HOWTO_BLEED.some((re) => re.test(String(text || '')));
+}
+
+function stripHowtoBleed(text, lane) {
+  const raw = String(text || '');
+  if (lane === 'faq') return raw;
+  const cleaned = raw
+    .split('\n')
+    .map((line) => {
+      if (!looksLikeHowtoBleed(line)) return line;
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => !looksLikeHowtoBleed(sentence))
+        .join(' ');
+    })
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+  if (cleaned) return cleaned;
+  return "I can't see the app or the device from here, so I won't guess a fix.";
+}
+
+module.exports = {
+  looksLikeStaffLie,
+  stripStaffLies,
+  stripInventedLookup,
+  looksLikeInventedLookup,
+  stripHowtoBleed,
+};

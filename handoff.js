@@ -1,5 +1,6 @@
 const telegram = require('./telegram');
 const { clipForDiscord, stripPingNarration } = require('./utils');
+const { ownerMention, ownerRef, shouldPingOwner, parseAreaOwners, classify } = require('./router');
 
 const DEDUPE_MS = 15 * 60_000;
 const lastHandoff = new Map();
@@ -17,6 +18,28 @@ function staffMentionIds() {
 function staffMentions() {
   const { users, roles } = staffMentionIds();
   return [...users.map((id) => `<@${id}>`), ...roles.map((id) => `<@&${id}>`)].join(' ');
+}
+
+function isTestHandoffChannel(channel) {
+  const testId = process.env.VECTOR_TEST_CHANNEL_ID;
+  if (!testId || !channel) return false;
+  if (channel.id === testId) return true;
+  return Boolean(channel.isThread?.() && channel.parentId === testId);
+}
+
+function canStaffAct(interaction) {
+  const userId = String(interaction?.user?.id || '');
+  const { users, roles } = staffMentionIds();
+  if (users.includes(userId)) return true;
+  const cache = interaction?.member?.roles?.cache;
+  if (roles.length && cache) {
+    if (typeof cache.has === 'function' && roles.some((id) => cache.has(id))) return true;
+    if (typeof cache.includes === 'function' && roles.some((id) => cache.includes(id))) return true;
+  }
+  if (!users.length && !roles.length && isTestHandoffChannel(interaction?.channel)) {
+    return true;
+  }
+  return false;
 }
 
 function canNotifyStaff({ discordReady = false } = {}) {
@@ -48,15 +71,151 @@ function clipUserQuestion(text) {
   return clipForDiscord(cleaned || raw, 1000);
 }
 
-function formatStaffTicket({ message, question, reason, draft }) {
-  const why = clipForDiscord(reason || 'Vector cannot finish this. Needs a person.', 200);
+function resolveRoute({ area, lane, question } = {}) {
+  const inferred = question ? classify(question) : { area: 'unknown', lane: 'unknown' };
+  const inferredWins = inferred.area !== 'unknown' && (!area || area === 'unknown');
+  const resolvedArea = inferredWins ? inferred.area : area && area !== 'unknown' ? area : inferred.area;
+  const resolvedLane = inferredWins
+    ? inferred.lane
+    : lane && lane !== 'unknown'
+      ? lane
+      : inferred.lane;
+  return {
+    area: resolvedArea || 'unknown',
+    lane: resolvedLane || 'unknown',
+  };
+}
+
+function defaultTopic(area, lane) {
+  if (lane === 'account') return 'fair use and plans';
+  if (lane === 'money') return 'refund or charge';
+  if (lane === 'shop') return 'order';
+  if (lane === 'firmware' || area === 'firmware') return 'device problem';
+  if (area === 'desktop') return 'computer app';
+  if (area === 'app') return 'phone app';
+  if (lane === 'privacy') return 'privacy';
+  if (lane === 'faq') return 'how-to';
+  if (lane === 'tech') return 'app bug';
+  return 'needs a person';
+}
+
+function ticketLabels({ area, lane, question } = {}) {
+  const resolved = resolveRoute({ area, lane, question });
+  const labels = [];
+  if (resolved.area && resolved.area !== 'unknown') labels.push(String(resolved.area));
+  if (resolved.lane && resolved.lane !== 'unknown' && !labels.includes(String(resolved.lane))) {
+    labels.push(String(resolved.lane));
+  }
+  const q = String(question || '');
+  if (
+    (resolved.area === 'shop' ||
+      resolved.lane === 'shop' ||
+      resolved.lane === 'money' ||
+      resolved.lane === 'account') &&
+    /\b(taxes?|refunds?|payment)\b/i.test(q) &&
+    !labels.includes('money')
+  ) {
+    labels.push('money');
+  }
+  if (!labels.length) labels.push('needs-human');
+  return labels;
+}
+
+function isThreadNoise(line) {
+  const part = String(line || '').trim();
+  if (!part || part.length < 8) return true;
+  if (/^want:\s/i.test(part) || /^chatgpt/i.test(part)) return true;
+  if (/^e abaixo/i.test(part)) return true;
+  if (/^[A-Z0-9 ,/|:.—–-]{3,60}$/.test(part) && part === part.toUpperCase()) return true;
+  if (/^[A-Z]{2,} — /.test(part) && part.length < 48) return true;
+  if (/^["“]/.test(part) && !/\border\s*#/i.test(part)) return true;
+  if (/^(hi|hello|hey)[,!.\s]/i.test(part) && !/\?/.test(part)) return true;
+  if (/nintendo kid|lost that enthusiasm/i.test(part)) return true;
+  if (/just got .{0,80}(in the mail|my omi)/i.test(part) && !/fair[- ]use|turns? off|crash/i.test(part)) {
+    return true;
+  }
+  if (/^i('m| am) getting this error\b/i.test(part) && part.length < 90) return true;
+  return false;
+}
+
+function threadTopic(question, route = {}) {
+  const raw = String(question || '');
+  const numbered = raw.match(/\border\s*#\s*(\d{3,})\b/i);
+  if (numbered) return `Order #${numbered[1]}`;
+  const pack = raw.match(/\b(omi-windows|omi-desktop)\b/i);
+  const code = raw.match(/\b(ERESOLVE|EPERM|ENOENT)\b/);
+  if (pack && code) return `${pack[1]} ${code[1]}`;
+  if (pack) return pack[1];
+  const secs = raw.match(/after\s+(\d+)\s*seconds?/i);
+  if (/turning itself off|turns? itself off|keeps turning (itself )?off/i.test(raw)) {
+    return secs ? `device off after ${secs[1]}s` : 'device turns itself off';
+  }
+  if (/fair[- ]use/i.test(raw)) {
+    return /plan|memory/i.test(raw) ? 'fair use and plans' : 'fair use warning';
+  }
+  const line = raw
+    .split('\n')
+    .map((part) => part.trim())
+    .filter((part) => !isThreadNoise(part))
+    .find((part) => part.length > 12 && part.length <= 70);
+  if (line) return clipForDiscord(line.replace(/["*_`]/g, ''), 70);
+  const resolved = resolveRoute({ area: route.area, lane: route.lane, question });
+  return defaultTopic(resolved.area, resolved.lane);
+}
+
+function handoffThreadName({ question, area, lane, topic, labels } = {}) {
+  const resolved = resolveRoute({ area, lane, question });
+  const tag = (Array.isArray(labels) && labels.length
+    ? labels.map((label) => String(label).trim()).filter(Boolean)
+    : ticketLabels({ area: resolved.area, lane: resolved.lane, question })
+  ).filter((label) => label !== 'needs-human');
+  if (!tag.length) tag.push('needs-human');
+  const subject = String(topic || '').trim() || threadTopic(question, resolved);
+  return clipForDiscord(`Handoff · ${tag.join(' · ')} · ${subject}`, 100);
+}
+
+async function applyThreadName(thread, meta = {}) {
+  if (!thread || typeof thread.setName !== 'function') return false;
+  const name = handoffThreadName(meta);
+  if (!name || thread.name === name) return false;
+  try {
+    await thread.setName(name);
+    return true;
+  } catch (err) {
+    console.error('[Bot] thread rename failed:', err.message);
+    return false;
+  }
+}
+
+function formatStaffTicket({
+  message,
+  question,
+  reason,
+  draft,
+  shopify,
+  area,
+  lane,
+  github,
+  fileIssueId,
+  extraMentions,
+  extraUsers,
+  extraRoles,
+  labels: labelOverride,
+}) {
+  const why = clipForDiscord(reason || "I can't finish this from chat.", 200);
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
   const from = message?.author?.id ? `<@${message.author.id}>` : 'unknown user';
   const channel = message?.channel?.id ? `<#${message.channel.id}>` : '';
-  const mentions = staffMentions();
+  const mentions = [staffMentions(), extraMentions].filter(Boolean).join(' ').trim();
   const { users, roles } = staffMentionIds();
   const cleanDraft = stripPingNarration(draft || '');
+  const resolved = resolveRoute({ area, lane, question });
+  const labels =
+    Array.isArray(labelOverride) && labelOverride.length
+      ? labelOverride.filter((label) => label && label !== 'needs-human')
+      : ticketLabels({ area: resolved.area, lane: resolved.lane, question });
+  if (!labels.length) labels.push('needs-human');
 
   const embed = {
     title: 'Needs a human',
@@ -64,25 +223,67 @@ function formatStaffTicket({ message, question, reason, draft }) {
     description: asked || '(no text)',
     fields: [
       { name: 'Why', value: why, inline: false },
-      { name: 'From', value: [from, channel].filter(Boolean).join(' · ') || 'unknown', inline: true },
     ],
   };
+  embed.fields.push({
+    name: 'Labels',
+    value: labels.map((label) => `\`${label}\``).join('  '),
+    inline: true,
+  });
+  const areaValue = resolved.area !== 'unknown' ? resolved.area : resolved.lane !== 'unknown' ? resolved.lane : '';
+  if (areaValue) {
+    embed.fields.push({ name: 'Area', value: String(areaValue), inline: true });
+  }
+  const shopifyFacts = clipForDiscord(String(shopify || '').trim(), 500);
+  if (shopifyFacts) {
+    embed.fields.push({ name: 'Shopify', value: shopifyFacts, inline: false });
+  }
+  const githubFacts = clipForDiscord(String(github || '').trim(), 400);
+  if (githubFacts) {
+    embed.fields.push({ name: 'GitHub', value: githubFacts, inline: false });
+  }
+  embed.fields.push({
+    name: 'From',
+    value: [from, channel].filter(Boolean).join(' · ') || 'unknown',
+    inline: true,
+  });
   if (jump) {
     embed.fields.push({ name: 'Jump', value: `[Open message](${jump})`, inline: true });
   }
   embed.fields.push({
     name: 'Staff',
     value:
-      'Reply in this thread. The user can read it.\nTo save a fact for next time: `faq: short true sentence`',
+      'Reply in this thread. The user can read it.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
     inline: false,
   });
 
-  return {
-    discord: {
-      content: mentions || undefined,
-      embeds: [embed],
-      allowedMentions: { parse: [], users, roles },
+  const discord = {
+    content: mentions || undefined,
+    embeds: [embed],
+    allowedMentions: {
+      parse: [],
+      users: [...users, ...(extraUsers || [])],
+      roles: [...roles, ...(extraRoles || [])],
     },
+  };
+  if (fileIssueId) {
+    discord.components = [
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 1,
+            custom_id: `file:${fileIssueId}`,
+            label: 'File issue',
+          },
+        ],
+      },
+    ];
+  }
+
+  return {
+    discord,
     plain: {
       threadId: message?.channel?.id,
       jumpUrl: jump,
@@ -93,7 +294,7 @@ function formatStaffTicket({ message, question, reason, draft }) {
   };
 }
 
-async function postHandoffThread(message, payload) {
+async function postHandoffThread(message, payload, meta = {}) {
   if (!message?.startThread) return null;
   if (message.channel?.isThread?.()) return null;
 
@@ -102,11 +303,16 @@ async function postHandoffThread(message, payload) {
     return message.thread;
   }
 
-  const username = String(message.author?.username || 'user').slice(0, 24);
   const thread = await message.startThread({
-    name: `Handoff · ${username}`.slice(0, 100),
+    name: handoffThreadName({
+      question: meta.question,
+      area: meta.area,
+      lane: meta.lane,
+      topic: meta.topic,
+      labels: meta.labels,
+    }),
     autoArchiveDuration: 1440,
-    reason: 'Vector could not resolve this',
+    reason: 'Could not finish this from chat',
   });
   await thread.send(payload);
   return thread;
@@ -121,13 +327,52 @@ async function sendToStaffChannel(client, payload) {
   return true;
 }
 
-async function notifyStaff({ client, message, question, reason, draft, skipDedupe = false }) {
+async function notifyStaff({
+  client,
+  message,
+  question,
+  reason,
+  draft,
+  shopify,
+  area,
+  github,
+  fileIssueId,
+  route,
+  skipDedupe = false,
+  topic,
+  labels,
+}) {
   const channelId = message?.channel?.id;
   if (!skipDedupe && recentlyHandedOff(channelId)) {
     return { ok: true, via: 'recent', duplicate: true };
   }
 
-  const ticket = formatStaffTicket({ message, question, reason, draft });
+  let extraMentions = '';
+  const extraUsers = [];
+  const extraRoles = [];
+  if (shouldPingOwner(route || { area, escalate: true, lane: area })) {
+    const owners = parseAreaOwners();
+    extraMentions = ownerMention(area, owners);
+    const ref = ownerRef(area, owners);
+    if (ref?.kind === 'user') extraUsers.push(ref.id);
+    if (ref?.kind === 'role') extraRoles.push(ref.id);
+  }
+
+  const ticket = formatStaffTicket({
+    message,
+    question,
+    reason,
+    draft,
+    shopify,
+    area,
+    lane: route?.lane,
+    github,
+    fileIssueId,
+    extraMentions,
+    extraUsers,
+    extraRoles,
+    labels,
+  });
   const errors = [];
 
   try {
@@ -142,11 +387,17 @@ async function notifyStaff({ client, message, question, reason, draft, skipDedup
 
   if (process.env.HANDOFF_THREADS !== '0') {
     try {
-      const thread = await postHandoffThread(message, ticket.discord);
+      const thread = await postHandoffThread(message, ticket.discord, {
+        question,
+        area,
+        lane: route?.lane,
+        topic,
+        labels,
+      });
       if (thread) {
         markHandedOff(channelId, true);
         await telegram.sendEscalation(ticket.plain);
-        return { ok: true, via: 'thread', threadId: thread.id };
+        return { ok: true, via: 'thread', threadId: thread.id, thread };
       }
     } catch (err) {
       errors.push(`thread: ${err.message}`);
@@ -194,8 +445,14 @@ module.exports = {
   resetHandoffMemory,
   formatStaffTicket,
   clipUserQuestion,
+  ticketLabels,
+  threadTopic,
+  handoffThreadName,
+  applyThreadName,
   notifyStaff,
   isHandoffThread,
   canSaveFaq,
+  canStaffAct,
   staffMentions,
+  staffMentionIds,
 };

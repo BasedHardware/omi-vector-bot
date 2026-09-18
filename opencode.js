@@ -18,20 +18,49 @@ function parseAgentJson(raw) {
   if (start === -1 || end === -1) {
     throw new Error('OpenCode reply was not JSON');
   }
-  const data = JSON.parse(trimmed.slice(start, end + 1));
+  let data;
+  try {
+    data = JSON.parse(trimmed.slice(start, end + 1));
+  } catch (err) {
+    console.error('[OpenCode] json parse failed:', err.message);
+    return {
+      final_answer: 'I am not sure. A person on the team needs to take this.',
+      confidence: 0.2,
+      escalate: true,
+      reason: 'model json failed',
+      topic: '',
+      labels: [],
+      area: '',
+      lane: '',
+      file_issue: false,
+    };
+  }
   if (typeof data.final_answer !== 'string' || !data.final_answer.trim()) {
     throw new Error('OpenCode JSON missing final_answer');
   }
   const confidence = Number(data.confidence);
+  const labels = Array.isArray(data.labels) ? data.labels.map((x) => String(x)) : [];
   return {
     final_answer: stripStaffLies(data.final_answer.trim()),
     confidence: Number.isFinite(confidence) ? confidence : 0.4,
     escalate: Boolean(data.escalate),
     reason: String(data.reason || data.escalation_question_for_aarav || '').trim(),
+    topic: String(data.topic || '').trim(),
+    labels,
+    area: String(data.area || '').trim(),
+    lane: String(data.lane || '').trim(),
+    file_issue: Boolean(data.file_issue),
   };
 }
 
-async function queryAgent({ question, threadHistory, knowledgeSnippets, sessionId, canNotifyStaff }) {
+async function queryAgent({
+  question,
+  threadHistory,
+  knowledgeSnippets,
+  route,
+  toolFacts,
+  sessionId,
+}) {
   const key = process.env.OPENCODE_API_KEY;
   if (!key) {
     throw new Error('Missing OPENCODE_API_KEY');
@@ -44,12 +73,18 @@ async function queryAgent({ question, threadHistory, knowledgeSnippets, sessionI
       OPENCODE_URL,
       {
         model: OPENCODE_MODEL,
-        temperature: 0.2,
+        temperature: 0.4,
         messages: [
-          { role: 'system', content: buildSystemPrompt() },
+          { role: 'system', content: buildSystemPrompt(route) },
           {
             role: 'user',
-            content: buildUserPrompt({ question, threadHistory, knowledgeSnippets }),
+            content: buildUserPrompt({
+              question,
+              threadHistory,
+              knowledgeSnippets,
+              route,
+              toolFacts,
+            }),
           },
         ],
       },

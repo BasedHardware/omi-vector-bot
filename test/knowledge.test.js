@@ -8,6 +8,7 @@ const {
   applyStaffFacts,
   collectFaqFromMessages,
   hydrateFromDiscord,
+  filterSnippetsForLane,
 } = require('../knowledge');
 const { canSaveFaq, isHandoffThread } = require('../handoff');
 
@@ -54,6 +55,17 @@ test('normal Handoff sentences are not faq commands so Vector stays quiet', () =
   assert.equal(parseFaqCommand('I will look up the order in Shopify.'), null);
 });
 
+test('tech lanes drop pairing FAQ facts', () => {
+  const mixed = [
+    'Pairing: open the Omi app and wait for Bluetooth.',
+    'Order and tracking lookups need a person. Vector cannot see Shopify.',
+  ];
+  assert.deepEqual(filterSnippetsForLane(mixed, 'tech'), [
+    'Order and tracking lookups need a person. Vector cannot see Shopify.',
+  ]);
+  assert.equal(filterSnippetsForLane(mixed, 'faq').length, 2);
+});
+
 test('applyStaffFacts prepends Shopify when the model dropped it', () => {
   const out = applyStaffFacts(
     "I can't see orders, tracking, or shipping from here, so I won't guess at a status or a date.",
@@ -83,15 +95,43 @@ test('collectFaqFromMessages reads faq lines from Handoff history and skips bots
 });
 
 test('user prompt tells the model to use staff-saved knowledge words', () => {
-  const { buildUserPrompt, buildSystemPrompt } = require('../prompt');
+  const { buildUserPrompt, buildSystemPrompt, faqTextForLane, buildToolFacts } = require('../prompt');
   const user = buildUserPrompt({
     question: 'Where is my order?',
     threadHistory: [],
     knowledgeSnippets: ['Order and tracking lookups need a person. Vector cannot see Shopify.'],
+    route: { lane: 'shop', area: 'shop' },
   });
   assert.match(user, /staff-saved/i);
   assert.match(user, /Shopify/);
-  assert.match(buildSystemPrompt(), /Keep names they used/);
+  assert.match(user, /Lane: shop/);
+  assert.match(buildSystemPrompt({ lane: 'faq' }), /Omi Support/);
+  assert.match(buildSystemPrompt({ lane: 'faq' }), /Keep names they used/);
+  assert.match(buildSystemPrompt({ lane: 'faq' }), /customer/i);
+  assert.match(buildSystemPrompt({ lane: 'faq' }), /Everyday words/);
+  assert.match(buildSystemPrompt({ lane: 'firmware' }), /Think about their message/);
+  assert.match(buildSystemPrompt({ lane: 'account' }), /numbered questions/);
+  assert.match(buildSystemPrompt({ lane: 'faq' }), /"topic"/);
+  assert.match(faqTextForLane('faq'), /Pairing/);
+  assert.equal(/Pairing|Bluetooth/i.test(faqTextForLane('tech')), false);
+  assert.equal(/Pairing|swipe it away/i.test(faqTextForLane('unknown')), false);
+  assert.equal(/Pairing|swipe it away/i.test(faqTextForLane('account')), false);
+  assert.match(faqTextForLane('account'), /do not need a computer/i);
+  assert.match(faqTextForLane('tech'), /Do not invent order status/);
+  const accountTools = buildToolFacts({
+    route: { lane: 'account', area: 'shop' },
+  });
+  assert.match(accountTools, /computer is extra/i);
+  assert.equal(/paid, shipped/i.test(accountTools), false);
+  const tools = buildToolFacts({
+    route: { lane: 'tech', area: 'desktop' },
+    githubText: '',
+  });
+  assert.match(tools, /cannot open their phone/i);
+  assert.match(tools, /This ticket:/i);
+  assert.match(tools, /If they paired, pairing is done/i);
+  assert.match(tools, /OpenRouter/);
+  assert.equal(/paid, shipped/i.test(tools), false);
 });
 
 test('hydrateFromDiscord reloads faq lines from Handoff threads', async () => {

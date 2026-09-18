@@ -19,8 +19,15 @@ const {
   SAFE_REPLY_MENTIONS,
 } = require('./utils');
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
-const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion, canSaveFaq } = require('./handoff');
+const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion, canSaveFaq, applyThreadName, recentlyHandedOff, staffMentionIds } = require('./handoff');
 const knowledge = require('./knowledge');
+const shopify = require('./shopify');
+const router = require('./router');
+const github = require('./github');
+const commands = require('./commands');
+const { buildToolFacts } = require('./prompt');
+const { stripHowtoBleed } = require('./honesty');
+const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
@@ -39,6 +46,30 @@ const client = new Client({
 const app = express();
 app.get('/health', (_req, res) => res.send('OK'));
 
+app.post('/github-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
+  if (!github.verifyWebhook(raw, req.headers['x-hub-signature-256'])) {
+    res.status(401).send('bad signature');
+    return;
+  }
+  let payload;
+  try {
+    payload = JSON.parse(raw.toString('utf8'));
+  } catch {
+    res.status(400).send('bad json');
+    return;
+  }
+  const event = github.describeWebhookEvent(payload);
+  if (event) {
+    try {
+      await commands.notifyLinkedThreads(client, event);
+    } catch (err) {
+      console.error('[GitHub] webhook post failed:', err.message);
+    }
+  }
+  res.send('ok');
+});
+
 function isHelpThread(channel) {
   return Boolean(HELP_FORUM_CHANNEL_ID) && channel.isThread() && channel.parentId === HELP_FORUM_CHANNEL_ID;
 }
@@ -51,9 +82,14 @@ function isTestChannel(channel) {
 
 function shouldHandle(message) {
   if (message.author.bot) return false;
-  if (isHandoffThread(message.channel)) return false;
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   if (caption.length < 5 && !hasUsableAttachment(message)) return false;
+  if (isHandoffThread(message.channel)) {
+    if (isTestChannel(message.channel)) return true;
+    const { users } = staffMentionIds();
+    if (users.length && canSaveFaq(message.author.id)) return false;
+    return true;
+  }
   if (isTestChannel(message.channel)) return true;
   if (isHelpThread(message.channel)) return true;
   if (client.user && message.mentions.has(client.user)) return true;
@@ -86,11 +122,14 @@ async function handleFaqSave(message) {
   if (!isHandoffThread(message.channel)) return false;
 
   const snippet = knowledge.parseFaqCommand(message.content);
-  if (snippet === null) return true;
+  if (snippet === null) return false;
 
   if (!canSaveFaq(message.author.id)) {
     try {
-      await message.reply('Only named staff can save a faq line.');
+      await message.reply({
+        content: 'Only named staff can save a faq line.',
+        allowedMentions: SAFE_REPLY_MENTIONS,
+      });
     } catch (err) {
       console.error('[Knowledge] reply failed:', err.message);
     }
@@ -102,9 +141,11 @@ async function handleFaqSave(message) {
     const why =
       saved.reason === 'lie'
         ? 'I will not save that. It claims a ping I did not make.'
+        : saved.reason === 'stale'
+          ? 'Order lookup is already on. I will not save that I cannot see Shopify.'
         : 'Nothing to save. Use `faq: short true sentence`.';
     try {
-      await message.reply(why);
+      await message.reply({ content: why, allowedMentions: SAFE_REPLY_MENTIONS });
     } catch (err) {
       console.error('[Knowledge] reply failed:', err.message);
     }
@@ -115,11 +156,31 @@ async function handleFaqSave(message) {
     await knowledge.persistSnippet(saved.snippet);
   }
   try {
-    await message.reply('Saved. I will use this on later questions.');
+    await message.reply({
+      content: 'Saved. I will use this on later questions.',
+      allowedMentions: SAFE_REPLY_MENTIONS,
+    });
   } catch (err) {
     console.error('[Knowledge] reply failed:', err.message);
   }
   return true;
+}
+
+async function postIssueCard(channel, draft, githubHit) {
+  if (!channel?.send || !draft) return;
+  let url = githubHit?.duplicate?.url || '';
+  if (!url && github.isConfigured()) {
+    const created = await github.createIssue(draft);
+    if (created.ok) {
+      url = created.url;
+      github.linkIssueThread(created.number, channel.id);
+    }
+  }
+  try {
+    await channel.send({ embeds: [github.formatIssueCard(draft, { url })] });
+  } catch (err) {
+    console.error('[Bot] issue card failed:', err.message);
+  }
 }
 
 async function handleMessage(message) {
@@ -143,50 +204,159 @@ async function handleMessage(message) {
   try {
     await channel.sendTyping();
 
-    const [threadHistory, knowledgeSnippets] = await Promise.all([
-      getHistory(channel, message.id),
-      searchKnowledge(asked || question),
-    ]);
+    const route = router.classify(question);
+    if (isHelpThread(channel) && !router.isPublicForumSafe(asked || question)) {
+      console.log('[Bot] PII/order/privacy stays off the public help copy');
+    }
 
-    const aiResponse = await queryAgent({
-      question,
-      threadHistory,
-      knowledgeSnippets,
-      sessionId: `discord-${channel.id}`,
-      canNotifyStaff: canNotifyStaff({ discordReady: true }),
+    const useShopify = shopify.isConfigured() && route.lane === 'shop';
+    let shopifyLookup = null;
+    let githubHit = null;
+    let fileIssueId;
+    let aiResponse;
+    let cleanAnswer;
+    let skipModel = false;
+    let snippets = [];
+
+    if (useShopify) {
+      shopifyLookup = await shopify.lookupOrder(asked || question);
+      console.log(`[Shopify] lookup key=${shopifyLookup.reason === 'no-key' ? 'none' : 'set'} status=${shopifyLookup.reason || 'hit'}`);
+    }
+    if (github.isConfigured() && router.isTechLane(route)) {
+      githubHit = await github.searchIssues(asked || question);
+    }
+
+    if (router.skipModel(route)) {
+      skipModel = true;
+      aiResponse = {
+        final_answer: '',
+        confidence: 0.9,
+        escalate: true,
+        reason: router.staffReason(route),
+      };
+      cleanAnswer = clipForDiscord(router.cannedReply(route) || '');
+    }
+
+    if (!skipModel) {
+      const [threadHistory, knowledgeSnippets] = await Promise.all([
+        getHistory(channel, message.id),
+        searchKnowledge(asked || question),
+      ]);
+      snippets = knowledge.filterSnippetsForLane(
+        shopify.filterKnowledge(knowledgeSnippets),
+        route.lane
+      );
+      const shopifyText = shopifyLookup
+        ? shopify.buildUserReply(shopifyLookup, asked || question)
+        : '';
+      const toolFacts = buildToolFacts({
+        route,
+        shopifyText,
+        githubText: githubHit?.duplicate?.url || '',
+      });
+
+      aiResponse = await queryAgent({
+        question,
+        threadHistory,
+        knowledgeSnippets: snippets,
+        route,
+        toolFacts,
+        sessionId: `discord-${channel.id}`,
+        canNotifyStaff: canNotifyStaff({ discordReady: true }),
+      });
+
+      if (useShopify && shopifyLookup) {
+        aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
+      } else if (githubHit?.duplicate) {
+        aiResponse.reason = aiResponse.reason || `Looks like ${githubHit.duplicate.url}`;
+      } else if (route.escalate) {
+        aiResponse.reason = aiResponse.reason || router.staffReason(route);
+      }
+    }
+
+    const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
+    if (!skipModel) {
+      cleanAnswer = clipForDiscord(
+        stripHowtoBleed(
+          knowledge.applyStaffFacts(
+            formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
+            snippets
+          ),
+          triaged.lane
+        )
+      );
+    }
+
+    const nameMeta = {
+      question: asked,
+      area: triaged.area,
+      lane: triaged.lane,
+      topic: triaged.topic,
+      labels: triaged.labels,
+    };
+    const inHandoff = isHandoffThread(channel);
+    const escalate = shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate;
+    const draft = github.draftFromQuestion(asked, triaged.area, {
+      topic: triaged.topic,
+      labels: triaged.labels,
     });
 
     await typingDelay();
-    const cleanAnswer = clipForDiscord(
-      knowledge.applyStaffFacts(
-        formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
-        knowledgeSnippets
-      )
-    );
 
-    if (shouldEscalate(aiResponse, caption)) {
-      console.log(`[Bot] Escalating ${channel.id} (confidence: ${aiResponse.confidence})`);
+    if (inHandoff) {
+      await applyThreadName(channel, nameMeta);
+    }
+
+    if (escalate) {
+      console.log(`[Bot] Escalating ${channel.id} area=${triaged.area} topic=${triaged.topic}`);
+      const techLane = router.isTechLane({ lane: triaged.lane, area: triaged.area });
+      if (github.isConfigured() && techLane && !githubHit?.duplicate) {
+        fileIssueId = github.stashDraft(draft);
+      }
       let pinged = false;
       let duplicate = false;
-      try {
-        const handoff = await notifyStaff({
-          client,
-          message,
-          question: asked,
-          reason: aiResponse.reason,
-          draft: cleanAnswer,
-          skipDedupe: isTestChannel(channel),
-        });
-        pinged = Boolean(handoff.ok);
-        duplicate = Boolean(handoff.duplicate);
-        console.log(
-          `[Bot] Handoff ${channel.id} via=${handoff.via || 'none'} ok=${pinged}`
-        );
-      } catch (err) {
-        console.error('[Bot] Handoff failed:', err.message);
+      let handoffThread = inHandoff ? channel : null;
+      if (!inHandoff || !recentlyHandedOff(channel.id)) {
+        try {
+          const handoff = await notifyStaff({
+            client,
+            message,
+            question: asked,
+            reason: aiResponse.reason || router.staffReason(triaged),
+            draft: cleanAnswer,
+            shopify: shopifyLookup?.order ? shopify.formatStaffFacts(shopifyLookup.order) : undefined,
+            area: triaged.area,
+            github: githubHit?.duplicate?.url,
+            fileIssueId,
+            route: { area: triaged.area, lane: triaged.lane, escalate: true },
+            skipDedupe: isTestChannel(channel) && !inHandoff,
+            topic: triaged.topic,
+            labels: triaged.labels,
+          });
+          pinged = Boolean(handoff.ok);
+          duplicate = Boolean(handoff.duplicate);
+          handoffThread = handoff.thread || handoffThread;
+          if (handoff.thread) await applyThreadName(handoff.thread, nameMeta);
+          if (handoff.threadId && githubHit?.duplicate?.number) {
+            github.linkIssueThread(githubHit.duplicate.number, handoff.threadId);
+          }
+          console.log(
+            `[Bot] Handoff ${channel.id} via=${handoff.via || 'none'} ok=${pinged}`
+          );
+        } catch (err) {
+          console.error('[Bot] Handoff failed:', err.message);
+        }
+      }
+      if (triaged.fileIssue && handoffThread && triaged.area !== 'shop' && triaged.area !== 'privacy') {
+        await postIssueCard(handoffThread, draft, githubHit);
       }
       await message.reply({
-        content: escalateReply(cleanAnswer, { pinged, duplicate }),
+        content: escalateReply(cleanAnswer, {
+          pinged,
+          duplicate,
+          conversation: inHandoff,
+          issue: triaged.fileIssue && !inHandoff,
+        }),
         allowedMentions: SAFE_REPLY_MENTIONS,
       });
       if (dbReady) {
@@ -203,9 +373,10 @@ async function handleMessage(message) {
   } catch (err) {
     console.error(`[Bot] Error in ${channel.id}:`, err.message);
     try {
-      await message.reply(
-        'Something broke on my side. I have not pinged anyone. Try that again in a moment.'
-      );
+      await message.reply({
+        content: 'Something broke on my side. I have not pinged anyone. Try that again in a moment.',
+        allowedMentions: SAFE_REPLY_MENTIONS,
+      });
     } catch (replyErr) {
       console.error('[Bot] Reply failed:', replyErr.message);
     }
@@ -231,25 +402,49 @@ client.on(Events.MessageCreate, async (message) => {
   await handleMessage(message);
 });
 
+client.on(Events.InteractionCreate, (interaction) => {
+  commands.handleInteraction(interaction);
+});
+
+async function nickOmiSupport(client) {
+  if (!VECTOR_TEST_CHANNEL_ID) return;
+  try {
+    const ch = await client.channels.fetch(VECTOR_TEST_CHANNEL_ID);
+    const me = ch?.guild?.members?.me;
+    if (me && typeof me.setNickname === 'function' && me.nickname !== 'Omi Support') {
+      await me.setNickname('Omi Support', 'Customers should see Omi Support');
+    }
+  } catch (err) {
+    console.error('[Bot] nickname Omi Support failed:', err.message);
+  }
+}
+
 client.once(Events.ClientReady, async () => {
   console.log(`[Bot] Logged in as ${client.user.tag}`);
+  await nickOmiSupport(client);
   if (VECTOR_TEST_CHANNEL_ID) {
     console.log(`[Bot] Test channel ${VECTOR_TEST_CHANNEL_ID}`);
   }
   if (HELP_FORUM_CHANNEL_ID) {
-    console.log(`[Bot] Help forum ${HELP_FORUM_CHANNEL_ID}`);
+    console.log('[Bot] Help forum is set — PII/order/privacy stay on private Handoff. Leave this unset until #vector-test lanes are proven.');
   }
   if (!VECTOR_TEST_CHANNEL_ID && !HELP_FORUM_CHANNEL_ID) {
     console.log('[Bot] No channel pinned — will answer when @mentioned');
   }
   console.log(
-    `[Bot] Handoff staff-channel=${Boolean(process.env.STAFF_ALERT_CHANNEL_ID)} telegram=${telegramReady} threads=${process.env.HANDOFF_THREADS !== '0'}`
+    `[Bot] Handoff staff-channel=${Boolean(process.env.STAFF_ALERT_CHANNEL_ID)} telegram=${telegramReady} threads=${process.env.HANDOFF_THREADS !== '0'} shopify=${shopify.isConfigured()} github=${github.isConfigured()}`
   );
   try {
     const n = await knowledge.hydrateFromDiscord(client);
     console.log(`[Knowledge] hydrated ${n} faq line(s) from Handoff threads`);
   } catch (err) {
     console.error('[Knowledge] hydrate failed:', err.message);
+  }
+  try {
+    const n = await commands.registerSlashCommands(client);
+    console.log(`[Bot] slash commands in ${n} guild(s)`);
+  } catch (err) {
+    console.error('[Bot] slash command register failed:', err.message);
   }
 });
 

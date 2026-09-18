@@ -26,6 +26,14 @@ function addSnippet(text) {
   const snippet = clipForDiscord(String(text || '').trim(), MAX_SNIPPET);
   if (!snippet) return { ok: false, reason: 'empty' };
   if (looksLikeStaffLie(snippet)) return { ok: false, reason: 'lie' };
+  try {
+    const shopify = require('./shopify');
+    if (shopify.isConfigured() && /cannot see shopify/i.test(snippet)) {
+      return { ok: false, reason: 'stale' };
+    }
+  } catch {
+    /* shopify optional */
+  }
   if (snippets[0] === snippet) return { ok: true, snippet, duplicate: true };
   snippets.unshift(snippet);
   if (snippets.length > MAX_STORED) snippets.length = MAX_STORED;
@@ -49,6 +57,18 @@ function searchWords(query) {
     .split(/\s+/)
     .filter((w) => w.length > 3)
     .slice(0, 5);
+}
+
+const HOWTO_FACT = /\b(pair|pairing|bluetooth|led\b|teal|orange =|dev kit|cv1|center button)\b/i;
+
+function isHowtoFact(text) {
+  return HOWTO_FACT.test(String(text || ''));
+}
+
+function filterSnippetsForLane(snippets, lane) {
+  const list = (snippets || []).map((s) => String(s || '').trim()).filter(Boolean);
+  if (!lane || lane === 'faq' || lane === 'unknown') return list;
+  return list.filter((s) => !isHowtoFact(s));
 }
 
 function search(query, limit = SEARCH_LIMIT) {
@@ -179,4 +199,6 @@ module.exports = {
   applyStaffFacts,
   collectFaqFromMessages,
   hydrateFromDiscord,
+  filterSnippetsForLane,
+  isHowtoFact,
 };

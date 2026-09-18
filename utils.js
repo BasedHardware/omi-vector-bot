@@ -162,6 +162,8 @@ const PING_NARRATION = [
   /handoff happens/i,
   /flagging this/i,
   /i('m| am) not able to ping/i,
+  /a person on the team needs to look/i,
+  /going into your account/i,
 ];
 
 const ALREADY_SAID_PINGED = [
@@ -187,10 +189,21 @@ function dropPingNarration(text) {
     .trim();
 }
 
+const ISSUE_FOOTER = 'The problem is written in this thread. Keep talking here — you do not need to ping anyone.';
+
 function escalateReply(answer, opts = {}) {
   const pinged = Boolean(opts.pinged);
   const duplicate = Boolean(opts.duplicate);
   let body = dropPingNarration(String(answer || '').trim());
+
+  if (opts.conversation) {
+    return body;
+  }
+
+  if (opts.issue) {
+    if (/written (up|in this thread)/i.test(body)) return body;
+    return [body, ISSUE_FOOTER].filter(Boolean).join('\n\n');
+  }
 
   if (pinged) {
     const footer = duplicate ? DUPLICATE_FOOTER : PINGED_FOOTER;
@@ -217,6 +230,7 @@ module.exports = {
   ESCALATE_FOOTER,
   PINGED_FOOTER,
   DUPLICATE_FOOTER,
+  ISSUE_FOOTER,
   CONFIDENCE_THRESHOLD,
   needsHumanAccess,
   stripPingNarration: dropPingNarration,

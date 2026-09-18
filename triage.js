@@ -1,0 +1,107 @@
+const { classify } = require('./router');
+const { clipForDiscord } = require('./utils');
+
+const AREAS = ['shop', 'app', 'desktop', 'firmware', 'privacy'];
+const LANES = ['shop', 'money', 'privacy', 'firmware', 'tech', 'faq', 'account', 'unknown'];
+const LABELS = [
+  'shop',
+  'app',
+  'desktop',
+  'firmware',
+  'privacy',
+  'account',
+  'money',
+  'tech',
+  'shipping',
+  'faq',
+];
+
+function sanitizeTopic(text) {
+  let s = String(text || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/^handoff\s*·\s*/i, '')
+    .replace(/["*_`#]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  s = s.replace(/^(hi|hello|hey)[,!.\s]+/i, '').trim();
+  if (!s || s.length < 8) return '';
+  if (/^(just got|i just got|i('m| am) getting this error|nintendo kid)\b/i.test(s)) return '';
+  return clipForDiscord(s, 56);
+}
+
+function cleanLabels(list) {
+  const out = [];
+  for (const raw of list || []) {
+    const label = String(raw || '')
+      .toLowerCase()
+      .replace(/^needs-human$/, '')
+      .trim();
+    if (LABELS.includes(label) && !out.includes(label)) out.push(label);
+  }
+  return out;
+}
+
+function fallbackTopic(question, route) {
+  const { threadTopic } = require('./handoff');
+  return threadTopic(question, route);
+}
+
+function merge(route, agent, question) {
+  const classified = route || classify(question);
+  const moneyLock = classified.lane === 'money' || classified.lane === 'privacy';
+
+  let area = classified.area || 'unknown';
+  let lane = classified.lane || 'unknown';
+  if (!moneyLock) {
+    const weak = area === 'unknown' || lane === 'unknown' || lane === 'faq';
+    if (weak && AREAS.includes(agent?.area)) area = agent.area;
+    if (weak && LANES.includes(agent?.lane) && agent.lane !== 'unknown') lane = agent.lane;
+    if (lane === 'account') area = 'shop';
+  }
+
+  const { ticketLabels } = require('./handoff');
+  let labels = moneyLock
+    ? ticketLabels({ area: classified.area, lane: classified.lane, question })
+    : cleanLabels(agent?.labels);
+  const inferred = ticketLabels({ area, lane, question });
+  for (const label of inferred) {
+    if (label !== 'needs-human' && !labels.includes(label)) labels.push(label);
+  }
+  if (/\b(shipping|tracking|customs)\b/i.test(String(question || '')) && !labels.includes('shipping')) {
+    labels.push('shipping');
+  }
+  labels = labels.filter((label) => label !== 'needs-human');
+  if (!labels.length) labels.push('needs-human');
+
+  const topic =
+    sanitizeTopic(agent?.topic) ||
+    fallbackTopic(question, { area, lane }) ||
+    'needs a person';
+
+  const techish =
+    lane === 'tech' ||
+    lane === 'firmware' ||
+    area === 'app' ||
+    area === 'desktop' ||
+    area === 'firmware';
+  const blocked =
+    moneyLock || lane === 'shop' || lane === 'account' || area === 'shop' || area === 'privacy';
+  const fileIssue = techish && !blocked;
+
+  return {
+    area,
+    lane,
+    labels,
+    topic,
+    fileIssue,
+    escalate: Boolean(classified.escalate || agent?.escalate || moneyLock),
+  };
+}
+
+module.exports = {
+  AREAS,
+  LABELS,
+  sanitizeTopic,
+  cleanLabels,
+  merge,
+};

@@ -12,6 +12,49 @@ test('staff-lie lines are stripped', () => {
   assert.match(out, /restarting/i);
 });
 
+test('passed this along is treated as a staff lie', () => {
+  const out = stripStaffLies('For a full deletion that needs a person, so I have passed this along.');
+  assert.equal(/passed this along/i.test(out), false);
+});
+
+test('crash replies lose pairing and Bluetooth steps', () => {
+  const { stripHowtoBleed } = require('../honesty');
+  const out = stripHowtoBleed(
+    [
+      'The phone app closed on its own.',
+      'Make sure Bluetooth is on and pair the device again.',
+      'A person on the team needs this.',
+    ].join('\n'),
+    'tech'
+  );
+  assert.match(out, /phone app/i);
+  assert.equal(/bluetooth/i.test(out), false);
+  assert.equal(/pair the device/i.test(out), false);
+  const pairing = stripHowtoBleed('Turn Bluetooth on and pair from the Omi app.', 'faq');
+  assert.match(pairing, /Bluetooth/);
+  const autoOff = stripHowtoBleed(
+    [
+      'You paired the Omi and it turns itself off after five seconds.',
+      'Make sure the app is open on your phone and not swiped away, and that the phone\'s Bluetooth is on.',
+      'A person on the team needs this.',
+    ].join('\n'),
+    'firmware'
+  );
+  assert.match(autoOff, /turns itself off/i);
+  assert.equal(/bluetooth/i.test(autoOff), false);
+  assert.equal(/swiped away/i.test(autoOff), false);
+  const account = stripHowtoBleed(
+    [
+      'A fair-use warning on day one is a rough start.',
+      'The necklace works with your phone, and the Omi app needs to stay open on the phone — not swiped away — or it disconnects.',
+      'A person on the team needs this.',
+    ].join('\n'),
+    'account'
+  );
+  assert.match(account, /fair-use warning/i);
+  assert.equal(/swiped away/i.test(account), false);
+});
+
 test('pure lie is replaced with an honest fallback', () => {
   const out = stripStaffLies('I have conveyed your issue to the upper team.');
   assert.equal(looksLikeStaffLie(out), false);
@@ -36,6 +79,14 @@ test('strips repeating-the-question lecture from order replies', () => {
   );
   assert.match(out, /can't see orders/i);
   assert.equal(/repeating the question/i.test(out), false);
+});
+
+test('strips invented npm --legacy-peer-deps fixes', () => {
+  const out = sanitizeReply(
+    'Two packages want different React versions. The quickest thing to try is to run the same command with --legacy-peer-deps. A person on the team needs this.'
+  );
+  assert.equal(/legacy-peer-deps/i.test(out), false);
+  assert.match(out, /different React/i);
 });
 
 test('strips nothing-has-changed lecture from order replies', () => {
@@ -90,6 +141,22 @@ test('clips Discord replies under the length cap', () => {
   assert.equal(out.endsWith('…'), true);
 });
 
+test('issue replies drop person-on-the-team narration', () => {
+  const { ISSUE_FOOTER } = require('../utils');
+  const out = escalateReply(
+    [
+      'You recorded 2.5 hours on your Apple Watch and none of them turned up in the app.',
+      'A person on the team needs to look at this one, because finding recordings the app never picked up means going into your account and the app itself. In the meantime, do not clear anything off the watch.',
+    ].join('\n\n'),
+    { issue: true }
+  );
+  assert.equal(/person on the team/i.test(out), false);
+  assert.equal(/going into your account/i.test(out), false);
+  assert.match(out, /do not clear/i);
+  assert.match(out, /Apple Watch/i);
+  assert.equal(out.includes(ISSUE_FOOTER), true);
+});
+
 test('escalate footer is generic and skipped if the answer already said no ping', () => {
   const withFooter = escalateReply('This needs a person.');
   assert.match(withFooter, /person on the team needs to take this/i);
@@ -140,6 +207,22 @@ test('parses fenced JSON from the model', () => {
   assert.equal(parsed.final_answer, 'Press the center button.');
   assert.equal(parsed.confidence, 0.9);
   assert.equal(parsed.escalate, false);
+});
+
+test('parseAgentJson survives raw newlines in the model JSON', () => {
+  const parsed = parseAgentJson('{"final_answer":"line1\nline2","confidence":0.9,"escalate":true}');
+  assert.equal(parsed.escalate, true);
+  assert.match(parsed.reason, /json failed/);
+});
+
+test('parses topic and labels from the model', () => {
+  const parsed = parseAgentJson(
+    '{"topic":"fair use warning","labels":["shop","account"],"area":"shop","lane":"account","final_answer":"A person needs to explain the warning.","confidence":0.8,"escalate":true,"file_issue":false,"reason":"account limits"}'
+  );
+  assert.equal(parsed.topic, 'fair use warning');
+  assert.deepEqual(parsed.labels, ['shop', 'account']);
+  assert.equal(parsed.file_issue, false);
+  assert.equal(parsed.lane, 'account');
 });
 
 test('parses escalate reason from the model', () => {

@@ -48,14 +48,153 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
   const staff = ticket.discord.embeds[0].fields.find((f) => f.name === 'Staff');
   assert.match(staff.value, /Reply in this thread/i);
   assert.match(staff.value, /faq:/i);
+  assert.match(staff.value, /\/done/);
+  assert.equal(
+    ticket.discord.embeds[0].fields.some((f) => f.name === 'Shopify'),
+    false
+  );
+  const appTicket = formatStaffTicket({
+    message: {
+      url: 'https://discord.com/channels/1/2/3',
+      author: { id: '99' },
+      channel: { id: '2' },
+    },
+    question: 'app crashed',
+    area: 'app',
+    lane: 'tech',
+  });
+  assert.equal(
+    appTicket.discord.embeds[0].fields.some((f) => f.name === 'Area' && f.value === 'app'),
+    true
+  );
+  assert.match(appTicket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value, /`app`/);
+  assert.match(appTicket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value, /`tech`/);
   delete process.env.STAFF_USER_IDS;
   assert.equal(staffMentions(), '');
 });
 
+test('staff ticket infers shop/account labels from fair-use text', () => {
+  const ticket = formatStaffTicket({
+    message: {
+      url: 'https://discord.com/channels/1/2/3',
+      author: { id: '99' },
+      channel: { id: '2' },
+    },
+    question:
+      'Just got omi in the mail. FAIR USE WARNING. FILLED the memory. What are all these plans?',
+    reason: 'Fair use, memory limit, or plan question',
+  });
+  assert.match(ticket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value, /`shop`/);
+  assert.match(ticket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value, /`account`/);
+  assert.equal(
+    /needs-human/i.test(ticket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value),
+    false
+  );
+  assert.equal(
+    ticket.discord.embeds[0].fields.some((f) => f.name === 'Area' && f.value === 'shop'),
+    true
+  );
+});
+
+test('staff ticket can carry Shopify facts without street or email', () => {
+  const ticket = formatStaffTicket({
+    message: {
+      url: 'https://discord.com/channels/1/2/3',
+      author: { id: '99' },
+      channel: { id: '2' },
+    },
+    question: 'Where is order #1042?',
+    reason: 'Order lookup for staff check',
+    shopify: '#1042 paid, shipped\nUPS 1Z999\nShip to: Berlin, Germany\nAddress looks complete: yes',
+  });
+  const field = ticket.discord.embeds[0].fields.find((f) => f.name === 'Shopify');
+  assert.match(field.value, /Berlin/);
+  assert.match(field.value, /1Z999/);
+  assert.equal(/Secret St/i.test(field.value), false);
+  assert.equal(/@/.test(field.value), false);
+});
+
 test('handoff threads are skipped by name', () => {
+  const { handoffThreadName, isHandoffThread } = require('../handoff');
   assert.equal(isHandoffThread({ isThread: () => true, name: 'Handoff · david' }), true);
   assert.equal(isHandoffThread({ isThread: () => true, name: 'daily-reports' }), false);
   assert.equal(isHandoffThread({ isThread: () => false, name: 'Handoff · david' }), false);
+  const named = handoffThreadName({
+    question: 'Daily reports are not being produced.\nChatGPT:- dump',
+    area: 'app',
+    lane: 'tech',
+  });
+  assert.match(named, /^Handoff · /);
+  assert.match(named, /app/);
+  assert.match(named, /tech/);
+  assert.match(named, /Daily reports are not being produced/i);
+  assert.equal(/ChatGPT/i.test(named), false);
+  assert.equal(named.length <= 100, true);
+  assert.equal(isHandoffThread({ isThread: () => true, name: named }), true);
+  const brazil = handoffThreadName({
+    question: [
+      'OMI — AUGUST 11:',
+      '"Duties and import taxes are prepaid."',
+      'BRAZIL — SEPTEMBER 14',
+      'AWAITING PAYMENT OF TAXES/SERVICES',
+      'Omi, can someone please explain this and take ownership of Order #20716?',
+    ].join('\n'),
+    area: 'shop',
+    lane: 'shop',
+  });
+  assert.match(brazil, /Order #20716/);
+  assert.equal(/AUGUST 11/i.test(brazil), false);
+  assert.match(brazil, /shop/);
+  assert.match(brazil, /money/);
+  const win = handoffThreadName({
+    question: "I'm getting this error\nnpm error ERESOLVE\nWhile resolving: omi-windows@1.0.35",
+    area: 'desktop',
+    lane: 'tech',
+  });
+  assert.match(win, /omi-windows/i);
+  assert.match(win, /ERESOLVE/);
+  assert.match(win, /desktop/);
+  const autoOff = handoffThreadName({
+    question:
+      'Hi, I just got my omi and paired it with the omi app, however the device keeps turning itself off after 5 seconds? Video attached',
+    area: 'firmware',
+    lane: 'firmware',
+  });
+  assert.match(autoOff, /firmware/);
+  assert.match(autoOff, /device off after 5s/);
+  assert.equal(/Hi, I just got/i.test(autoOff), false);
+  assert.equal(/needs-human/i.test(autoOff), false);
+  const fair = handoffThreadName({
+    question: [
+      'Just got omi in the mail on Wed and was like nintendo kid excited to set it up.',
+      'A) a "FAIR USE WARNING"',
+      'B) FILLED the memory. What are all these plans?',
+    ].join('\n'),
+    area: 'shop',
+    lane: 'account',
+  });
+  assert.match(fair, /shop/);
+  assert.match(fair, /account/);
+  assert.match(fair, /fair use and plans/i);
+  assert.equal(/nintendo/i.test(fair), false);
+  assert.equal(/needs-human/i.test(fair), false);
+  const inferredFair = handoffThreadName({
+    question: [
+      'Just got omi in the mail on Wed and was like nintendo kid excited to set it up.',
+      'A) a "FAIR USE WARNING"',
+      'B) FILLED the memory. What are all these plans?',
+    ].join('\n'),
+    topic: 'fair use warning and plans',
+    labels: ['shop', 'account'],
+  });
+  assert.equal(/needs-human/i.test(inferredFair), false);
+  assert.equal(/nintendo/i.test(inferredFair), false);
+  assert.match(inferredFair, /shop/);
+  assert.match(inferredFair, /account/);
+  assert.match(inferredFair, /fair use warning and plans/i);
+  const { ticketLabels } = require('../handoff');
+  assert.deepEqual(ticketLabels({ area: 'unknown', lane: 'faq' }), ['faq']);
+  assert.equal(ticketLabels({ question: 'How do I pair my Omi?' }).includes('faq'), true);
 });
 
 test('notifyStaff posts a channel card and does not double-ping', async () => {
@@ -122,6 +261,51 @@ test('notifyStaff posts a channel card and does not double-ping', async () => {
   if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
   else delete process.env.HANDOFF_THREADS;
   if (prevStaff !== undefined) process.env.STAFF_ALERT_CHANNEL_ID = prevStaff;
+  resetHandoffMemory();
+});
+
+test('staff ticket pings the area owner when AREA_OWNERS is set', async () => {
+  resetHandoffMemory();
+  const prevThread = process.env.HANDOFF_THREADS;
+  const prevStaff = process.env.STAFF_ALERT_CHANNEL_ID;
+  const prevOwners = process.env.AREA_OWNERS;
+  process.env.HANDOFF_THREADS = '0';
+  delete process.env.STAFF_ALERT_CHANNEL_ID;
+  process.env.AREA_OWNERS = 'shop:555555555555555555';
+
+  const sent = [];
+  const message = {
+    url: 'https://discord.com/channels/1/2/3',
+    author: { id: '99', username: 'david' },
+    channel: {
+      id: 'chan-owner',
+      isTextBased: () => true,
+      isThread: () => false,
+      send: async (payload) => {
+        sent.push(payload);
+        return payload;
+      },
+    },
+    hasThread: false,
+  };
+  await notifyStaff({
+    client: null,
+    message,
+    question: 'I want a refund',
+    reason: 'refund',
+    area: 'shop',
+    route: { area: 'shop', lane: 'money', escalate: true },
+    skipDedupe: true,
+  });
+  assert.match(sent[0].content, /<@555555555555555555>/);
+  assert.equal(sent[0].allowedMentions.users.includes('555555555555555555'), true);
+
+  if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
+  else delete process.env.HANDOFF_THREADS;
+  if (prevStaff !== undefined) process.env.STAFF_ALERT_CHANNEL_ID = prevStaff;
+  else delete process.env.STAFF_ALERT_CHANNEL_ID;
+  if (prevOwners !== undefined) process.env.AREA_OWNERS = prevOwners;
+  else delete process.env.AREA_OWNERS;
   resetHandoffMemory();
 });
 
