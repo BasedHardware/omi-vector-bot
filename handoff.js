@@ -112,6 +112,9 @@ function threadTopic(question) {
   if (/turning itself off|turns? itself off|keeps turning (itself )?off/i.test(raw)) {
     return secs ? `device off after ${secs[1]}s` : 'device turns itself off';
   }
+  if (/fair[- ]use/i.test(raw)) {
+    return /plan|memory/i.test(raw) ? 'fair use and plans' : 'fair use warning';
+  }
   const line =
     raw
       .split('\n')

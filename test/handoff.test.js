@@ -141,6 +141,20 @@ test('handoff threads are skipped by name', () => {
   assert.match(autoOff, /device off after 5s/);
   assert.equal(/Hi, I just got/i.test(autoOff), false);
   assert.equal(/needs-human/i.test(autoOff), false);
+  const fair = handoffThreadName({
+    question: [
+      'Just got omi in the mail on Wed and was like nintendo kid excited to set it up.',
+      'A) a "FAIR USE WARNING"',
+      'B) FILLED the memory. What are all these plans?',
+    ].join('\n'),
+    area: 'shop',
+    lane: 'account',
+  });
+  assert.match(fair, /shop/);
+  assert.match(fair, /account/);
+  assert.match(fair, /fair use and plans/i);
+  assert.equal(/nintendo/i.test(fair), false);
+  assert.equal(/needs-human/i.test(fair), false);
 });
 
 test('notifyStaff posts a channel card and does not double-ping', async () => {

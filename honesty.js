@@ -83,7 +83,7 @@ function looksLikeHowtoBleed(text) {
 
 function stripHowtoBleed(text, lane) {
   const raw = String(text || '');
-  if (lane !== 'tech' && lane !== 'firmware') return raw;
+  if (lane === 'faq') return raw;
   const cleaned = raw
     .split('\n')
     .map((line) => {

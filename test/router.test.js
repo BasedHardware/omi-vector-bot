@@ -44,6 +44,24 @@ test('firmware death escalates; talk to a human always does', () => {
   assert.equal(router.classify('How do I pair my Omi?').lane, 'faq');
 });
 
+test('fair use and plan confusion is account, not a refund or pairing how-to', () => {
+  const q = [
+    'Just got omi in the mail on Wed and was like nintendo kid excited to set it up.',
+    'A) a "FAIR USE WARNING". how can i use it as a second brain',
+    'B) FILLED the memory. its asking me for a plan',
+    '2) Do I need to have omi everywhere all the time for it to work (pc, phone, etc)',
+    '3) What are all these plans? do i need a diff one for every device?',
+    'now i want to put it back in the mail to return it. help me change my mind.',
+  ].join('\n');
+  const route = router.classify(q);
+  assert.equal(route.area, 'shop');
+  assert.equal(route.lane, 'account');
+  assert.equal(route.escalate, true);
+  assert.equal(router.skipModel(route), false);
+  assert.equal(router.classify('I want a refund').lane, 'money');
+  assert.match(router.staffReason(route), /Fair use/i);
+});
+
 test('PII and orders are not public-forum safe', () => {
   assert.equal(router.looksLikePii('email is jane@omi.me'), true);
   assert.equal(router.isPublicForumSafe('Where is my order?'), false);

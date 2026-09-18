@@ -10,13 +10,15 @@ const HOWTO_FAQ = [
 
 const RAILS_FAQ = [
   'If the device turns itself off a few seconds after you turn it on, even if it says the battery is full: a person on the team needs this. Do not guess a software version or a fix.',
+  'The necklace works with the Omi app on your phone. You do not need a computer for the device to work. A computer app is extra. Do not invent that they must buy a different plan for every device.',
+  'Fair use warnings and a full memory mean the account hit a limit. Do not invent how many hours they get, plan names, or prices. A person with account access needs this. If they are thinking of returning the device, do not process a return from chat.',
   'Do not invent order status, tracking numbers, refunds, ship dates, software versions, or “I told the team.” Those need a human.',
 ];
 
 const STATIC_FAQ = [...HOWTO_FAQ, ...RAILS_FAQ].join('\n');
 
 function faqTextForLane(lane) {
-  const how = !lane || lane === 'faq' || lane === 'unknown' ? HOWTO_FAQ : [];
+  const how = lane === 'faq' ? HOWTO_FAQ : [];
   return [...how, ...RAILS_FAQ].join('\n');
 }
 
@@ -34,6 +36,11 @@ function buildToolFacts({ route, shopifyText, githubText } = {}) {
       shopifyText
         ? `Order lookup (only source of truth — paraphrase in everyday words, add no date, street, email, or name):\n${shopifyText}`
         : 'Shopify is not connected. Do not invent paid, shipped, tracking, or a date.'
+    );
+  }
+  if (lane === 'account') {
+    lines.push(
+      'Read their questions. You can say the necklace works with the phone app and a computer is extra, not required. Do not invent fair-use hours, plan names, prices, or a plan per device. escalate=true. If they are thinking of returning, do not process a return — ask them to wait for a person. First sentence: show you understood (the warning, the full memory, grandma).'
     );
   }
   if (githubText) {

@@ -43,6 +43,16 @@ test('crash replies lose pairing and Bluetooth steps', () => {
   assert.match(autoOff, /turns itself off/i);
   assert.equal(/bluetooth/i.test(autoOff), false);
   assert.equal(/swiped away/i.test(autoOff), false);
+  const account = stripHowtoBleed(
+    [
+      'A fair-use warning on day one is a rough start.',
+      'The necklace works with your phone, and the Omi app needs to stay open on the phone — not swiped away — or it disconnects.',
+      'A person on the team needs this.',
+    ].join('\n'),
+    'account'
+  );
+  assert.match(account, /fair-use warning/i);
+  assert.equal(/swiped away/i.test(account), false);
 });
 
 test('pure lie is replaced with an honest fallback', () => {

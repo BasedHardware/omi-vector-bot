@@ -74,6 +74,14 @@ const FAQ = [
   /\bbackground\b/i,
 ];
 
+const ACCOUNT = [
+  /fair[- ]use/i,
+  /filled the memory/i,
+  /memory.{0,40}full/i,
+  /what are (all )?these plans/i,
+  /\bthese plans\b/i,
+];
+
 const WANT_HUMAN = [
   /\btalk to (a )?(human|person)\b/i,
   /\bspeak to (a )?(human|person)\b/i,
@@ -174,6 +182,9 @@ function classify(text) {
   if (any(s, WEAK_MONEY)) {
     return { area: 'shop', lane: 'money', escalate: true, wantHuman };
   }
+  if (any(s, ACCOUNT)) {
+    return { area: 'shop', lane: 'account', escalate: true, wantHuman };
+  }
   if (any(s, FAQ)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
@@ -224,6 +235,7 @@ function staffReason(route) {
   }
   if (lane === 'tech') return 'Product bug; cannot see the app from chat';
   if (lane === 'shop') return 'Order or shipping';
+  if (lane === 'account') return 'Fair use, memory limit, or plan question';
   return 'Needs a person';
 }
 

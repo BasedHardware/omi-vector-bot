@@ -112,7 +112,15 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   assert.match(buildSystemPrompt({ lane: 'firmware' }), /Think about their message/);
   assert.match(faqTextForLane('faq'), /Pairing/);
   assert.equal(/Pairing|Bluetooth/i.test(faqTextForLane('tech')), false);
+  assert.equal(/Pairing|swipe it away/i.test(faqTextForLane('unknown')), false);
+  assert.equal(/Pairing|swipe it away/i.test(faqTextForLane('account')), false);
+  assert.match(faqTextForLane('account'), /do not need a computer/i);
   assert.match(faqTextForLane('tech'), /Do not invent order status/);
+  const accountTools = buildToolFacts({
+    route: { lane: 'account', area: 'shop' },
+  });
+  assert.match(accountTools, /computer is extra/i);
+  assert.equal(/paid, shipped/i.test(accountTools), false);
   const tools = buildToolFacts({
     route: { lane: 'tech', area: 'desktop' },
     githubText: '',
