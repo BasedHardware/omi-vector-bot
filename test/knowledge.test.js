@@ -111,6 +111,7 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   assert.match(buildSystemPrompt({ lane: 'faq' }), /Everyday words/);
   assert.match(buildSystemPrompt({ lane: 'firmware' }), /Think about their message/);
   assert.match(buildSystemPrompt({ lane: 'account' }), /numbered questions/);
+  assert.match(buildSystemPrompt({ lane: 'faq' }), /"topic"/);
   assert.match(faqTextForLane('faq'), /Pairing/);
   assert.equal(/Pairing|Bluetooth/i.test(faqTextForLane('tech')), false);
   assert.equal(/Pairing|swipe it away/i.test(faqTextForLane('unknown')), false);

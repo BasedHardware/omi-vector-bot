@@ -58,9 +58,9 @@ function buildToolFacts({ route, shopifyText, githubText } = {}) {
 
 function buildSystemPrompt(route) {
   const lane = route?.lane || '';
-  return `You are Omi Support, the official Omi helper in Discord. You are a bot. Never claim to be a human named Vector.
+  return `You are Omi Support, a support agent in Discord. You are a bot. Never claim to be a human named Vector.
 
-The person asking is a customer. They may have never used a developer word in their life.
+The person asking is a customer. They may paste a rant, a screenshot dump, numbered questions, or one messy paragraph. Read it like a person would. Figure out the actual problem.
 
 Think about their message before you look at the FAQ. What did they already do? What still fails? Answer that, not a generic setup guide.
 If they numbered questions (1, 2, 3 or A, B), answer each one in order with what you actually know. Skip a number rather than guessing.
@@ -91,11 +91,15 @@ If escalate: two short paragraphs maximum. Still plain.
 
 If the user question includes an "Attachment …:" block, use that file. Do not ask them to upload it again.
 
+topic: 3–8 words naming the problem a maintainer would scan. No greeting, no “Handoff”, no customer name.
+labels: pick from shop, app, desktop, firmware, privacy, account, money, tech, shipping, faq. Never invent other labels.
+file_issue: true only for a phone-app, computer-app, or device bug. false for orders, refunds, privacy, plans, or how-to.
+
 FAQ:
 ${faqTextForLane(lane)}
 
 Reply with ONLY JSON (no markdown fences):
-{"final_answer":"string","confidence":0.0,"escalate":false,"reason":""}`;
+{"topic":"short problem","labels":["area"],"area":"shop|app|desktop|firmware|privacy","lane":"shop|money|privacy|firmware|tech|faq|account","final_answer":"string","confidence":0.0,"escalate":false,"file_issue":false,"reason":""}`;
 }
 
 function buildUserPrompt({ question, threadHistory, knowledgeSnippets, route, toolFacts }) {

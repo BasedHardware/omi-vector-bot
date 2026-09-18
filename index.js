@@ -18,7 +18,7 @@ const {
   stripPingNarration,
 } = require('./utils');
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
-const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion, canSaveFaq } = require('./handoff');
+const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion, canSaveFaq, applyThreadName, recentlyHandedOff, staffMentionIds } = require('./handoff');
 const knowledge = require('./knowledge');
 const shopify = require('./shopify');
 const router = require('./router');
@@ -26,6 +26,7 @@ const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts } = require('./prompt');
 const { stripHowtoBleed } = require('./honesty');
+const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
@@ -80,9 +81,14 @@ function isTestChannel(channel) {
 
 function shouldHandle(message) {
   if (message.author.bot) return false;
-  if (isHandoffThread(message.channel)) return false;
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   if (caption.length < 5 && !hasUsableAttachment(message)) return false;
+  if (isHandoffThread(message.channel)) {
+    if (isTestChannel(message.channel)) return true;
+    const { users } = staffMentionIds();
+    if (users.length && canSaveFaq(message.author.id)) return false;
+    return true;
+  }
   if (isTestChannel(message.channel)) return true;
   if (isHelpThread(message.channel)) return true;
   if (client.user && message.mentions.has(client.user)) return true;
@@ -115,7 +121,7 @@ async function handleFaqSave(message) {
   if (!isHandoffThread(message.channel)) return false;
 
   const snippet = knowledge.parseFaqCommand(message.content);
-  if (snippet === null) return true;
+  if (snippet === null) return false;
 
   if (!canSaveFaq(message.author.id)) {
     try {
@@ -153,6 +159,23 @@ async function handleFaqSave(message) {
   return true;
 }
 
+async function postIssueCard(channel, draft, githubHit) {
+  if (!channel?.send || !draft) return;
+  let url = githubHit?.duplicate?.url || '';
+  if (!url && github.isConfigured()) {
+    const created = await github.createIssue(draft);
+    if (created.ok) {
+      url = created.url;
+      github.linkIssueThread(created.number, channel.id);
+    }
+  }
+  try {
+    await channel.send({ embeds: [github.formatIssueCard(draft, { url })] });
+  } catch (err) {
+    console.error('[Bot] issue card failed:', err.message);
+  }
+}
+
 async function handleMessage(message) {
   if (!shouldHandle(message)) return;
 
@@ -186,6 +209,7 @@ async function handleMessage(message) {
     let aiResponse;
     let cleanAnswer;
     let skipModel = false;
+    let snippets = [];
 
     if (useShopify) {
       shopifyLookup = await shopify.lookupOrder(asked || question);
@@ -211,7 +235,7 @@ async function handleMessage(message) {
         getHistory(channel, message.id),
         searchKnowledge(asked || question),
       ]);
-      const snippets = knowledge.filterSnippetsForLane(
+      snippets = knowledge.filterSnippetsForLane(
         shopify.filterKnowledge(knowledgeSnippets),
         route.lane
       );
@@ -234,15 +258,6 @@ async function handleMessage(message) {
         canNotifyStaff: canNotifyStaff({ discordReady: true }),
       });
 
-      cleanAnswer = clipForDiscord(
-        stripHowtoBleed(
-          knowledge.applyStaffFacts(
-            formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
-            snippets
-          ),
-          route.lane
-        )
-      );
       if (useShopify && shopifyLookup) {
         aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
       } else if (githubHit?.duplicate) {
@@ -252,41 +267,90 @@ async function handleMessage(message) {
       }
     }
 
+    const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
+    if (!skipModel) {
+      cleanAnswer = clipForDiscord(
+        stripHowtoBleed(
+          knowledge.applyStaffFacts(
+            formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
+            snippets
+          ),
+          triaged.lane
+        )
+      );
+    }
+
+    const nameMeta = {
+      question: asked,
+      area: triaged.area,
+      lane: triaged.lane,
+      topic: triaged.topic,
+      labels: triaged.labels,
+    };
+    const inHandoff = isHandoffThread(channel);
+    const escalate = shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate;
+    const draft = github.draftFromQuestion(asked, triaged.area, {
+      topic: triaged.topic,
+      labels: triaged.labels,
+    });
+
     await typingDelay();
 
-    if (shouldEscalate(aiResponse, caption) || route.escalate) {
-      console.log(`[Bot] Escalating ${channel.id} area=${route.area} (confidence: ${aiResponse.confidence})`);
-      if (github.isConfigured() && router.isTechLane(route) && !githubHit?.duplicate) {
-        fileIssueId = github.stashDraft(github.draftFromQuestion(asked, route.area));
+    if (inHandoff) {
+      await applyThreadName(channel, nameMeta);
+    }
+
+    if (escalate) {
+      console.log(`[Bot] Escalating ${channel.id} area=${triaged.area} topic=${triaged.topic}`);
+      const techLane = router.isTechLane({ lane: triaged.lane, area: triaged.area });
+      if (github.isConfigured() && techLane && !githubHit?.duplicate) {
+        fileIssueId = github.stashDraft(draft);
       }
       let pinged = false;
       let duplicate = false;
-      try {
-        const handoff = await notifyStaff({
-          client,
-          message,
-          question: asked,
-          reason: aiResponse.reason,
-          draft: cleanAnswer,
-          shopify: shopifyLookup?.order ? shopify.formatStaffFacts(shopifyLookup.order) : undefined,
-          area: route.area,
-          github: githubHit?.duplicate?.url,
-          fileIssueId,
-          route,
-          skipDedupe: isTestChannel(channel),
-        });
-        pinged = Boolean(handoff.ok);
-        duplicate = Boolean(handoff.duplicate);
-        if (handoff.threadId && githubHit?.duplicate?.number) {
-          github.linkIssueThread(githubHit.duplicate.number, handoff.threadId);
+      let handoffThread = inHandoff ? channel : null;
+      if (!inHandoff || !recentlyHandedOff(channel.id)) {
+        try {
+          const handoff = await notifyStaff({
+            client,
+            message,
+            question: asked,
+            reason: aiResponse.reason || router.staffReason(triaged),
+            draft: cleanAnswer,
+            shopify: shopifyLookup?.order ? shopify.formatStaffFacts(shopifyLookup.order) : undefined,
+            area: triaged.area,
+            github: githubHit?.duplicate?.url,
+            fileIssueId,
+            route: { area: triaged.area, lane: triaged.lane, escalate: true },
+            skipDedupe: isTestChannel(channel) && !inHandoff,
+            topic: triaged.topic,
+            labels: triaged.labels,
+          });
+          pinged = Boolean(handoff.ok);
+          duplicate = Boolean(handoff.duplicate);
+          handoffThread = handoff.thread || handoffThread;
+          if (handoff.thread) await applyThreadName(handoff.thread, nameMeta);
+          if (handoff.threadId && githubHit?.duplicate?.number) {
+            github.linkIssueThread(githubHit.duplicate.number, handoff.threadId);
+          }
+          console.log(
+            `[Bot] Handoff ${channel.id} via=${handoff.via || 'none'} ok=${pinged}`
+          );
+        } catch (err) {
+          console.error('[Bot] Handoff failed:', err.message);
         }
-        console.log(
-          `[Bot] Handoff ${channel.id} via=${handoff.via || 'none'} ok=${pinged}`
-        );
-      } catch (err) {
-        console.error('[Bot] Handoff failed:', err.message);
       }
-      await message.reply(escalateReply(cleanAnswer, { pinged, duplicate }));
+  if (triaged.fileIssue && handoffThread && triaged.area !== 'shop' && triaged.area !== 'privacy') {
+    await postIssueCard(handoffThread, draft, githubHit);
+  }
+      await message.reply(
+        escalateReply(cleanAnswer, {
+          pinged,
+          duplicate,
+          conversation: inHandoff,
+          issue: triaged.fileIssue && !inHandoff,
+        })
+      );
       if (dbReady) {
         await db.createEscalation(channel.id);
       }

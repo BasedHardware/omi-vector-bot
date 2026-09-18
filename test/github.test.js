@@ -8,6 +8,16 @@ test('draftFromQuestion never uses shop or privacy labels', () => {
   assert.equal(draft.labels.includes('vector'), true);
   assert.equal(draft.labels.includes('desktop'), true);
   assert.equal(github.draftFromQuestion('refund', 'shop').labels.includes('shop'), false);
+  const named = github.draftFromQuestion(
+    'Just got omi\nnpm error ERESOLVE\nomi-windows@1.0.35',
+    'desktop',
+    { topic: 'omi-windows ERESOLVE', labels: ['desktop', 'tech'] }
+  );
+  assert.equal(named.title, 'omi-windows ERESOLVE');
+  assert.match(named.body, /What they wrote/);
+  const card = github.formatIssueCard(named);
+  assert.match(card.title, /ERESOLVE/);
+  assert.match(card.fields.find((f) => f.name === 'Labels').value, /desktop/);
 });
 
 test('searchIssues returns the first open hit', async () => {

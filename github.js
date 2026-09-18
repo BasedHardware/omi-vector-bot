@@ -28,16 +28,45 @@ function issueUrl(number) {
   return `https://github.com/${repo()}/issues/${number}`;
 }
 
-function draftFromQuestion(question, area) {
+function draftFromQuestion(question, area, extra = {}) {
   const asked = clipForDiscord(String(question || '').trim(), 1500);
-  const title = clipForDiscord(asked.split('\n')[0] || 'Discord report', 80);
+  const topic = String(extra.topic || '')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
+  const title = clipForDiscord(topic || asked.split('\n').find((line) => line.trim().length > 12) || 'Discord report', 80);
   const labels = ['vector'];
   if (area && area !== 'unknown' && area !== 'shop' && area !== 'privacy') labels.push(area);
+  for (const label of extra.labels || []) {
+    const clean = String(label || '').toLowerCase();
+    if (clean && !labels.includes(clean) && clean !== 'shop' && clean !== 'privacy' && clean !== 'money' && clean !== 'account') {
+      labels.push(clean);
+    }
+  }
   return {
     title,
-    body: `Reported in Discord.\n\n${asked || '(no text)'}\n\nFiled only after staff clicked File.`,
+    body: `Reported in Discord.\n\n## What they wrote\n\n${asked || '(no text)'}\n\nCannot see the app or device from chat. No versions invented.`,
     labels,
   };
+}
+
+function formatIssueCard(draft, extra = {}) {
+  const labels = (draft?.labels || []).map((label) => `\`${label}\``).join('  ') || '`vector`';
+  const embed = {
+    title: clipForDiscord(draft?.title || 'Issue', 80),
+    color: 0x5865f2,
+    description: clipForDiscord(String(draft?.body || '').trim(), 900),
+    fields: [{ name: 'Labels', value: labels, inline: true }],
+  };
+  if (extra.url) {
+    embed.fields.push({ name: 'GitHub', value: extra.url, inline: true });
+  } else {
+    embed.fields.push({
+      name: 'GitHub',
+      value: 'Not filed on GitHub yet. This card is the issue in Discord.',
+      inline: false,
+    });
+  }
+  return embed;
 }
 
 function stashDraft(draft, meta = {}) {
@@ -190,6 +219,7 @@ module.exports = {
   isConfigured,
   searchQuery,
   draftFromQuestion,
+  formatIssueCard,
   stashDraft,
   takeDraft,
   peekDraft,

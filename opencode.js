@@ -28,17 +28,28 @@ function parseAgentJson(raw) {
       confidence: 0.2,
       escalate: true,
       reason: 'model json failed',
+      topic: '',
+      labels: [],
+      area: '',
+      lane: '',
+      file_issue: false,
     };
   }
   if (typeof data.final_answer !== 'string' || !data.final_answer.trim()) {
     throw new Error('OpenCode JSON missing final_answer');
   }
   const confidence = Number(data.confidence);
+  const labels = Array.isArray(data.labels) ? data.labels.map((x) => String(x)) : [];
   return {
     final_answer: stripStaffLies(data.final_answer.trim()),
     confidence: Number.isFinite(confidence) ? confidence : 0.4,
     escalate: Boolean(data.escalate),
     reason: String(data.reason || data.escalation_question_for_aarav || '').trim(),
+    topic: String(data.topic || '').trim(),
+    labels,
+    area: String(data.area || '').trim(),
+    lane: String(data.lane || '').trim(),
+    file_issue: Boolean(data.file_issue),
   };
 }
 

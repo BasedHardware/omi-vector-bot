@@ -163,13 +163,28 @@ function threadTopic(question, route = {}) {
   return defaultTopic(resolved.area, resolved.lane);
 }
 
-function handoffThreadName({ question, area, lane } = {}) {
+function handoffThreadName({ question, area, lane, topic, labels } = {}) {
   const resolved = resolveRoute({ area, lane, question });
-  const labels = ticketLabels({ area: resolved.area, lane: resolved.lane, question });
-  return clipForDiscord(
-    `Handoff · ${labels.join(' · ')} · ${threadTopic(question, resolved)}`,
-    100
-  );
+  const tag = (Array.isArray(labels) && labels.length
+    ? labels.map((label) => String(label).trim()).filter(Boolean)
+    : ticketLabels({ area: resolved.area, lane: resolved.lane, question })
+  ).filter((label) => label !== 'needs-human');
+  if (!tag.length) tag.push('needs-human');
+  const subject = String(topic || '').trim() || threadTopic(question, resolved);
+  return clipForDiscord(`Handoff · ${tag.join(' · ')} · ${subject}`, 100);
+}
+
+async function applyThreadName(thread, meta = {}) {
+  if (!thread || typeof thread.setName !== 'function') return false;
+  const name = handoffThreadName(meta);
+  if (!name || thread.name === name) return false;
+  try {
+    await thread.setName(name);
+    return true;
+  } catch (err) {
+    console.error('[Bot] thread rename failed:', err.message);
+    return false;
+  }
 }
 
 function formatStaffTicket({
@@ -185,6 +200,7 @@ function formatStaffTicket({
   extraMentions,
   extraUsers,
   extraRoles,
+  labels: labelOverride,
 }) {
   const why = clipForDiscord(reason || "I can't finish this from chat.", 200);
   const asked = clipUserQuestion(question);
@@ -195,7 +211,11 @@ function formatStaffTicket({
   const { users, roles } = staffMentionIds();
   const cleanDraft = stripPingNarration(draft || '');
   const resolved = resolveRoute({ area, lane, question });
-  const labels = ticketLabels({ area: resolved.area, lane: resolved.lane, question });
+  const labels =
+    Array.isArray(labelOverride) && labelOverride.length
+      ? labelOverride.filter((label) => label && label !== 'needs-human')
+      : ticketLabels({ area: resolved.area, lane: resolved.lane, question });
+  if (!labels.length) labels.push('needs-human');
 
   const embed = {
     title: 'Needs a human',
@@ -288,6 +308,8 @@ async function postHandoffThread(message, payload, meta = {}) {
       question: meta.question,
       area: meta.area,
       lane: meta.lane,
+      topic: meta.topic,
+      labels: meta.labels,
     }),
     autoArchiveDuration: 1440,
     reason: 'Could not finish this from chat',
@@ -317,6 +339,8 @@ async function notifyStaff({
   fileIssueId,
   route,
   skipDedupe = false,
+  topic,
+  labels,
 }) {
   const channelId = message?.channel?.id;
   if (!skipDedupe && recentlyHandedOff(channelId)) {
@@ -347,6 +371,7 @@ async function notifyStaff({
     extraMentions,
     extraUsers,
     extraRoles,
+    labels,
   });
   const errors = [];
 
@@ -366,11 +391,13 @@ async function notifyStaff({
         question,
         area,
         lane: route?.lane,
+        topic,
+        labels,
       });
       if (thread) {
         markHandedOff(channelId, true);
         await telegram.sendEscalation(ticket.plain);
-        return { ok: true, via: 'thread', threadId: thread.id };
+        return { ok: true, via: 'thread', threadId: thread.id, thread };
       }
     } catch (err) {
       errors.push(`thread: ${err.message}`);
@@ -421,6 +448,7 @@ module.exports = {
   ticketLabels,
   threadTopic,
   handoffThreadName,
+  applyThreadName,
   notifyStaff,
   isHandoffThread,
   canSaveFaq,

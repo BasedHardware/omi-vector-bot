@@ -199,6 +199,16 @@ test('parseAgentJson survives raw newlines in the model JSON', () => {
   assert.match(parsed.reason, /json failed/);
 });
 
+test('parses topic and labels from the model', () => {
+  const parsed = parseAgentJson(
+    '{"topic":"fair use warning","labels":["shop","account"],"area":"shop","lane":"account","final_answer":"A person needs to explain the warning.","confidence":0.8,"escalate":true,"file_issue":false,"reason":"account limits"}'
+  );
+  assert.equal(parsed.topic, 'fair use warning');
+  assert.deepEqual(parsed.labels, ['shop', 'account']);
+  assert.equal(parsed.file_issue, false);
+  assert.equal(parsed.lane, 'account');
+});
+
 test('parses escalate reason from the model', () => {
   const parsed = parseAgentJson(
     '{"final_answer":"A person needs to look up the order.","confidence":0.4,"escalate":true,"reason":"no order access"}'

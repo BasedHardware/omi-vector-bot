@@ -184,12 +184,14 @@ test('handoff threads are skipped by name', () => {
       'A) a "FAIR USE WARNING"',
       'B) FILLED the memory. What are all these plans?',
     ].join('\n'),
+    topic: 'fair use warning and plans',
+    labels: ['shop', 'account'],
   });
   assert.equal(/needs-human/i.test(inferredFair), false);
   assert.equal(/nintendo/i.test(inferredFair), false);
   assert.match(inferredFair, /shop/);
   assert.match(inferredFair, /account/);
-  assert.match(inferredFair, /fair use and plans/i);
+  assert.match(inferredFair, /fair use warning and plans/i);
   const { ticketLabels } = require('../handoff');
   assert.deepEqual(ticketLabels({ area: 'unknown', lane: 'faq' }), ['faq']);
   assert.equal(ticketLabels({ question: 'How do I pair my Omi?' }).includes('faq'), true);
