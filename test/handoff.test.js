@@ -48,8 +48,30 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
   const staff = ticket.discord.embeds[0].fields.find((f) => f.name === 'Staff');
   assert.match(staff.value, /Reply in this thread/i);
   assert.match(staff.value, /faq:/i);
+  assert.equal(
+    ticket.discord.embeds[0].fields.some((f) => f.name === 'Shopify'),
+    false
+  );
   delete process.env.STAFF_USER_IDS;
   assert.equal(staffMentions(), '');
+});
+
+test('staff ticket can carry Shopify facts without street or email', () => {
+  const ticket = formatStaffTicket({
+    message: {
+      url: 'https://discord.com/channels/1/2/3',
+      author: { id: '99' },
+      channel: { id: '2' },
+    },
+    question: 'Where is order #1042?',
+    reason: 'Order lookup for staff check',
+    shopify: '#1042 paid, shipped\nUPS 1Z999\nShip to: Berlin, Germany\nAddress looks complete: yes',
+  });
+  const field = ticket.discord.embeds[0].fields.find((f) => f.name === 'Shopify');
+  assert.match(field.value, /Berlin/);
+  assert.match(field.value, /1Z999/);
+  assert.equal(/Secret St/i.test(field.value), false);
+  assert.equal(/@/.test(field.value), false);
 });
 
 test('handoff threads are skipped by name', () => {

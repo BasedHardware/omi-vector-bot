@@ -48,7 +48,7 @@ function clipUserQuestion(text) {
   return clipForDiscord(cleaned || raw, 1000);
 }
 
-function formatStaffTicket({ message, question, reason, draft }) {
+function formatStaffTicket({ message, question, reason, draft, shopify }) {
   const why = clipForDiscord(reason || 'Vector cannot finish this. Needs a person.', 200);
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
@@ -64,9 +64,17 @@ function formatStaffTicket({ message, question, reason, draft }) {
     description: asked || '(no text)',
     fields: [
       { name: 'Why', value: why, inline: false },
-      { name: 'From', value: [from, channel].filter(Boolean).join(' · ') || 'unknown', inline: true },
     ],
   };
+  const shopifyFacts = clipForDiscord(String(shopify || '').trim(), 500);
+  if (shopifyFacts) {
+    embed.fields.push({ name: 'Shopify', value: shopifyFacts, inline: false });
+  }
+  embed.fields.push({
+    name: 'From',
+    value: [from, channel].filter(Boolean).join(' · ') || 'unknown',
+    inline: true,
+  });
   if (jump) {
     embed.fields.push({ name: 'Jump', value: `[Open message](${jump})`, inline: true });
   }
@@ -121,13 +129,13 @@ async function sendToStaffChannel(client, payload) {
   return true;
 }
 
-async function notifyStaff({ client, message, question, reason, draft, skipDedupe = false }) {
+async function notifyStaff({ client, message, question, reason, draft, shopify, skipDedupe = false }) {
   const channelId = message?.channel?.id;
   if (!skipDedupe && recentlyHandedOff(channelId)) {
     return { ok: true, via: 'recent', duplicate: true };
   }
 
-  const ticket = formatStaffTicket({ message, question, reason, draft });
+  const ticket = formatStaffTicket({ message, question, reason, draft, shopify });
   const errors = [];
 
   try {

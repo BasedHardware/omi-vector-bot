@@ -12,7 +12,9 @@ npm run ask -- "How do I pair my Omi?"
 npm run ask -- "Where is my order?"
 ```
 
-Never commit `.env`. Order and refund questions should print `ESCALATE`.
+Never commit `.env`. Order and refund questions should print `ESCALATE` unless Shopify read-only env is set.
+
+If `SHOPIFY_STORE` and `SHOPIFY_ACCESS_TOKEN` are set (Railway only, not GitHub), Vector looks up paid / shipped / tracking from an order number or the email on the order. The channel reply never includes street, phone, name, or email. Refunds, cancels, and address changes still go to a person. The Handoff card gets city/country so staff can check the lookup.
 
 ## Discord
 
@@ -37,7 +39,7 @@ The user reply only claims a ping if one of those sends succeeded. Optional `STA
 In the Handoff thread, reply as a person (Vector stays quiet). To save a fact for later questions:
 
 ```
-faq: Order and tracking lookups need a person. Vector cannot see Shopify.
+faq: Teal LED means charging and connected.
 ```
 
 Saved facts live in memory on the host (and Postgres if `DATABASE_URL` is set). On boot, Vector also reloads `faq:` lines already sitting in Handoff threads in the test channel, so a Railway redeploy does not wipe them.

@@ -20,6 +20,7 @@ const {
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
 const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion, canSaveFaq } = require('./handoff');
 const knowledge = require('./knowledge');
+const shopify = require('./shopify');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
@@ -142,26 +143,45 @@ async function handleMessage(message) {
   try {
     await channel.sendTyping();
 
-    const [threadHistory, knowledgeSnippets] = await Promise.all([
-      getHistory(channel, message.id),
-      searchKnowledge(asked || question),
-    ]);
+    const useShopify = shopify.isConfigured() && shopify.isOrderQuestion(asked || question);
+    let shopifyLookup = null;
+    let aiResponse;
+    let cleanAnswer;
 
-    const aiResponse = await queryAgent({
-      question,
-      threadHistory,
-      knowledgeSnippets,
-      sessionId: `discord-${channel.id}`,
-      canNotifyStaff: canNotifyStaff({ discordReady: true }),
-    });
+    if (useShopify) {
+      shopifyLookup = await shopify.lookupOrder(asked || question);
+      console.log(`[Shopify] lookup key=${shopifyLookup.reason === 'no-key' ? 'none' : 'set'} status=${shopifyLookup.reason || 'hit'}`);
+      aiResponse = {
+        final_answer: '',
+        confidence: 0.9,
+        escalate: true,
+        reason: shopify.staffReason(shopifyLookup, asked || question),
+      };
+      cleanAnswer = clipForDiscord(shopify.buildUserReply(shopifyLookup, asked || question) || '');
+    } else {
+      const [threadHistory, knowledgeSnippets] = await Promise.all([
+        getHistory(channel, message.id),
+        searchKnowledge(asked || question),
+      ]);
+      const snippets = shopify.filterKnowledge(knowledgeSnippets);
+
+      aiResponse = await queryAgent({
+        question,
+        threadHistory,
+        knowledgeSnippets: snippets,
+        sessionId: `discord-${channel.id}`,
+        canNotifyStaff: canNotifyStaff({ discordReady: true }),
+      });
+
+      cleanAnswer = clipForDiscord(
+        knowledge.applyStaffFacts(
+          formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
+          snippets
+        )
+      );
+    }
 
     await typingDelay();
-    const cleanAnswer = clipForDiscord(
-      knowledge.applyStaffFacts(
-        formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
-        knowledgeSnippets
-      )
-    );
 
     if (shouldEscalate(aiResponse, caption)) {
       console.log(`[Bot] Escalating ${channel.id} (confidence: ${aiResponse.confidence})`);
@@ -174,6 +194,7 @@ async function handleMessage(message) {
           question: asked,
           reason: aiResponse.reason,
           draft: cleanAnswer,
+          shopify: shopifyLookup?.order ? shopify.formatStaffFacts(shopifyLookup.order) : undefined,
           skipDedupe: isTestChannel(channel),
         });
         pinged = Boolean(handoff.ok);
@@ -239,7 +260,7 @@ client.once(Events.ClientReady, async () => {
     console.log('[Bot] No channel pinned — will answer when @mentioned');
   }
   console.log(
-    `[Bot] Handoff staff-channel=${Boolean(process.env.STAFF_ALERT_CHANNEL_ID)} telegram=${telegramReady} threads=${process.env.HANDOFF_THREADS !== '0'}`
+    `[Bot] Handoff staff-channel=${Boolean(process.env.STAFF_ALERT_CHANNEL_ID)} telegram=${telegramReady} threads=${process.env.HANDOFF_THREADS !== '0'} shopify=${shopify.isConfigured()}`
   );
   try {
     const n = await knowledge.hydrateFromDiscord(client);
