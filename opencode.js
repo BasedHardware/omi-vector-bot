@@ -18,7 +18,18 @@ function parseAgentJson(raw) {
   if (start === -1 || end === -1) {
     throw new Error('OpenCode reply was not JSON');
   }
-  const data = JSON.parse(trimmed.slice(start, end + 1));
+  let data;
+  try {
+    data = JSON.parse(trimmed.slice(start, end + 1));
+  } catch (err) {
+    console.error('[OpenCode] json parse failed:', err.message);
+    return {
+      final_answer: 'I am not sure. A person on the team needs to take this.',
+      confidence: 0.2,
+      escalate: true,
+      reason: 'model json failed',
+    };
+  }
   if (typeof data.final_answer !== 'string' || !data.final_answer.trim()) {
     throw new Error('OpenCode JSON missing final_answer');
   }

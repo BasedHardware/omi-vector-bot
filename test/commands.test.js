@@ -11,6 +11,26 @@ test('/done refuses non-handoff channels', async () => {
   assert.equal(result.ok, false);
 });
 
+test('/done still archives if the later Discord ack would fail', async () => {
+  const sent = [];
+  const channel = {
+    isThread: () => true,
+    name: 'Handoff · astar6969',
+    send: async (text) => {
+      sent.push(text);
+      return text;
+    },
+    setLocked: async () => {},
+    setArchived: async () => {
+      channel.archived = true;
+    },
+  };
+  const result = await closeHandoff(channel, { id: '99' });
+  assert.equal(result.ok, true);
+  assert.equal(channel.archived, true);
+  assert.equal(sent.some((t) => /That command failed/i.test(t)), false);
+});
+
 test('/done archives a Handoff thread and does not file GitHub', async () => {
   const sent = [];
   const channel = {

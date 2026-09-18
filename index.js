@@ -212,6 +212,17 @@ async function handleMessage(message) {
       }
     }
 
+    if (!skipModel && router.skipModel(route)) {
+      skipModel = true;
+      aiResponse = {
+        final_answer: '',
+        confidence: 0.9,
+        escalate: true,
+        reason: router.staffReason(route),
+      };
+      cleanAnswer = clipForDiscord(router.cannedReply(route) || '');
+    }
+
     if (!skipModel) {
       const [threadHistory, knowledgeSnippets] = await Promise.all([
         getHistory(channel, message.id),

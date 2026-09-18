@@ -1,4 +1,4 @@
-const { REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { isHandoffThread, canStaffAct } = require('./handoff');
 const github = require('./github');
 
@@ -50,37 +50,38 @@ async function handleDone(interaction) {
   if (!canStaffAct(interaction)) {
     await interaction.reply({
       content: 'Only named staff can close a thread. Set STAFF_USER_IDS or STAFF_ROLE_ID.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await closeHandoff(interaction.channel, interaction.user);
-  if (!result.ok) {
-    await interaction.reply({ content: result.reason, ephemeral: true });
-    return;
+  try {
+    await interaction.editReply(result.ok ? 'Marked resolved.' : result.reason);
+  } catch (err) {
+    console.error('[Bot] /done ack failed:', err.message);
   }
-  await interaction.reply({ content: 'Marked resolved.', ephemeral: true });
 }
 
 async function handleFileIssue(interaction) {
   if (!canStaffAct(interaction)) {
     await interaction.reply({
       content: 'Only named staff can file a GitHub issue.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
   const id = String(interaction.customId || '').replace(/^file:/, '');
   const draft = github.takeDraft(id);
   if (!draft) {
-    await interaction.reply({ content: 'That File button expired. Ask again in the channel.', ephemeral: true });
+    await interaction.reply({ content: 'That File button expired. Ask again in the channel.', flags: MessageFlags.Ephemeral });
     return;
   }
   if (!github.isConfigured()) {
-    await interaction.reply({ content: 'No GitHub token on the host.', ephemeral: true });
+    await interaction.reply({ content: 'No GitHub token on the host.', flags: MessageFlags.Ephemeral });
     return;
   }
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const created = await github.createIssue(draft);
   if (!created.ok) {
     await interaction.editReply('GitHub did not accept the issue. I did not claim it was filed.');
@@ -111,9 +112,9 @@ async function handleInteraction(interaction) {
     console.error('[Bot] interaction failed:', err.message);
     try {
       if (interaction.deferred || interaction.replied) {
-        await interaction.followUp({ content: 'That command failed.', ephemeral: true });
+        await interaction.followUp({ content: 'That command failed.', flags: MessageFlags.Ephemeral });
       } else {
-        await interaction.reply({ content: 'That command failed.', ephemeral: true });
+        await interaction.reply({ content: 'That command failed.', flags: MessageFlags.Ephemeral });
       }
     } catch {
       /* ignore */

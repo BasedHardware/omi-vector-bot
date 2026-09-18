@@ -166,6 +166,39 @@ function shouldPingOwner(route) {
   return Boolean(route.escalate) && route.area !== 'unknown';
 }
 
+function skipModel(route) {
+  return ['money', 'privacy', 'firmware', 'tech'].includes(route?.lane);
+}
+
+function cannedReply(route) {
+  const lane = route?.lane;
+  if (lane === 'money') {
+    return 'Refunds, charges, and address changes need a person. I cannot do those from here.';
+  }
+  if (lane === 'privacy') {
+    return 'A full account or data deletion needs a person. I cannot do that from here.';
+  }
+  if (lane === 'firmware') {
+    return 'I cannot see firmware or device logs from here, so I will not guess a version or a fix.';
+  }
+  if (lane === 'tech') {
+    return 'I cannot see app or desktop logs from here, so I will not guess a cause or a fix.';
+  }
+  return null;
+}
+
+function staffReason(route) {
+  const lane = route?.lane;
+  if (lane === 'money') return 'Refund, charge, or address change';
+  if (lane === 'privacy') return 'Data deletion / privacy request';
+  if (route?.area === 'app') return 'App bug; Vector cannot see logs';
+  if (route?.area === 'desktop') return 'Desktop bug; Vector cannot see logs';
+  if (lane === 'firmware' || route?.area === 'firmware') return 'Firmware or hardware; Vector cannot see logs';
+  if (lane === 'tech') return 'Product bug; Vector cannot see logs';
+  if (lane === 'shop') return 'Order or shipping';
+  return 'Needs a person';
+}
+
 module.exports = {
   AREAS,
   classify,
@@ -176,4 +209,7 @@ module.exports = {
   ownerMention,
   isTechLane,
   shouldPingOwner,
+  skipModel,
+  cannedReply,
+  staffReason,
 };

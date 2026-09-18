@@ -7,6 +7,7 @@ const LIE_PATTERNS = [
   /ticket has been (created|opened|filed)/i,
   /i (just )?contacted (support|staff|aarav|the team)/i,
   /passing this along/i,
+  /passed this along/i,
   /someone will follow up/i,
 ];
 

@@ -38,6 +38,22 @@ test('PII and orders are not public-forum safe', () => {
   assert.equal(router.isPublicForumSafe('How do I pair my Omi?'), true);
 });
 
+test('refund, privacy, and app crash skip the model and do not use pairing steps', () => {
+  const refund = router.classify('I want a refund');
+  assert.equal(router.skipModel(refund), true);
+  assert.match(router.cannedReply(refund), /person/);
+  assert.equal(/bluetooth/i.test(router.cannedReply(refund)), false);
+
+  const crash = router.classify('the app crashed on iPhone');
+  assert.equal(router.skipModel(crash), true);
+  assert.match(router.cannedReply(crash), /logs/);
+  assert.equal(/pair/i.test(router.cannedReply(crash)), false);
+
+  const privacy = router.classify('delete my data');
+  assert.equal(router.skipModel(privacy), true);
+  assert.match(router.cannedReply(privacy), /deletion/);
+});
+
 test('AREA_OWNERS parses users and roles; empty means no ping', () => {
   const map = router.parseAreaOwners('shop:123456789012345678,firmware:role:987654321098765432');
   assert.equal(router.ownerMention('shop', map), '<@123456789012345678>');

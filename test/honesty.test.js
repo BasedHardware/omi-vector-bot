@@ -12,6 +12,11 @@ test('staff-lie lines are stripped', () => {
   assert.match(out, /restarting/i);
 });
 
+test('passed this along is treated as a staff lie', () => {
+  const out = stripStaffLies('For a full deletion that needs a person, so I have passed this along.');
+  assert.equal(/passed this along/i.test(out), false);
+});
+
 test('pure lie is replaced with an honest fallback', () => {
   const out = stripStaffLies('I have conveyed your issue to the upper team.');
   assert.equal(looksLikeStaffLie(out), false);
@@ -140,6 +145,12 @@ test('parses fenced JSON from the model', () => {
   assert.equal(parsed.final_answer, 'Press the center button.');
   assert.equal(parsed.confidence, 0.9);
   assert.equal(parsed.escalate, false);
+});
+
+test('parseAgentJson survives raw newlines in the model JSON', () => {
+  const parsed = parseAgentJson('{"final_answer":"line1\nline2","confidence":0.9,"escalate":true}');
+  assert.equal(parsed.escalate, true);
+  assert.match(parsed.reason, /json failed/);
 });
 
 test('parses escalate reason from the model', () => {
