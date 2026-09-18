@@ -67,8 +67,84 @@ function clipUserQuestion(text) {
     .split('\n')
     .filter((line) => !/^want:\s/i.test(line.trim()))
     .join('\n')
+    .replace(/\bping me as\s+@\S+/gi, '')
+    .replace(/@yourdiscordname/gi, '')
+    .replace(/\bso i know you got this\.?/gi, '')
+    .replace(/\bping me\b[^.?!]*[.?!]?/gi, '')
+    .replace(/[^\S\n]{2,}/g, ' ')
+    .replace(/\s+\./g, '.')
     .trim();
   return clipForDiscord(cleaned || raw, 1000);
+}
+
+function significantWords(text) {
+  const stop = new Set([
+    'handoff',
+    'still',
+    'from',
+    'this',
+    'that',
+    'have',
+    'with',
+    'ping',
+    'please',
+    'your',
+    'know',
+    'into',
+    'they',
+    'them',
+    'then',
+    'than',
+    'just',
+    'want',
+  ]);
+  return String(text || '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 3 && !stop.has(word));
+}
+
+function isSameHandoff(threadName, { question, topic } = {}) {
+  if (!/^Handoff\b/i.test(String(threadName || ''))) return false;
+  const parts = String(threadName)
+    .split(' · ')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const subject = parts.slice(2).join(' ');
+  const sub = significantWords(subject);
+  if (sub.length < 2) return false;
+  const hay = new Set(significantWords(`${question || ''} ${topic || ''}`));
+  return sub.filter((word) => hay.has(word)).length >= 2;
+}
+
+async function findOpenHandoff(channel, { userId, question, topic } = {}) {
+  const parent = channel?.isThread?.() ? channel.parent : channel;
+  if (!parent?.threads?.fetchActive || !userId) return null;
+  let active;
+  try {
+    active = await parent.threads.fetchActive();
+  } catch {
+    return null;
+  }
+  const threads = active?.threads;
+  if (!threads || typeof threads.values !== 'function') return null;
+  for (const thread of threads.values()) {
+    if (thread?.archived) continue;
+    if (!isSameHandoff(thread.name, { question, topic })) continue;
+    try {
+      const cached = thread.members?.cache;
+      const members =
+        cached && typeof cached.has === 'function' && cached.has(userId)
+          ? cached
+          : await thread.members?.fetch?.();
+      if (members && typeof members.has === 'function' && members.has(userId)) {
+        return thread;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 function resolveRoute({ area, lane, question } = {}) {
@@ -449,6 +525,8 @@ module.exports = {
   threadTopic,
   handoffThreadName,
   applyThreadName,
+  isSameHandoff,
+  findOpenHandoff,
   notifyStaff,
   isHandoffThread,
   canSaveFaq,

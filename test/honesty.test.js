@@ -142,7 +142,7 @@ test('clips Discord replies under the length cap', () => {
 });
 
 test('plain @username becomes a real Discord mention for the author', () => {
-  const { rewriteUserMentions } = require('../utils');
+  const { rewriteUserMentions, wantsAuthorPing, attachAuthorMention } = require('../utils');
   const message = {
     author: { id: '564270044599812096', username: 'twilsonco', globalName: 'TWilson' },
     member: { displayName: 'twilsonco' },
@@ -156,6 +156,11 @@ test('plain @username becomes a real Discord mention for the author', () => {
   );
   const already = rewriteUserMentions('ping <@564270044599812096> please', message);
   assert.equal(already, 'ping <@564270044599812096> please');
+  assert.equal(wantsAuthorPing('Ping me as @yourDiscordName so I know you got this.'), true);
+  assert.match(
+    attachAuthorMention('Apple Watch recordings still missing.', message),
+    /^<@564270044599812096> /
+  );
 });
 
 test('issue replies drop person-on-the-team narration', () => {
@@ -172,6 +177,19 @@ test('issue replies drop person-on-the-team narration', () => {
   assert.match(out, /do not clear/i);
   assert.match(out, /Apple Watch/i);
   assert.equal(out.includes(ISSUE_FOOTER), true);
+});
+
+test('enough-for-a-person-on-the-team sentences are dropped', () => {
+  const out = escalateReply(
+    [
+      'You mean the 2.5 hours on your Apple Watch and the two small clips — still nothing in the app.',
+      'The timings you gave and the fact that none of them ever showed up is enough for a person on the team to look at it properly.',
+    ].join('\n\n'),
+    { issue: true, pingAuthor: true }
+  );
+  assert.equal(/person on the team/i.test(out), false);
+  assert.equal(/do not need to ping anyone/i.test(out), false);
+  assert.match(out, /Apple Watch/i);
 });
 
 test('escalate footer is generic and skipped if the answer already said no ping', () => {

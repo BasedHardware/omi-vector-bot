@@ -11,7 +11,7 @@ const HOWTO_FAQ = [
 ];
 
 const RAILS_FAQ = [
-  'If the device turns itself off a few seconds after you turn it on, even if it says the battery is full: a person on the team needs this. Do not guess a software version or a fix.',
+  'If the device turns itself off a few seconds after you turn it on, even if it says the battery is full: escalate. Do not guess a software version or a fix.',
   'The necklace works with the Omi app on your phone. You do not need a computer for the device to work. A computer app is extra. Do not invent that they must buy a different plan for every device.',
   'Fair use warnings and a full memory mean the account hit a limit. Do not invent how many hours they get, plan names, or prices. A person with account access needs this. If they are thinking of returning the device, do not process a return from chat.',
   'Do not invent order status, tracking numbers, refunds, ship dates, software versions, or “I told the team.” Those need a human.',
@@ -30,7 +30,7 @@ function buildToolFacts({ route, shopifyText, githubText } = {}) {
   const lines = [`Lane: ${lane}. Area: ${area}.`, `This ticket: ${describe(route)}`];
   if (lane === 'tech' || lane === 'firmware') {
     lines.push(
-      'Read what they already did. If they paired, pairing is done — do not teach Bluetooth, lights, or keeping the app open. You cannot open their phone, computer, or device. Do not guess API keys, OpenRouter, BYOK, or Settings paths. Do not tell them to rerun npm with --force or --legacy-peer-deps. Do not invent a command that changes their project. escalate=true. First sentence: show you understood their case (video, seconds, error text). Then say a person on the team needs this.'
+      'Read what they already did. If they paired, pairing is done — do not teach Bluetooth, lights, or keeping the app open. You cannot open their phone, computer, or device. Do not guess API keys, OpenRouter, BYOK, or Settings paths. Do not tell them to rerun npm with --force or --legacy-peer-deps. Do not invent a command that changes their project. escalate=true. First sentence: show you understood their case (video, seconds, error text). Do not write that a person on the team will look.'
     );
   }
   if (lane === 'shop') {

@@ -323,3 +323,54 @@ test('telegram escalation text is plain, not HTML', () => {
   assert.equal(text.includes('parse_mode'), false);
   assert.equal(text.includes('<b>'), false);
 });
+
+test('clipUserQuestion drops ping-me placeholders', () => {
+  const { clipUserQuestion } = require('../handoff');
+  const out = clipUserQuestion(
+    'Apple Watch recordings still missing. Ping me as @yourDiscordName so I know you got this.'
+  );
+  assert.match(out, /Apple Watch recordings still missing/);
+  assert.equal(/ping me/i.test(out), false);
+  assert.equal(/yourDiscordName/i.test(out), false);
+});
+
+test('open Handoff threads match the same Watch ticket, not a refund', async () => {
+  const { isSameHandoff, findOpenHandoff } = require('../handoff');
+  const watch = 'Handoff · app · tech · Apple Watch recordings missing from app';
+  assert.equal(
+    isSameHandoff(watch, {
+      question: 'Apple Watch recordings still missing.',
+      topic: 'Apple Watch recordings missing from app',
+    }),
+    true
+  );
+  assert.equal(
+    isSameHandoff(watch, {
+      question: 'I want a refund for order #20716',
+      topic: 'Order #20716',
+    }),
+    false
+  );
+  const thread = {
+    id: 'old',
+    name: watch,
+    archived: false,
+    members: {
+      cache: { has: (id) => id === '99' },
+      fetch: async () => ({ has: (id) => id === '99' }),
+    },
+  };
+  const found = await findOpenHandoff(
+    {
+      threads: {
+        fetchActive: async () => ({ threads: new Map([['old', thread]]) }),
+      },
+    },
+    {
+      userId: '99',
+      question: 'Apple Watch recordings still missing.',
+      topic: 'Apple Watch recordings missing from app',
+    }
+  );
+  assert.equal(found?.id, 'old');
+});

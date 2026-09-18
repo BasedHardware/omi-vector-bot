@@ -168,6 +168,18 @@ function rewriteUserMentions(text, message) {
   return out;
 }
 
+function wantsAuthorPing(text) {
+  return /\bping me\b|\bmention me\b|\bnotify me\b|@yourdiscordname/i.test(String(text || ''));
+}
+
+function attachAuthorMention(text, message) {
+  const id = String(message?.author?.id || '');
+  if (!/^\d{5,}$/.test(id)) return String(text || '');
+  const out = String(text || '');
+  if (new RegExp(`<@!?${id}>`).test(out)) return out;
+  return `<@${id}> ${out}`.trim();
+}
+
 function clipThreadHistory(entries, maxEach = 400, maxItems = 8) {
   return (entries || [])
     .map((m) => {
@@ -205,7 +217,7 @@ const PING_NARRATION = [
   /handoff happens/i,
   /flagging this/i,
   /i('m| am) not able to ping/i,
-  /a person on the team needs to look/i,
+  /person on the team/i,
   /going into your account/i,
 ];
 
@@ -243,7 +255,7 @@ function escalateReply(answer, opts = {}) {
     return body;
   }
 
-  if (opts.issue) {
+  if (opts.issue && !opts.pingAuthor) {
     if (/written (up|in this thread)/i.test(body)) return body;
     return [body, ISSUE_FOOTER].filter(Boolean).join('\n\n');
   }
@@ -254,6 +266,8 @@ function escalateReply(answer, opts = {}) {
     if (duplicate && /already has this/i.test(body)) return body;
     return [body, footer].filter(Boolean).join('\n\n');
   }
+
+  if (opts.pingAuthor) return body;
 
   return [body, ESCALATE_FOOTER].filter(Boolean).join('\n\n');
 }
@@ -269,6 +283,8 @@ module.exports = {
   clipForDiscord,
   SAFE_REPLY_MENTIONS,
   rewriteUserMentions,
+  wantsAuthorPing,
+  attachAuthorMention,
   clipThreadHistory,
   escalateReply,
   ESCALATE_FOOTER,

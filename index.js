@@ -18,9 +18,21 @@ const {
   stripPingNarration,
   SAFE_REPLY_MENTIONS,
   rewriteUserMentions,
+  wantsAuthorPing,
+  attachAuthorMention,
 } = require('./utils');
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
-const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion, canSaveFaq, applyThreadName, recentlyHandedOff, staffMentionIds } = require('./handoff');
+const {
+  notifyStaff,
+  canNotifyStaff,
+  isHandoffThread,
+  clipUserQuestion,
+  canSaveFaq,
+  applyThreadName,
+  recentlyHandedOff,
+  staffMentionIds,
+  findOpenHandoff,
+} = require('./handoff');
 const knowledge = require('./knowledge');
 const shopify = require('./shopify');
 const router = require('./router');
@@ -71,9 +83,11 @@ app.post('/github-webhook', express.raw({ type: 'application/json' }), async (re
   res.send('ok');
 });
 
-function replySafe(message, content) {
+function replySafe(message, content, { pingAuthor = false } = {}) {
+  let text = rewriteUserMentions(content, message);
+  if (pingAuthor) text = attachAuthorMention(text, message);
   return message.reply({
-    content: rewriteUserMentions(content, message),
+    content: text,
     allowedMentions: SAFE_REPLY_MENTIONS,
   });
 }
@@ -297,6 +311,7 @@ async function handleMessage(message) {
       labels: triaged.labels,
     };
     const inHandoff = isHandoffThread(channel);
+    const pingAuthor = wantsAuthorPing(caption);
     const escalate = shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate;
     const draft = github.draftFromQuestion(asked, triaged.area, {
       topic: triaged.topic,
@@ -317,8 +332,24 @@ async function handleMessage(message) {
       }
       let pinged = false;
       let duplicate = false;
+      let reused = false;
       let handoffThread = inHandoff ? channel : null;
-      if (!inHandoff || !recentlyHandedOff(channel.id)) {
+      if (!inHandoff) {
+        const existing = await findOpenHandoff(channel, {
+          userId: message.author?.id,
+          question: asked,
+          topic: triaged.topic,
+        });
+        if (existing) {
+          reused = true;
+          duplicate = true;
+          pinged = true;
+          handoffThread = existing;
+          await applyThreadName(existing, nameMeta);
+          console.log(`[Bot] Reusing Handoff ${existing.id} for ${channel.id}`);
+        }
+      }
+      if (!reused && (!inHandoff || !recentlyHandedOff(channel.id))) {
         try {
           const handoff = await notifyStaff({
             client,
@@ -349,23 +380,44 @@ async function handleMessage(message) {
           console.error('[Bot] Handoff failed:', err.message);
         }
       }
-      if (triaged.fileIssue && handoffThread && triaged.area !== 'shop' && triaged.area !== 'privacy') {
+      if (
+        !reused &&
+        triaged.fileIssue &&
+        handoffThread &&
+        triaged.area !== 'shop' &&
+        triaged.area !== 'privacy'
+      ) {
         await postIssueCard(handoffThread, draft, githubHit);
+      }
+      if (reused && handoffThread && typeof handoffThread.send === 'function') {
+        try {
+          await handoffThread.send({
+            content: rewriteUserMentions(
+              escalateReply(cleanAnswer, { conversation: true }),
+              message
+            ),
+            allowedMentions: { parse: ['users'], roles: [], repliedUser: false },
+          });
+        } catch (err) {
+          console.error('[Bot] reuse thread reply failed:', err.message);
+        }
       }
       await replySafe(
         message,
         escalateReply(cleanAnswer, {
           pinged,
           duplicate,
-          conversation: inHandoff,
-          issue: triaged.fileIssue && !inHandoff,
-        })
+          conversation: inHandoff || reused,
+          issue: triaged.fileIssue && !inHandoff && !reused,
+          pingAuthor,
+        }),
+        { pingAuthor }
       );
       if (dbReady) {
         await db.createEscalation(channel.id);
       }
     } else {
-      await replySafe(message, cleanAnswer);
+      await replySafe(message, cleanAnswer, { pingAuthor });
     }
 
     markReplied(channel.id);
