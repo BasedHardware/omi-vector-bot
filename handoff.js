@@ -108,6 +108,10 @@ function threadTopic(question) {
   const code = raw.match(/\b(ERESOLVE|EPERM|ENOENT)\b/);
   if (pack && code) return `${pack[1]} ${code[1]}`;
   if (pack) return pack[1];
+  const secs = raw.match(/after\s+(\d+)\s*seconds?/i);
+  if (/turning itself off|turns? itself off|keeps turning (itself )?off/i.test(raw)) {
+    return secs ? `device off after ${secs[1]}s` : 'device turns itself off';
+  }
   const line =
     raw
       .split('\n')

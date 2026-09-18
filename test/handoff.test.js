@@ -131,6 +131,16 @@ test('handoff threads are skipped by name', () => {
   assert.match(win, /omi-windows/i);
   assert.match(win, /ERESOLVE/);
   assert.match(win, /desktop/);
+  const autoOff = handoffThreadName({
+    question:
+      'Hi, I just got my omi and paired it with the omi app, however the device keeps turning itself off after 5 seconds? Video attached',
+    area: 'firmware',
+    lane: 'firmware',
+  });
+  assert.match(autoOff, /firmware/);
+  assert.match(autoOff, /device off after 5s/);
+  assert.equal(/Hi, I just got/i.test(autoOff), false);
+  assert.equal(/needs-human/i.test(autoOff), false);
 });
 
 test('notifyStaff posts a channel card and does not double-ping', async () => {

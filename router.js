@@ -37,6 +37,10 @@ const FIRMWARE = [
   /powers? off (by itself|after)/i,
   /dies? seconds after/i,
   /turns? off .+ (100\s*%|battery)/i,
+  /turning itself off/i,
+  /turns? itself off/i,
+  /keeps turning (itself )?off/i,
+  /shuts? (itself )?off after/i,
 ];
 
 const DESKTOP = [
@@ -186,7 +190,7 @@ function shouldPingOwner(route) {
 }
 
 function skipModel(route) {
-  return route?.lane === 'money' || route?.lane === 'privacy';
+  return route?.lane === 'money' || route?.lane === 'privacy' || route?.lane === 'firmware';
 }
 
 function cannedReply(route) {
