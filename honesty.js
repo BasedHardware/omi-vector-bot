@@ -67,10 +67,14 @@ function stripStaffLies(text) {
 
 const HOWTO_BLEED = [
   /\bbluetooth\b/i,
-  /\bpair(ing)?\b/i,
+  /\bre-?pair/i,
+  /\bpair(ing)? (it|the|from|with|your|again)\b/i,
   /\bteal\b/i,
   /\bleds?\b/i,
   /center button/i,
+  /swiped away/i,
+  /keep the (omi )?app open/i,
+  /app is open on your phone/i,
 ];
 
 function looksLikeHowtoBleed(text) {

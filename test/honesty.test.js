@@ -29,9 +29,20 @@ test('crash replies lose pairing and Bluetooth steps', () => {
   );
   assert.match(out, /phone app/i);
   assert.equal(/bluetooth/i.test(out), false);
-  assert.equal(/pair/i.test(out), false);
+  assert.equal(/pair the device/i.test(out), false);
   const pairing = stripHowtoBleed('Turn Bluetooth on and pair from the Omi app.', 'faq');
   assert.match(pairing, /Bluetooth/);
+  const autoOff = stripHowtoBleed(
+    [
+      'You paired the Omi and it turns itself off after five seconds.',
+      'Make sure the app is open on your phone and not swiped away, and that the phone\'s Bluetooth is on.',
+      'A person on the team needs this.',
+    ].join('\n'),
+    'firmware'
+  );
+  assert.match(autoOff, /turns itself off/i);
+  assert.equal(/bluetooth/i.test(autoOff), false);
+  assert.equal(/swiped away/i.test(autoOff), false);
 });
 
 test('pure lie is replaced with an honest fallback', () => {

@@ -40,9 +40,7 @@ test('firmware death escalates; talk to a human always does', () => {
   assert.equal(autoOff.area, 'firmware');
   assert.equal(autoOff.lane, 'firmware');
   assert.equal(autoOff.escalate, true);
-  assert.equal(router.skipModel(autoOff), true);
-  assert.match(router.cannedReply(autoOff), /device itself/i);
-  assert.equal(/bluetooth|pair|app is open/i.test(router.cannedReply(autoOff)), false);
+  assert.equal(router.skipModel(autoOff), false);
   assert.equal(router.classify('How do I pair my Omi?').lane, 'faq');
 });
 
@@ -86,7 +84,7 @@ test('desktop voice 402 is tech, not a refund', () => {
   assert.equal(router.classify('I was charged twice on the macOS desktop app').lane, 'money');
 });
 
-test('money, privacy, and firmware skip the model; crash and pairing do not', () => {
+test('only money and privacy skip the model; crash, firmware, and pairing do not', () => {
   const refund = router.classify('I want a refund');
   assert.equal(router.skipModel(refund), true);
   assert.match(router.cannedReply(refund), /money|refund|charge/i);
@@ -104,7 +102,7 @@ test('money, privacy, and firmware skip the model; crash and pairing do not', ()
 
   assert.equal(router.skipModel(router.classify('How do I pair my Omi?')), false);
   assert.equal(router.skipModel(router.classify('Where is my order?')), false);
-  assert.equal(router.skipModel(router.classify('it powers off by itself at 100% battery')), true);
+  assert.equal(router.skipModel(router.classify('it powers off by itself at 100% battery')), false);
 });
 
 test('AREA_OWNERS parses users and roles; empty means no ping', () => {

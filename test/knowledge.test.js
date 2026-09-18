@@ -109,6 +109,7 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   assert.match(buildSystemPrompt({ lane: 'faq' }), /Keep names they used/);
   assert.match(buildSystemPrompt({ lane: 'faq' }), /customer/i);
   assert.match(buildSystemPrompt({ lane: 'faq' }), /Everyday words/);
+  assert.match(buildSystemPrompt({ lane: 'firmware' }), /Think about their message/);
   assert.match(faqTextForLane('faq'), /Pairing/);
   assert.equal(/Pairing|Bluetooth/i.test(faqTextForLane('tech')), false);
   assert.match(faqTextForLane('tech'), /Do not invent order status/);
@@ -117,6 +118,7 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
     githubText: '',
   });
   assert.match(tools, /cannot open their phone/i);
+  assert.match(tools, /If they paired, pairing is done/i);
   assert.match(tools, /OpenRouter/);
   assert.equal(/paid, shipped/i.test(tools), false);
 });

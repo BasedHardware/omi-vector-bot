@@ -190,7 +190,7 @@ function shouldPingOwner(route) {
 }
 
 function skipModel(route) {
-  return route?.lane === 'money' || route?.lane === 'privacy' || route?.lane === 'firmware';
+  return route?.lane === 'money' || route?.lane === 'privacy';
 }
 
 function cannedReply(route) {
