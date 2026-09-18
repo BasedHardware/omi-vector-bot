@@ -9,6 +9,25 @@ const TELEGRAM_MAX = 3500;
 let offset = 0;
 let pollTimer = null;
 let discordClient = null;
+let botUserId = null;
+
+async function getBotUserId() {
+  if (botUserId) return botUserId;
+  const { data } = await axios.get(`${BASE}/getMe`, { timeout: 10_000 });
+  if (data.ok && data.result?.id) botUserId = data.result.id;
+  return botUserId;
+}
+
+// A reply only counts as a staff answer when it targets a message this bot
+// actually sent. Without the author check, anyone in the configured chat can
+// post their own "Thread: <channel id>" message, reply to it, and make Vector
+// post into arbitrary Discord channels (and poison the knowledge base).
+function isBotEscalationReply(msg, botId) {
+  const replyTo = msg?.reply_to_message;
+  if (!replyTo?.text) return false;
+  if (!botId || Number(replyTo.from?.id) !== Number(botId)) return false;
+  return /^Thread:\s*\S+/m.test(replyTo.text);
+}
 
 function isReady() {
   return Boolean(TOKEN && CHAT_ID);
@@ -78,9 +97,16 @@ async function handleUpdate(update) {
 
   const text = msg.text.trim();
 
-  // Check if this is a reply to an escalation message
-  const replyTo = msg.reply_to_message?.text;
-  if (!replyTo) return;
+  // Check if this is a reply to an escalation message this bot sent
+  let myId;
+  try {
+    myId = await getBotUserId();
+  } catch (err) {
+    console.error('[Telegram] getMe failed:', err.message);
+    return;
+  }
+  if (!isBotEscalationReply(msg, myId)) return;
+  const replyTo = msg.reply_to_message.text;
 
   // Extract thread ID from the original escalation message
   const threadMatch = replyTo.match(/^Thread:\s*(\S+)/m);
@@ -106,7 +132,9 @@ async function handleUpdate(update) {
     try {
       const channel = await discordClient.channels.fetch(threadId);
       if (channel?.isTextBased?.() && typeof channel.send === 'function') {
-        await channel.send(answer);
+        // Staff replies are pasted into Discord verbatim — suppress all
+        // mention resolution so a stray @here / <@&role> cannot ping.
+        await channel.send({ content: answer, allowedMentions: { parse: [] } });
         console.log(`[Telegram] Posted answer to ${threadId}`);
       }
     } catch (err) {
@@ -162,4 +190,7 @@ module.exports = {
   startPolling,
   stopPolling,
   setDiscordClient,
+  getBotUserId,
+  isBotEscalationReply,
+  handleUpdate,
 };

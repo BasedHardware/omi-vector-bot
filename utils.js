@@ -119,6 +119,12 @@ function formatDiscordReply(text) {
 
 const DISCORD_REPLY_MAX = 1900;
 
+// Model output reaches message.reply() verbatim. Allow explicit <@id> user
+// pings (see issue: Vector mentions should notify), but never everyone/here
+// or role mentions — a crafted question must not turn Vector into a
+// mass-ping or role-ping amplifier.
+const SAFE_REPLY_MENTIONS = { parse: ['users'], roles: [], repliedUser: true };
+
 function clipThreadHistory(entries, maxEach = 400, maxItems = 8) {
   return (entries || [])
     .map((m) => {
@@ -205,6 +211,7 @@ module.exports = {
   sanitizeReply,
   formatDiscordReply,
   clipForDiscord,
+  SAFE_REPLY_MENTIONS,
   clipThreadHistory,
   escalateReply,
   ESCALATE_FOOTER,

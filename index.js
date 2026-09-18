@@ -16,6 +16,7 @@ const {
   clipThreadHistory,
   escalateReply,
   stripPingNarration,
+  SAFE_REPLY_MENTIONS,
 } = require('./utils');
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
 const { notifyStaff, canNotifyStaff, isHandoffThread, clipUserQuestion, canSaveFaq } = require('./handoff');
@@ -184,12 +185,15 @@ async function handleMessage(message) {
       } catch (err) {
         console.error('[Bot] Handoff failed:', err.message);
       }
-      await message.reply(escalateReply(cleanAnswer, { pinged, duplicate }));
+      await message.reply({
+        content: escalateReply(cleanAnswer, { pinged, duplicate }),
+        allowedMentions: SAFE_REPLY_MENTIONS,
+      });
       if (dbReady) {
         await db.createEscalation(channel.id);
       }
     } else {
-      await message.reply(cleanAnswer);
+      await message.reply({ content: cleanAnswer, allowedMentions: SAFE_REPLY_MENTIONS });
     }
 
     markReplied(channel.id);
