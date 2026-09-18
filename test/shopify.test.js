@@ -117,7 +117,7 @@ test('buildUserReply asks for keys, reports a miss, and does not refund', () =>
       { ok: true, order: shopify.summarizeOrder(SAMPLE) },
       'I want a refund on order #1042'
     );
-    assert.match(refund, /need a person/);
+    assert.match(refund, /can't issue a refund/i);
     assert.match(refund, /paid/);
     assert.equal(/issued a refund/i.test(refund), false);
   }));

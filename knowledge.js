@@ -59,6 +59,18 @@ function searchWords(query) {
     .slice(0, 5);
 }
 
+const HOWTO_FACT = /\b(pair|pairing|bluetooth|led\b|teal|orange =|dev kit|cv1|center button)\b/i;
+
+function isHowtoFact(text) {
+  return HOWTO_FACT.test(String(text || ''));
+}
+
+function filterSnippetsForLane(snippets, lane) {
+  const list = (snippets || []).map((s) => String(s || '').trim()).filter(Boolean);
+  if (!lane || lane === 'faq' || lane === 'unknown') return list;
+  return list.filter((s) => !isHowtoFact(s));
+}
+
 function search(query, limit = SEARCH_LIMIT) {
   const words = searchWords(query);
 
@@ -187,4 +199,6 @@ module.exports = {
   applyStaffFacts,
   collectFaqFromMessages,
   hydrateFromDiscord,
+  filterSnippetsForLane,
+  isHowtoFact,
 };

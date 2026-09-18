@@ -61,4 +61,42 @@ function stripStaffLies(text) {
   return joined;
 }
 
-module.exports = { looksLikeStaffLie, stripStaffLies, stripInventedLookup, looksLikeInventedLookup };
+const HOWTO_BLEED = [
+  /\bbluetooth\b/i,
+  /\bpair(ing)?\b/i,
+  /\bteal\b/i,
+  /\bleds?\b/i,
+  /center button/i,
+];
+
+function looksLikeHowtoBleed(text) {
+  return HOWTO_BLEED.some((re) => re.test(String(text || '')));
+}
+
+function stripHowtoBleed(text, lane) {
+  const raw = String(text || '');
+  if (lane !== 'tech' && lane !== 'firmware') return raw;
+  const cleaned = raw
+    .split('\n')
+    .map((line) => {
+      if (!looksLikeHowtoBleed(line)) return line;
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => !looksLikeHowtoBleed(sentence))
+        .join(' ');
+    })
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+  if (cleaned) return cleaned;
+  return "I can't see the app or the device from here, so I won't guess a fix.";
+}
+
+module.exports = {
+  looksLikeStaffLie,
+  stripStaffLies,
+  stripInventedLookup,
+  looksLikeInventedLookup,
+  stripHowtoBleed,
+};

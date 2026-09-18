@@ -1,6 +1,6 @@
 # omi-vector-bot
 
-Discord support helper for Omi. Answers from a small FAQ. When it cannot see the data (orders, refunds, logs, firmware), it hands the thread to a person and only then says that it did.
+Discord support helper for Omi. Customers see it as **Omi Support**. Answers from a small FAQ. When it cannot see the data (orders, refunds, the phone or computer app), it hands the thread to a person and only then says that it did.
 
 ## Setup
 

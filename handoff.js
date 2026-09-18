@@ -84,7 +84,7 @@ function formatStaffTicket({
   extraUsers,
   extraRoles,
 }) {
-  const why = clipForDiscord(reason || 'Vector cannot finish this. Needs a person.', 200);
+  const why = clipForDiscord(reason || "I can't finish this from chat.", 200);
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
   const from = message?.author?.id ? `<@${message.author.id}>` : 'unknown user';
@@ -177,7 +177,7 @@ async function postHandoffThread(message, payload) {
   const thread = await message.startThread({
     name: `Handoff · ${username}`.slice(0, 100),
     autoArchiveDuration: 1440,
-    reason: 'Vector could not resolve this',
+    reason: 'Could not finish this from chat',
   });
   await thread.send(payload);
   return thread;

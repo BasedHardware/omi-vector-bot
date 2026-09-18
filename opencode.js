@@ -42,7 +42,14 @@ function parseAgentJson(raw) {
   };
 }
 
-async function queryAgent({ question, threadHistory, knowledgeSnippets, sessionId, canNotifyStaff }) {
+async function queryAgent({
+  question,
+  threadHistory,
+  knowledgeSnippets,
+  route,
+  toolFacts,
+  sessionId,
+}) {
   const key = process.env.OPENCODE_API_KEY;
   if (!key) {
     throw new Error('Missing OPENCODE_API_KEY');
@@ -57,10 +64,16 @@ async function queryAgent({ question, threadHistory, knowledgeSnippets, sessionI
         model: OPENCODE_MODEL,
         temperature: 0.2,
         messages: [
-          { role: 'system', content: buildSystemPrompt() },
+          { role: 'system', content: buildSystemPrompt(route) },
           {
             role: 'user',
-            content: buildUserPrompt({ question, threadHistory, knowledgeSnippets }),
+            content: buildUserPrompt({
+              question,
+              threadHistory,
+              knowledgeSnippets,
+              route,
+              toolFacts,
+            }),
           },
         ],
       },

@@ -17,6 +17,23 @@ test('passed this along is treated as a staff lie', () => {
   assert.equal(/passed this along/i.test(out), false);
 });
 
+test('crash replies lose pairing and Bluetooth steps', () => {
+  const { stripHowtoBleed } = require('../honesty');
+  const out = stripHowtoBleed(
+    [
+      'The phone app closed on its own.',
+      'Make sure Bluetooth is on and pair the device again.',
+      'A person on the team needs this.',
+    ].join('\n'),
+    'tech'
+  );
+  assert.match(out, /phone app/i);
+  assert.equal(/bluetooth/i.test(out), false);
+  assert.equal(/pair/i.test(out), false);
+  const pairing = stripHowtoBleed('Turn Bluetooth on and pair from the Omi app.', 'faq');
+  assert.match(pairing, /Bluetooth/);
+});
+
 test('pure lie is replaced with an honest fallback', () => {
   const out = stripStaffLies('I have conveyed your issue to the upper team.');
   assert.equal(looksLikeStaffLie(out), false);

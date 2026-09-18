@@ -24,6 +24,8 @@ const shopify = require('./shopify');
 const router = require('./router');
 const github = require('./github');
 const commands = require('./commands');
+const { buildToolFacts } = require('./prompt');
+const { stripHowtoBleed } = require('./honesty');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
@@ -130,7 +132,7 @@ async function handleFaqSave(message) {
       saved.reason === 'lie'
         ? 'I will not save that. It claims a ping I did not make.'
         : saved.reason === 'stale'
-          ? 'Shopify lookup is live. I will not save that Vector cannot see Shopify.'
+          ? 'Order lookup is already on. I will not save that I cannot see Shopify.'
         : 'Nothing to save. Use `faq: short true sentence`.';
     try {
       await message.reply(why);
@@ -188,31 +190,12 @@ async function handleMessage(message) {
     if (useShopify) {
       shopifyLookup = await shopify.lookupOrder(asked || question);
       console.log(`[Shopify] lookup key=${shopifyLookup.reason === 'no-key' ? 'none' : 'set'} status=${shopifyLookup.reason || 'hit'}`);
-      aiResponse = {
-        final_answer: '',
-        confidence: 0.9,
-        escalate: true,
-        reason: shopify.staffReason(shopifyLookup, asked || question),
-      };
-      cleanAnswer = clipForDiscord(shopify.buildUserReply(shopifyLookup, asked || question) || '');
-      skipModel = true;
-    } else if (github.isConfigured() && router.isTechLane(route)) {
+    }
+    if (github.isConfigured() && router.isTechLane(route)) {
       githubHit = await github.searchIssues(asked || question);
-      if (githubHit?.duplicate) {
-        skipModel = true;
-        aiResponse = {
-          final_answer: '',
-          confidence: 0.9,
-          escalate: true,
-          reason: `Looks like ${githubHit.duplicate.url}`,
-        };
-        cleanAnswer = clipForDiscord(
-          `This looks like an existing GitHub issue: ${githubHit.duplicate.url}\n\nIf that is not your bug, a person still has this.`
-        );
-      }
     }
 
-    if (!skipModel && router.skipModel(route)) {
+    if (router.skipModel(route)) {
       skipModel = true;
       aiResponse = {
         final_answer: '',
@@ -228,22 +211,45 @@ async function handleMessage(message) {
         getHistory(channel, message.id),
         searchKnowledge(asked || question),
       ]);
-      const snippets = shopify.filterKnowledge(knowledgeSnippets);
+      const snippets = knowledge.filterSnippetsForLane(
+        shopify.filterKnowledge(knowledgeSnippets),
+        route.lane
+      );
+      const shopifyText = shopifyLookup
+        ? shopify.buildUserReply(shopifyLookup, asked || question)
+        : '';
+      const toolFacts = buildToolFacts({
+        route,
+        shopifyText,
+        githubText: githubHit?.duplicate?.url || '',
+      });
 
       aiResponse = await queryAgent({
         question,
         threadHistory,
         knowledgeSnippets: snippets,
+        route,
+        toolFacts,
         sessionId: `discord-${channel.id}`,
         canNotifyStaff: canNotifyStaff({ discordReady: true }),
       });
 
       cleanAnswer = clipForDiscord(
-        knowledge.applyStaffFacts(
-          formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
-          snippets
+        stripHowtoBleed(
+          knowledge.applyStaffFacts(
+            formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
+            snippets
+          ),
+          route.lane
         )
       );
+      if (useShopify && shopifyLookup) {
+        aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
+      } else if (githubHit?.duplicate) {
+        aiResponse.reason = aiResponse.reason || `Looks like ${githubHit.duplicate.url}`;
+      } else if (route.escalate) {
+        aiResponse.reason = aiResponse.reason || router.staffReason(route);
+      }
     }
 
     await typingDelay();
@@ -327,8 +333,22 @@ client.on(Events.InteractionCreate, (interaction) => {
   commands.handleInteraction(interaction);
 });
 
+async function nickOmiSupport(client) {
+  if (!VECTOR_TEST_CHANNEL_ID) return;
+  try {
+    const ch = await client.channels.fetch(VECTOR_TEST_CHANNEL_ID);
+    const me = ch?.guild?.members?.me;
+    if (me && typeof me.setNickname === 'function' && me.nickname !== 'Omi Support') {
+      await me.setNickname('Omi Support', 'Customers should see Omi Support');
+    }
+  } catch (err) {
+    console.error('[Bot] nickname Omi Support failed:', err.message);
+  }
+}
+
 client.once(Events.ClientReady, async () => {
   console.log(`[Bot] Logged in as ${client.user.tag}`);
+  await nickOmiSupport(client);
   if (VECTOR_TEST_CHANNEL_ID) {
     console.log(`[Bot] Test channel ${VECTOR_TEST_CHANNEL_ID}`);
   }

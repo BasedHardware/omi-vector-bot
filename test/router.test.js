@@ -48,9 +48,10 @@ test('desktop voice 402 is tech, not a refund', () => {
   const route1 = router.classify(part1);
   assert.equal(route1.area, 'desktop');
   assert.equal(route1.lane, 'tech');
-  assert.equal(router.skipModel(route1), true);
-  assert.match(router.cannedReply(route1), /logs/);
+  assert.equal(router.skipModel(route1), false);
+  assert.match(router.cannedReply(route1), /computer app/i);
   assert.equal(/refund/i.test(router.cannedReply(route1)), false);
+  assert.equal(/\blogs\b/i.test(router.cannedReply(route1)), false);
 
   const part2 = [
     'The AI response fails with a billing-related error. HTTP 402.',
@@ -65,20 +66,25 @@ test('desktop voice 402 is tech, not a refund', () => {
   assert.equal(router.classify('I was charged twice on the macOS desktop app').lane, 'money');
 });
 
-test('refund, privacy, and app crash skip the model and do not use pairing steps', () => {
+test('only money and privacy skip the model; crash and pairing do not', () => {
   const refund = router.classify('I want a refund');
   assert.equal(router.skipModel(refund), true);
-  assert.match(router.cannedReply(refund), /person/);
+  assert.match(router.cannedReply(refund), /money|refund|charge/i);
   assert.equal(/bluetooth/i.test(router.cannedReply(refund)), false);
 
   const crash = router.classify('the app crashed on iPhone');
-  assert.equal(router.skipModel(crash), true);
-  assert.match(router.cannedReply(crash), /logs/);
+  assert.equal(router.skipModel(crash), false);
+  assert.match(router.cannedReply(crash), /phone app/i);
   assert.equal(/pair/i.test(router.cannedReply(crash)), false);
+  assert.equal(/\blogs\b/i.test(router.cannedReply(crash)), false);
 
   const privacy = router.classify('delete my data');
   assert.equal(router.skipModel(privacy), true);
-  assert.match(router.cannedReply(privacy), /deletion/);
+  assert.match(router.cannedReply(privacy), /delet/i);
+
+  assert.equal(router.skipModel(router.classify('How do I pair my Omi?')), false);
+  assert.equal(router.skipModel(router.classify('Where is my order?')), false);
+  assert.equal(router.skipModel(router.classify('it powers off by itself at 100% battery')), false);
 });
 
 test('AREA_OWNERS parses users and roles; empty means no ping', () => {

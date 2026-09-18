@@ -174,7 +174,7 @@ function buildUserReply(lookup, question) {
   if (!isConfigured()) return null;
   if (needsWriteHuman(question)) {
     const extra = lookup?.order ? `\n\nThe order I found is ${payShip(lookup.order)}.` : '';
-    return `Refunds, cancels, and address changes need a person. I cannot do those from here.${extra}`;
+    return `I can't issue a refund, cancel an order, or change an address from chat.${extra}`;
   }
   if (lookup?.reason === 'no-key') {
     return 'I can look this up in Shopify if you send the order number or the email on the order.';

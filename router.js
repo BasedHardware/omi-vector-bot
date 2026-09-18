@@ -172,22 +172,25 @@ function shouldPingOwner(route) {
 }
 
 function skipModel(route) {
-  return ['money', 'privacy', 'firmware', 'tech'].includes(route?.lane);
+  return route?.lane === 'money' || route?.lane === 'privacy';
 }
 
 function cannedReply(route) {
   const lane = route?.lane;
   if (lane === 'money') {
-    return 'Refunds, charges, and address changes need a person. I cannot do those from here.';
+    return "This is about money — a refund, a charge, or a shipping address. I can't change those from chat.";
   }
   if (lane === 'privacy') {
-    return 'A full account or data deletion needs a person. I cannot do that from here.';
+    return "This is about deleting your account or what Omi saved. I can't do that from chat.";
   }
   if (lane === 'firmware') {
-    return 'I cannot see firmware or device logs from here, so I will not guess a version or a fix.';
+    return "This looks like a problem with the Omi device itself. I can't see your device from here, so I won't guess what's wrong.";
+  }
+  if (lane === 'tech' && route?.area === 'desktop') {
+    return "You wrote about the computer app. I can't open that app from here, so I won't guess a fix.";
   }
   if (lane === 'tech') {
-    return 'I cannot see app or desktop logs from here, so I will not guess a cause or a fix.';
+    return "You wrote about the phone app. I can't open that app from here, so I won't guess a fix.";
   }
   return null;
 }
@@ -196,10 +199,12 @@ function staffReason(route) {
   const lane = route?.lane;
   if (lane === 'money') return 'Refund, charge, or address change';
   if (lane === 'privacy') return 'Data deletion / privacy request';
-  if (route?.area === 'app') return 'App bug; Vector cannot see logs';
-  if (route?.area === 'desktop') return 'Desktop bug; Vector cannot see logs';
-  if (lane === 'firmware' || route?.area === 'firmware') return 'Firmware or hardware; Vector cannot see logs';
-  if (lane === 'tech') return 'Product bug; Vector cannot see logs';
+  if (route?.area === 'app') return 'Phone app bug; cannot see the app from chat';
+  if (route?.area === 'desktop') return 'Computer app bug; cannot see the app from chat';
+  if (lane === 'firmware' || route?.area === 'firmware') {
+    return 'Device problem; cannot see the Omi from chat';
+  }
+  if (lane === 'tech') return 'Product bug; cannot see the app from chat';
   if (lane === 'shop') return 'Order or shipping';
   return 'Needs a person';
 }
