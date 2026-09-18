@@ -214,6 +214,20 @@ test('cannot-mention-you and passing-on lines are dropped', () => {
   assert.equal(/person who can look/i.test(out), false);
 });
 
+test('sent-this-along claims are dropped from Handoff follow-ups', () => {
+  const out = escalateReply(
+    [
+      'Blue light means the necklace is on and already connected to your phone, so the device side is fine. The app saying offline while the light is blue is an app bug, and I can\'t fix that from here.',
+      'If the app shows any error words on the screen, keep that exact wording handy. That mismatch between a connected light and an offline app is what needs the app side to look at, and I\'ve sent this along as an app bug.',
+    ].join('\n\n'),
+    { conversation: true }
+  );
+  assert.match(out, /Blue light means the necklace is on/i);
+  assert.match(out, /keep that exact wording/i);
+  assert.equal(/sent this along/i.test(out), false);
+  assert.equal(/needs the app side to look/i.test(out), false);
+});
+
 test('escalate footer is generic and skipped if the answer already said no ping', () => {
   const withFooter = escalateReply('This needs a person.');
   assert.match(withFooter, /person on the team needs to take this/i);

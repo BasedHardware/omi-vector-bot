@@ -227,6 +227,9 @@ const PING_NARRATION = [
   /needs a person who can look/i,
   /this one needs a person/i,
   /not sure what the (blue|red|orange|teal) (dot|light)/i,
+  /sent this along/i,
+  /passed this along/i,
+  /needs the app side to look/i,
 ];
 
 const ALREADY_SAID_PINGED = [
