@@ -156,6 +156,8 @@ const PING_NARRATION = [
   /handoff happens/i,
   /flagging this/i,
   /i('m| am) not able to ping/i,
+  /a person on the team needs to look/i,
+  /going into your account/i,
 ];
 
 const ALREADY_SAID_PINGED = [

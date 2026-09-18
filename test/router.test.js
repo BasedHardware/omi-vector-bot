@@ -30,6 +30,11 @@ test('app crash and macOS are tech; pairing how-to is faq', () => {
   assert.equal(win.area, 'desktop');
   assert.equal(win.lane, 'tech');
   assert.equal(router.classify('npm error ERESOLVE unable to resolve dependency tree').area, 'desktop');
+  const watch = router.classify(
+    'I recorded 2.5 hours on my Apple Watch. It didn\'t sync to the app. I also made two very small recordings of about 2 minutes and those are missing as well.'
+  );
+  assert.equal(watch.area, 'app');
+  assert.equal(watch.lane, 'tech');
 });
 
 test('firmware death escalates; talk to a human always does', () => {

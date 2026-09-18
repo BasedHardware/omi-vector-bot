@@ -59,12 +59,15 @@ const DESKTOP = [
 
 const APP = [
   /\b(android|iphone|ios)\b/i,
+  /\bapple watch\b/i,
   /\b(the )?app (crash|crashed|force.?clos)/i,
   /\bcrash(ed|es|ing)?\b/i,
   /\blisten socket\b/i,
   /\b1011\b/,
   /\btranscription\b/i,
   /\bwss:\/\/api\.omi/i,
+  /\bdidn'?t sync\b/i,
+  /\b(recordings?|clips?) (are )?(missing|gone)\b/i,
 ];
 
 const FAQ = [

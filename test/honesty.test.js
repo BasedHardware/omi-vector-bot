@@ -141,6 +141,22 @@ test('clips Discord replies under the length cap', () => {
   assert.equal(out.endsWith('…'), true);
 });
 
+test('issue replies drop person-on-the-team narration', () => {
+  const { ISSUE_FOOTER } = require('../utils');
+  const out = escalateReply(
+    [
+      'You recorded 2.5 hours on your Apple Watch and none of them turned up in the app.',
+      'A person on the team needs to look at this one, because finding recordings the app never picked up means going into your account and the app itself. In the meantime, do not clear anything off the watch.',
+    ].join('\n\n'),
+    { issue: true }
+  );
+  assert.equal(/person on the team/i.test(out), false);
+  assert.equal(/going into your account/i.test(out), false);
+  assert.match(out, /do not clear/i);
+  assert.match(out, /Apple Watch/i);
+  assert.equal(out.includes(ISSUE_FOOTER), true);
+});
+
 test('escalate footer is generic and skipped if the answer already said no ping', () => {
   const withFooter = escalateReply('This needs a person.');
   assert.match(withFooter, /person on the team needs to take this/i);
