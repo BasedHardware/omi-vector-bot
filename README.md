@@ -30,13 +30,13 @@ Needs `DISCORD_TOKEN`, `OPENCODE_API_KEY`, and `VECTOR_TEST_CHANNEL_ID`. Host wi
 ## Handoff
 
 1. `STAFF_ALERT_CHANNEL_ID` — private staff channel.
-2. Else a `Handoff · username` thread on the user message (needs Create Public Threads).
+2. Else a `Handoff · app · Daily reports…` thread on the user message (area + short title; needs Create Public Threads).
 3. Else a **Needs a human** card in the same channel.
 4. Optional Telegram: `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID`.
 
 The user reply only claims a ping if one of those sends succeeded. Optional `STAFF_USER_IDS` / `STAFF_ROLE_ID` mention staff on the card. `AREA_OWNERS` (example `shop:ID,app:ID`) pings the named owner on hard tickets. Empty means no extra ping.
 
-The card shows **Area** (`shop` / `app` / `desktop` / `firmware` / `privacy`). Tech tickets can show a **File issue** button when `GITHUB_TOKEN` is set. Staff click it; Vector does not auto-file. Duplicates get the existing issue link instead.
+The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` / `privacy`). Tech tickets can show a **File issue** button when `GITHUB_TOKEN` is set. Staff click it; Vector does not auto-file. Duplicates get the existing issue link instead.
 
 In a Handoff thread, `/done` marks it resolved and archives it. Only named staff (or anyone in `#vector-test` if the staff list is empty). Vector never auto-closes from GitHub or from a community reply.
 

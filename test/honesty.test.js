@@ -60,6 +60,14 @@ test('strips repeating-the-question lecture from order replies', () => {
   assert.equal(/repeating the question/i.test(out), false);
 });
 
+test('strips in plain words prompt leak', () => {
+  const out = sanitizeReply(
+    'The computer app heard you. I am not sure in plain words what billing reasons means, so I will not guess.'
+  );
+  assert.equal(/in plain words/i.test(out), false);
+  assert.match(out, /will not guess/i);
+});
+
 test('strips nothing-has-changed lecture from order replies', () => {
   const out = sanitizeReply(
     [

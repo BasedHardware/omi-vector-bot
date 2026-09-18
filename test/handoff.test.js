@@ -53,18 +53,22 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
     ticket.discord.embeds[0].fields.some((f) => f.name === 'Shopify'),
     false
   );
+  const appTicket = formatStaffTicket({
+    message: {
+      url: 'https://discord.com/channels/1/2/3',
+      author: { id: '99' },
+      channel: { id: '2' },
+    },
+    question: 'app crashed',
+    area: 'app',
+    lane: 'tech',
+  });
   assert.equal(
-    formatStaffTicket({
-      message: {
-        url: 'https://discord.com/channels/1/2/3',
-        author: { id: '99' },
-        channel: { id: '2' },
-      },
-      question: 'app crashed',
-      area: 'app',
-    }).discord.embeds[0].fields.some((f) => f.name === 'Area' && f.value === 'app'),
+    appTicket.discord.embeds[0].fields.some((f) => f.name === 'Area' && f.value === 'app'),
     true
   );
+  assert.match(appTicket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value, /`app`/);
+  assert.match(appTicket.discord.embeds[0].fields.find((f) => f.name === 'Labels').value, /`tech`/);
   delete process.env.STAFF_USER_IDS;
   assert.equal(staffMentions(), '');
 });
@@ -88,9 +92,22 @@ test('staff ticket can carry Shopify facts without street or email', () => {
 });
 
 test('handoff threads are skipped by name', () => {
+  const { handoffThreadName, isHandoffThread } = require('../handoff');
   assert.equal(isHandoffThread({ isThread: () => true, name: 'Handoff · david' }), true);
   assert.equal(isHandoffThread({ isThread: () => true, name: 'daily-reports' }), false);
   assert.equal(isHandoffThread({ isThread: () => false, name: 'Handoff · david' }), false);
+  const named = handoffThreadName({
+    question: 'Daily reports are not being produced.\nChatGPT:- dump',
+    area: 'app',
+    lane: 'tech',
+  });
+  assert.match(named, /^Handoff · /);
+  assert.match(named, /app/);
+  assert.match(named, /tech/);
+  assert.match(named, /Daily reports are not being produced/i);
+  assert.equal(/ChatGPT/i.test(named), false);
+  assert.equal(named.length <= 100, true);
+  assert.equal(isHandoffThread({ isThread: () => true, name: named }), true);
 });
 
 test('notifyStaff posts a channel card and does not double-ping', async () => {

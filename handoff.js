@@ -71,6 +71,31 @@ function clipUserQuestion(text) {
   return clipForDiscord(cleaned || raw, 1000);
 }
 
+function ticketLabels({ area, lane } = {}) {
+  const labels = [];
+  if (area && area !== 'unknown') labels.push(String(area));
+  if (lane && lane !== 'unknown' && lane !== 'faq' && !labels.includes(String(lane))) {
+    labels.push(String(lane));
+  }
+  if (!labels.length) labels.push('needs-human');
+  return labels;
+}
+
+function threadTopic(question) {
+  const line = String(question || '')
+    .split('\n')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !/^want:\s/i.test(part))
+    .filter((part) => !/^chatgpt/i.test(part))[0] || 'needs a person';
+  return clipForDiscord(line.replace(/["*_`]/g, ''), 70);
+}
+
+function handoffThreadName({ question, area, lane } = {}) {
+  const labels = ticketLabels({ area, lane });
+  return clipForDiscord(`Handoff · ${labels.join(' · ')} · ${threadTopic(question)}`, 100);
+}
+
 function formatStaffTicket({
   message,
   question,
@@ -78,6 +103,7 @@ function formatStaffTicket({
   draft,
   shopify,
   area,
+  lane,
   github,
   fileIssueId,
   extraMentions,
@@ -92,6 +118,7 @@ function formatStaffTicket({
   const mentions = [staffMentions(), extraMentions].filter(Boolean).join(' ').trim();
   const { users, roles } = staffMentionIds();
   const cleanDraft = stripPingNarration(draft || '');
+  const labels = ticketLabels({ area, lane });
 
   const embed = {
     title: 'Needs a human',
@@ -101,6 +128,11 @@ function formatStaffTicket({
       { name: 'Why', value: why, inline: false },
     ],
   };
+  embed.fields.push({
+    name: 'Labels',
+    value: labels.map((label) => `\`${label}\``).join('  '),
+    inline: true,
+  });
   if (area) {
     embed.fields.push({ name: 'Area', value: String(area), inline: true });
   }
@@ -164,7 +196,7 @@ function formatStaffTicket({
   };
 }
 
-async function postHandoffThread(message, payload) {
+async function postHandoffThread(message, payload, meta = {}) {
   if (!message?.startThread) return null;
   if (message.channel?.isThread?.()) return null;
 
@@ -173,9 +205,12 @@ async function postHandoffThread(message, payload) {
     return message.thread;
   }
 
-  const username = String(message.author?.username || 'user').slice(0, 24);
   const thread = await message.startThread({
-    name: `Handoff · ${username}`.slice(0, 100),
+    name: handoffThreadName({
+      question: meta.question,
+      area: meta.area,
+      lane: meta.lane,
+    }),
     autoArchiveDuration: 1440,
     reason: 'Could not finish this from chat',
   });
@@ -228,6 +263,7 @@ async function notifyStaff({
     draft,
     shopify,
     area,
+    lane: route?.lane,
     github,
     fileIssueId,
     extraMentions,
@@ -248,7 +284,11 @@ async function notifyStaff({
 
   if (process.env.HANDOFF_THREADS !== '0') {
     try {
-      const thread = await postHandoffThread(message, ticket.discord);
+      const thread = await postHandoffThread(message, ticket.discord, {
+        question,
+        area,
+        lane: route?.lane,
+      });
       if (thread) {
         markHandedOff(channelId, true);
         await telegram.sendEscalation(ticket.plain);
@@ -300,6 +340,9 @@ module.exports = {
   resetHandoffMemory,
   formatStaffTicket,
   clipUserQuestion,
+  ticketLabels,
+  threadTopic,
+  handoffThreadName,
   notifyStaff,
   isHandoffThread,
   canSaveFaq,

@@ -47,6 +47,8 @@ function stripInventedLookup(text) {
     .map((line) => line.trimEnd())
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/\bin plain words\b/gi, '')
+    .replace(/[^\S\n]{2,}/g, ' ')
     .trim();
   return cleaned;
 }
