@@ -49,6 +49,31 @@ function draftFromQuestion(question, area, extra = {}) {
   };
 }
 
+function threadMarker(threadId) {
+  const id = String(threadId || '').trim();
+  if (!/^\d+$/.test(id)) return '';
+  return `<!-- vector-thread:${id} -->`;
+}
+
+function withThreadMarker(body, threadId) {
+  const marker = threadMarker(threadId);
+  if (!marker) return String(body || '');
+  const text = String(body || '');
+  if (text.includes(marker)) return text;
+  return `${text.trim()}\n\n${marker}`;
+}
+
+function parseThreadIds(...blobs) {
+  const ids = new Set();
+  const re = /<!--\s*vector-thread:(\d+)\s*-->/g;
+  for (const blob of blobs) {
+    const s = String(blob || '');
+    let match;
+    while ((match = re.exec(s))) ids.add(match[1]);
+  }
+  return [...ids];
+}
+
 function formatIssueCard(draft, extra = {}) {
   const labels = (draft?.labels || []).map((label) => `\`${label}\``).join('  ') || '`vector`';
   const embed = {
@@ -67,6 +92,27 @@ function formatIssueCard(draft, extra = {}) {
     });
   }
   return embed;
+}
+
+function formatShopTicketCard({ title, labels } = {}) {
+  const labs = (labels || [])
+    .map((label) => String(label || '').trim())
+    .filter(Boolean)
+    .map((label) => `\`${label}\``)
+    .join('  ') || '`shop`';
+  return {
+    title: clipForDiscord(title || 'Shop ticket', 80),
+    color: 0x5865f2,
+    description: 'Tracked in this Discord thread. GitHub is not used for tax or orders.',
+    fields: [
+      { name: 'Labels', value: labs, inline: true },
+      {
+        name: 'GitHub',
+        value: 'Not a GitHub issue. Updates stay in this thread.',
+        inline: false,
+      },
+    ],
+  };
 }
 
 function stashDraft(draft, meta = {}) {
@@ -149,12 +195,13 @@ async function searchIssues(question, { fetchImpl } = {}) {
 async function createIssue(draft, { fetchImpl } = {}) {
   if (!isConfigured()) return { ok: false, reason: 'unconfigured' };
   const url = `https://api.github.com/repos/${repo()}/issues`;
+  const body = withThreadMarker(draft.body, draft.threadId);
   try {
     const res = await githubFetch(url, {
       method: 'POST',
       body: {
         title: draft.title,
-        body: draft.body,
+        body,
         labels: draft.labels,
       },
       fetchImpl,
@@ -185,6 +232,18 @@ function verifyWebhook(rawBody, signature, secret) {
   return crypto.timingSafeEqual(expected, got);
 }
 
+function isVectorOrBotComment(payload) {
+  const user = payload?.comment?.user || {};
+  const login = String(user.login || '');
+  const type = String(user.type || '');
+  const body = String(payload?.comment?.body || '');
+  if (/bot/i.test(type)) return true;
+  if (/\[bot\]$/i.test(login)) return true;
+  if (/omi-vector-bot/i.test(login)) return true;
+  if (/vector-thread:/i.test(body)) return true;
+  return false;
+}
+
 function describeWebhookEvent(payload) {
   if (payload?.pull_request && payload.action === 'closed' && payload.pull_request.merged) {
     const pr = payload.pull_request.number;
@@ -198,7 +257,39 @@ function describeWebhookEvent(payload) {
       kind: 'merged',
       number: extras[0] || pr,
       numbers,
+      threadIds: parseThreadIds(payload.pull_request.body, payload.pull_request.title),
       line: extras[0] ? `#${extras[0]} was merged.` : `#${pr} was merged.`,
+    };
+  }
+  if (payload?.comment && payload.action === 'created' && payload.issue) {
+    if (isVectorOrBotComment(payload)) return null;
+    const number = payload.issue.number;
+    return {
+      kind: 'comment',
+      number,
+      numbers: [number],
+      threadIds: parseThreadIds(payload.issue.body, payload.comment.body),
+      line: `A note was added on #${number}.`,
+    };
+  }
+  if (payload?.issue && payload.action === 'opened') {
+    const number = payload.issue.number;
+    return {
+      kind: 'opened',
+      number,
+      numbers: [number],
+      threadIds: parseThreadIds(payload.issue.body),
+      line: `#${number} was opened.`,
+    };
+  }
+  if (payload?.issue && payload.action === 'reopened') {
+    const number = payload.issue.number;
+    return {
+      kind: 'reopened',
+      number,
+      numbers: [number],
+      threadIds: parseThreadIds(payload.issue.body),
+      line: `#${number} was reopened.`,
     };
   }
   if (payload?.issue && payload.action === 'closed') {
@@ -207,6 +298,7 @@ function describeWebhookEvent(payload) {
       kind: 'closed',
       number,
       numbers: [number],
+      threadIds: parseThreadIds(payload.issue.body),
       line: `#${number} was closed.`,
     };
   }
@@ -220,6 +312,10 @@ module.exports = {
   searchQuery,
   draftFromQuestion,
   formatIssueCard,
+  formatShopTicketCard,
+  threadMarker,
+  withThreadMarker,
+  parseThreadIds,
   stashDraft,
   takeDraft,
   peekDraft,

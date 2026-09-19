@@ -36,11 +36,13 @@ Needs `DISCORD_TOKEN`, `OPENCODE_API_KEY`, and `VECTOR_TEST_CHANNEL_ID`. Host wi
 
 The user reply only claims a ping if one of those sends succeeded. Optional `STAFF_USER_IDS` / `STAFF_ROLE_ID` mention staff on the card. `AREA_OWNERS` (example `shop:ID,app:ID`) pings the named owner on hard tickets. Empty means no extra ping.
 
-The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` / `privacy`). Tech tickets can show a **File issue** button when `GITHUB_TOKEN` is set. Staff click it; Vector does not auto-file. Duplicates get the existing issue link instead.
+The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` / `privacy`). Tax, duties, customs, refunds, and orders stay off GitHub. They get a Discord shop ticket card; updates stay in that Handoff. If Shopify is set and the message has an order number or email, Vector looks the order up even on a tax ticket. Refunds, cancels, and address changes still need a person.
+
+App, desktop, and firmware bugs get a Discord issue card. If `GITHUB_TOKEN` is set, Vector files that card on GitHub (or links a duplicate) and stamps the Handoff id in the issue body. The File button remains as a staff fallback. Tax and shop tickets are never filed.
 
 In a Handoff thread, `/done` marks it resolved and archives it. Only named staff (or anyone in `#vector-test` if the staff list is empty). Vector never auto-closes from GitHub or from a community reply.
 
-If `GITHUB_WEBHOOK_SECRET` is set, `POST /github-webhook` posts one line when a linked issue is closed or a PR that closes it is merged. It does not run `/done`.
+If `GITHUB_WEBHOOK_SECRET` is set, point GitHub at `POST /github-webhook`. Vector posts one line in the linked Handoff when the issue is opened, closed, reopened, commented on, or a closing PR is merged. It does not paste GitHub comment text and it does not run `/done`.
 
 Do not set `HELP_FORUM_CHANNEL_ID` until these lanes work in `#vector-test`. Order, email, and privacy questions stay on a private Handoff even if that flag is set later.
 

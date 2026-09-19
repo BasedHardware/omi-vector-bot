@@ -142,7 +142,8 @@ test('handoff threads are skipped by name', () => {
     area: 'shop',
     lane: 'shop',
   });
-  assert.match(brazil, /Order #20716/);
+  assert.match(brazil, /order #20716/i);
+  assert.match(brazil, /import tax/i);
   assert.equal(/AUGUST 11/i.test(brazil), false);
   assert.match(brazil, /shop/);
   assert.match(brazil, /money/);

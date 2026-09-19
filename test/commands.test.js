@@ -171,3 +171,34 @@ test('GitHub webhook notify posts one line and never archives', async () => {
   assert.equal(sent[0], '#9 was closed.');
   github.resetGithubMemory();
 });
+
+test('GitHub webhook notify uses vector-thread ids after a restart', async () => {
+  const { notifyLinkedThreads } = require('../commands');
+  const github = require('../github');
+  github.resetGithubMemory();
+  const sent = [];
+  const client = {
+    channels: {
+      fetch: async (id) => ({
+        id,
+        isTextBased: () => true,
+        send: async (text) => {
+          sent.push({ id, text });
+          return text;
+        },
+        setArchived: async () => {
+          throw new Error('must not auto /done');
+        },
+      }),
+    },
+  };
+  const n = await notifyLinkedThreads(client, {
+    number: 9,
+    numbers: [9],
+    threadIds: ['1550182642874589194'],
+    line: 'A note was added on #9.',
+  });
+  assert.equal(n, 1);
+  assert.equal(sent[0].id, '1550182642874589194');
+  assert.equal(sent[0].text, 'A note was added on #9.');
+});

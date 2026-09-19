@@ -98,10 +98,18 @@ function merge(route, agent, question) {
   };
 }
 
+function wantsShopTicket(merged) {
+  const lane = merged?.lane;
+  const area = merged?.area;
+  if (area === 'privacy' || lane === 'privacy') return false;
+  return lane === 'shop' || lane === 'money';
+}
+
 module.exports = {
   AREAS,
   LABELS,
   sanitizeTopic,
   cleanLabels,
   merge,
+  wantsShopTicket,
 };

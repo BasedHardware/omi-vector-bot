@@ -48,6 +48,18 @@ function extractLookupKeys(text) {
   };
 }
 
+function hasLookupKey(text) {
+  const keys = extractLookupKeys(text);
+  return Boolean(keys.orderName || keys.email);
+}
+
+function shouldLookup(route, text) {
+  if (!isConfigured()) return false;
+  if (route?.lane === 'shop') return true;
+  if (route?.lane === 'money' && hasLookupKey(text)) return true;
+  return false;
+}
+
 function payLabel(status) {
   const key = String(status || '').toLowerCase();
   if (key === 'paid') return 'paid';
@@ -263,6 +275,8 @@ module.exports = {
   isOrderQuestion,
   needsWriteHuman,
   extractLookupKeys,
+  hasLookupKey,
+  shouldLookup,
   summarizeOrder,
   formatUserReply,
   formatStaffFacts,

@@ -6,7 +6,8 @@ const STRONG_MONEY = [
   /\brefunds?\b/i,
   /\bcharged\b/i,
   /\binvoice\b/i,
-  /\btax\b/i,
+  /\btax(es)?\b/i,
+  /\bduties\b/i,
   /\bwrong address\b/i,
   /\bchange (my )?(the )?(shipping )?address\b/i,
   /\bcancel (my )?(the )?(order|purchase)\b/i,
@@ -26,6 +27,7 @@ const SHOP = [
   /\bwhere\s+is\s+my\s+order\b/i,
   /\btracking\b/i,
   /\bshipping\b/i,
+  /\bcustoms\b/i,
 ];
 
 const FIRMWARE = [
@@ -211,9 +213,16 @@ function skipModel(route) {
   return route?.lane === 'money' || route?.lane === 'privacy';
 }
 
-function cannedReply(route) {
+function looksLikeTax(text) {
+  return /\b((import\s+)?tax(es)?|duties|customs)\b/i.test(String(text || ''));
+}
+
+function cannedReply(route, question) {
   const lane = route?.lane;
   if (lane === 'money') {
+    if (looksLikeTax(question)) {
+      return "This is about tax or duties on an order. I can't change that from chat.";
+    }
     return "This is about money — a refund, a charge, or a shipping address. I can't change those from chat.";
   }
   if (lane === 'privacy') {
@@ -231,8 +240,11 @@ function cannedReply(route) {
   return null;
 }
 
-function staffReason(route) {
+function staffReason(route, question) {
   const lane = route?.lane;
+  if (looksLikeTax(question) && (lane === 'money' || lane === 'shop' || route?.area === 'shop')) {
+    return 'Tax, duties, or customs';
+  }
   if (lane === 'money') return 'Refund, charge, or address change';
   if (lane === 'privacy') return 'Data deletion / privacy request';
   if (route?.area === 'app') return 'Phone app bug; cannot see the app from chat';
@@ -257,8 +269,8 @@ function describe(route) {
   }
   if (area === 'desktop') return 'Computer app install or bug.';
   if (area === 'app') return 'Phone app bug.';
-  if (lane === 'shop') return 'Order or shipping.';
-  if (lane === 'money') return 'Refund, charge, or address. Do not promise money back.';
+  if (lane === 'shop') return 'Order, shipping, or customs.';
+  if (lane === 'money') return 'Refund, charge, tax, or address. Do not promise money back.';
   if (lane === 'privacy') return 'Delete account or data.';
   if (lane === 'faq') return 'How-to they asked for. Do not dump extra setup.';
   return 'Read their message. Answer what they asked. Do not change the subject.';
@@ -275,6 +287,7 @@ module.exports = {
   isTechLane,
   shouldPingOwner,
   skipModel,
+  looksLikeTax,
   cannedReply,
   staffReason,
   describe,

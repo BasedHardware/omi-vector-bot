@@ -199,7 +199,7 @@ async function postIssueCard(channel, draft, githubHit) {
   if (!channel?.send || !draft) return;
   let url = githubHit?.duplicate?.url || '';
   if (!url && github.isConfigured()) {
-    const created = await github.createIssue(draft);
+    const created = await github.createIssue({ ...draft, threadId: channel.id });
     if (created.ok) {
       url = created.url;
       github.linkIssueThread(created.number, channel.id);
@@ -209,6 +209,22 @@ async function postIssueCard(channel, draft, githubHit) {
     await channel.send({ embeds: [github.formatIssueCard(draft, { url })] });
   } catch (err) {
     console.error('[Bot] issue card failed:', err.message);
+  }
+}
+
+async function postShopTicketCard(channel, triaged) {
+  if (!channel?.send || !triaged) return;
+  try {
+    await channel.send({
+      embeds: [
+        github.formatShopTicketCard({
+          title: triaged.topic,
+          labels: triaged.labels,
+        }),
+      ],
+    });
+  } catch (err) {
+    console.error('[Bot] shop ticket card failed:', err.message);
   }
 }
 
@@ -238,7 +254,7 @@ async function handleMessage(message) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
 
-    const useShopify = shopify.isConfigured() && route.lane === 'shop';
+    const useShopify = shopify.shouldLookup(route, asked || question);
     let shopifyLookup = null;
     let githubHit = null;
     let fileIssueId;
@@ -261,9 +277,16 @@ async function handleMessage(message) {
         final_answer: '',
         confidence: 0.9,
         escalate: true,
-        reason: router.staffReason(route),
+        reason: router.staffReason(route, asked || question),
       };
-      cleanAnswer = clipForDiscord(router.cannedReply(route) || '');
+      cleanAnswer = clipForDiscord(router.cannedReply(route, asked || question) || '');
+      if (shopifyLookup) {
+        const extra = shopify.buildUserReply(shopifyLookup, asked || question);
+        if (extra) {
+          cleanAnswer = clipForDiscord([cleanAnswer, extra].filter(Boolean).join('\n\n'));
+        }
+        aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
+      }
     }
 
     if (!skipModel) {
@@ -371,7 +394,7 @@ async function handleMessage(message) {
             client,
             message,
             question: asked,
-            reason: aiResponse.reason || router.staffReason(triaged),
+            reason: aiResponse.reason || router.staffReason(triaged, asked),
             draft: cleanAnswer,
             shopify: shopifyLookup?.order ? shopify.formatStaffFacts(shopifyLookup.order) : undefined,
             area: triaged.area,
@@ -409,6 +432,15 @@ async function handleMessage(message) {
       ) {
         await postIssueCard(handoffThread, draft, githubHit);
       }
+      if (
+        !reused &&
+        !inHandoff &&
+        !triaged.fileIssue &&
+        triage.wantsShopTicket(triaged) &&
+        handoffThread
+      ) {
+        await postShopTicketCard(handoffThread, triaged);
+      }
       if (reused && handoffThread && typeof handoffThread.send === 'function') {
         try {
           await handoffThread.send({
@@ -428,7 +460,7 @@ async function handleMessage(message) {
           pinged,
           duplicate,
           conversation: inHandoff || reused,
-          issue: triaged.fileIssue && !inHandoff && !reused,
+          issue: (triaged.fileIssue || triage.wantsShopTicket(triaged)) && !inHandoff && !reused,
           pingAuthor,
         }),
         { pingAuthor }

@@ -2,12 +2,25 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const router = require('../router');
 
-test('money and privacy beat shop and never go to GitHub lanes', () => {
-  assert.equal(router.classify('I want a refund').lane, 'money');
-  assert.equal(router.classify('I want a refund').area, 'shop');
-  assert.equal(router.classify('delete my data').area, 'privacy');
-  assert.equal(router.classify('delete my data').escalate, true);
-  assert.equal(router.isTechLane(router.classify('I want a refund')), false);
+test('tax, duties, and customs stay shop/money and never skip as tech', () => {
+  const tax = router.classify('import tax on order #20716');
+  assert.equal(tax.area, 'shop');
+  assert.equal(tax.lane, 'money');
+  assert.equal(router.skipModel(tax), true);
+  assert.equal(router.isTechLane(tax), false);
+  assert.match(router.cannedReply(tax, 'import tax on order #20716'), /tax or duties/i);
+  assert.equal(/refund or a charge/i.test(router.cannedReply(tax, 'import tax on order #20716')), false);
+  assert.match(router.staffReason(tax, 'import tax on order #20716'), /tax/i);
+
+  const duties = router.classify('I was charged extra duties on my Omi');
+  assert.equal(duties.lane, 'money');
+  assert.equal(duties.area, 'shop');
+
+  const customs = router.classify('My package is stuck in customs');
+  assert.equal(customs.area, 'shop');
+  assert.equal(customs.lane, 'shop');
+  assert.equal(router.skipModel(customs), false);
+  assert.equal(router.isTechLane(customs), false);
 });
 
 test('order and tracking are shop', () => {

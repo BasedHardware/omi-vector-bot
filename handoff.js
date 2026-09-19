@@ -223,7 +223,7 @@ function ticketLabels({ area, lane, question } = {}) {
       resolved.lane === 'shop' ||
       resolved.lane === 'money' ||
       resolved.lane === 'account') &&
-    /\b(taxes?|refunds?|payment)\b/i.test(q) &&
+    /\b(taxes?|duties|customs|refunds?|payment)\b/i.test(q) &&
     !labels.includes('money')
   ) {
     labels.push('money');
@@ -251,8 +251,16 @@ function isThreadNoise(line) {
 
 function threadTopic(question, route = {}) {
   const raw = String(question || '');
-  const numbered = raw.match(/\border\s*#\s*(\d{3,})\b/i);
-  if (numbered) return `Order #${numbered[1]}`;
+  const numbered = raw.match(/\border\s*#\s*(\d{3,})\b/i) || raw.match(/#\s*(\d{3,})\b/);
+  if (/\b((import\s+)?tax(es)?|duties)\b/i.test(raw)) {
+    return numbered ? `import tax on order #${numbered[1]}` : 'import tax or duties';
+  }
+  if (/\bcustoms\b/i.test(raw)) {
+    return numbered ? `customs on order #${numbered[1]}` : 'stuck in customs';
+  }
+  if (numbered && (/\border\b/i.test(raw) || route?.lane === 'shop' || route?.area === 'shop')) {
+    return `Order #${numbered[1]}`;
+  }
   const pack = raw.match(/\b(omi-windows|omi-desktop)\b/i);
   const code = raw.match(/\b(ERESOLVE|EPERM|ENOENT)\b/);
   if (pack && code) return `${pack[1]} ${code[1]}`;

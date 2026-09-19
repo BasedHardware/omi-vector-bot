@@ -58,6 +58,30 @@ test('order questions match; pairing in order to does not', () => {
   assert.equal(shopify.isOrderQuestion('in order to pair, I press the button'), false);
 });
 
+test('money tickets with an order key still look up Shopify', async () => {
+  const money = { lane: 'money', area: 'shop' };
+  const taxQ = 'import tax on order #20716';
+  assert.equal(shopify.hasLookupKey(taxQ), true);
+  assert.equal(shopify.shouldLookup(money, taxQ), false);
+  await withShopifyEnv(async () => {
+    assert.equal(shopify.shouldLookup(money, taxQ), true);
+    assert.equal(shopify.shouldLookup(money, 'I want a refund'), false);
+    assert.equal(shopify.shouldLookup({ lane: 'shop' }, 'Where is my order?'), true);
+    const calls = [];
+    const fetchImpl = async (url) => {
+      calls.push(String(url));
+      return {
+        status: 200,
+        ok: true,
+        json: async () => ({ orders: [SAMPLE] }),
+      };
+    };
+    const result = await shopify.lookupOrder(taxQ, { fetchImpl });
+    assert.equal(result.ok, true);
+    assert.match(calls[0], /name=%2320716|name=#20716/);
+  });
+});
+
 test('refunds and address changes still need a person', () => {
   assert.equal(shopify.needsWriteHuman('I want a refund'), true);
   assert.equal(shopify.needsWriteHuman('please change my shipping address'), true);

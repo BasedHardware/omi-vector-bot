@@ -99,7 +99,10 @@ async function handleFileIssue(interaction) {
     return;
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const created = await github.createIssue(draft);
+  const created = await github.createIssue({
+    ...draft,
+    threadId: interaction.channelId,
+  });
   if (!created.ok) {
     await interaction.editReply('GitHub did not accept the issue. I did not claim it was filed.');
     return;
@@ -142,11 +145,11 @@ async function handleInteraction(interaction) {
 
 async function notifyLinkedThreads(client, event) {
   const nums = event?.numbers || (event?.number ? [event.number] : []);
-  if (!nums.length || !client?.channels?.fetch) return 0;
-  const ids = new Set();
+  const ids = new Set((event?.threadIds || []).map(String).filter(Boolean));
   for (const num of nums) {
     for (const id of github.threadsForIssue(num)) ids.add(id);
   }
+  if (!ids.size || !client?.channels?.fetch) return 0;
   let n = 0;
   for (const id of ids) {
     try {

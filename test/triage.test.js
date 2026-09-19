@@ -38,6 +38,18 @@ test('merge will not file a refund as a GitHub issue', () => {
   assert.equal(merged.lane, 'money');
 });
 
+test('import tax on an order is a shop ticket, not GitHub', () => {
+  const q = 'import tax on order #20716';
+  const merged = triage.merge(router.classify(q), { file_issue: true, topic: 'tax' }, q);
+  assert.equal(merged.area, 'shop');
+  assert.equal(merged.lane, 'money');
+  assert.equal(merged.fileIssue, false);
+  assert.equal(triage.wantsShopTicket(merged), true);
+  assert.match(merged.topic, /tax|order #20716/i);
+  const privacy = triage.merge(router.classify('delete my data'), {}, 'delete my data');
+  assert.equal(triage.wantsShopTicket(privacy), false);
+});
+
 test('merge files a desktop npm bug and keeps a short topic', () => {
   const q = 'npm error ERESOLVE\nWhile resolving: omi-windows@1.0.35';
   const merged = triage.merge(router.classify(q), {

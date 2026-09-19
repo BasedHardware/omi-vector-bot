@@ -42,18 +42,24 @@ test('searchIssues returns the first open hit', async () => {
 
 test('createIssue posts to the repo', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
+  let posted;
   const fetchImpl = async (url, opts) => {
     assert.match(String(url), /repos\/BasedHardware\/omi\/issues/);
     assert.equal(opts.method, 'POST');
+    posted = JSON.parse(opts.body);
     return {
       ok: true,
       status: 201,
       json: async () => ({ number: 42, html_url: 'https://github.com/BasedHardware/omi/issues/42' }),
     };
   };
-  const created = await github.createIssue({ title: 'Bug', body: 'From Discord', labels: ['vector'] }, { fetchImpl });
+  const created = await github.createIssue(
+    { title: 'Bug', body: 'From Discord', labels: ['vector'], threadId: '1550182642874589194' },
+    { fetchImpl }
+  );
   assert.equal(created.ok, true);
   assert.equal(created.number, 42);
+  assert.match(posted.body, /vector-thread:1550182642874589194/);
   delete process.env.GITHUB_TOKEN;
 });
 
@@ -82,4 +88,54 @@ test('issue-thread map is used for webhook targets', () => {
   github.linkIssueThread(9, 'thread-1');
   assert.deepEqual(github.threadsForIssue(9), ['thread-1']);
   github.resetGithubMemory();
+});
+
+test('thread markers survive in issue bodies and webhook events', () => {
+  const marked = github.withThreadMarker('Reported in Discord.', '1550182642874589194');
+  assert.match(marked, /<!-- vector-thread:1550182642874589194 -->/);
+  assert.deepEqual(github.parseThreadIds(marked), ['1550182642874589194']);
+
+  const opened = github.describeWebhookEvent({
+    action: 'opened',
+    issue: { number: 9, body: marked },
+  });
+  assert.equal(opened.line, '#9 was opened.');
+  assert.deepEqual(opened.threadIds, ['1550182642874589194']);
+
+  const reopened = github.describeWebhookEvent({
+    action: 'reopened',
+    issue: { number: 9, body: marked },
+  });
+  assert.equal(reopened.line, '#9 was reopened.');
+
+  const note = github.describeWebhookEvent({
+    action: 'created',
+    issue: { number: 9, body: marked },
+    comment: { body: 'looking now', user: { login: 'mdmohsin7', type: 'User' } },
+  });
+  assert.equal(note.line, 'A note was added on #9.');
+  assert.equal(/looking now/i.test(note.line), false);
+  assert.deepEqual(note.threadIds, ['1550182642874589194']);
+
+  const skipped = github.describeWebhookEvent({
+    action: 'created',
+    issue: { number: 9, body: marked },
+    comment: { body: '<!-- vector-thread:1 -->', user: { login: 'bot', type: 'Bot' } },
+  });
+  assert.equal(skipped, null);
+});
+
+test('shop ticket card is not a GitHub issue', () => {
+  const card = github.formatShopTicketCard({
+    title: 'import tax on order #20716',
+    labels: ['shop', 'money'],
+  });
+  assert.match(card.title, /import tax/i);
+  assert.match(card.fields.find((f) => f.name === 'Labels').value, /shop/);
+  assert.match(card.fields.find((f) => f.name === 'GitHub').value, /Not a GitHub issue/);
+  const draft = github.draftFromQuestion('import tax on order #20716', 'shop', {
+    labels: ['shop', 'money'],
+  });
+  assert.equal(draft.labels.includes('shop'), false);
+  assert.equal(draft.labels.includes('money'), false);
 });
