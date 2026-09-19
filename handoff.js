@@ -97,6 +97,11 @@ function significantWords(text) {
     'than',
     'just',
     'want',
+    'even',
+    'though',
+    'says',
+    'today',
+    'showing',
   ]);
   return String(text || '')
     .toLowerCase()
@@ -104,17 +109,75 @@ function significantWords(text) {
     .filter((word) => word.length > 3 && !stop.has(word));
 }
 
-function isSameHandoff(threadName, { question, topic } = {}) {
-  if (!/^Handoff\b/i.test(String(threadName || ''))) return false;
-  const parts = String(threadName)
+const GENERIC_OVERLAP = new Set([
+  'missing',
+  'recordings',
+  'recording',
+  'clips',
+  'phone',
+  'device',
+  'light',
+  'disconnected',
+  'offline',
+  'problem',
+  'error',
+  'issue',
+]);
+
+const SURFACE = /\b(watch|iphone|android|ios|macos|windows|desktop)\b/i;
+
+function handoffSubject(threadName) {
+  const parts = String(threadName || '')
     .split(' · ')
     .map((part) => part.trim())
     .filter(Boolean);
-  const subject = parts.slice(2).join(' ');
+  if (!/^handoff$/i.test(parts[0] || '')) return '';
+  const labels = new Set([
+    'app',
+    'tech',
+    'shop',
+    'money',
+    'desktop',
+    'firmware',
+    'privacy',
+    'account',
+    'faq',
+    'needs-human',
+    'shipping',
+  ]);
+  return parts
+    .slice(1)
+    .filter((part) => !labels.has(part.toLowerCase()))
+    .join(' · ');
+}
+
+function isGenericTopic(text) {
+  return /^(phone app|computer app|app bug|device problem|order|needs a person|refund or charge|how-to|privacy)$/i.test(
+    String(text || '').trim()
+  );
+}
+
+function isWeakerHandoffName(nextName, currentName) {
+  if (!/^Handoff\b/i.test(String(currentName || ''))) return false;
+  const next = handoffSubject(nextName);
+  const current = handoffSubject(currentName);
+  if (!current) return false;
+  return isGenericTopic(next) && !isGenericTopic(current);
+}
+
+function isSameHandoff(threadName, { question, topic } = {}) {
+  if (!/^Handoff\b/i.test(String(threadName || ''))) return false;
+  const subject = handoffSubject(threadName);
   const sub = significantWords(subject);
   if (sub.length < 2) return false;
-  const hay = new Set(significantWords(`${question || ''} ${topic || ''}`));
-  return sub.filter((word) => hay.has(word)).length >= 2;
+  const asked = `${question || ''} ${topic || ''}`;
+  const surface = subject.match(SURFACE);
+  if (surface && !SURFACE.test(asked)) return false;
+  if (surface && !new RegExp(`\\b${surface[1]}\\b`, 'i').test(asked)) return false;
+  const hay = new Set(significantWords(asked));
+  const overlap = sub.filter((word) => hay.has(word));
+  if (overlap.length < 2) return false;
+  return overlap.some((word) => !GENERIC_OVERLAP.has(word));
 }
 
 const rememberedHandoffs = new Map();
@@ -272,6 +335,19 @@ function threadTopic(question, route = {}) {
   if (/fair[- ]use/i.test(raw)) {
     return /plan|memory/i.test(raw) ? 'fair use and plans' : 'fair use warning';
   }
+  if (/\bapple watch\b/i.test(raw) && /\b(missing|didn'?t sync|sync)\b/i.test(raw)) {
+    return 'Apple Watch recordings missing from app';
+  }
+  if (
+    /\b(blue|red|teal|orange)\b/i.test(raw) &&
+    /\b(light|dot|led)\b/i.test(raw) &&
+    /\b(disconnected|offline)\b/i.test(raw)
+  ) {
+    return 'app offline while blue light on';
+  }
+  if (/\biphone\b/i.test(raw) && /\bdisconnected\b/i.test(raw)) {
+    return 'iPhone app disconnected';
+  }
   const line = raw
     .split('\n')
     .map((part) => part.trim())
@@ -297,6 +373,7 @@ async function applyThreadName(thread, meta = {}) {
   if (!thread || typeof thread.setName !== 'function') return false;
   const name = handoffThreadName(meta);
   if (!name || thread.name === name) return false;
+  if (isWeakerHandoffName(name, thread.name)) return false;
   try {
     await thread.setName(name);
     return true;
@@ -569,6 +646,7 @@ module.exports = {
   handoffThreadName,
   applyThreadName,
   isSameHandoff,
+  isWeakerHandoffName,
   findOpenHandoff,
   rememberOpenHandoff,
   notifyStaff,

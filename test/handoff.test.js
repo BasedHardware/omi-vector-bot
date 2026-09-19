@@ -352,6 +352,47 @@ test('open Handoff threads match the same Watch ticket, not a refund', async () 
     }),
     false
   );
+  const iphoneBlue =
+    'The Omi app on iPhone says disconnected even though the necklace has a blue light. Recordings from today are missing.';
+  assert.equal(
+    isSameHandoff(watch, {
+      question: iphoneBlue,
+      topic: 'phone app',
+    }),
+    false
+  );
+  const blue = 'Handoff · app · tech · App offline while device light blue';
+  assert.equal(
+    isSameHandoff(blue, {
+      question: iphoneBlue,
+      topic: 'app offline while blue light on',
+    }),
+    true
+  );
+  const { threadTopic, isWeakerHandoffName, applyThreadName } = require('../handoff');
+  assert.match(threadTopic(iphoneBlue, { area: 'app', lane: 'tech' }), /offline|disconnected|blue/i);
+  assert.equal(
+    isWeakerHandoffName('Handoff · app · tech · phone app', watch),
+    true
+  );
+  let renamed = '';
+  const kept = await applyThreadName(
+    {
+      name: watch,
+      setName: async (name) => {
+        renamed = name;
+      },
+    },
+    {
+      question: iphoneBlue,
+      area: 'app',
+      lane: 'tech',
+      topic: 'phone app',
+      labels: ['app', 'tech'],
+    }
+  );
+  assert.equal(kept, false);
+  assert.equal(renamed, '');
   const thread = {
     id: 'old',
     name: watch,
