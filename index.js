@@ -462,17 +462,17 @@ async function handleMessage(message) {
           console.error('[Bot] reuse thread reply failed:', err.message);
         }
       }
-      await replySafe(
-        message,
-        escalateReply(cleanAnswer, {
-          pinged,
-          duplicate,
-          conversation: inHandoff || reused,
-          issue: (triaged.fileIssue || triage.wantsShopTicket(triaged)) && !inHandoff && !reused,
-          pingAuthor,
-        }),
-        { pingAuthor }
-      );
+      let parentReply = escalateReply(cleanAnswer, {
+        pinged,
+        duplicate,
+        conversation: inHandoff,
+        issue: (triaged.fileIssue || triage.wantsShopTicket(triaged)) && !inHandoff && !reused,
+        pingAuthor,
+      });
+      if (reused && handoffThread?.id && !inHandoff) {
+        parentReply = `${parentReply}\n\n<#${handoffThread.id}>`;
+      }
+      await replySafe(message, parentReply, { pingAuthor });
       if (dbReady) {
         await db.createEscalation(channel.id);
       }
