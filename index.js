@@ -307,22 +307,30 @@ async function handleMessage(message) {
         githubText: githubHit?.duplicate?.url || '',
       });
 
-      aiResponse = await queryAgent({
-        question,
-        threadHistory,
-        knowledgeSnippets: snippets,
-        route,
-        toolFacts,
-        sessionId: `discord-${channel.id}`,
-        canNotifyStaff: canNotifyStaff({ discordReady: true }),
-      });
+      try {
+        aiResponse = await queryAgent({
+          question,
+          threadHistory,
+          knowledgeSnippets: snippets,
+          route,
+          toolFacts,
+          sessionId: `discord-${channel.id}`,
+          canNotifyStaff: canNotifyStaff({ discordReady: true }),
+        });
 
-      if (useShopify && shopifyLookup) {
-        aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
-      } else if (githubHit?.duplicate) {
-        aiResponse.reason = aiResponse.reason || `Looks like ${githubHit.duplicate.url}`;
-      } else if (route.escalate) {
-        aiResponse.reason = aiResponse.reason || router.staffReason(route);
+        if (useShopify && shopifyLookup) {
+          aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
+        } else if (githubHit?.duplicate) {
+          aiResponse.reason = aiResponse.reason || `Looks like ${githubHit.duplicate.url}`;
+        } else if (route.escalate) {
+          aiResponse.reason = aiResponse.reason || router.staffReason(route, asked || question);
+        }
+      } catch (err) {
+        console.error('[Bot] model failed:', err.message);
+        skipModel = true;
+        const down = router.whenModelDown(route, asked || question);
+        aiResponse = down.agent;
+        cleanAnswer = clipForDiscord(down.reply);
       }
     }
 

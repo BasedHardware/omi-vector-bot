@@ -126,6 +126,18 @@ test('desktop voice 402 is tech, not a refund', () => {
   assert.equal(router.classify('I was charged twice on the macOS desktop app').lane, 'money');
 });
 
+test('model-down fallback still escalates a phone-app ticket without naming the model', () => {
+  const crash = router.classify('the app crashed on iPhone');
+  const down = router.whenModelDown(crash, 'the app crashed on iPhone');
+  assert.equal(down.agent.escalate, true);
+  assert.match(down.reply, /phone app/i);
+  assert.equal(/opencode|credit|429|weekly/i.test(down.reply), false);
+  assert.equal(/pair/i.test(down.reply), false);
+  const tax = router.classify('import tax on order #20716');
+  const taxDown = router.whenModelDown(tax, 'import tax on order #20716');
+  assert.match(taxDown.reply, /tax or duties/i);
+});
+
 test('only money and privacy skip the model; crash, firmware, and pairing do not', () => {
   const refund = router.classify('I want a refund');
   assert.equal(router.skipModel(refund), true);

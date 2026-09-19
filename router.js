@@ -217,6 +217,18 @@ function looksLikeTax(text) {
   return /\b((import\s+)?tax(es)?|duties|customs)\b/i.test(String(text || ''));
 }
 
+function whenModelDown(route, question) {
+  return {
+    agent: {
+      final_answer: '',
+      confidence: 0.2,
+      escalate: true,
+      reason: staffReason(route, question),
+    },
+    reply: cannedReply(route, question) || "I can't finish this from chat right now.",
+  };
+}
+
 function cannedReply(route, question) {
   const lane = route?.lane;
   if (lane === 'money') {
@@ -289,6 +301,7 @@ module.exports = {
   skipModel,
   looksLikeTax,
   cannedReply,
+  whenModelDown,
   staffReason,
   describe,
 };
