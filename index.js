@@ -27,6 +27,7 @@ const {
   notifyStaff,
   canNotifyStaff,
   isHandoffThread,
+  isHelpForumThread,
   clipUserQuestion,
   canSaveFaq,
   applyThreadName,
@@ -106,7 +107,7 @@ async function replySafe(message, content, { pingAuthor = false } = {}) {
 }
 
 function isHelpThread(channel) {
-  return Boolean(HELP_FORUM_CHANNEL_ID) && channel.isThread() && channel.parentId === HELP_FORUM_CHANNEL_ID;
+  return isHelpForumThread(channel);
 }
 
 function isTestChannel(channel) {

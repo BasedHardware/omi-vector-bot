@@ -1,10 +1,10 @@
 const { REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { isHandoffThread, canStaffAct } = require('./handoff');
+const { isCloseableThread, canStaffAct } = require('./handoff');
 const github = require('./github');
 
 const doneCommand = new SlashCommandBuilder()
   .setName('done')
-  .setDescription('Mark this Handoff thread resolved. Staff only.')
+  .setDescription('Mark this Handoff or help thread resolved. Staff only.')
   .toJSON();
 
 async function registerSlashCommands(client) {
@@ -40,8 +40,8 @@ async function archiveHandoff(channel) {
 }
 
 async function closeHandoff(channel, user) {
-  if (!isHandoffThread(channel)) {
-    return { ok: false, reason: 'Use /done in a Handoff thread.' };
+  if (!isCloseableThread(channel)) {
+    return { ok: false, reason: 'Use /done in a Handoff or help thread.' };
   }
   try {
     await channel.send(`This is resolved. Closed by <@${user.id}>.`);

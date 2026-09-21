@@ -113,6 +113,51 @@ test('/done archives a Handoff thread and does not file GitHub', async () => {
   assert.equal(channel.archived, true);
 });
 
+test('/done archives a public help-forum post', async () => {
+  const sent = [];
+  const channel = {
+    isThread: () => true,
+    name: 'App goes offline',
+    parentId: 'help-forum',
+    parent: { type: 15 },
+    send: async (text) => {
+      sent.push(text);
+      return text;
+    },
+    setLocked: async () => {},
+    setArchived: async () => {
+      channel.archived = true;
+    },
+  };
+  const result = await closeHandoff(channel, { id: '99' });
+  assert.equal(result.ok, true);
+  assert.match(sent[0], /resolved/i);
+  assert.equal(channel.archived, true);
+});
+
+test('/done on a help post still works when only HELP_FORUM_CHANNEL_ID is set', async () => {
+  const prev = process.env.HELP_FORUM_CHANNEL_ID;
+  process.env.HELP_FORUM_CHANNEL_ID = 'help-forum';
+  try {
+    const channel = {
+      isThread: () => true,
+      name: 'Already fixed on main',
+      parentId: 'help-forum',
+      send: async (text) => text,
+      setLocked: async () => {},
+      setArchived: async () => {
+        channel.archived = true;
+      },
+    };
+    const result = await closeHandoff(channel, { id: '99' });
+    assert.equal(result.ok, true);
+    assert.equal(channel.archived, true);
+  } finally {
+    if (prev == null) delete process.env.HELP_FORUM_CHANNEL_ID;
+    else process.env.HELP_FORUM_CHANNEL_ID = prev;
+  }
+});
+
 test('canStaffAct is named staff, or anyone in #vector-test when the list is empty', () => {
   process.env.STAFF_USER_IDS = '123456789012345678';
   assert.equal(canStaffAct({ user: { id: '123456789012345678' }, channel: {} }), true);
@@ -127,6 +172,34 @@ test('canStaffAct is named staff, or anyone in #vector-test when the list is emp
     true
   );
   delete process.env.VECTOR_TEST_CHANNEL_ID;
+});
+
+test('canStaffAct never uses the empty-list bypass on a public help post', () => {
+  const prevStaff = process.env.STAFF_USER_IDS;
+  const prevRole = process.env.STAFF_ROLE_ID;
+  const prevTest = process.env.VECTOR_TEST_CHANNEL_ID;
+  const forum = {
+    id: 'thread',
+    parentId: 'help-forum',
+    parent: { type: 15 },
+    isThread: () => true,
+  };
+  try {
+    delete process.env.STAFF_USER_IDS;
+    delete process.env.STAFF_ROLE_ID;
+    process.env.VECTOR_TEST_CHANNEL_ID = 'testchan';
+    assert.equal(canStaffAct({ user: { id: '222' }, channel: forum }), false);
+    process.env.STAFF_USER_IDS = '123456789012345678';
+    assert.equal(canStaffAct({ user: { id: '123456789012345678' }, channel: forum }), true);
+    assert.equal(canStaffAct({ user: { id: '333' }, channel: forum }), false);
+  } finally {
+    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prevStaff;
+    if (prevRole == null) delete process.env.STAFF_ROLE_ID;
+    else process.env.STAFF_ROLE_ID = prevRole;
+    if (prevTest == null) delete process.env.VECTOR_TEST_CHANNEL_ID;
+    else process.env.VECTOR_TEST_CHANNEL_ID = prevTest;
+  }
 });
 
 test('File issue button is only added when a draft id is passed', () => {

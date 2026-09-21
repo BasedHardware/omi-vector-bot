@@ -119,6 +119,32 @@ test('handoff threads are skipped by name', () => {
   assert.equal(isHandoffThread({ isThread: () => true, name: 'Handoff · david' }), true);
   assert.equal(isHandoffThread({ isThread: () => true, name: 'daily-reports' }), false);
   assert.equal(isHandoffThread({ isThread: () => false, name: 'Handoff · david' }), false);
+  const { isHelpForumThread, isCloseableThread } = require('../handoff');
+  assert.equal(
+    isHelpForumThread({ isThread: () => true, parentId: 'forum', name: 'App offline' }),
+    false
+  );
+  process.env.HELP_FORUM_CHANNEL_ID = 'forum';
+  try {
+    assert.equal(
+      isHelpForumThread({ isThread: () => true, parentId: 'forum', name: 'App offline' }),
+      true
+    );
+    assert.equal(
+      isCloseableThread({ isThread: () => true, parentId: 'forum', name: 'App offline' }),
+      true
+    );
+  } finally {
+    delete process.env.HELP_FORUM_CHANNEL_ID;
+  }
+  assert.equal(
+    isCloseableThread({
+      isThread: () => true,
+      name: 'App offline',
+      parent: { type: 15 },
+    }),
+    true
+  );
   const named = handoffThreadName({
     question: 'Daily reports are not being produced.\nChatGPT:- dump',
     area: 'app',

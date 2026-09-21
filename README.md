@@ -18,7 +18,7 @@ If `SHOPIFY_STORE` and `SHOPIFY_ACCESS_TOKEN` are set (Railway only, not GitHub)
 
 ## Discord
 
-Private test channel first. Do not set `HELP_FORUM_CHANNEL_ID` until that channel looks right.
+Private test channel first. Leave `HELP_FORUM_CHANNEL_ID` empty until you want Vector to answer public help posts. Staff can still `/done` a forum post without that flag.
 
 ```
 npm run invite
@@ -40,11 +40,9 @@ The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` 
 
 App, desktop, and firmware bugs get a Discord issue card. If `GITHUB_TOKEN` is set, Vector files that card on GitHub (or links a duplicate) and stamps the Handoff id in the issue body. The File button remains as a staff fallback. Tax and shop tickets are never filed.
 
-In a Handoff thread, `/done` marks it resolved and archives it. Only named staff (or anyone in `#vector-test` if the staff list is empty). Vector never auto-closes from GitHub or from a community reply.
+In a Handoff thread or a public help-forum post, `/done` marks it resolved and archives it. Named staff only on the public forum (`STAFF_USER_IDS` / `STAFF_ROLE_ID`). In `#vector-test`, anyone can `/done` if that list is empty. Vector never auto-closes from GitHub, from a community reply, or in bulk. Set `HELP_FORUM_CHANNEL_ID` only when you want Vector to answer in that forum. Order, email, and privacy still go to a private Handoff.
 
 If `GITHUB_WEBHOOK_SECRET` is set, point GitHub at `POST /github-webhook`. Vector posts one line in the linked Handoff when the issue is opened, closed, reopened, commented on, or a closing PR is merged. It does not paste GitHub comment text and it does not run `/done`.
-
-Do not set `HELP_FORUM_CHANNEL_ID` until these lanes work in `#vector-test`. Order, email, and privacy questions stay on a private Handoff even if that flag is set later.
 
 In the Handoff thread, reply as a person (Vector stays quiet). To save a fact for later questions:
 

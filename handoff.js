@@ -27,6 +27,22 @@ function isTestHandoffChannel(channel) {
   return Boolean(channel.isThread?.() && channel.parentId === testId);
 }
 
+function isHelpForumThread(channel) {
+  const id = String(process.env.HELP_FORUM_CHANNEL_ID || '').trim();
+  if (!id || !channel) return false;
+  return Boolean(channel.isThread?.() && String(channel.parentId || '') === id);
+}
+
+function isForumPostThread(channel) {
+  if (!channel?.isThread?.()) return false;
+  if (Number(channel.parent?.type) === 15) return true;
+  return isHelpForumThread(channel);
+}
+
+function isCloseableThread(channel) {
+  return isHandoffThread(channel) || isForumPostThread(channel);
+}
+
 function canStaffAct(interaction) {
   const userId = String(interaction?.user?.id || '');
   const { users, roles } = staffMentionIds();
@@ -36,6 +52,7 @@ function canStaffAct(interaction) {
     if (typeof cache.has === 'function' && roles.some((id) => cache.has(id))) return true;
     if (typeof cache.includes === 'function' && roles.some((id) => cache.includes(id))) return true;
   }
+  if (isForumPostThread(interaction?.channel)) return false;
   if (!users.length && !roles.length && isTestHandoffChannel(interaction?.channel)) {
     return true;
   }
@@ -651,6 +668,8 @@ module.exports = {
   rememberOpenHandoff,
   notifyStaff,
   isHandoffThread,
+  isHelpForumThread,
+  isCloseableThread,
   canSaveFaq,
   canStaffAct,
   staffMentions,
