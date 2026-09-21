@@ -14,7 +14,7 @@ npm run ask -- "Where is my order?"
 
 Never commit `.env`. Order and refund questions should print `ESCALATE` unless Shopify read-only env is set.
 
-If `SHOPIFY_STORE` and `SHOPIFY_ACCESS_TOKEN` are set (Railway only, not GitHub), Vector still does not look up an order from a number or email typed in chat. That would leak someone else's order. Lookup only runs for a Discord user whose order email is already verified (OTP bind, from David's PoC). Until that bind exists, order questions stay Handoff + help@omi.me. Replies never include street, phone, name, or email. Refunds, cancels, and address changes still go to a person.
+If `SHOPIFY_STORE` and `SHOPIFY_ACCESS_TOKEN` are set (Railway only, not GitHub), Vector still does not look up an order from a number or email typed in chat. `/order` verifies the email on the order with a one-time code, binds that email to the Discord user, then looks up only that user's orders (ephemeral). Until Shopify + Resend + `DATA_ENCRYPTION_KEY` are set, `/order` tells them to email help@omi.me. Replies never include street, phone, name, or email. Refunds, cancels, and address changes still go to a person.
 
 ## Discord
 

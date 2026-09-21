@@ -1,6 +1,7 @@
 const { REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { isCloseableThread, canStaffAct } = require('./handoff');
 const github = require('./github');
+const orderFlow = require('./orderFlow');
 
 const OMI_LOGO_URL =
   process.env.OMI_LOGO_URL ||
@@ -27,7 +28,9 @@ async function registerSlashCommands(client) {
     }
   }
   for (const guildId of guildIds) {
-    await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: [doneCommand] });
+    await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+      body: [doneCommand, orderFlow.orderCommand, orderFlow.ordersCommand, orderFlow.unlinkCommand],
+    });
   }
   return guildIds.size;
 }
@@ -175,6 +178,7 @@ async function handleFileIssue(interaction) {
 
 async function handleInteraction(interaction) {
   try {
+    if (await orderFlow.handleOrderInteraction(interaction)) return;
     if (interaction.isChatInputCommand?.() && interaction.commandName === 'done') {
       await handleDone(interaction);
       return;

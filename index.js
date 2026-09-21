@@ -37,6 +37,7 @@ const {
 } = require('./handoff');
 const knowledge = require('./knowledge');
 const shopify = require('./shopify');
+const shopifyBind = require('./shopifyBind');
 const router = require('./router');
 const github = require('./github');
 const commands = require('./commands');
@@ -255,7 +256,9 @@ async function handleMessage(message) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
 
-    const useShopify = shopify.shouldLookup(route, asked || question);
+    const binding = await shopifyBind.get(message.author.id);
+    const verifiedEmail = binding?.email || '';
+    const useShopify = shopify.shouldLookup(route, asked || question, { verifiedEmail });
     let shopifyLookup = null;
     let githubHit = null;
     let fileIssueId;
@@ -265,7 +268,7 @@ async function handleMessage(message) {
     let snippets = [];
 
     if (useShopify) {
-      shopifyLookup = await shopify.lookupOrder(asked || question);
+      shopifyLookup = await shopify.lookupOrder(asked || question, { verifiedEmail });
       console.log(`[Shopify] lookup key=${shopifyLookup.reason === 'no-key' ? 'none' : 'set'} status=${shopifyLookup.reason || 'hit'}`);
     }
     if (github.isConfigured() && router.isTechLane(route)) {

@@ -226,7 +226,7 @@ function filterKnowledge(snippets) {
   return list.filter((s) => !/cannot see shopify/i.test(String(s || '')));
 }
 
-async function shopifyGet(params, fetchImpl) {
+async function shopifyList(params, fetchImpl) {
   const host = storeHost();
   const url = new URL(`https://${host}/admin/api/${API_VERSION}/orders.json`);
   url.searchParams.set('status', 'any');
@@ -254,8 +254,28 @@ async function shopifyGet(params, fetchImpl) {
   }
 
   const orders = Array.isArray(data?.orders) ? data.orders : [];
-  if (!orders.length) return { ok: false, reason: 'miss' };
-  return { ok: true, raw: orders[0], order: summarizeOrder(orders[0]) };
+  return { ok: true, raw: orders, orders: orders.map(summarizeOrder) };
+}
+
+async function shopifyGet(params, fetchImpl) {
+  const listed = await shopifyList(params, fetchImpl);
+  if (!listed.ok) return listed;
+  if (!listed.raw.length) return { ok: false, reason: 'miss' };
+  return { ok: true, raw: listed.raw[0], order: listed.orders[0] };
+}
+
+async function ordersForVerifiedEmail(email, { fetchImpl, limit = 5 } = {}) {
+  const bound = normalizeEmail(email);
+  if (!bound) return { ok: false, reason: 'unverified', orders: [] };
+  if (!isConfigured()) return { ok: false, reason: 'unconfigured', orders: [] };
+  const listed = await shopifyList({ email: bound, limit: String(limit) }, fetchImpl || fetch);
+  if (!listed.ok) return { ok: false, reason: listed.reason, orders: [] };
+  return { ok: true, orders: listed.orders };
+}
+
+async function hasRecentOrderForEmail(email, { fetchImpl } = {}) {
+  const found = await ordersForVerifiedEmail(email, { fetchImpl, limit: 1 });
+  return Boolean(found.ok && found.orders.length);
 }
 
 function orderEmailMatches(raw, verifiedEmail) {
@@ -304,4 +324,6 @@ module.exports = {
   staffReason,
   filterKnowledge,
   lookupOrder,
+  ordersForVerifiedEmail,
+  hasRecentOrderForEmail,
 };
