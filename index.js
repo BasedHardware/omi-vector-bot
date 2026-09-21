@@ -134,6 +134,9 @@ function shouldHandle(message) {
 }
 
 async function getHistory(channel, excludeId) {
+  // Parent #vector-test is a pile of unrelated tickets. Only follow-ups
+  // inside an existing Handoff or help post may see prior messages.
+  if (!isHandoffThread(channel) && !isHelpThread(channel)) return [];
   const messages = await channel.messages.fetch({ limit: 12 });
   const entries = [...messages.values()]
     .reverse()
@@ -341,18 +344,15 @@ async function handleMessage(message) {
     const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
     if (!skipModel) {
       cleanAnswer = clipForDiscord(
-        stripShopBleed(
-          stripHowtoBleed(
-            knowledge.applyStaffFacts(
-              formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
-              snippets
-            ),
-            triaged.lane
-          ),
-          triaged.lane
+        knowledge.applyStaffFacts(
+          formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
+          snippets
         )
       );
     }
+    cleanAnswer = clipForDiscord(
+      stripShopBleed(stripHowtoBleed(cleanAnswer || '', triaged.lane), triaged.lane)
+    );
 
     const nameMeta = {
       question: asked,

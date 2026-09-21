@@ -82,6 +82,7 @@ const SHOP_DEVICE_BLEED = [
   /\bteal led\b/i,
   /\brecordings? from today\b/i,
   /\bapp says disconnected\b/i,
+  /\bapp saying disconnected\b/i,
   /\biphone app\b/i,
 ];
 

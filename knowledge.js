@@ -60,6 +60,7 @@ function searchWords(query) {
 }
 
 const HOWTO_FACT = /\b(pair|pairing|bluetooth|led\b|teal|orange =|dev kit|cv1|center button)\b/i;
+const DEVICE_FACT = /\b(necklace|blue light|teal|pairing|bluetooth|recording|disconnected)\b/i;
 
 function isHowtoFact(text) {
   return HOWTO_FACT.test(String(text || ''));
@@ -68,7 +69,11 @@ function isHowtoFact(text) {
 function filterSnippetsForLane(snippets, lane) {
   const list = (snippets || []).map((s) => String(s || '').trim()).filter(Boolean);
   if (!lane || lane === 'faq' || lane === 'unknown') return list;
-  return list.filter((s) => !isHowtoFact(s));
+  const filtered = list.filter((s) => !isHowtoFact(s));
+  if (lane === 'shop' || lane === 'money' || lane === 'privacy') {
+    return filtered.filter((s) => !DEVICE_FACT.test(s));
+  }
+  return filtered;
 }
 
 function search(query, limit = SEARCH_LIMIT) {

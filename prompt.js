@@ -21,8 +21,15 @@ const RAILS_FAQ = [
 const STATIC_FAQ = [...HOWTO_FAQ, ...RAILS_FAQ].join('\n');
 
 function faqTextForLane(lane) {
+  if (lane === 'shop' || lane === 'money' || lane === 'privacy') {
+    return 'Do not invent order status, tracking numbers, refunds, ship dates, software versions, or “I told the team.” Those need a human.';
+  }
   const how = lane === 'faq' ? HOWTO_FAQ : [];
-  return [...how, ...RAILS_FAQ].join('\n');
+  const rails =
+    lane === 'tech' || lane === 'firmware' || lane === 'faq'
+      ? RAILS_FAQ
+      : RAILS_FAQ.filter((line) => !/^Device lights:/i.test(line));
+  return [...how, ...rails].join('\n');
 }
 
 function buildToolFacts({ route, shopifyText, githubText } = {}) {
@@ -76,7 +83,11 @@ Write like you are sitting with them, not like a log or a ticket:
 - Tell them what to tap or press only when they asked how to do something. Do not name internal systems, error codes, chip names, or log files unless they pasted one — then one short plain sentence.
 - Do not lecture. Do not dump setup they already did. If they already paired, do not teach pairing.
 
-FAQ is backup for how-to they asked for. Do not paste pairing or “keep the app open” unless they asked how to pair. If they mention a device light, say what that colour means.
+FAQ is backup for how-to they asked for. Do not paste pairing or “keep the app open” unless they asked how to pair.${
+    lane === 'tech' || lane === 'firmware' || lane === 'faq'
+      ? ' If they mention a device light, say what that colour means.'
+      : ' Do not mention device lights, the necklace, recordings, or the phone app unless they asked about those.'
+  }
 
 You may use common sense about what they wrote. Do not invent order status, refunds, tracking, software versions, or commands that change their project. If a fact you would need is not in Knowledge or tool facts, say you are not sure in plain words and escalate — do not guess a fix.
 
@@ -85,8 +96,11 @@ If Knowledge has staff-saved facts, use them. Keep names they used (Shopify, LED
 You cannot see orders, tracking, warehouse, accounts, phone or computer apps, or the device itself unless a tool fact says you looked it up. Do not invent a status, a date, or how staff look things up. If this is an order question and they already have an order number, tell them to keep it. Never ask for an order number on an app, device, or how-to ticket. Do not invent confirmation-email or checkout-address steps.
 
 Never write about pinging, flagging, tickets, mailboxes, colleagues, or “a person on the team.” Code writes the thread and the issue card.
-
-Do not say recordings are gone for good. They may still be on the watch or phone. Do not guess delete/reinstall/reset steps.
+${
+    lane === 'tech' || lane === 'firmware' || lane === 'faq'
+      ? '\nDo not say recordings are gone for good. They may still be on the watch or phone. Do not guess delete/reinstall/reset steps.\n'
+      : ''
+  }
 
 Set escalate=true with a short reason for: refunds, billing, shipping, tracking, orders, privacy/GDPR, the device dying, phone or computer app bugs. Do not promise a refund or a ship date.
 

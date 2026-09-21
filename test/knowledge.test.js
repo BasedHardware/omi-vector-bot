@@ -64,6 +64,16 @@ test('tech lanes drop pairing FAQ facts', () => {
     'Order and tracking lookups need a person. Vector cannot see Shopify.',
   ]);
   assert.equal(filterSnippetsForLane(mixed, 'faq').length, 2);
+  assert.deepEqual(
+    filterSnippetsForLane(
+      [
+        'The blue light on the necklace means it is on and connected.',
+        'Order and tracking lookups need a person. Vector cannot see Shopify.',
+      ],
+      'shop'
+    ),
+    ['Order and tracking lookups need a person. Vector cannot see Shopify.']
+  );
 });
 
 test('applyStaffFacts prepends Shopify when the model dropped it', () => {
@@ -120,6 +130,10 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   assert.match(faqTextForLane('tech'), /Do not invent order status/);
   assert.match(faqTextForLane('tech'), /blue = on, connected/);
   assert.equal(/Pairing: turn the device/i.test(faqTextForLane('tech')), false);
+  assert.match(faqTextForLane('shop'), /Do not invent order status/);
+  assert.equal(/blue = on|necklace|recording/i.test(faqTextForLane('shop')), false);
+  assert.match(buildSystemPrompt({ lane: 'shop' }), /Do not mention device lights/);
+  assert.equal(/If they mention a device light/i.test(buildSystemPrompt({ lane: 'shop' })), false);
   const accountTools = buildToolFacts({
     route: { lane: 'account', area: 'shop' },
   });

@@ -70,12 +70,13 @@ test('crash replies lose pairing and Bluetooth steps', () => {
   const orderDevice = stripHowtoBleed(
     [
       "I can't see order status from here, so I can't tell you where order #1042 is or when it will arrive.",
-      'On the necklace: a blue light means it is on and connected to your phone. So if the iPhone app says disconnected while the light is blue, the app is the part that\'s wrong, not the necklace. Your recordings from today shouldn\'t be gone for good — they may still be on the watch or the phone, and I can\'t check that from here.',
+      'Keep your order number handy. The blue light on the necklace means it is on and connected to your phone, so the app saying disconnected is a separate app problem that also needs a person.',
     ].join('\n'),
     'shop'
   );
   assert.match(orderDevice, /order #1042/i);
-  assert.equal(/necklace|blue light|recording|iphone app/i.test(orderDevice), false);
+  assert.match(orderDevice, /Keep your order number handy/);
+  assert.equal(/necklace|blue light|recording|disconnected/i.test(orderDevice), false);
 });
 
 test('pure lie is replaced with an honest fallback', () => {
