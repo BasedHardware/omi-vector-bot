@@ -1,6 +1,11 @@
 const { REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
+const fs = require('node:fs');
+const path = require('node:path');
 const { isCloseableThread, canStaffAct } = require('./handoff');
 const github = require('./github');
+
+const OMI_LOGO_NAME = 'omi-logo.png';
+const OMI_LOGO_PATH = path.join(__dirname, 'assets', OMI_LOGO_NAME);
 
 const doneCommand = new SlashCommandBuilder()
   .setName('done')
@@ -28,6 +33,35 @@ async function registerSlashCommands(client) {
   return guildIds.size;
 }
 
+function closeNotice(user) {
+  const who = user?.id ? `<@${user.id}>` : 'staff';
+  return [
+    "If this is still happening, open a new post in Help. We won't see replies here.",
+    `Closed by ${who}.`,
+  ].join('\n\n');
+}
+
+function closePayload(user) {
+  const hasLogo = fs.existsSync(OMI_LOGO_PATH);
+  const embed = {
+    title: 'This ticket is closed',
+    color: 0x111111,
+    description: closeNotice(user),
+  };
+  if (hasLogo) {
+    embed.author = { name: 'Omi', iconURL: `attachment://${OMI_LOGO_NAME}` };
+    embed.thumbnail = { url: `attachment://${OMI_LOGO_NAME}` };
+  }
+  const payload = {
+    embeds: [embed],
+    allowedMentions: user?.id ? { users: [String(user.id)] } : { parse: [] },
+  };
+  if (hasLogo) {
+    payload.files = [{ attachment: OMI_LOGO_PATH, name: OMI_LOGO_NAME }];
+  }
+  return payload;
+}
+
 async function archiveHandoff(channel) {
   // One PATCH. Lock-then-archive as two calls returns Missing Access on public threads.
   if (typeof channel.edit === 'function') {
@@ -44,7 +78,7 @@ async function closeHandoff(channel, user) {
     return { ok: false, reason: 'Use /done in a Handoff or help thread.' };
   }
   try {
-    await channel.send(`This is resolved. Closed by <@${user.id}>.`);
+    await channel.send(closePayload(user));
   } catch (err) {
     console.error('[Bot] /done notice failed:', err.message);
     return { ok: false, reason: 'Could not post the resolved message.' };
@@ -168,6 +202,8 @@ async function notifyLinkedThreads(client, event) {
 module.exports = {
   doneCommand,
   registerSlashCommands,
+  closeNotice,
+  closePayload,
   closeHandoff,
   handleInteraction,
   notifyLinkedThreads,

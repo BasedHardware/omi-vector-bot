@@ -40,7 +40,7 @@ The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` 
 
 App, desktop, and firmware bugs get a Discord issue card. If `GITHUB_TOKEN` is set, Vector files that card on GitHub (or links a duplicate) and stamps the Handoff id in the issue body. The File button remains as a staff fallback. Tax and shop tickets are never filed.
 
-In a Handoff thread or a public help-forum post, `/done` marks it resolved and archives it. Named staff only on the public forum (`STAFF_USER_IDS` / `STAFF_ROLE_ID`). In `#vector-test`, anyone can `/done` if that list is empty. Vector never auto-closes from GitHub, from a community reply, or in bulk. Set `HELP_FORUM_CHANNEL_ID` only when you want Vector to answer in that forum. Order, email, and privacy still go to a private Handoff.
+In a Handoff thread or a public help-forum post, `/done` posts a closed-ticket card with the Omi logo, then archives it. Named staff only on the public forum (`STAFF_USER_IDS` / `STAFF_ROLE_ID`). In `#vector-test`, anyone can `/done` if that list is empty. Vector never auto-closes from GitHub, from a community reply, or in bulk. Set `HELP_FORUM_CHANNEL_ID` only when you want Vector to answer in that forum. Order, email, and privacy still go to a private Handoff.
 
 If `GITHUB_WEBHOOK_SECRET` is set, point GitHub at `POST /github-webhook`. Vector posts one line in the linked Handoff when the issue is opened, closed, reopened, commented on, or a closing PR is merged. It does not paste GitHub comment text and it does not run `/done`.
 

@@ -1,7 +1,14 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { closeHandoff } = require('../commands');
+const { closeHandoff, closePayload } = require('../commands');
 const { canStaffAct, formatStaffTicket } = require('../handoff');
+
+function closeText(payload) {
+  if (typeof payload === 'string') return payload;
+  return [payload?.embeds?.[0]?.title, payload?.embeds?.[0]?.description, payload?.content]
+    .filter(Boolean)
+    .join('\n');
+}
 
 test('/done refuses non-handoff channels', async () => {
   const result = await closeHandoff(
@@ -16,9 +23,9 @@ test('/done still archives if the later Discord ack would fail', async () => {
   const channel = {
     isThread: () => true,
     name: 'Handoff · astar6969',
-    send: async (text) => {
-      sent.push(text);
-      return text;
+    send: async (payload) => {
+      sent.push(payload);
+      return payload;
     },
     setLocked: async () => {},
     setArchived: async () => {
@@ -28,7 +35,7 @@ test('/done still archives if the later Discord ack would fail', async () => {
   const result = await closeHandoff(channel, { id: '99' });
   assert.equal(result.ok, true);
   assert.equal(channel.archived, true);
-  assert.equal(sent.some((t) => /That command failed/i.test(t)), false);
+  assert.equal(sent.some((t) => /That command failed/i.test(closeText(t))), false);
 });
 
 test('/done still resolves when Discord refuses archive after lock', async () => {
@@ -36,9 +43,9 @@ test('/done still resolves when Discord refuses archive after lock', async () =>
   const channel = {
     isThread: () => true,
     name: 'Handoff · astar6969',
-    send: async (text) => {
-      sent.push(text);
-      return text;
+    send: async (payload) => {
+      sent.push(payload);
+      return payload;
     },
     edit: async () => {
       throw new Error('Missing Access');
@@ -50,7 +57,10 @@ test('/done still resolves when Discord refuses archive after lock', async () =>
   };
   const result = await closeHandoff(channel, { id: '99' });
   assert.equal(result.ok, true);
-  assert.match(sent[0], /resolved/i);
+  assert.deepEqual(sent[0], closePayload({ id: '99' }));
+  assert.equal(sent[0].embeds[0].title, 'This ticket is closed');
+  assert.equal(sent[0].embeds[0].thumbnail.url, 'attachment://omi-logo.png');
+  assert.equal(sent[0].files[0].name, 'omi-logo.png');
 });
 
 test('/done interaction does not say the command failed after a close', async () => {
@@ -98,9 +108,9 @@ test('/done archives a Handoff thread and does not file GitHub', async () => {
   const channel = {
     isThread: () => true,
     name: 'Handoff · astar6969',
-    send: async (text) => {
-      sent.push(text);
-      return text;
+    send: async (payload) => {
+      sent.push(payload);
+      return payload;
     },
     setLocked: async () => {},
     setArchived: async () => {
@@ -109,7 +119,9 @@ test('/done archives a Handoff thread and does not file GitHub', async () => {
   };
   const result = await closeHandoff(channel, { id: '99' });
   assert.equal(result.ok, true);
-  assert.match(sent[0], /resolved/i);
+  assert.deepEqual(sent[0], closePayload({ id: '99' }));
+  assert.match(closeText(sent[0]), /This ticket is closed/);
+  assert.match(closeText(sent[0]), /open a new post in Help/);
   assert.equal(channel.archived, true);
 });
 
@@ -120,9 +132,9 @@ test('/done archives a public help-forum post', async () => {
     name: 'App goes offline',
     parentId: 'help-forum',
     parent: { type: 15 },
-    send: async (text) => {
-      sent.push(text);
-      return text;
+    send: async (payload) => {
+      sent.push(payload);
+      return payload;
     },
     setLocked: async () => {},
     setArchived: async () => {
@@ -131,7 +143,7 @@ test('/done archives a public help-forum post', async () => {
   };
   const result = await closeHandoff(channel, { id: '99' });
   assert.equal(result.ok, true);
-  assert.match(sent[0], /resolved/i);
+  assert.deepEqual(sent[0], closePayload({ id: '99' }));
   assert.equal(channel.archived, true);
 });
 
