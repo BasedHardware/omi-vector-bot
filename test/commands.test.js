@@ -59,8 +59,8 @@ test('/done still resolves when Discord refuses archive after lock', async () =>
   assert.equal(result.ok, true);
   assert.deepEqual(sent[0], closePayload({ id: '99' }));
   assert.equal(sent[0].embeds[0].title, 'This ticket is closed');
-  assert.equal(sent[0].embeds[0].thumbnail.url, 'attachment://omi-logo.png');
-  assert.equal(sent[0].files[0].name, 'omi-logo.png');
+  assert.match(sent[0].embeds[0].thumbnail.url, /app_launcher_icon\.png/);
+  assert.equal(sent[0].files, undefined);
 });
 
 test('/done interaction does not say the command failed after a close', async () => {
@@ -168,6 +168,37 @@ test('/done on a help post still works when only HELP_FORUM_CHANNEL_ID is set', 
     if (prev == null) delete process.env.HELP_FORUM_CHANNEL_ID;
     else process.env.HELP_FORUM_CHANNEL_ID = prev;
   }
+});
+
+test('/done applies the forum Resolved tag even if archive is denied', async () => {
+  const tags = [];
+  const channel = {
+    isThread: () => true,
+    name: 'App goes offline',
+    parentId: 'help-forum',
+    parent: {
+      type: 15,
+      availableTags: [
+        { id: 'tag-android', name: 'Android' },
+        { id: 'tag-resolved', name: 'Resolved' },
+      ],
+    },
+    appliedTags: ['tag-android'],
+    send: async (payload) => payload,
+    setAppliedTags: async (ids) => {
+      tags.push(ids);
+      channel.appliedTags = ids;
+    },
+    edit: async () => {
+      throw new Error('Missing Access');
+    },
+    setArchived: async () => {
+      throw new Error('Missing Access');
+    },
+  };
+  const result = await closeHandoff(channel, { id: '99' });
+  assert.equal(result.ok, true);
+  assert.deepEqual(tags[0], ['tag-android', 'tag-resolved']);
 });
 
 test('canStaffAct is named staff, or anyone in #vector-test when the list is empty', () => {

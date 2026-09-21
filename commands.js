@@ -1,11 +1,10 @@
 const { REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
-const fs = require('node:fs');
-const path = require('node:path');
 const { isCloseableThread, canStaffAct } = require('./handoff');
 const github = require('./github');
 
-const OMI_LOGO_NAME = 'omi-logo.png';
-const OMI_LOGO_PATH = path.join(__dirname, 'assets', OMI_LOGO_NAME);
+const OMI_LOGO_URL =
+  process.env.OMI_LOGO_URL ||
+  'https://raw.githubusercontent.com/BasedHardware/omi/main/app/assets/images/app_launcher_icon.png';
 
 const doneCommand = new SlashCommandBuilder()
   .setName('done')
@@ -42,31 +41,47 @@ function closeNotice(user) {
 }
 
 function closePayload(user) {
-  const hasLogo = fs.existsSync(OMI_LOGO_PATH);
   const embed = {
+    author: { name: 'Omi', iconURL: OMI_LOGO_URL },
     title: 'This ticket is closed',
     color: 0x111111,
     description: closeNotice(user),
+    thumbnail: { url: OMI_LOGO_URL },
   };
-  if (hasLogo) {
-    embed.author = { name: 'Omi', iconURL: `attachment://${OMI_LOGO_NAME}` };
-    embed.thumbnail = { url: `attachment://${OMI_LOGO_NAME}` };
-  }
-  const payload = {
+  return {
     embeds: [embed],
     allowedMentions: user?.id ? { users: [String(user.id)] } : { parse: [] },
   };
-  if (hasLogo) {
-    payload.files = [{ attachment: OMI_LOGO_PATH, name: OMI_LOGO_NAME }];
-  }
-  return payload;
+}
+
+function resolvedTagId(channel) {
+  const tags = channel?.parent?.availableTags || channel?.parent?.available_tags || [];
+  const hit = tags.find((tag) => /^resolved$/i.test(String(tag.name || '')));
+  return hit?.id ? String(hit.id) : '';
+}
+
+async function applyResolvedTag(channel) {
+  const tagId = resolvedTagId(channel);
+  if (!tagId || typeof channel.setAppliedTags !== 'function') return;
+  const current = [...(channel.appliedTags || [])].map(String);
+  if (current.includes(tagId)) return;
+  await channel.setAppliedTags([...current, tagId], 'Resolved with /done');
 }
 
 async function archiveHandoff(channel) {
-  // One PATCH. Lock-then-archive as two calls returns Missing Access on public threads.
   if (typeof channel.edit === 'function') {
-    await channel.edit({ archived: true, locked: true, reason: 'Resolved with /done' });
-    return;
+    try {
+      await channel.edit({ archived: true, locked: true, reason: 'Resolved with /done' });
+      return;
+    } catch (err) {
+      console.error('[Bot] /done lock+archive failed:', err.message);
+    }
+    try {
+      await channel.edit({ archived: true, reason: 'Resolved with /done' });
+      return;
+    } catch (err) {
+      console.error('[Bot] /done archive failed:', err.message);
+    }
   }
   if (typeof channel.setArchived === 'function') {
     await channel.setArchived(true, 'Resolved with /done');
@@ -82,6 +97,11 @@ async function closeHandoff(channel, user) {
   } catch (err) {
     console.error('[Bot] /done notice failed:', err.message);
     return { ok: false, reason: 'Could not post the resolved message.' };
+  }
+  try {
+    await applyResolvedTag(channel);
+  } catch (err) {
+    console.error('[Bot] /done tag failed:', err.message);
   }
   try {
     await archiveHandoff(channel);
