@@ -76,20 +76,39 @@ const HOWTO_BLEED = [
   /app is open on your phone/i,
 ];
 
+const SHOP_DEVICE_BLEED = [
+  /\bon the necklace\b/i,
+  /\bblue light\b/i,
+  /\bteal led\b/i,
+  /\brecordings? from today\b/i,
+  /\bapp says disconnected\b/i,
+  /\biphone app\b/i,
+];
+
 function looksLikeHowtoBleed(text) {
   return HOWTO_BLEED.some((re) => re.test(String(text || '')));
+}
+
+function looksLikeShopDeviceBleed(text) {
+  return SHOP_DEVICE_BLEED.some((re) => re.test(String(text || '')));
 }
 
 function stripHowtoBleed(text, lane) {
   const raw = String(text || '');
   if (lane === 'faq') return raw;
+  const shopLane = lane === 'shop' || lane === 'money';
   const cleaned = raw
     .split('\n')
     .map((line) => {
-      if (!looksLikeHowtoBleed(line)) return line;
+      const drop = looksLikeHowtoBleed(line) || (shopLane && looksLikeShopDeviceBleed(line));
+      if (!drop) return line;
       return line
         .split(/(?<=[.!?])\s+/)
-        .filter((sentence) => !looksLikeHowtoBleed(sentence))
+        .filter((sentence) => {
+          if (looksLikeHowtoBleed(sentence)) return false;
+          if (shopLane && looksLikeShopDeviceBleed(sentence)) return false;
+          return true;
+        })
         .join(' ');
     })
     .map((line) => line.trim())

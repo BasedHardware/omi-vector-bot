@@ -210,7 +210,7 @@ function shouldPingOwner(route) {
 }
 
 function skipModel(route) {
-  return route?.lane === 'money' || route?.lane === 'privacy';
+  return route?.lane === 'money' || route?.lane === 'privacy' || route?.lane === 'shop';
 }
 
 function looksLikeTax(text) {
@@ -239,6 +239,12 @@ function cannedReply(route, question) {
   }
   if (lane === 'privacy') {
     return "This is about deleting your account or what Omi saved. I can't do that from chat.";
+  }
+  if (lane === 'shop') {
+    if (looksLikeTax(question)) {
+      return "This is about tax or duties on an order. I can't change that from chat.";
+    }
+    return "I can't see order status from here, so I can't tell you where that order is or when it will arrive. That needs someone with access to the order system, and I'm not going to guess a date.\n\nUse /order to check your own orders. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.";
   }
   if (lane === 'firmware') {
     return "This looks like a problem with the Omi device itself. I can't see your device from here, so I won't guess what's wrong.";

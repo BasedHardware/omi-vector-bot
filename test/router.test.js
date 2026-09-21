@@ -19,7 +19,7 @@ test('tax, duties, and customs stay shop/money and never skip as tech', () => {
   const customs = router.classify('My package is stuck in customs');
   assert.equal(customs.area, 'shop');
   assert.equal(customs.lane, 'shop');
-  assert.equal(router.skipModel(customs), false);
+  assert.equal(router.skipModel(customs), true);
   assert.equal(router.isTechLane(customs), false);
 });
 
@@ -28,6 +28,13 @@ test('order and tracking are shop', () => {
   assert.equal(route.area, 'shop');
   assert.equal(route.lane, 'shop');
   assert.equal(route.escalate, true);
+  const numbered = router.classify('where is order #1042');
+  assert.equal(numbered.area, 'shop');
+  assert.equal(numbered.lane, 'shop');
+  assert.equal(router.skipModel(numbered), true);
+  const canned = router.cannedReply(numbered, 'where is order #1042');
+  assert.match(canned, /\/order/);
+  assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
 });
 
 test('app crash and macOS are tech; pairing how-to is faq', () => {
@@ -138,7 +145,7 @@ test('model-down fallback still escalates a phone-app ticket without naming the 
   assert.match(taxDown.reply, /tax or duties/i);
 });
 
-test('only money and privacy skip the model; crash, firmware, and pairing do not', () => {
+test('money, privacy, and shop skip the model; crash, firmware, and pairing do not', () => {
   const refund = router.classify('I want a refund');
   assert.equal(router.skipModel(refund), true);
   assert.match(router.cannedReply(refund), /money|refund|charge/i);
@@ -155,7 +162,7 @@ test('only money and privacy skip the model; crash, firmware, and pairing do not
   assert.match(router.cannedReply(privacy), /delet/i);
 
   assert.equal(router.skipModel(router.classify('How do I pair my Omi?')), false);
-  assert.equal(router.skipModel(router.classify('Where is my order?')), false);
+  assert.equal(router.skipModel(router.classify('Where is my order?')), true);
   assert.equal(router.skipModel(router.classify('it powers off by itself at 100% battery')), false);
 });
 

@@ -36,7 +36,7 @@ Needs `DISCORD_TOKEN`, `OPENCODE_API_KEY`, and `VECTOR_TEST_CHANNEL_ID`. Host wi
 
 The user reply only claims a ping if one of those sends succeeded. Optional `STAFF_USER_IDS` / `STAFF_ROLE_ID` mention staff on the card. `AREA_OWNERS` (example `shop:ID,app:ID`) pings the named owner on hard tickets. Empty means no extra ping.
 
-The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` / `privacy`). Tax, duties, customs, refunds, and orders stay off GitHub. They get a Discord shop ticket card; updates stay in that Handoff. If Shopify is set and the message has an order number or email, Vector looks the order up even on a tax ticket. Refunds, cancels, and address changes still need a person.
+The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` / `privacy`). Tax, duties, customs, refunds, and orders stay off GitHub. They get a Discord shop ticket card; updates stay in that Handoff. Chat never looks up Shopify from a guessed order number. `/order` after email OTP is the lookup path. Refunds, cancels, and address changes still need a person.
 
 App, desktop, and firmware bugs get a Discord issue card. GitHub filing uses a **GitHub App** installation token when `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_APP_PRIVATE_KEY` are set, so issues show as the app, not a person. A personal `GITHUB_TOKEN` still works as a fallback and should not be used. If the app is set, Vector files that card on GitHub (or links a duplicate) and stamps the Handoff id in the issue body. The File button remains as a staff fallback. Tax and shop tickets are never filed.
 
