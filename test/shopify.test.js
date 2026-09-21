@@ -64,9 +64,10 @@ test('money tickets with an order key still look up Shopify', async () => {
   assert.equal(shopify.hasLookupKey(taxQ), true);
   assert.equal(shopify.shouldLookup(money, taxQ), false);
   await withShopifyEnv(async () => {
-    assert.equal(shopify.shouldLookup(money, taxQ), true);
-    assert.equal(shopify.shouldLookup(money, 'I want a refund'), false);
-    assert.equal(shopify.shouldLookup({ lane: 'shop' }, 'Where is my order?'), true);
+    assert.equal(shopify.shouldLookup(money, taxQ), false);
+    assert.equal(shopify.shouldLookup(money, taxQ, { verifiedEmail: 'hidden@example.com' }), true);
+    assert.equal(shopify.shouldLookup(money, 'I want a refund', { verifiedEmail: 'hidden@example.com' }), false);
+    assert.equal(shopify.shouldLookup({ lane: 'shop' }, 'Where is my order?', { verifiedEmail: 'hidden@example.com' }), true);
     const calls = [];
     const fetchImpl = async (url) => {
       calls.push(String(url));
@@ -76,7 +77,10 @@ test('money tickets with an order key still look up Shopify', async () => {
         json: async () => ({ orders: [SAMPLE] }),
       };
     };
-    const result = await shopify.lookupOrder(taxQ, { fetchImpl });
+    const blocked = await shopify.lookupOrder(taxQ, { fetchImpl });
+    assert.equal(blocked.reason, 'unverified');
+    assert.equal(calls.length, 0);
+    const result = await shopify.lookupOrder(taxQ, { fetchImpl, verifiedEmail: 'hidden@example.com' });
     assert.equal(result.ok, true);
     assert.match(calls[0], /name=%2320716|name=#20716/);
   });
@@ -130,6 +134,10 @@ test('staff facts include city and country, not street', () => {
 test('buildUserReply asks for keys, reports a miss, and does not refund', () =>
   withShopifyEnv(() => {
     assert.match(
+      shopify.buildUserReply({ reason: 'unverified' }, 'Where is my order #1042?'),
+      /can't look up Shopify/i
+    );
+    assert.match(
       shopify.buildUserReply({ reason: 'no-key' }, 'Where is my order?'),
       /order number or the email on the order/
     );
@@ -175,7 +183,10 @@ test('lookupOrder hits Shopify by order name and skips logging PII in the result
         json: async () => ({ orders: [SAMPLE] }),
       };
     };
-    const result = await shopify.lookupOrder('Where is order #1042?', { fetchImpl });
+    const result = await shopify.lookupOrder('Where is order #1042?', {
+      fetchImpl,
+      verifiedEmail: 'hidden@example.com',
+    });
     assert.equal(result.ok, true);
     assert.equal(result.order.name, '#1042');
     assert.equal(result.order.city, 'Berlin');
@@ -188,15 +199,34 @@ test('lookupOrder hits Shopify by order name and skips logging PII in the result
 
 test('lookupOrder miss and no-key', async () => {
   await withShopifyEnv(async () => {
-    const none = await shopify.lookupOrder('Where is my order?');
-    assert.equal(none.reason, 'no-key');
+    const unverified = await shopify.lookupOrder('order #1042');
+    assert.equal(unverified.reason, 'unverified');
     const fetchImpl = async () => ({
       status: 200,
       ok: true,
       json: async () => ({ orders: [] }),
     });
-    const miss = await shopify.lookupOrder('order #9999', { fetchImpl });
+    const miss = await shopify.lookupOrder('order #9999', {
+      fetchImpl,
+      verifiedEmail: 'hidden@example.com',
+    });
     assert.equal(miss.ok, false);
     assert.equal(miss.reason, 'miss');
+  });
+});
+
+test('lookupOrder does not return another customer order for a guessed number', async () => {
+  await withShopifyEnv(async () => {
+    const fetchImpl = async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({ orders: [SAMPLE] }),
+    });
+    const result = await shopify.lookupOrder('order #1042', {
+      fetchImpl,
+      verifiedEmail: 'attacker@example.com',
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'miss');
   });
 });

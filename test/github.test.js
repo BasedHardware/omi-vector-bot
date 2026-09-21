@@ -2,6 +2,32 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const github = require('../github');
 
+test('GitHub App env is enough to be configured; a personal token is not required', () => {
+  const prev = {
+    token: process.env.GITHUB_TOKEN,
+    id: process.env.GITHUB_APP_ID,
+    inst: process.env.GITHUB_APP_INSTALLATION_ID,
+    key: process.env.GITHUB_APP_PRIVATE_KEY,
+  };
+  delete process.env.GITHUB_TOKEN;
+  process.env.GITHUB_APP_ID = '1';
+  process.env.GITHUB_APP_INSTALLATION_ID = '2';
+  process.env.GITHUB_APP_PRIVATE_KEY = '-----BEGIN RSA PRIVATE KEY-----\nMIIB\n-----END RSA PRIVATE KEY-----';
+  try {
+    assert.equal(github.isAppConfigured(), true);
+    assert.equal(github.isConfigured(), true);
+  } finally {
+    if (prev.token === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = prev.token;
+    if (prev.id === undefined) delete process.env.GITHUB_APP_ID;
+    else process.env.GITHUB_APP_ID = prev.id;
+    if (prev.inst === undefined) delete process.env.GITHUB_APP_INSTALLATION_ID;
+    else process.env.GITHUB_APP_INSTALLATION_ID = prev.inst;
+    if (prev.key === undefined) delete process.env.GITHUB_APP_PRIVATE_KEY;
+    else process.env.GITHUB_APP_PRIVATE_KEY = prev.key;
+  }
+});
+
 test('draftFromQuestion never uses shop or privacy labels', () => {
   const draft = github.draftFromQuestion('macOS settings crash on launch', 'desktop');
   assert.match(draft.title, /macOS/);

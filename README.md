@@ -14,7 +14,7 @@ npm run ask -- "Where is my order?"
 
 Never commit `.env`. Order and refund questions should print `ESCALATE` unless Shopify read-only env is set.
 
-If `SHOPIFY_STORE` and `SHOPIFY_ACCESS_TOKEN` are set (Railway only, not GitHub), Vector looks up paid / shipped / tracking from an order number or the email on the order. The channel reply never includes street, phone, name, or email. Refunds, cancels, and address changes still go to a person. The Handoff card gets city/country so staff can check the lookup.
+If `SHOPIFY_STORE` and `SHOPIFY_ACCESS_TOKEN` are set (Railway only, not GitHub), Vector still does not look up an order from a number or email typed in chat. That would leak someone else's order. Lookup only runs for a Discord user whose order email is already verified (OTP bind, from David's PoC). Until that bind exists, order questions stay Handoff + help@omi.me. Replies never include street, phone, name, or email. Refunds, cancels, and address changes still go to a person.
 
 ## Discord
 
@@ -38,7 +38,7 @@ The user reply only claims a ping if one of those sends succeeded. Optional `STA
 
 The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` / `privacy`). Tax, duties, customs, refunds, and orders stay off GitHub. They get a Discord shop ticket card; updates stay in that Handoff. If Shopify is set and the message has an order number or email, Vector looks the order up even on a tax ticket. Refunds, cancels, and address changes still need a person.
 
-App, desktop, and firmware bugs get a Discord issue card. If `GITHUB_TOKEN` is set, Vector files that card on GitHub (or links a duplicate) and stamps the Handoff id in the issue body. The File button remains as a staff fallback. Tax and shop tickets are never filed.
+App, desktop, and firmware bugs get a Discord issue card. GitHub filing uses a **GitHub App** installation token when `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_APP_PRIVATE_KEY` are set, so issues show as the app, not a person. A personal `GITHUB_TOKEN` still works as a fallback and should not be used. If the app is set, Vector files that card on GitHub (or links a duplicate) and stamps the Handoff id in the issue body. The File button remains as a staff fallback. Tax and shop tickets are never filed.
 
 In a Handoff thread or a public help-forum post, `/done` posts a closed-ticket card with the Omi logo, applies the forum **Resolved** tag when that tag exists, then archives it. Named staff (`STAFF_USER_IDS` / `STAFF_ROLE_ID`) or anyone with Manage Threads. The bot also needs **Manage Threads** to archive and to set moderated tags. In `#vector-test`, anyone can `/done` if that list is empty. Vector never auto-closes from GitHub, from a community reply, or in bulk. Set `HELP_FORUM_CHANNEL_ID` only when you want Vector to answer in that forum. Order, email, and privacy still go to a private Handoff.
 

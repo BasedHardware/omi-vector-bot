@@ -53,8 +53,16 @@ function hasLookupKey(text) {
   return Boolean(keys.orderName || keys.email);
 }
 
-function shouldLookup(route, text) {
+function normalizeEmail(raw) {
+  const email = String(raw || '').trim().toLowerCase();
+  if (email.length < 3 || email.length > 254) return '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '';
+  return email;
+}
+
+function shouldLookup(route, text, { verifiedEmail } = {}) {
   if (!isConfigured()) return false;
+  if (!normalizeEmail(verifiedEmail)) return false;
   if (route?.lane === 'shop') return true;
   if (route?.lane === 'money' && hasLookupKey(text)) return true;
   return false;
@@ -188,6 +196,9 @@ function buildUserReply(lookup, question) {
     const extra = lookup?.order ? `\n\nThe order I found is ${payShip(lookup.order)}.` : '';
     return `I can't issue a refund, cancel an order, or change an address from chat.${extra}`;
   }
+  if (lookup?.reason === 'unverified') {
+    return "I can't look up Shopify from a number or email in chat. Anyone could type someone else's order. Email help@omi.me with the Order ID.";
+  }
   if (lookup?.reason === 'no-key') {
     return 'I can look this up in Shopify if you send the order number or the email on the order.';
   }
@@ -244,24 +255,32 @@ async function shopifyGet(params, fetchImpl) {
 
   const orders = Array.isArray(data?.orders) ? data.orders : [];
   if (!orders.length) return { ok: false, reason: 'miss' };
-  return { ok: true, order: summarizeOrder(orders[0]) };
+  return { ok: true, raw: orders[0], order: summarizeOrder(orders[0]) };
 }
 
-async function lookupOrder(text, { fetchImpl } = {}) {
+function orderEmailMatches(raw, verifiedEmail) {
+  return normalizeEmail(raw?.email) === normalizeEmail(verifiedEmail);
+}
+
+async function lookupOrder(text, { fetchImpl, verifiedEmail } = {}) {
   if (!isConfigured()) return { ok: false, reason: 'unconfigured' };
+  const bound = normalizeEmail(verifiedEmail);
+  if (!bound) return { ok: false, reason: 'unverified' };
   const keys = extractLookupKeys(text);
-  if (!keys.orderName && !keys.email) return { ok: false, reason: 'no-key' };
 
   const fetchFn = fetchImpl || fetch;
   try {
     if (keys.orderName) {
       const byName = await shopifyGet({ name: keys.orderName }, fetchFn);
-      if (byName.ok || byName.reason === 'auth' || byName.reason === 'error') return byName;
+      if (byName.reason === 'auth' || byName.reason === 'error') return { ok: false, reason: byName.reason };
+      if (byName.ok) {
+        if (!orderEmailMatches(byName.raw, bound)) return { ok: false, reason: 'miss' };
+        return { ok: true, order: byName.order };
+      }
     }
-    if (keys.email) {
-      return await shopifyGet({ email: keys.email }, fetchFn);
-    }
-    return { ok: false, reason: 'miss' };
+    const byEmail = await shopifyGet({ email: bound }, fetchFn);
+    if (!byEmail.ok) return { ok: false, reason: byEmail.reason };
+    return { ok: true, order: byEmail.order };
   } catch (err) {
     console.error('[Shopify] lookup failed:', err.message);
     return { ok: false, reason: 'error' };
@@ -277,6 +296,7 @@ module.exports = {
   extractLookupKeys,
   hasLookupKey,
   shouldLookup,
+  normalizeEmail,
   summarizeOrder,
   formatUserReply,
   formatStaffFacts,

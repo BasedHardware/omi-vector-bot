@@ -10,8 +10,66 @@ function repo() {
   return String(process.env.GITHUB_REPO || DEFAULT_REPO).replace(/^https?:\/\/github.com\//i, '').replace(/\.git$/, '');
 }
 
+function appPrivateKey() {
+  return String(process.env.GITHUB_APP_PRIVATE_KEY || '')
+    .replace(/\\n/g, '\n')
+    .trim();
+}
+
+function isAppConfigured() {
+  return Boolean(
+    String(process.env.GITHUB_APP_ID || '').trim() &&
+      String(process.env.GITHUB_APP_INSTALLATION_ID || '').trim() &&
+      appPrivateKey()
+  );
+}
+
 function isConfigured() {
-  return Boolean(String(process.env.GITHUB_TOKEN || '').trim());
+  return Boolean(String(process.env.GITHUB_TOKEN || '').trim()) || isAppConfigured();
+}
+
+function appJwt() {
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(
+    JSON.stringify({ iat: now - 60, exp: now + 540, iss: String(process.env.GITHUB_APP_ID).trim() })
+  ).toString('base64url');
+  const data = `${header}.${payload}`;
+  const sign = crypto.createSign('RSA-SHA256').update(data).sign(appPrivateKey(), 'base64url');
+  return `${data}.${sign}`;
+}
+
+let installationCache = { token: '', exp: 0 };
+
+async function installationToken(fetchImpl) {
+  const now = Date.now();
+  if (installationCache.token && installationCache.exp - 60_000 > now) return installationCache.token;
+  const id = String(process.env.GITHUB_APP_INSTALLATION_ID || '').trim();
+  const fetchFn = fetchImpl || fetch;
+  const res = await fetchFn(`https://api.github.com/app/installations/${id}/access_tokens`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${appJwt()}`,
+      'User-Agent': 'omi-vector-bot',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`GitHub App token HTTP ${res.status}`);
+  const data = await res.json();
+  const token = String(data?.token || '');
+  if (!token) throw new Error('GitHub App token missing');
+  installationCache = {
+    token,
+    exp: data.expires_at ? Date.parse(data.expires_at) : now + 50 * 60_000,
+  };
+  return token;
+}
+
+async function accessToken(fetchImpl) {
+  if (isAppConfigured()) return installationToken(fetchImpl);
+  return String(process.env.GITHUB_TOKEN || '').trim();
 }
 
 function searchQuery(text) {
@@ -145,15 +203,17 @@ function threadsForIssue(number) {
 function resetGithubMemory() {
   drafts.clear();
   issueThreads.clear();
+  installationCache = { token: '', exp: 0 };
 }
 
 async function githubFetch(url, { method = 'GET', body, fetchImpl } = {}) {
   const fetchFn = fetchImpl || fetch;
+  const token = await accessToken(fetchImpl);
   const res = await fetchFn(url, {
     method,
     headers: {
       Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       'User-Agent': 'omi-vector-bot',
       'X-GitHub-Api-Version': '2022-11-28',
       ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -309,6 +369,7 @@ module.exports = {
   DEFAULT_REPO,
   repo,
   isConfigured,
+  isAppConfigured,
   searchQuery,
   draftFromQuestion,
   formatIssueCard,
