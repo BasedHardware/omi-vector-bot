@@ -94,7 +94,7 @@ async function closeHandoff(channel, user) {
 async function handleDone(interaction) {
   if (!canStaffAct(interaction)) {
     await interaction.reply({
-      content: 'Only named staff can close a thread. Set STAFF_USER_IDS or STAFF_ROLE_ID.',
+      content: 'Only staff can close a thread.',
       flags: MessageFlags.Ephemeral,
     });
     return;

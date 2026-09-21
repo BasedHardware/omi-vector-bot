@@ -43,6 +43,16 @@ function isCloseableThread(channel) {
   return isHandoffThread(channel) || isForumPostThread(channel);
 }
 
+function hasThreadManage(interaction) {
+  const perms = interaction?.memberPermissions || interaction?.member?.permissions;
+  if (!perms || typeof perms.has !== 'function') return false;
+  try {
+    return perms.has('ManageThreads', true) || perms.has('Administrator', true);
+  } catch {
+    return false;
+  }
+}
+
 function canStaffAct(interaction) {
   const userId = String(interaction?.user?.id || '');
   const { users, roles } = staffMentionIds();
@@ -52,7 +62,7 @@ function canStaffAct(interaction) {
     if (typeof cache.has === 'function' && roles.some((id) => cache.has(id))) return true;
     if (typeof cache.includes === 'function' && roles.some((id) => cache.includes(id))) return true;
   }
-  if (isForumPostThread(interaction?.channel)) return false;
+  if (hasThreadManage(interaction)) return true;
   if (!users.length && !roles.length && isTestHandoffChannel(interaction?.channel)) {
     return true;
   }

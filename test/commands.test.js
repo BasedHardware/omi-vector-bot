@@ -214,6 +214,69 @@ test('canStaffAct never uses the empty-list bypass on a public help post', () =>
   }
 });
 
+test('canStaffAct allows Manage Threads on a public help post', () => {
+  const prevStaff = process.env.STAFF_USER_IDS;
+  const prevRole = process.env.STAFF_ROLE_ID;
+  const prevTest = process.env.VECTOR_TEST_CHANNEL_ID;
+  const forum = {
+    id: 'thread',
+    parentId: 'help-forum',
+    parent: { type: 15 },
+    isThread: () => true,
+  };
+  try {
+    delete process.env.STAFF_USER_IDS;
+    delete process.env.STAFF_ROLE_ID;
+    delete process.env.VECTOR_TEST_CHANNEL_ID;
+    assert.equal(
+      canStaffAct({
+        user: { id: '222' },
+        channel: forum,
+        memberPermissions: { has: (flag) => flag === 'ManageThreads' },
+      }),
+      true
+    );
+    assert.equal(canStaffAct({ user: { id: '222' }, channel: forum }), false);
+  } finally {
+    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prevStaff;
+    if (prevRole == null) delete process.env.STAFF_ROLE_ID;
+    else process.env.STAFF_ROLE_ID = prevRole;
+    if (prevTest == null) delete process.env.VECTOR_TEST_CHANNEL_ID;
+    else process.env.VECTOR_TEST_CHANNEL_ID = prevTest;
+  }
+});
+
+test('canStaffAct still allows anyone in a #vector-test forum thread when the list is empty', () => {
+  const prevStaff = process.env.STAFF_USER_IDS;
+  const prevRole = process.env.STAFF_ROLE_ID;
+  const prevTest = process.env.VECTOR_TEST_CHANNEL_ID;
+  try {
+    delete process.env.STAFF_USER_IDS;
+    delete process.env.STAFF_ROLE_ID;
+    process.env.VECTOR_TEST_CHANNEL_ID = 'testchan';
+    assert.equal(
+      canStaffAct({
+        user: { id: '222' },
+        channel: {
+          id: 'thread',
+          parentId: 'testchan',
+          parent: { type: 15 },
+          isThread: () => true,
+        },
+      }),
+      true
+    );
+  } finally {
+    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prevStaff;
+    if (prevRole == null) delete process.env.STAFF_ROLE_ID;
+    else process.env.STAFF_ROLE_ID = prevRole;
+    if (prevTest == null) delete process.env.VECTOR_TEST_CHANNEL_ID;
+    else process.env.VECTOR_TEST_CHANNEL_ID = prevTest;
+  }
+});
+
 test('File issue button is only added when a draft id is passed', () => {
   const withBtn = formatStaffTicket({
     message: { author: { id: '1' }, channel: { id: '2' } },
