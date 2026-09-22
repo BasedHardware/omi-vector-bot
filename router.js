@@ -233,6 +233,15 @@ function classifyRoute(text) {
   if (any(s, ACCOUNT)) {
     return { area: 'shop', lane: 'account', escalate: true, wantHuman };
   }
+  if (
+    looksLikeDocs(s) &&
+    !any(s, STRONG_MONEY) &&
+    !any(s, SHOP) &&
+    !any(s, WEAK_MONEY) &&
+    !any(s, ACCOUNT)
+  ) {
+    return { area: 'unknown', lane: 'faq', escalate: true, wantHuman };
+  }
   if (any(s, FAQ)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
@@ -258,6 +267,12 @@ function looksLikeTax(text) {
 
 function looksLikePlan(text) {
   return /\b(subscription|redemption code|unlimited yearly|plus plan|no active plan|stuck on free|downgraded to free|billing bug)\b/i.test(
+    String(text || '')
+  );
+}
+
+function looksLikeDocs(text) {
+  return /\b(instructions|documentation|how (it|this|does it) works?|how it'?s different)\b/i.test(
     String(text || '')
   );
 }
@@ -327,10 +342,14 @@ function staffReason(route, question) {
   if (lane === 'tech') return 'Cannot see the app from chat';
   if (lane === 'shop') return 'Order or shipping';
   if (lane === 'account') return 'Fair use, memory limit, or plan question';
+  if (lane === 'faq' && looksLikeDocs(question)) {
+    return 'Docs question. Do not invent how it works or plan prices.';
+  }
   return 'Needs a person';
 }
 
 function pickStaffReason(route, modelReason, question) {
+  if (route?.lane === 'faq' && looksLikeDocs(question)) return staffReason(route, question);
   const reason = String(modelReason || '').trim();
   const lane = route?.lane;
   const area = route?.area;
@@ -381,6 +400,7 @@ module.exports = {
   skipModel,
   looksLikeTax,
   looksLikePlan,
+  looksLikeDocs,
   cannedReply,
   whenModelDown,
   staffReason,

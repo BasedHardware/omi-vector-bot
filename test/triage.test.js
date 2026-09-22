@@ -63,3 +63,25 @@ test('merge files a desktop npm bug and keeps a short topic', () => {
   assert.equal(merged.fileIssue, true);
   assert.equal(merged.topic, 'omi-windows ERESOLVE');
 });
+
+test('a docs question stays faq when the model calls it shop', () => {
+  const q = 'Are there any instructions or documentation on this feature? How it works and how it\'s different from paying for a paid plan?';
+  const merged = triage.merge(
+    router.classify(q),
+    {
+      area: 'shop',
+      lane: 'account',
+      labels: ['faq', 'account', 'shop'],
+      topic: 'Feature docs vs paid plan unclear',
+      escalate: true,
+    },
+    q
+  );
+  assert.equal(merged.lane, 'faq');
+  assert.equal(merged.area, 'unknown');
+  assert.equal(merged.labels.includes('shop'), false);
+  assert.equal(merged.labels.includes('account'), false);
+  assert.equal(merged.labels.includes('faq'), true);
+  assert.equal(merged.escalate, true);
+  assert.equal(merged.fileIssue, false);
+});

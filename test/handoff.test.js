@@ -377,6 +377,22 @@ test('clipUserQuestion drops Discord OP chrome from a pasted help post', () => {
   assert.equal(/^Image$/m.test(out), false);
 });
 
+test('clipUserQuestion drops a one-word display name and a trailing backslash', () => {
+  const { clipUserQuestion } = require('../handoff');
+  const out = clipUserQuestion(
+    [
+      'Vidal',
+      'OP',
+      '— 20/09/2026, 04:55',
+      'Are there any instructions or documentation on this feature? How it works and how it\'s different from paying for a paid plan?\\',
+    ].join('\n')
+  );
+  assert.match(out, /instructions or documentation/i);
+  assert.equal(/\bVidal\b|\bOP\b|20\/09\/2026/.test(out), false);
+  assert.equal(out.includes('\\'), false);
+  assert.equal(clipUserQuestion('Vidal'), 'Vidal');
+});
+
 test('clipUserQuestion keeps the customer bug and drops a staff follow-up on a pasted help post', () => {
   const { clipUserQuestion } = require('../handoff');
   const out = clipUserQuestion(

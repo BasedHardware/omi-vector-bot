@@ -1,4 +1,4 @@
-const { classify, looksLikeCaptureFailure, looksLikeTranscription } = require('./router');
+const { classify, looksLikeCaptureFailure, looksLikeTranscription, looksLikeDocs } = require('./router');
 const { clipForDiscord } = require('./utils');
 
 const AREAS = ['shop', 'app', 'desktop', 'firmware', 'privacy'];
@@ -49,10 +49,11 @@ function fallbackTopic(question, route) {
 function merge(route, agent, question) {
   const classified = route || classify(question);
   const moneyLock = classified.lane === 'money' || classified.lane === 'privacy';
+  const docsLock = classified.lane === 'faq' && looksLikeDocs(question);
 
   let area = classified.area || 'unknown';
   let lane = classified.lane || 'unknown';
-  if (!moneyLock) {
+  if (!moneyLock && !docsLock) {
     const weak = area === 'unknown' || lane === 'unknown' || lane === 'faq';
     if (weak && AREAS.includes(agent?.area)) area = agent.area;
     if (weak && LANES.includes(agent?.lane) && agent.lane !== 'unknown') lane = agent.lane;
@@ -71,6 +72,10 @@ function merge(route, agent, question) {
     labels.push('shipping');
   }
   labels = labels.filter((label) => label !== 'needs-human');
+  if (docsLock) {
+    labels = labels.filter((label) => label !== 'shop' && label !== 'account' && label !== 'money');
+    if (!labels.includes('faq')) labels.unshift('faq');
+  }
   if (!labels.length) labels.push('needs-human');
 
   const topic =

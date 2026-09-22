@@ -233,3 +233,16 @@ test('known issue reply does not invent a diagnosis', () => {
   assert.match(reply, /person has to confirm/i);
   assert.equal(/app bug|app-side|watch or phone/i.test(reply), false);
 });
+
+test('a docs question that mentions a paid plan stays faq, not shop', () => {
+  const q = 'Are there any instructions or documentation on this feature? How it works and how it\'s different from paying for a paid plan?';
+  const route = router.classify(q);
+  assert.equal(route.lane, 'faq');
+  assert.equal(route.area, 'unknown');
+  assert.equal(route.escalate, true);
+  assert.equal(router.skipModel(route), false);
+  assert.match(router.staffReason(route, q), /Docs question/i);
+  assert.equal(/shop|account access/i.test(router.staffReason(route, q)), false);
+  const refund = router.classify('I want a refund. Where is the documentation for that?');
+  assert.equal(refund.lane, 'money');
+});

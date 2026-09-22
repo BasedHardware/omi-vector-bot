@@ -105,13 +105,23 @@ function isDiscordPasteChrome(line) {
   return false;
 }
 
+function isSingleDisplayName(line) {
+  return /^[A-Z][A-Za-z]{1,20}$/.test(String(line || '').trim());
+}
+
 function clipUserQuestion(text) {
   const raw = String(text || '').trim();
+  const lines = raw.split('\n').map((line) => line.replace(/\\+\s*$/g, ''));
+  const hasQuestion = lines.some((line) => {
+    const t = line.trim();
+    return t && !isDiscordPasteChrome(t) && !isSingleDisplayName(t);
+  });
   const kept = [];
-  for (const line of raw.split('\n')) {
+  for (const line of lines) {
     const t = line.trim();
     if (/^@[\w.]+/.test(t) && kept.some((k) => k.trim())) break;
     if (/^want:\s/i.test(t) || isDiscordPasteChrome(line)) continue;
+    if (hasQuestion && isSingleDisplayName(t)) continue;
     kept.push(line);
   }
   const cleaned = kept
