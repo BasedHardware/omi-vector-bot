@@ -86,6 +86,9 @@ test('a picture is not fetched and gets an unread sentence', async () => {
   assert.equal(called, false);
   assert.equal(shouldMentionUnreadImage(image, files), true);
   assert.match(unreadImageSentence(), /did not read the picture/i);
+  const { shouldMentionUnreadMedia, unreadMediaSentence } = require('../attachments');
+  assert.equal(shouldMentionUnreadMedia(new Map([['1', { name: 'clip.mp4', contentType: 'video/mp4' }]])), true);
+  assert.match(unreadMediaSentence(), /did not watch or listen/i);
   assert.equal(
     shouldMentionUnreadImage(
       new Map([

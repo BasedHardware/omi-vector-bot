@@ -246,3 +246,16 @@ test('a docs question that mentions a paid plan stays faq, not shop', () => {
   const refund = router.classify('I want a refund. Where is the documentation for that?');
   assert.equal(refund.lane, 'money');
 });
+
+test('desktop and phone together name both apps', () => {
+  const q = 'Once again, I cannot delete memories or conversations on either the desktop app or the mobile app. The desktop app gives me an error and the mobile app shows them deleted and then they resurface 30 seconds later.';
+  const route = router.classify(q);
+  assert.equal(route.area, 'desktop');
+  assert.equal(route.lane, 'tech');
+  const reason = router.staffReason(route, q);
+  assert.match(reason, /computer app/i);
+  assert.match(reason, /phone app/i);
+  assert.equal(/app bug/i.test(reason), false);
+  const picked = router.pickStaffReason(route, 'Cannot see the computer app from chat', q);
+  assert.equal(picked, reason);
+});

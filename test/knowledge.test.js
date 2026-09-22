@@ -60,10 +60,8 @@ test('tech lanes drop pairing FAQ facts', () => {
     'Pairing: open the Omi app and wait for Bluetooth.',
     'Order and tracking lookups need a person. Vector cannot see Shopify.',
   ];
-  assert.deepEqual(filterSnippetsForLane(mixed, 'tech'), [
-    'Order and tracking lookups need a person. Vector cannot see Shopify.',
-  ]);
-  assert.equal(filterSnippetsForLane(mixed, 'faq').length, 2);
+  assert.deepEqual(filterSnippetsForLane(mixed, 'tech'), []);
+  assert.equal(filterSnippetsForLane(mixed, 'faq').length, 1);
   assert.deepEqual(
     filterSnippetsForLane(
       [
@@ -74,6 +72,19 @@ test('tech lanes drop pairing FAQ facts', () => {
     ),
     ['Order and tracking lookups need a person. Vector cannot see Shopify.']
   );
+});
+
+test('a deletion answer does not pick up the Shopify fact', () => {
+  const snippets = filterSnippetsForLane(
+    ['Order and tracking lookups need a person. Vector cannot see Shopify.'],
+    'tech'
+  );
+  const out = applyStaffFacts(
+    'I hear you: on the desktop app, deleting a memory or conversation just gives you an error, and on mobile it looks deleted, then comes back about thirty seconds later.',
+    snippets
+  );
+  assert.equal(/shopify|order and tracking/i.test(out), false);
+  assert.match(out, /desktop app/i);
 });
 
 test('applyStaffFacts prepends Shopify when the model dropped it', () => {

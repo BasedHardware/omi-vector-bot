@@ -34,6 +34,22 @@ function clipAttachmentText(text, max = MAX_BYTES) {
   return `${out}\n…`;
 }
 
+function isWatchableAttachment(att) {
+  if (!att) return false;
+  const type = String(att.contentType || att.content_type || '').toLowerCase();
+  const name = String(att.name || att.filename || '');
+  if (type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/')) return true;
+  return /\.(png|jpe?g|gif|webp|mp4|mov|webm|mp3|m4a|wav|ogg)$/i.test(name);
+}
+
+function shouldMentionUnreadMedia(attachments) {
+  return attachmentsList(attachments).some(isWatchableAttachment);
+}
+
+function unreadMediaSentence() {
+  return 'I did not watch or listen to the file. Type the error line shown on the screen.';
+}
+
 function isImageAttachment(att) {
   if (!att) return false;
   const type = String(att.contentType || att.content_type || '').toLowerCase();
@@ -99,4 +115,7 @@ module.exports = {
   isImageAttachment,
   shouldMentionUnreadImage,
   unreadImageSentence,
+  isWatchableAttachment,
+  shouldMentionUnreadMedia,
+  unreadMediaSentence,
 };

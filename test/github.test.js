@@ -168,3 +168,40 @@ test('shop ticket card is not a GitHub issue', () => {
   assert.equal(draft.labels.includes('shop'), false);
   assert.equal(draft.labels.includes('money'), false);
 });
+
+test('an open pull request in the message is told to the customer and not called fixed', async () => {
+  const q = [
+    'Once again, I cannot delete memories or conversations on either the desktop app or the mobile app.',
+    'https://github.com/BasedHardware/omi/pull/14691',
+  ].join('\n');
+  const refs = github.linkedChanges(q);
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0].number, '14691');
+  assert.equal(refs[0].kind, 'pull');
+  const fromCard = github.textFromEmbeds([
+    {
+      title: 'fix(backend): make memory & conversation deletion work again',
+      url: 'https://github.com/BasedHardware/omi/pull/14691',
+      description: 'Desktop errors, mobile comes back.',
+    },
+  ]);
+  assert.match(github.linkedChanges(fromCard)[0].url, /14691/);
+  const fetchImpl = async (url) => {
+    assert.match(String(url), /\/pulls\/14691$/);
+    return {
+      ok: true,
+      json: async () => ({ state: 'open', merged: false, html_url: refs[0].url }),
+    };
+  };
+  const lookup = await github.lookupChange(refs[0], { fetchImpl });
+  const sentence = github.customerChangeSentence(refs[0], lookup);
+  assert.match(sentence, /14691/);
+  assert.match(sentence, /still open/i);
+  assert.match(sentence, /has not shipped/i);
+  assert.equal(/half[- ]solved|\bfixed\b|been merged/i.test(sentence), false);
+  const merged = github.customerChangeSentence(refs[0], { ok: true, state: 'merged' });
+  assert.match(merged, /has been merged/i);
+  const missed = github.customerChangeSentence(refs[0], { ok: false });
+  assert.match(missed, /cannot see whether it shipped/i);
+  assert.match(missed, /14691/);
+});

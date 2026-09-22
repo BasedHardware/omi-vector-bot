@@ -366,6 +366,109 @@ function describeWebhookEvent(payload) {
   return null;
 }
 
+function linkedChanges(text) {
+  const refs = [];
+  const seen = new Set();
+  const re = /https?:\/\/github\.com\/BasedHardware\/omi\/(pull|issues)\/(\d+)/gi;
+  for (const match of String(text || '').matchAll(re)) {
+    const kind = match[1].toLowerCase() === 'pull' ? 'pull' : 'issue';
+    const number = match[2];
+    const key = `${kind}:${number}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    refs.push({
+      kind,
+      number,
+      url: `https://github.com/BasedHardware/omi/${kind === 'pull' ? 'pull' : 'issues'}/${number}`,
+    });
+  }
+  return refs;
+}
+
+function textFromEmbeds(embeds) {
+  const list = !embeds
+    ? []
+    : typeof embeds.values === 'function'
+      ? [...embeds.values()]
+      : Array.isArray(embeds)
+        ? embeds
+        : [];
+  const lines = [];
+  for (const embed of list) {
+    const title = String(embed?.title || embed?.data?.title || '').trim();
+    const url = String(embed?.url || embed?.data?.url || '').trim();
+    const description = String(embed?.description || embed?.data?.description || '').trim();
+    if (title) lines.push(title);
+    if (url) lines.push(url);
+    if (description) lines.push(description.slice(0, 500));
+  }
+  return lines.join('\n');
+}
+
+async function lookupChange(ref, { fetchImpl } = {}) {
+  if (!ref?.number) return { ok: false };
+  const fetchFn = fetchImpl || fetch;
+  const path = ref.kind === 'pull' ? 'pulls' : 'issues';
+  const url = `https://api.github.com/repos/${repo()}/${path}/${ref.number}`;
+  try {
+    const res = await fetchFn(url, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'omi-vector-bot',
+      },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return { ok: false };
+    const data = await res.json();
+    if (data.merged === true || data.merged_at) return { ok: true, state: 'merged' };
+    const state = String(data.state || '').toLowerCase();
+    if (state === 'open' || state === 'closed') return { ok: true, state };
+    return { ok: false };
+  } catch (err) {
+    console.error('[GitHub] public lookup failed:', err.message);
+    return { ok: false };
+  }
+}
+
+const SHIPPED_CLAIM = [
+  /\bhalf[- ]solved\b/i,
+  /\b(is|it's|it is|has been) fixed\b/i,
+  /\bfixed this\b/i,
+  /\bdeletions will stick\b/i,
+  /\b(it |this )?(has|have) shipped\b/i,
+];
+
+function stripShippedClaims(text) {
+  return String(text || '')
+    .split('\n')
+    .map((line) => {
+      if (!line.trim() || !SHIPPED_CLAIM.some((re) => re.test(line))) return line;
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => !SHIPPED_CLAIM.some((re) => re.test(sentence)))
+        .join(' ')
+        .trim();
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function customerChangeSentence(ref, lookup) {
+  const url = ref?.url || '';
+  if (!url) return '';
+  if (!lookup?.ok) {
+    return `Someone already pointed at this change: ${url}. I cannot see whether it shipped.`;
+  }
+  if (lookup.state === 'merged') {
+    return `Someone already opened this change, and it has been merged: ${url}.`;
+  }
+  if (lookup.state === 'open') {
+    return `Someone already opened this change, and it is still open: ${url}. It has not shipped.`;
+  }
+  return `Someone already opened this change: ${url}. It has not shipped.`;
+}
+
 module.exports = {
   DEFAULT_REPO,
   repo,
@@ -385,6 +488,11 @@ module.exports = {
   threadsForIssue,
   resetGithubMemory,
   searchIssues,
+  linkedChanges,
+  textFromEmbeds,
+  lookupChange,
+  stripShippedClaims,
+  customerChangeSentence,
   createIssue,
   verifyWebhook,
   describeWebhookEvent,

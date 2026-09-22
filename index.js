@@ -22,7 +22,7 @@ const {
   replyMentions,
   isUnknownMessageRef,
 } = require('./utils');
-const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadImage, unreadImageSentence } = require('./attachments');
+const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadMedia, unreadMediaSentence } = require('./attachments');
 const {
   notifyStaff,
   canNotifyStaff,
@@ -248,17 +248,20 @@ async function handleMessage(message) {
 
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   const files = await fetchTextAttachments(message.attachments);
-  const unreadImage = shouldMentionUnreadImage(message.attachments, files);
+  const unreadMedia = shouldMentionUnreadMedia(message.attachments);
   let asked = clipUserQuestion(caption) || caption;
   const forumPrefix = forumStarterPrefix(message);
   if (forumPrefix) asked = [forumPrefix, asked].filter(Boolean).join('\n');
+  const embedNote = github.textFromEmbeds(message.embeds);
+  if (embedNote) asked = [asked, embedNote].filter(Boolean).join('\n');
   const question = formatQuestion(asked, files);
+  const changes = github.linkedChanges(question);
   if (question.length < 5) {
-    if (unreadImage) {
+    if (unreadMedia && !changes.length) {
       await message.reply({
-        content: unreadImageSentence(),
+        content: unreadMediaSentence(),
         allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
-      }).catch((err) => console.error('[Bot] image note failed:', err.message));
+      }).catch((err) => console.error('[Bot] media note failed:', err.message));
     }
     return;
   }
@@ -381,10 +384,19 @@ async function handleMessage(message) {
         asked || question
       );
     }
-    if (unreadImage) {
-      const note = unreadImageSentence();
+    if (unreadMedia && !changes.length) {
+      const note = unreadMediaSentence();
       if (!String(cleanAnswer || '').includes(note)) {
         cleanAnswer = [cleanAnswer, note].filter(Boolean).join('\n\n');
+      }
+    }
+    let changeSentence = '';
+    if (changes[0]) {
+      const lookup = await github.lookupChange(changes[0]);
+      changeSentence = github.customerChangeSentence(changes[0], lookup);
+      cleanAnswer = github.stripShippedClaims(cleanAnswer);
+      if (changeSentence && !String(cleanAnswer || '').includes(changes[0].url)) {
+        cleanAnswer = [cleanAnswer, changeSentence].filter(Boolean).join('\n\n');
       }
     }
 
@@ -444,7 +456,7 @@ async function handleMessage(message) {
             draft: cleanAnswer,
             shopify: shopifyLookup?.order ? shopify.formatStaffFacts(shopifyLookup.order) : undefined,
             area: triaged.area,
-            github: githubHit?.duplicate?.url,
+            github: changeSentence || githubHit?.duplicate?.url,
             fileIssueId,
             route: { area: triaged.area, lane: triaged.lane, escalate: true },
             skipDedupe: isTestChannel(channel) && !inHandoff,

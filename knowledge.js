@@ -61,18 +61,27 @@ function searchWords(query) {
 
 const HOWTO_FACT = /\b(pair|pairing|bluetooth|led\b|teal|orange =|dev kit|cv1|center button)\b/i;
 const DEVICE_FACT = /\b(necklace|blue light|teal|pairing|bluetooth|recording|disconnected)\b/i;
+const SHOP_FACT = /\b(shopify|order lookup|order and tracking)\b/i;
 
 function isHowtoFact(text) {
   return HOWTO_FACT.test(String(text || ''));
 }
 
+function isShopFact(text) {
+  return SHOP_FACT.test(String(text || ''));
+}
+
 function filterSnippetsForLane(snippets, lane) {
   const list = (snippets || []).map((s) => String(s || '').trim()).filter(Boolean);
-  if (!lane || lane === 'faq' || lane === 'unknown') return list;
-  const filtered = list.filter((s) => !isHowtoFact(s));
-  if (lane === 'shop' || lane === 'money' || lane === 'privacy') {
-    return filtered.filter((s) => !DEVICE_FACT.test(s));
+  const keepShop = lane === 'shop' || lane === 'money';
+  if (!lane || lane === 'faq' || lane === 'unknown') {
+    return keepShop ? list : list.filter((s) => !isShopFact(s));
   }
+  let filtered = list.filter((s) => !isHowtoFact(s));
+  if (lane === 'shop' || lane === 'money' || lane === 'privacy') {
+    filtered = filtered.filter((s) => !DEVICE_FACT.test(s));
+  }
+  if (!keepShop) filtered = filtered.filter((s) => !isShopFact(s));
   return filtered;
 }
 

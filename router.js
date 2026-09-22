@@ -183,6 +183,13 @@ function ownerMention(area, owners) {
   return ref.kind === 'role' ? `<@&${ref.id}>` : `<@${ref.id}>`;
 }
 
+function namesBothApps(text) {
+  const s = String(text || '');
+  const desktop = /\b(desktop|macos|mac\s?os|computer app)\b/i.test(s);
+  const phone = /\b(mobile app|phone app|iphone|ios app|android)\b/i.test(s);
+  return desktop && phone;
+}
+
 function looksLikeCaptureFailure(text) {
   return any(text, CAPTURE_FAILURE);
 }
@@ -334,6 +341,12 @@ function staffReason(route, question) {
   if (looksLikeCaptureFailure(question) && looksLikeTranscription(question)) {
     return 'Transcription unavailable, and the device is not capturing. Cannot see the app from chat.';
   }
+  if (
+    namesBothApps(question) &&
+    (lane === 'tech' || route?.area === 'desktop' || route?.area === 'app')
+  ) {
+    return 'Cannot see the computer app or the phone app from chat.';
+  }
   if (route?.area === 'app') return 'Cannot see the phone app from chat';
   if (route?.area === 'desktop') return 'Cannot see the computer app from chat';
   if (lane === 'firmware' || route?.area === 'firmware') {
@@ -350,9 +363,12 @@ function staffReason(route, question) {
 
 function pickStaffReason(route, modelReason, question) {
   if (route?.lane === 'faq' && looksLikeDocs(question)) return staffReason(route, question);
-  const reason = String(modelReason || '').trim();
   const lane = route?.lane;
   const area = route?.area;
+  if (namesBothApps(question) && (lane === 'tech' || area === 'desktop' || area === 'app')) {
+    return staffReason(route, question);
+  }
+  const reason = String(modelReason || '').trim();
   const techish =
     lane === 'tech' ||
     lane === 'firmware' ||
@@ -408,5 +424,6 @@ module.exports = {
   knownIssueReply,
   looksLikeCaptureFailure,
   looksLikeTranscription,
+  namesBothApps,
   describe,
 };
