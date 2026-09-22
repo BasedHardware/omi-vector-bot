@@ -377,6 +377,23 @@ test('clipUserQuestion drops Discord OP chrome from a pasted help post', () => {
   assert.equal(/^Image$/m.test(out), false);
 });
 
+test('clipUserQuestion keeps the customer bug and drops a staff follow-up on a pasted help post', () => {
+  const { clipUserQuestion } = require('../handoff');
+  const out = clipUserQuestion(
+    [
+      'Omi window appears randomly',
+      'Charles Clogston',
+      'OP',
+      '— 20/09/2026, 16:56',
+      'What triggers the Omi app to come to the front? In the middle of working on an app, Omi window will open and come to the front and has to be hidden.',
+      'Aryan Gupta [FDRM], ⭐ — Yesterday at 12:04',
+      '@Charles Clogston Likely an alert when Omi hits a mic or transcription error in the background, it pulls the window forward to show it. When it jumps up, is there a dialog on it or just the normal UI? Also, do you use Ctrl+Option+R in the app you\'re working in?',
+    ].join('\n')
+  );
+  assert.match(out, /come to the front/i);
+  assert.equal(/Charles Clogston|20\/09\/2026|FDRM|Ctrl\+Option\+R|transcription error/i.test(out), false);
+});
+
 test('open Handoff threads match the same Watch ticket, not a refund', async () => {
   const { isSameHandoff, findOpenHandoff } = require('../handoff');
   const watch = 'Handoff · app · tech · Apple Watch recordings missing from app';

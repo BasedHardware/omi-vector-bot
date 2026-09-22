@@ -77,6 +77,18 @@ test('app crash and macOS are tech; pairing how-to is faq', () => {
   );
   assert.equal(blueDot.area, 'app');
   assert.equal(blueDot.lane, 'tech');
+  const omiWindow = router.classify(
+    'What triggers the Omi app to come to the front? In the middle of working on an app, Omi window will open and come to the front and has to be hidden.'
+  );
+  assert.equal(omiWindow.area, 'desktop');
+  assert.equal(omiWindow.lane, 'tech');
+  const withStaffTranscription = router.classify(
+    [
+      'What triggers the Omi app to come to the front? Omi window will open and come to the front.',
+      'Likely an alert when Omi hits a mic or transcription error in the background.',
+    ].join('\n')
+  );
+  assert.equal(withStaffTranscription.area, 'desktop');
 });
 
 test('firmware death escalates; talk to a human always does', () => {

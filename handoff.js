@@ -95,7 +95,11 @@ function isDiscordPasteChrome(line) {
   if (/^image$/i.test(t)) return true;
   if (/^(—\s*)?(yesterday|today)\s+at\s+\d{1,2}:\d{2}/i.test(t)) return true;
   if (/^—\s*\d{1,2}:\d{2}\b/.test(t)) return true;
-  if (/\[[A-Za-z0-9_]{2,16}\],?\s*$/.test(t) && t.length <= 64 && t.split(/\s+/).length <= 5) {
+  if (/^—?\s*\d{1,2}[/.]\d{1,2}[/.]\d{2,4}([, T]\s*\d{1,2}:\d{2})?/i.test(t)) return true;
+  if (/^[A-Z][A-Za-z]+(\s+[A-Z][A-Za-z]+)+,?\s*$/.test(t) && t.split(/\s+/).length <= 4) {
+    return true;
+  }
+  if (/\[[A-Za-z0-9_]{2,16}\]/.test(t) && t.length <= 88 && t.split(/\s+/).length <= 14) {
     return true;
   }
   return false;
@@ -103,9 +107,14 @@ function isDiscordPasteChrome(line) {
 
 function clipUserQuestion(text) {
   const raw = String(text || '').trim();
-  const cleaned = raw
-    .split('\n')
-    .filter((line) => !/^want:\s/i.test(line.trim()) && !isDiscordPasteChrome(line))
+  const kept = [];
+  for (const line of raw.split('\n')) {
+    const t = line.trim();
+    if (/^@[\w.]+/.test(t) && kept.some((k) => k.trim())) break;
+    if (/^want:\s/i.test(t) || isDiscordPasteChrome(line)) continue;
+    kept.push(line);
+  }
+  const cleaned = kept
     .join('\n')
     .replace(/\bping me as\s+@\S+/gi, '')
     .replace(/@yourdiscordname/gi, '')

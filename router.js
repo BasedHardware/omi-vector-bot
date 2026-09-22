@@ -66,6 +66,9 @@ const DESKTOP = [
   /\bwindows app\b/i,
   /\bnpm error\b/i,
   /\bERESOLVE\b/,
+  /\bomi window\b/i,
+  /\bfloating bubble\b/i,
+  /\bcome to the front\b/i,
 ];
 
 const APP = [
