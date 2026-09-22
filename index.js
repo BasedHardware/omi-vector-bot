@@ -8,6 +8,7 @@ const telegram = require('./telegram');
 const {
   isOnCooldown,
   markReplied,
+  claimMessage,
   shouldEscalate,
   typingDelay,
   sanitizeReply,
@@ -238,6 +239,10 @@ async function postShopTicketCard(channel, triaged) {
 
 async function handleMessage(message) {
   if (!shouldHandle(message)) return;
+  if (!claimMessage(message.id)) {
+    console.log(`[Bot] already handling ${message.id}`);
+    return;
+  }
 
   const channel = message.channel;
   // Test channel: do not silently drop a second question. Help-forum cooldown stays.

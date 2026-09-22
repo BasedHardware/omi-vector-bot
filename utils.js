@@ -45,11 +45,27 @@ function markReplied(threadId) {
   lastReplyMap.set(threadId, Date.now());
 }
 
+const claimedMessages = new Map();
+const CLAIM_MS = 10 * 60_000;
+
+function claimMessage(id) {
+  const key = String(id || '').trim();
+  if (!key) return true;
+  const now = Date.now();
+  const prev = claimedMessages.get(key);
+  if (prev && now - prev < CLAIM_MS) return false;
+  claimedMessages.set(key, now);
+  return true;
+}
+
 // Prevent unbounded growth — prune entries older than 5 minutes every 2 minutes
 setInterval(() => {
   const cutoff = Date.now() - 5 * 60_000;
   for (const [key, ts] of lastReplyMap) {
     if (ts < cutoff) lastReplyMap.delete(key);
+  }
+  for (const [key, ts] of claimedMessages) {
+    if (ts < cutoff) claimedMessages.delete(key);
   }
 }, 2 * 60_000).unref();
 
@@ -299,6 +315,7 @@ function escalateReply(answer, opts = {}) {
 module.exports = {
   isOnCooldown,
   markReplied,
+  claimMessage,
   containsEscalationKeyword,
   shouldEscalate,
   typingDelay,

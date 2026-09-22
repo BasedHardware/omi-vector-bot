@@ -427,3 +427,10 @@ test('formatDiscordReply turns LED pipe lists into bullets', () => {
   assert.match(out, /^- orange = charging, disconnected$/m);
   assert.equal(out.includes(' | '), false);
 });
+
+test('the same message id is only claimed once', () => {
+  const { claimMessage } = require('../utils');
+  assert.equal(claimMessage('forum-starter-1'), true);
+  assert.equal(claimMessage('forum-starter-1'), false);
+  assert.equal(claimMessage('forum-starter-2'), true);
+});
