@@ -133,7 +133,8 @@ function parseThreadIds(...blobs) {
 }
 
 function formatIssueCard(draft, extra = {}) {
-  const labels = (draft?.labels || []).map((label) => `\`${label}\``).join('  ') || '`vector`';
+  const visible = (draft?.labels || []).filter((label) => String(label).toLowerCase() !== 'vector');
+  const labels = visible.map((label) => `\`${label}\``).join('  ') || '`none`';
   const embed = {
     title: clipForDiscord(draft?.title || 'Issue', 80),
     color: 0x5865f2,

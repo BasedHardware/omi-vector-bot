@@ -513,3 +513,55 @@ test('open Handoff threads match the same Watch ticket, not a refund', async () 
   );
   assert.equal(byStarter?.id, 'starter');
 });
+
+test('staff card drops a cause-shaped why line', () => {
+  const ticket = formatStaffTicket({
+    message: {
+      url: 'https://discord.com/channels/1/2/3',
+      author: { id: '99' },
+      channel: { id: '2' },
+    },
+    question: 'Keep getting transcription unavailable',
+    reason: 'Phone app reports transcription unavailable repeatedly; app bug needs investigation',
+    area: 'app',
+    lane: 'tech',
+  });
+  const why = ticket.discord.embeds[0].fields.find((field) => field.name === 'Why').value;
+  assert.equal(/app bug/i.test(why), false);
+  assert.match(why, /cannot see the phone app/i);
+  assert.match(ticket.discord.embeds[0].description, /transcription unavailable/i);
+});
+
+test('forum starter title and tags are included once', () => {
+  const { forumStarterPrefix, threadHasKnownIssueTag } = require('../handoff');
+  const prev = process.env.HELP_FORUM_CHANNEL_ID;
+  process.env.HELP_FORUM_CHANNEL_ID = 'help';
+  const channel = {
+    isThread: () => true,
+    parentId: 'help',
+    id: 'thread1',
+    name: "Have pro sub and device doesn't capture anything",
+    appliedTags: ['android', 'known'],
+    parent: {
+      type: 15,
+      availableTags: [
+        { id: 'android', name: 'Android' },
+        { id: 'trans', name: 'Transcription' },
+        { id: 'known', name: 'Known issue' },
+        { id: 'cv', name: 'Omi (CV1)' },
+      ],
+    },
+  };
+  try {
+    const prefix = forumStarterPrefix({ id: 'thread1', channel });
+    assert.match(prefix, /Post: Have pro sub and device doesn't capture anything/);
+    assert.match(prefix, /Tags: Android, Known issue/);
+    assert.equal(forumStarterPrefix({ id: 'later-message', channel }), '');
+    assert.equal(threadHasKnownIssueTag(channel), true);
+    channel.appliedTags = ['android'];
+    assert.equal(threadHasKnownIssueTag(channel), false);
+  } finally {
+    if (prev == null) delete process.env.HELP_FORUM_CHANNEL_ID;
+    else process.env.HELP_FORUM_CHANNEL_ID = prev;
+  }
+});

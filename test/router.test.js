@@ -203,3 +203,33 @@ test('AREA_OWNERS parses users and roles; empty means no ping', () => {
   assert.equal(router.shouldPingOwner(router.classify('Where is my order?')), true);
   assert.equal(router.shouldPingOwner(router.classify('How do I pair my Omi?')), false);
 });
+
+test('device not capturing stays with transcription and does not become a firmware repair', () => {
+  const q = "Have pro sub and device doesn't capture anything. Keep getting transcription unavailable.";
+  const route = router.classify(q);
+  assert.equal(route.area, 'app');
+  assert.equal(route.lane, 'tech');
+  assert.equal(route.captureFailure, true);
+  assert.equal(router.skipModel(route), false);
+  assert.equal(route.lane === 'money', false);
+  const reason = router.staffReason(route, q);
+  assert.match(reason, /transcription unavailable/i);
+  assert.match(reason, /not capturing/i);
+  assert.equal(/app bug/i.test(reason), false);
+  const replaced = router.pickStaffReason(
+    route,
+    'Phone app reports transcription unavailable repeatedly; app bug needs investigation',
+    q
+  );
+  assert.equal(replaced, reason);
+  const triage = require('../triage');
+  const merged = triage.merge(route, { topic: 'Transcription unavailable in phone app', labels: ['app'] }, q);
+  assert.equal(merged.topic, 'Transcription unavailable, device not capturing');
+});
+
+test('known issue reply does not invent a diagnosis', () => {
+  const reply = router.knownIssueReply();
+  assert.match(reply, /already marked as a known issue/i);
+  assert.match(reply, /person has to confirm/i);
+  assert.equal(/app bug|app-side|watch or phone/i.test(reply), false);
+});

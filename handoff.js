@@ -1,6 +1,6 @@
 const telegram = require('./telegram');
 const { clipForDiscord, stripPingNarration } = require('./utils');
-const { ownerMention, ownerRef, shouldPingOwner, parseAreaOwners, classify } = require('./router');
+const { ownerMention, ownerRef, shouldPingOwner, parseAreaOwners, classify, pickStaffReason, looksLikeCaptureFailure, looksLikeTranscription } = require('./router');
 
 const DEDUPE_MS = 15 * 60_000;
 const lastHandoff = new Map();
@@ -371,6 +371,9 @@ function isThreadNoise(line) {
 
 function threadTopic(question, route = {}) {
   const raw = String(question || '');
+  if (looksLikeCaptureFailure(raw) && looksLikeTranscription(raw)) {
+    return 'Transcription unavailable, device not capturing';
+  }
   const numbered = raw.match(/\border\s*#\s*(\d{3,})\b/i) || raw.match(/#\s*(\d{3,})\b/);
   if (/\b((import\s+)?tax(es)?|duties)\b/i.test(raw)) {
     return numbered ? `import tax on order #${numbered[1]}` : 'import tax or duties';
@@ -455,7 +458,6 @@ function formatStaffTicket({
   extraRoles,
   labels: labelOverride,
 }) {
-  const why = clipForDiscord(reason || "I can't finish this from chat.", 200);
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
   const from = message?.author?.id ? `<@${message.author.id}>` : 'unknown user';
@@ -464,6 +466,10 @@ function formatStaffTicket({
   const { users, roles } = staffMentionIds();
   const cleanDraft = stripPingNarration(draft || '');
   const resolved = resolveRoute({ area, lane, question });
+  const why = clipForDiscord(
+    pickStaffReason(resolved, reason, question) || "I can't finish this from chat.",
+    200
+  );
   const labels =
     Array.isArray(labelOverride) && labelOverride.length
       ? labelOverride.filter((label) => label && label !== 'needs-human')
@@ -681,6 +687,32 @@ async function notifyStaff({
   return { ok: false, via: null, error: errors.join('; ') || 'no staff path' };
 }
 
+function appliedTagNames(channel) {
+  const tags = channel?.parent?.availableTags || channel?.parent?.available_tags || [];
+  const applied = new Set([...(channel?.appliedTags || [])].map(String));
+  return tags
+    .filter((tag) => applied.has(String(tag.id)))
+    .map((tag) => String(tag.name || '').trim())
+    .filter(Boolean);
+}
+
+function threadHasKnownIssueTag(channel) {
+  if (!isHelpForumThread(channel)) return false;
+  return appliedTagNames(channel).some((name) => /^known issue$/i.test(name));
+}
+
+function forumStarterPrefix(message) {
+  const channel = message?.channel;
+  if (!isHelpForumThread(channel)) return '';
+  if (String(message?.id || '') !== String(channel?.id || '')) return '';
+  const title = String(channel.name || '').trim();
+  const tags = appliedTagNames(channel);
+  const lines = [];
+  if (title) lines.push(`Post: ${title}`);
+  if (tags.length) lines.push(`Tags: ${tags.join(', ')}`);
+  return lines.join('\n');
+}
+
 function isHandoffThread(channel) {
   return Boolean(channel?.isThread?.() && /^Handoff\b/i.test(channel.name || ''));
 }
@@ -710,6 +742,8 @@ module.exports = {
   notifyStaff,
   isHandoffThread,
   isHelpForumThread,
+  forumStarterPrefix,
+  threadHasKnownIssueTag,
   isCloseableThread,
   canSaveFaq,
   canStaffAct,

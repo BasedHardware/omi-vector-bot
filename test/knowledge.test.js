@@ -134,6 +134,23 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   assert.equal(/blue = on|necklace|recording/i.test(faqTextForLane('shop')), false);
   assert.match(buildSystemPrompt({ lane: 'shop' }), /Do not mention device lights/);
   assert.equal(/If they mention a device light/i.test(buildSystemPrompt({ lane: 'shop' })), false);
+  const techPrompt = buildSystemPrompt({ lane: 'tech' });
+  assert.match(techPrompt, /Do not name a cause/);
+  assert.equal(/They may still be on the watch or phone/i.test(techPrompt), false);
+  const asked = buildUserPrompt({
+    question: 'Are my recordings deleted?',
+    threadHistory: [],
+    knowledgeSnippets: [],
+    route: { lane: 'tech', area: 'app' },
+  });
+  assert.match(asked, /may still be on the watch or phone/i);
+  const notAsked = buildUserPrompt({
+    question: 'Keep getting transcription unavailable',
+    threadHistory: [],
+    knowledgeSnippets: [],
+    route: { lane: 'tech', area: 'app' },
+  });
+  assert.equal(/may still be on the watch or phone/i.test(notAsked), false);
   const accountTools = buildToolFacts({
     route: { lane: 'account', area: 'shop' },
   });

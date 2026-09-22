@@ -22,7 +22,7 @@ const {
   replyMentions,
   isUnknownMessageRef,
 } = require('./utils');
-const { hasUsableAttachment, fetchTextAttachments, formatQuestion } = require('./attachments');
+const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadImage, unreadImageSentence } = require('./attachments');
 const {
   notifyStaff,
   canNotifyStaff,
@@ -35,6 +35,8 @@ const {
   findOpenHandoff,
   rememberOpenHandoff,
   shouldReuseOpenHandoff,
+  forumStarterPrefix,
+  threadHasKnownIssueTag,
 } = require('./handoff');
 const knowledge = require('./knowledge');
 const shopify = require('./shopify');
@@ -43,7 +45,7 @@ const router = require('./router');
 const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts } = require('./prompt');
-const { stripHowtoBleed, stripShopBleed } = require('./honesty');
+const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -245,10 +247,21 @@ async function handleMessage(message) {
   }
 
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
-  const asked = clipUserQuestion(caption) || caption;
   const files = await fetchTextAttachments(message.attachments);
+  const unreadImage = shouldMentionUnreadImage(message.attachments, files);
+  let asked = clipUserQuestion(caption) || caption;
+  const forumPrefix = forumStarterPrefix(message);
+  if (forumPrefix) asked = [forumPrefix, asked].filter(Boolean).join('\n');
   const question = formatQuestion(asked, files);
-  if (question.length < 5) return;
+  if (question.length < 5) {
+    if (unreadImage) {
+      await message.reply({
+        content: unreadImageSentence(),
+        allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
+      }).catch((err) => console.error('[Bot] image note failed:', err.message));
+    }
+    return;
+  }
 
   console.log(`[Bot] Processing in ${channel.id}`);
 
@@ -352,8 +365,28 @@ async function handleMessage(message) {
       );
     }
     cleanAnswer = clipForDiscord(
-      stripShopBleed(stripHowtoBleed(cleanAnswer || '', triaged.lane), triaged.lane)
+      stripUnsupportedClaims(
+        stripShopBleed(stripHowtoBleed(cleanAnswer || '', triaged.lane), triaged.lane),
+        triaged.lane,
+        asked || question
+      )
     );
+    if (threadHasKnownIssueTag(channel)) {
+      cleanAnswer = router.knownIssueReply();
+      aiResponse.reason = 'Already tagged Known issue.';
+    } else {
+      aiResponse.reason = router.pickStaffReason(
+        { area: triaged.area, lane: triaged.lane },
+        aiResponse.reason,
+        asked || question
+      );
+    }
+    if (unreadImage) {
+      const note = unreadImageSentence();
+      if (!String(cleanAnswer || '').includes(note)) {
+        cleanAnswer = [cleanAnswer, note].filter(Boolean).join('\n\n');
+      }
+    }
 
     const nameMeta = {
       question: asked,

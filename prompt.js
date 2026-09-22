@@ -1,4 +1,5 @@
 const { describe } = require('./router');
+const { askedWhereRecordingsWent } = require('./honesty');
 
 const HOWTO_FAQ = [
   'Omi works with iPhone and Android. Keep the Omi app open. If you fully close it (swipe it away), it stops writing down what was said and the device disconnects.',
@@ -98,7 +99,7 @@ You cannot see orders, tracking, warehouse, accounts, phone or computer apps, or
 Never write about pinging, flagging, tickets, mailboxes, colleagues, or “a person on the team.” Code writes the thread and the issue card.
 ${
     lane === 'tech' || lane === 'firmware' || lane === 'faq'
-      ? '\nDo not say recordings are gone for good. They may still be on the watch or phone. Do not guess delete/reinstall/reset steps.\n'
+      ? '\nReport the symptom they wrote. Say you cannot see the app or the device. Do not name a cause (app-side, app bug, or firmware bug) or a place the recordings are. A device-light colour from the FAQ is not a cause. Do not guess delete/reinstall/reset steps.\n'
       : ''
   }
 
@@ -130,6 +131,9 @@ function buildUserPrompt({ question, threadHistory, knowledgeSnippets, route, to
     `Facts from tools (only source of truth):\n${tools}`,
     knowledge ? `Knowledge (staff-saved; use these words if they apply):\n${knowledge}` : 'Knowledge: (none yet)',
     history ? `Thread:\n${history}` : '',
+    askedWhereRecordingsWent(question)
+      ? 'They asked whether recordings were deleted. You may say the recordings may still be on the watch or phone. Do not say they are gone for good.'
+      : '',
     `User question (they may not be technical — answer in everyday words):\n${question}`,
   ]
     .filter(Boolean)

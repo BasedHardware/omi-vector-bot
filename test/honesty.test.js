@@ -379,6 +379,44 @@ test('clipThreadHistory drops empty lines and caps length', () => {
   assert.equal(out[1].content, 'Where is my order?');
 });
 
+test('tech replies lose a cause and a recordings location', () => {
+  const { stripUnsupportedClaims } = require('../honesty');
+  const out = stripUnsupportedClaims(
+    [
+      'Getting "transcription unavailable" again and again is an app-side problem, and I can\'t see your app from here.',
+      'Keep the app installed, and don\'t worry about the recordings you\'ve already made — they may still be on the watch or phone.',
+      'I will not guess a fix.',
+    ].join('\n\n'),
+    'tech',
+    'Keep getting transcription unavailable'
+  );
+  assert.equal(/app-side/i.test(out), false);
+  assert.equal(/watch or phone/i.test(out), false);
+  assert.match(out, /will not guess a fix/i);
+});
+
+test('a recordings location stays when they asked if recordings were deleted', () => {
+  const { stripUnsupportedClaims, askedWhereRecordingsWent } = require('../honesty');
+  const q = 'Are my recordings gone?';
+  assert.equal(askedWhereRecordingsWent(q), true);
+  const out = stripUnsupportedClaims(
+    'I can\'t see the device. The recordings may still be on the watch or phone.',
+    'tech',
+    q
+  );
+  assert.match(out, /watch or phone/i);
+});
+
+test('a blue-light fact that mentions an app bug is kept', () => {
+  const { stripUnsupportedClaims } = require('../honesty');
+  const out = stripUnsupportedClaims(
+    'Blue light means the necklace is on and already connected to your phone. The app saying offline while the light is blue is an app bug.',
+    'tech',
+    'blue light but the app says offline'
+  );
+  assert.match(out, /Blue light means/i);
+});
+
 test('formatDiscordReply turns LED pipe lists into bullets', () => {
   const out = formatDiscordReply(
     'LED colours: red = on, disconnected | blue = on, connected | orange = charging, disconnected'

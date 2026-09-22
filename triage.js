@@ -1,4 +1,4 @@
-const { classify } = require('./router');
+const { classify, looksLikeCaptureFailure, looksLikeTranscription } = require('./router');
 const { clipForDiscord } = require('./utils');
 
 const AREAS = ['shop', 'app', 'desktop', 'firmware', 'privacy'];
@@ -77,6 +77,11 @@ function merge(route, agent, question) {
     sanitizeTopic(agent?.topic) ||
     fallbackTopic(question, { area, lane }) ||
     'needs a person';
+  const bothCaptureAndTranscript =
+    looksLikeCaptureFailure(question) && looksLikeTranscription(question);
+  const resolvedTopic = bothCaptureAndTranscript
+    ? 'Transcription unavailable, device not capturing'
+    : topic;
 
   const techish =
     lane === 'tech' ||
@@ -92,7 +97,7 @@ function merge(route, agent, question) {
     area,
     lane,
     labels,
-    topic,
+    topic: resolvedTopic,
     fileIssue,
     escalate: Boolean(classified.escalate || agent?.escalate || moneyLock),
   };

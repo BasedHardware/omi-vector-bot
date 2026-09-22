@@ -43,7 +43,10 @@ test('draftFromQuestion never uses shop or privacy labels', () => {
   assert.match(named.body, /What they wrote/);
   const card = github.formatIssueCard(named);
   assert.match(card.title, /ERESOLVE/);
-  assert.match(card.fields.find((f) => f.name === 'Labels').value, /desktop/);
+  const labelField = card.fields.find((f) => f.name === 'Labels').value;
+  assert.match(labelField, /desktop/);
+  assert.equal(/vector/i.test(labelField), false);
+  assert.equal(named.labels.includes('vector'), true);
 });
 
 test('searchIssues returns the first open hit', async () => {

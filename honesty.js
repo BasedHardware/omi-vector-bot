@@ -144,6 +144,67 @@ function looksLikeShopBleed(text) {
   return SHOP_BLEED.some((re) => re.test(String(text || '')));
 }
 
+function askedWhereRecordingsWent(question) {
+  const s = String(question || '');
+  return (
+    /\b(recordings?|clips?).{0,60}\b(gone|deleted|lost|missing|disappeared)\b/i.test(s) ||
+    /\b(where|what happened to).{0,40}\b(recordings?|clips?)\b/i.test(s) ||
+    /\b(delete|deleted|gone|lost).{0,40}\b(recordings?|clips?)\b/i.test(s)
+  );
+}
+
+const CAUSE_CLAIM = [/\bapp-side\b/i, /\bfirmware bug\b/i, /\bknown cause\b/i, /\bapp bug\b/i];
+
+const RECORDINGS_PLACE = [
+  /\bwatch or phone\b/i,
+  /\brecordings?.{0,50}\b(on|in) the (watch|phone)\b/i,
+  /\b(on|in) the (watch|phone).{0,50}\brecordings?\b/i,
+];
+
+function sentenceKeepsLightFact(sentence) {
+  return (
+    /\bapp bug\b/i.test(sentence) &&
+    /\b(blue|red|teal|orange)\b/i.test(sentence) &&
+    /\b(light|led|dot)\b/i.test(sentence)
+  );
+}
+
+function looksLikeCauseClaim(sentence) {
+  if (sentenceKeepsLightFact(sentence)) return false;
+  return CAUSE_CLAIM.some((re) => re.test(String(sentence || '')));
+}
+
+function looksLikeRecordingsPlace(sentence) {
+  return RECORDINGS_PLACE.some((re) => re.test(String(sentence || '')));
+}
+
+function stripUnsupportedClaims(text, lane, question) {
+  if (!['tech', 'firmware', 'faq'].includes(lane)) return String(text || '');
+  const allowPlace = askedWhereRecordingsWent(question);
+  const cleaned = String(text || '')
+    .split('\n')
+    .map((line) => {
+      if (!line.trim()) return line;
+      const drop =
+        looksLikeCauseClaim(line) || (!allowPlace && looksLikeRecordingsPlace(line));
+      if (!drop) return line;
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => {
+          if (looksLikeCauseClaim(sentence)) return false;
+          if (!allowPlace && looksLikeRecordingsPlace(sentence)) return false;
+          return true;
+        })
+        .join(' ')
+        .trim();
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (cleaned) return cleaned;
+  return "I can't see the app or the device from here, so I won't guess a fix.";
+}
+
 function stripShopBleed(text, lane) {
   const raw = String(text || '');
   if (lane === 'shop' || lane === 'money') return raw;
@@ -172,4 +233,6 @@ module.exports = {
   looksLikeInventedLookup,
   stripHowtoBleed,
   stripShopBleed,
+  stripUnsupportedClaims,
+  askedWhereRecordingsWent,
 };

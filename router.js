@@ -86,6 +86,15 @@ const APP = [
   /\bapp.{0,40}(disconnected|offline)\b/i,
 ];
 
+const CAPTURE_FAILURE = [
+  /doesn'?t capture/i,
+  /does not capture/i,
+  /not capturing/i,
+  /isn'?t capturing/i,
+  /aren'?t capturing/i,
+  /\bno audio\b/i,
+];
+
 const FAQ = [
   /\bleds?\b/i,
   /\bpair(ing)?\b/i,
@@ -174,7 +183,25 @@ function ownerMention(area, owners) {
   return ref.kind === 'role' ? `<@&${ref.id}>` : `<@${ref.id}>`;
 }
 
+function looksLikeCaptureFailure(text) {
+  return any(text, CAPTURE_FAILURE);
+}
+
+function looksLikeTranscription(text) {
+  return /\btranscription\b/i.test(String(text || ''));
+}
+
+function reasonNamesCause(text) {
+  return /\b(app-side|app side|app bug|firmware bug|phone app bug|known cause|computer app bug)\b/i.test(
+    String(text || '')
+  );
+}
+
 function classify(text) {
+  return { ...classifyRoute(text), captureFailure: looksLikeCaptureFailure(text) };
+}
+
+function classifyRoute(text) {
   const s = String(text || '');
   const wantHuman = any(s, WANT_HUMAN);
 
@@ -289,15 +316,36 @@ function staffReason(route, question) {
   }
   if (lane === 'money') return 'Refund, charge, or address change';
   if (lane === 'privacy') return 'Data deletion / privacy request';
-  if (route?.area === 'app') return 'Phone app bug; cannot see the app from chat';
-  if (route?.area === 'desktop') return 'Computer app bug; cannot see the app from chat';
+  if (looksLikeCaptureFailure(question) && looksLikeTranscription(question)) {
+    return 'Transcription unavailable, and the device is not capturing. Cannot see the app from chat.';
+  }
+  if (route?.area === 'app') return 'Cannot see the phone app from chat';
+  if (route?.area === 'desktop') return 'Cannot see the computer app from chat';
   if (lane === 'firmware' || route?.area === 'firmware') {
     return 'Device problem; cannot see the Omi from chat';
   }
-  if (lane === 'tech') return 'Product bug; cannot see the app from chat';
+  if (lane === 'tech') return 'Cannot see the app from chat';
   if (lane === 'shop') return 'Order or shipping';
   if (lane === 'account') return 'Fair use, memory limit, or plan question';
   return 'Needs a person';
+}
+
+function pickStaffReason(route, modelReason, question) {
+  const reason = String(modelReason || '').trim();
+  const lane = route?.lane;
+  const area = route?.area;
+  const techish =
+    lane === 'tech' ||
+    lane === 'firmware' ||
+    area === 'app' ||
+    area === 'desktop' ||
+    area === 'firmware';
+  if (techish && reasonNamesCause(reason)) return staffReason(route, question);
+  return reason || staffReason(route, question);
+}
+
+function knownIssueReply() {
+  return "This is already marked as a known issue. I can't see the app or the device from here, so I won't add a new diagnosis. A person has to confirm it.";
 }
 
 function describe(route) {
@@ -310,7 +358,9 @@ function describe(route) {
     return 'The device itself is failing. They may already have paired.';
   }
   if (area === 'desktop') return 'Computer app install or bug.';
-  if (area === 'app') return 'Phone app bug.';
+  if (area === 'app') {
+    return 'The phone app is reporting a problem. Do not name a cause or where recordings are.';
+  }
   if (lane === 'shop') return 'Order, shipping, or customs.';
   if (lane === 'money') return 'Refund, charge, tax, plan, or address. Do not promise money back.';
   if (lane === 'privacy') return 'Delete account or data.';
@@ -334,5 +384,9 @@ module.exports = {
   cannedReply,
   whenModelDown,
   staffReason,
+  pickStaffReason,
+  knownIssueReply,
+  looksLikeCaptureFailure,
+  looksLikeTranscription,
   describe,
 };

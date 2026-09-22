@@ -72,3 +72,30 @@ test('fetchTextAttachments clips logs, ignores png, uses at most two files', asy
   assert.equal(calls.includes('https://cdn/shot.png'), false);
   assert.match(files[0].text, /log-from-https:\/\/cdn\/a\.log/);
 });
+
+test('a picture is not fetched and gets an unread sentence', async () => {
+  const { shouldMentionUnreadImage, unreadImageSentence } = require('../attachments');
+  let called = false;
+  const fetchImpl = async () => {
+    called = true;
+    return { ok: true, arrayBuffer: async () => Buffer.from('png') };
+  };
+  const image = new Map([['1', { name: 'shot.png', contentType: 'image/png', url: 'https://cdn.example/shot.png' }]]);
+  const files = await fetchTextAttachments(image, fetchImpl);
+  assert.equal(files.length, 0);
+  assert.equal(called, false);
+  assert.equal(shouldMentionUnreadImage(image, files), true);
+  assert.match(unreadImageSentence(), /did not read the picture/i);
+  assert.equal(
+    shouldMentionUnreadImage(
+      new Map([
+        ['1', { name: 'shot.png', contentType: 'image/png' }],
+        ['2', { name: 'omi_debug.log' }],
+      ]),
+      [{ name: 'omi_debug.log', text: 'hello from the log' }]
+    ),
+    false
+  );
+  const question = formatQuestion('Keep getting transcription unavailable', files);
+  assert.equal(/png|image/i.test(question), false);
+});

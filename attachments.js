@@ -34,6 +34,26 @@ function clipAttachmentText(text, max = MAX_BYTES) {
   return `${out}\n…`;
 }
 
+function isImageAttachment(att) {
+  if (!att) return false;
+  const type = String(att.contentType || att.content_type || '').toLowerCase();
+  const name = String(att.name || att.filename || '');
+  if (type.startsWith('image/')) return true;
+  return /\.(png|jpe?g|gif|webp)$/i.test(name);
+}
+
+function shouldMentionUnreadImage(attachments, textFiles) {
+  const hasImage = attachmentsList(attachments).some(isImageAttachment);
+  if (!hasImage) return false;
+  if ((textFiles || []).some((file) => file && String(file.text || '').trim())) return false;
+  if (attachmentsList(attachments).some(isAllowedTextAttachment)) return false;
+  return true;
+}
+
+function unreadImageSentence() {
+  return 'I did not read the picture. Type the error line shown on the screen.';
+}
+
 function formatQuestion(userText, files) {
   const caption = String(userText || '').trim();
   const blocks = (files || [])
@@ -76,4 +96,7 @@ module.exports = {
   clipAttachmentText,
   formatQuestion,
   fetchTextAttachments,
+  isImageAttachment,
+  shouldMentionUnreadImage,
+  unreadImageSentence,
 };
