@@ -394,6 +394,19 @@ test('clipUserQuestion keeps the customer bug and drops a staff follow-up on a p
   assert.equal(/Charles Clogston|20\/09\/2026|FDRM|Ctrl\+Option\+R|transcription error/i.test(out), false);
 });
 
+test('#vector-test parent messages do not reuse an old Handoff', () => {
+  const { shouldReuseOpenHandoff } = require('../handoff');
+  const prev = process.env.VECTOR_TEST_CHANNEL_ID;
+  process.env.VECTOR_TEST_CHANNEL_ID = '1550182642874589194';
+  try {
+    assert.equal(shouldReuseOpenHandoff({ id: '1550182642874589194' }), false);
+    assert.equal(shouldReuseOpenHandoff({ id: '999888777' }), true);
+  } finally {
+    if (prev === undefined) delete process.env.VECTOR_TEST_CHANNEL_ID;
+    else process.env.VECTOR_TEST_CHANNEL_ID = prev;
+  }
+});
+
 test('open Handoff threads match the same Watch ticket, not a refund', async () => {
   const { isSameHandoff, findOpenHandoff } = require('../handoff');
   const watch = 'Handoff · app · tech · Apple Watch recordings missing from app';

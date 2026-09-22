@@ -206,6 +206,14 @@ function isGenericTopic(text) {
   );
 }
 
+function shouldReuseOpenHandoff(channel) {
+  if (!channel) return false;
+  if (isHandoffThread(channel)) return false;
+  const testId = String(process.env.VECTOR_TEST_CHANNEL_ID || '').trim();
+  if (testId && String(channel.id) === testId) return false;
+  return true;
+}
+
 function isWeakerHandoffName(nextName, currentName) {
   if (!/^Handoff\b/i.test(String(currentName || ''))) return false;
   const next = handoffSubject(nextName);
@@ -695,6 +703,7 @@ module.exports = {
   handoffThreadName,
   applyThreadName,
   isSameHandoff,
+  shouldReuseOpenHandoff,
   isWeakerHandoffName,
   findOpenHandoff,
   rememberOpenHandoff,

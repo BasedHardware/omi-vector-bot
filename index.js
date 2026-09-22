@@ -34,6 +34,7 @@ const {
   staffMentionIds,
   findOpenHandoff,
   rememberOpenHandoff,
+  shouldReuseOpenHandoff,
 } = require('./handoff');
 const knowledge = require('./knowledge');
 const shopify = require('./shopify');
@@ -385,7 +386,7 @@ async function handleMessage(message) {
       let duplicate = false;
       let reused = false;
       let handoffThread = inHandoff ? channel : null;
-      if (!inHandoff) {
+      if (!inHandoff && shouldReuseOpenHandoff(channel)) {
         const existing = await findOpenHandoff(channel, {
           userId: message.author?.id,
           question: asked,
