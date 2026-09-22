@@ -275,6 +275,12 @@ async function handleMessage(message) {
     if (isHelpThread(channel) && !router.isPublicForumSafe(asked || question)) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
+    let botCanAnswer = false;
+    if (router.isTechLane(route) && !changes.length) {
+      const found = await github.searchPulls(question);
+      if (found) changes.push(found);
+    }
+    if (router.isTechLane(route) && changes.length) botCanAnswer = true;
 
     const binding = await shopifyBind.get(message.author.id);
     const verifiedEmail = binding?.email || '';
@@ -295,7 +301,16 @@ async function handleMessage(message) {
       githubHit = await github.searchIssues(asked || question);
     }
 
-    if (router.skipModel(route)) {
+    if (botCanAnswer) {
+      skipModel = true;
+      aiResponse = {
+        final_answer: '',
+        confidence: 0.95,
+        escalate: false,
+        reason: 'Pull request already covers this',
+      };
+      cleanAnswer = '';
+    } else if (router.skipModel(route)) {
       skipModel = true;
       aiResponse = {
         final_answer: '',
@@ -393,7 +408,10 @@ async function handleMessage(message) {
     let changeSentence = '';
     if (changes[0]) {
       const lookup = await github.lookupChange(changes[0]);
-      changeSentence = github.customerChangeSentence(changes[0], lookup);
+      changeSentence = github.customerChangeSentence(changes[0], lookup, {
+        question,
+        title: changes[0].title,
+      });
       cleanAnswer = github.stripShippedClaims(cleanAnswer);
       if (changeSentence && !String(cleanAnswer || '').includes(changes[0].url)) {
         cleanAnswer = [cleanAnswer, changeSentence].filter(Boolean).join('\n\n');
@@ -409,7 +427,8 @@ async function handleMessage(message) {
     };
     const inHandoff = isHandoffThread(channel);
     const pingAuthor = wantsAuthorPing(caption);
-    const escalate = shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate;
+    const escalate =
+      !botCanAnswer && (shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate);
     const draft = github.draftFromQuestion(asked, triaged.area, {
       topic: triaged.topic,
       labels: triaged.labels,

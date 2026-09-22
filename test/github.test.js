@@ -194,14 +194,37 @@ test('an open pull request in the message is told to the customer and not called
     };
   };
   const lookup = await github.lookupChange(refs[0], { fetchImpl });
-  const sentence = github.customerChangeSentence(refs[0], lookup);
+  const sentence = github.customerChangeSentence(refs[0], lookup, {
+    question: q,
+    title: 'fix(backend): make memory & conversation deletion work again on desktop and mobile',
+  });
   assert.match(sentence, /14691/);
-  assert.match(sentence, /still open/i);
+  assert.match(sentence, /already open/i);
+  assert.match(sentence, /review it and merge it/i);
   assert.match(sentence, /has not shipped/i);
-  assert.equal(/half[- ]solved|\bfixed\b|been merged/i.test(sentence), false);
+  assert.match(sentence, /desktop error and the phone deletions/i);
+  assert.equal(/half[- ]solved|\bfixed\b|been merged|already been solved/i.test(sentence), false);
   const merged = github.customerChangeSentence(refs[0], { ok: true, state: 'merged' });
   assert.match(merged, /has been merged/i);
   const missed = github.customerChangeSentence(refs[0], { ok: false });
   assert.match(missed, /cannot see whether it shipped/i);
   assert.match(missed, /14691/);
+});
+
+test('pull search prefers the deletion pull over a memories search pull', () => {
+  const q = 'Once again, I cannot delete memories or conversations on either the desktop app or the mobile app. The desktop app gives me an error and the mobile app shows them deleted and then they resurface 30 seconds later.';
+  const wrong = { number: 11743, title: 'Windows search: find anything across conversations, memories, tasks and screen' };
+  const right = {
+    number: 14691,
+    title: 'fix(backend): make memory & conversation deletion work again on desktop and mobile',
+  };
+  assert.equal(github.scorePull(q, wrong), 0);
+  assert.ok(github.scorePull(q, right) >= 4);
+  const partial = github.customerChangeSentence(
+    { number: '9', url: 'https://github.com/BasedHardware/omi/pull/9', title: 'fix desktop delete' },
+    { ok: true, state: 'open' },
+    { question: q, title: 'fix desktop delete' }
+  );
+  assert.match(partial, /desktop part/i);
+  assert.match(partial, /phone part is not/i);
 });

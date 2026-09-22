@@ -454,19 +454,127 @@ function stripShippedClaims(text) {
     .trim();
 }
 
-function customerChangeSentence(ref, lookup) {
+function coverNote(question, title) {
+  const q = String(question || '').toLowerCase();
+  const t = String(title || '').toLowerCase();
+  const desktop = /\bdesktop\b/.test(q);
+  const phone = /\b(mobile|phone)\b/.test(q);
+  const titleDesktop = /\bdesktop\b/.test(t);
+  const titlePhone = /\bmobile\b/.test(t);
+  if (desktop && phone && titleDesktop && titlePhone) {
+    return 'It covers the desktop error and the phone deletions that come back.';
+  }
+  if (desktop && phone && titleDesktop && !titlePhone) {
+    return 'It covers the desktop part. The phone part is not in this change.';
+  }
+  if (desktop && phone && !titleDesktop && titlePhone) {
+    return 'It covers the phone part. The desktop part is not in this change.';
+  }
+  return '';
+}
+
+function customerChangeSentence(ref, lookup, extra = {}) {
   const url = ref?.url || '';
   if (!url) return '';
+  const number = ref.number ? `#${ref.number}` : 'this change';
+  const cover = coverNote(extra.question, extra.title || ref.title);
+  const scope = cover ? ` ${cover}` : '';
   if (!lookup?.ok) {
-    return `Someone already pointed at this change: ${url}. I cannot see whether it shipped.`;
+    return `Pull request ${number} was already opened for this.${scope} I cannot see whether it shipped. ${url}`;
   }
   if (lookup.state === 'merged') {
-    return `Someone already opened this change, and it has been merged: ${url}.`;
+    return `Pull request ${number} has been merged.${scope} ${url}`;
   }
   if (lookup.state === 'open') {
-    return `Someone already opened this change, and it is still open: ${url}. It has not shipped.`;
+    return `Pull request ${number} is already open for this.${scope} Maintainers still have to review it and merge it. It has not shipped. ${url}`;
   }
-  return `Someone already opened this change: ${url}. It has not shipped.`;
+  return `Pull request ${number} was already opened for this.${scope} It has not shipped. ${url}`;
+}
+
+const SEARCH_STOP = new Set([
+  'once',
+  'again',
+  'either',
+  'cannot',
+  'gives',
+  'shows',
+  'them',
+  'then',
+  'later',
+  'seconds',
+  'error',
+  'there',
+  'this',
+  'that',
+  'with',
+  'from',
+  'have',
+  'your',
+  'about',
+  'after',
+]);
+
+function symptomTokens(question) {
+  return String(question || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 4 && !SEARCH_STOP.has(word));
+}
+
+function scorePull(question, item) {
+  const title = String(item?.title || '').toLowerCase();
+  const body = String(item?.body || '').toLowerCase();
+  const asked = String(question || '').toLowerCase();
+  if (/\bdelet/.test(asked) && !/delet/.test(title)) return 0;
+  let score = 0;
+  for (const token of symptomTokens(question)) {
+    const stem = token.slice(0, 5);
+    if (title.includes(stem)) score += 2;
+    else if (body.includes(stem)) score += 1;
+  }
+  return score;
+}
+
+async function searchPulls(question, { fetchImpl } = {}) {
+  const tokens = symptomTokens(question).slice(0, 6);
+  if (!tokens.length) return null;
+  const fetchFn = fetchImpl || fetch;
+  const url = new URL('https://api.github.com/search/issues');
+  url.searchParams.set('q', [`repo:${repo()}`, 'is:pr', ...tokens].join(' '));
+  url.searchParams.set('per_page', '8');
+  try {
+    const res = await fetchFn(url, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'omi-vector-bot',
+      },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const items = Array.isArray(data?.items) ? data.items : [];
+    let best = null;
+    let bestScore = 0;
+    for (const item of items) {
+      const score = scorePull(question, item);
+      if (score > bestScore) {
+        best = item;
+        bestScore = score;
+      }
+    }
+    if (!best || bestScore < 4) return null;
+    return {
+      kind: 'pull',
+      number: String(best.number),
+      title: String(best.title || ''),
+      url: best.html_url || `https://github.com/${repo()}/pull/${best.number}`,
+      score: bestScore,
+    };
+  } catch (err) {
+    console.error('[GitHub] pull search failed:', err.message);
+    return null;
+  }
 }
 
 module.exports = {
@@ -493,6 +601,8 @@ module.exports = {
   lookupChange,
   stripShippedClaims,
   customerChangeSentence,
+  scorePull,
+  searchPulls,
   createIssue,
   verifyWebhook,
   describeWebhookEvent,
