@@ -11,11 +11,20 @@ const STRONG_MONEY = [
   /\bwrong address\b/i,
   /\bchange (my )?(the )?(shipping )?address\b/i,
   /\bcancel (my )?(the )?(order|purchase)\b/i,
+  /\bsubscription\b/i,
+  /\bredemption code\b/i,
+  /\bunlimited yearly\b/i,
+  /\bplus plan\b/i,
+  /\bno active plan\b/i,
+  /\bstuck on free\b/i,
+  /\bdowngraded to free\b/i,
+  /\bbilling bug\b/i,
 ];
 
 const WEAK_MONEY = [
   /\bmy billing\b/i,
-  /\bbilling (issue|question|problem|for)\b/i,
+  /\bbilling (issue|question|problem|for|bug)\b/i,
+  /\bapp\/billing\b/i,
   /\bpayment\b/i,
 ];
 
@@ -217,6 +226,12 @@ function looksLikeTax(text) {
   return /\b((import\s+)?tax(es)?|duties|customs)\b/i.test(String(text || ''));
 }
 
+function looksLikePlan(text) {
+  return /\b(subscription|redemption code|unlimited yearly|plus plan|no active plan|stuck on free|downgraded to free|billing bug)\b/i.test(
+    String(text || '')
+  );
+}
+
 function whenModelDown(route, question) {
   return {
     agent: {
@@ -234,6 +249,9 @@ function cannedReply(route, question) {
   if (lane === 'money') {
     if (looksLikeTax(question)) {
       return "This is about tax or duties on an order. I can't change that from chat.";
+    }
+    if (looksLikePlan(question)) {
+      return "This is about a paid plan or a redemption code. I can't change your account from chat.";
     }
     return "This is about money — a refund, a charge, or a shipping address. I can't change those from chat.";
   }
@@ -263,6 +281,9 @@ function staffReason(route, question) {
   if (looksLikeTax(question) && (lane === 'money' || lane === 'shop' || route?.area === 'shop')) {
     return 'Tax, duties, or customs';
   }
+  if (looksLikePlan(question) && (lane === 'money' || route?.area === 'shop')) {
+    return 'Paid plan or redemption code';
+  }
   if (lane === 'money') return 'Refund, charge, or address change';
   if (lane === 'privacy') return 'Data deletion / privacy request';
   if (route?.area === 'app') return 'Phone app bug; cannot see the app from chat';
@@ -288,7 +309,7 @@ function describe(route) {
   if (area === 'desktop') return 'Computer app install or bug.';
   if (area === 'app') return 'Phone app bug.';
   if (lane === 'shop') return 'Order, shipping, or customs.';
-  if (lane === 'money') return 'Refund, charge, tax, or address. Do not promise money back.';
+  if (lane === 'money') return 'Refund, charge, tax, plan, or address. Do not promise money back.';
   if (lane === 'privacy') return 'Delete account or data.';
   if (lane === 'faq') return 'How-to they asked for. Do not dump extra setup.';
   return 'Read their message. Answer what they asked. Do not change the subject.';
@@ -306,6 +327,7 @@ module.exports = {
   shouldPingOwner,
   skipModel,
   looksLikeTax,
+  looksLikePlan,
   cannedReply,
   whenModelDown,
   staffReason,

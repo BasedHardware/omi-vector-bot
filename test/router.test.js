@@ -37,6 +37,23 @@ test('order and tracking are shop', () => {
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
 });
 
+test('paid plan / redemption is money, not shipping, even if they mention Order IDs', () => {
+  const q = [
+    'Hi Omi team - reporting an app/billing bug and hoping someone can fix my account.',
+    'I purchased Omi Unlimited Yearly (bundle) and received a redemption code. In the app I accidentally redeemed it while the Plus plan was selected, so my account became Plus. I then tapped "Upgrade to Unlimited" - but instead of upgrading, my account was downgraded to Free, and the redemption code stopped working. So I\'ve paid for Unlimited Yearly but I\'m now stuck on Free with no active plan.',
+    'Per the pinned guidelines I\'ve already emailed help@omi.me with my Order IDs for both this subscription and a separate glasses order. Could a team member please check my account and either reissue the code or manually apply Unlimited Yearly?',
+  ].join('\n');
+  const route = router.classify(q);
+  assert.equal(route.area, 'shop');
+  assert.equal(route.lane, 'money');
+  assert.equal(router.skipModel(route), true);
+  assert.equal(router.isTechLane(route), false);
+  const canned = router.cannedReply(route, q);
+  assert.match(canned, /paid plan or a redemption code/i);
+  assert.equal(/\/order|where that order is|guess a date/i.test(canned), false);
+  assert.match(router.staffReason(route, q), /plan or redemption/i);
+});
+
 test('app crash and macOS are tech; pairing how-to is faq', () => {
   assert.equal(router.classify('the app crashed on iPhone').area, 'app');
   assert.equal(router.classify('the app crashed on iPhone').lane, 'tech');
