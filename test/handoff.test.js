@@ -416,6 +416,10 @@ test('#vector-test parent messages do not reuse an old Handoff', () => {
   process.env.VECTOR_TEST_CHANNEL_ID = '1550182642874589194';
   try {
     assert.equal(shouldReuseOpenHandoff({ id: '1550182642874589194' }), false);
+    assert.equal(
+      shouldReuseOpenHandoff({ id: 'post1', parentId: '1550182642874589194', isThread: () => true }),
+      false
+    );
     assert.equal(shouldReuseOpenHandoff({ id: '999888777' }), true);
   } finally {
     if (prev === undefined) delete process.env.VECTOR_TEST_CHANNEL_ID;

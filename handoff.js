@@ -220,7 +220,9 @@ function shouldReuseOpenHandoff(channel) {
   if (!channel) return false;
   if (isHandoffThread(channel)) return false;
   const testId = String(process.env.VECTOR_TEST_CHANNEL_ID || '').trim();
-  if (testId && String(channel.id) === testId) return false;
+  if (!testId) return true;
+  if (String(channel.id) === testId) return false;
+  if (String(channel.parentId || channel.parent_id || '') === testId) return false;
   return true;
 }
 

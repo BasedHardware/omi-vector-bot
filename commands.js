@@ -33,7 +33,12 @@ function setTestQuestionHandler(fn) {
 function isVectorTestParent(channel) {
   const id = String(process.env.VECTOR_TEST_CHANNEL_ID || '').trim();
   if (!id || !channel) return false;
-  return String(channel.id) === id;
+  if (String(channel.id) === id) return true;
+  const parentId = String(channel.parentId || channel.parent_id || '');
+  if (channel.isThread?.() && parentId === id && !/^Handoff\b/i.test(String(channel.name || ''))) {
+    return true;
+  }
+  return false;
 }
 
 async function registerSlashCommands(client) {

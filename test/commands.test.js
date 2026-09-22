@@ -30,6 +30,24 @@ test('/test only runs in the #vector-test parent channel', async () => {
   try {
     assert.equal(isVectorTestParent({ id: '1550182642874589194' }), true);
     assert.equal(isVectorTestParent({ id: 'other' }), false);
+    assert.equal(
+      isVectorTestParent({
+        id: 'post1',
+        parentId: '1550182642874589194',
+        name: 'Deleting Convos and Memories',
+        isThread: () => true,
+      }),
+      true
+    );
+    assert.equal(
+      isVectorTestParent({
+        id: 'handoff1',
+        parentId: '1550182642874589194',
+        name: 'Handoff · desktop · deletion',
+        isThread: () => true,
+      }),
+      false
+    );
     await handleTest({
       channel: { id: 'other' },
       options: { getString: () => 'What triggers the Omi window to come to the front?' },
