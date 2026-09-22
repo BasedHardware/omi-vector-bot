@@ -12,6 +12,30 @@ const doneCommand = new SlashCommandBuilder()
   .setDescription('Mark this Handoff or help thread resolved. Staff only.')
   .toJSON();
 
+const testCommand = new SlashCommandBuilder()
+  .setName('test')
+  .setDescription('Start a clean Vector test in #vector-test only. One customer question.')
+  .addStringOption((option) =>
+    option
+      .setName('question')
+      .setDescription('Customer question only. Do not paste staff replies.')
+      .setRequired(true)
+      .setMaxLength(1500)
+  )
+  .toJSON();
+
+let runTestQuestion = null;
+
+function setTestQuestionHandler(fn) {
+  runTestQuestion = typeof fn === 'function' ? fn : null;
+}
+
+function isVectorTestParent(channel) {
+  const id = String(process.env.VECTOR_TEST_CHANNEL_ID || '').trim();
+  if (!id || !channel) return false;
+  return String(channel.id) === id;
+}
+
 async function registerSlashCommands(client) {
   const clientId = process.env.DISCORD_CLIENT_ID;
   const token = process.env.DISCORD_TOKEN;
@@ -29,7 +53,13 @@ async function registerSlashCommands(client) {
   }
   for (const guildId of guildIds) {
     await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
-      body: [doneCommand, orderFlow.orderCommand, orderFlow.ordersCommand, orderFlow.unlinkCommand],
+      body: [
+        doneCommand,
+        testCommand,
+        orderFlow.orderCommand,
+        orderFlow.ordersCommand,
+        orderFlow.unlinkCommand,
+      ],
     });
   }
   return guildIds.size;
@@ -114,6 +144,36 @@ async function closeHandoff(channel, user) {
   return { ok: true };
 }
 
+async function handleTest(interaction) {
+  if (!isVectorTestParent(interaction.channel)) {
+    await interaction.reply({
+      content: 'Use `/test` only in #vector-test — the channel itself, not inside a Handoff.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  const question = String(interaction.options.getString('question') || '').trim();
+  if (question.length < 5) {
+    await interaction.reply({
+      content: 'Paste the customer question (a few words at least).',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  if (!runTestQuestion) {
+    await interaction.reply({
+      content: 'Test runner is not ready yet. Try again in a few seconds.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  await interaction.reply({
+    content: 'New test Handoff in this channel.',
+    flags: MessageFlags.Ephemeral,
+  });
+  await runTestQuestion(interaction, question);
+}
+
 async function handleDone(interaction) {
   if (!canStaffAct(interaction)) {
     await interaction.reply({
@@ -179,6 +239,10 @@ async function handleFileIssue(interaction) {
 async function handleInteraction(interaction) {
   try {
     if (await orderFlow.handleOrderInteraction(interaction)) return;
+    if (interaction.isChatInputCommand?.() && interaction.commandName === 'test') {
+      await handleTest(interaction);
+      return;
+    }
     if (interaction.isChatInputCommand?.() && interaction.commandName === 'done') {
       await handleDone(interaction);
       return;
@@ -225,7 +289,11 @@ async function notifyLinkedThreads(client, event) {
 
 module.exports = {
   doneCommand,
+  testCommand,
   registerSlashCommands,
+  setTestQuestionHandler,
+  isVectorTestParent,
+  handleTest,
   closeNotice,
   closePayload,
   closeHandoff,

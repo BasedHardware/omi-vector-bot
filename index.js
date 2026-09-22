@@ -525,6 +525,21 @@ client.on(Events.InteractionCreate, (interaction) => {
   commands.handleInteraction(interaction);
 });
 
+commands.setTestQuestionHandler(async (interaction, question) => {
+  const channel = interaction.channel;
+  if (!channel) return;
+  const message = {
+    id: interaction.id,
+    content: question,
+    author: interaction.user,
+    channel,
+    attachments: { size: 0, values: () => [] },
+    mentions: { has: () => false },
+    reply: async (opts) => channel.send(opts),
+  };
+  await handleMessage(message);
+});
+
 async function nickOmiSupport(client) {
   if (!VECTOR_TEST_CHANNEL_ID) return;
   try {

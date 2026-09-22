@@ -1,6 +1,12 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { closeHandoff, closePayload } = require('../commands');
+const {
+  closeHandoff,
+  closePayload,
+  testCommand,
+  isVectorTestParent,
+  handleTest,
+} = require('../commands');
 const { canStaffAct, formatStaffTicket } = require('../handoff');
 
 function closeText(payload) {
@@ -9,6 +15,34 @@ function closeText(payload) {
     .filter(Boolean)
     .join('\n');
 }
+
+test('/test is a guild slash command named test', () => {
+  assert.equal(testCommand.name, 'test');
+  const question = (testCommand.options || []).find((option) => option.name === 'question');
+  assert.equal(Boolean(question), true);
+  assert.equal(question.required, true);
+});
+
+test('/test only runs in the #vector-test parent channel', async () => {
+  const prev = process.env.VECTOR_TEST_CHANNEL_ID;
+  process.env.VECTOR_TEST_CHANNEL_ID = '1550182642874589194';
+  const replies = [];
+  try {
+    assert.equal(isVectorTestParent({ id: '1550182642874589194' }), true);
+    assert.equal(isVectorTestParent({ id: 'other' }), false);
+    await handleTest({
+      channel: { id: 'other' },
+      options: { getString: () => 'What triggers the Omi window to come to the front?' },
+      reply: async (payload) => {
+        replies.push(payload);
+      },
+    });
+    assert.match(String(replies[0]?.content || ''), /#vector-test/);
+  } finally {
+    if (prev === undefined) delete process.env.VECTOR_TEST_CHANNEL_ID;
+    else process.env.VECTOR_TEST_CHANNEL_ID = prev;
+  }
+});
 
 test('/done refuses non-handoff channels', async () => {
   const result = await closeHandoff(
