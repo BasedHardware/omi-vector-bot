@@ -17,6 +17,18 @@ test('passed this along is treated as a staff lie', () => {
   assert.equal(/passed this along/i.test(out), false);
 });
 
+test('passing it along is stripped without dropping the rest of the reply', () => {
+  const out = sanitizeReply(
+    [
+      'That sounds annoying — you got used to typing into the floating bubble while another window was open.',
+      "I'm not sure why that changed. I don't want to guess at a reason or a fix. This needs someone who knows the computer app's history, so I'm passing it along as-is.",
+    ].join('\n')
+  );
+  assert.match(out, /floating bubble/i);
+  assert.match(out, /don't want to guess/i);
+  assert.equal(/passing it along/i.test(out), false);
+});
+
 test('crash replies lose pairing and Bluetooth steps', () => {
   const { stripHowtoBleed, stripShopBleed } = require('../honesty');
   const out = stripHowtoBleed(

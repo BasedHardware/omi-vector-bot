@@ -237,6 +237,7 @@ const PING_NARRATION = [
   /not sure what the (blue|red|orange|teal) (dot|light)/i,
   /sent this along/i,
   /passed this along/i,
+  /passing it along/i,
   /needs the app side to look/i,
 ];
 
@@ -250,6 +251,7 @@ function dropPingNarration(text) {
   return String(text || '')
     .replace(/\bi can('t|not) send you a mention( myself)?\b/gi, '')
     .replace(/\bi('m| am) passing on\b/gi, '')
+    .replace(/\bi('m| am) passing it along( as-is)?\b/gi, '')
     .replace(/\byou don'?t need to keep re-explaining\b/gi, '')
     .split('\n')
     .map((line) => {

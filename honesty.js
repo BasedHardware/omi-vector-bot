@@ -7,6 +7,7 @@ const LIE_PATTERNS = [
   /ticket has been (created|opened|filed)/i,
   /i (just )?contacted (support|staff|aarav|the team)/i,
   /passing this along/i,
+  /passing it along/i,
   /passed this along/i,
   /someone will follow up/i,
 ];
@@ -57,12 +58,25 @@ function stripInventedLookup(text) {
 
 function stripStaffLies(text) {
   if (!text) return text;
-  const lines = text.split('\n').filter((line) => !looksLikeStaffLie(line));
-  const joined = lines.join('\n').trim();
-  if (!joined || looksLikeStaffLie(joined)) {
+  const cleaned = String(text)
+    .split('\n')
+    .flatMap((line) => {
+      if (!line.trim()) return [line];
+      if (!looksLikeStaffLie(line)) return [line];
+      const kept = line
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => !looksLikeStaffLie(sentence))
+        .join(' ')
+        .trim();
+      return kept ? [kept] : [];
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (!cleaned || looksLikeStaffLie(cleaned)) {
     return 'I do not have a human on this yet. I have not messaged anyone. A person on the team needs to take this.';
   }
-  return joined;
+  return cleaned;
 }
 
 const HOWTO_BLEED = [

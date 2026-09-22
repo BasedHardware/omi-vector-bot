@@ -361,6 +361,22 @@ test('clipUserQuestion drops ping-me placeholders', () => {
   assert.equal(/yourDiscordName/i.test(out), false);
 });
 
+test('clipUserQuestion drops Discord OP chrome from a pasted help post', () => {
+  const { clipUserQuestion } = require('../handoff');
+  const out = clipUserQuestion(
+    [
+      'ThatGuySi_TGS [DAWN],',
+      'OP',
+      '— Yesterday at 09:33',
+      'The floating bubble used to be something I could type in when looking at a different window on my computer.',
+      'Image',
+    ].join('\n')
+  );
+  assert.match(out, /floating bubble/i);
+  assert.equal(/ThatGuySi_TGS|DAWN|\bOP\b|Yesterday at/i.test(out), false);
+  assert.equal(/^Image$/m.test(out), false);
+});
+
 test('open Handoff threads match the same Watch ticket, not a refund', async () => {
   const { isSameHandoff, findOpenHandoff } = require('../handoff');
   const watch = 'Handoff · app · tech · Apple Watch recordings missing from app';

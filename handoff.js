@@ -88,11 +88,24 @@ function resetHandoffMemory() {
   lastHandoff.clear();
 }
 
+function isDiscordPasteChrome(line) {
+  const t = String(line || '').trim();
+  if (!t) return true;
+  if (/^op$/i.test(t)) return true;
+  if (/^image$/i.test(t)) return true;
+  if (/^(—\s*)?(yesterday|today)\s+at\s+\d{1,2}:\d{2}/i.test(t)) return true;
+  if (/^—\s*\d{1,2}:\d{2}\b/.test(t)) return true;
+  if (/\[[A-Za-z0-9_]{2,16}\],?\s*$/.test(t) && t.length <= 64 && t.split(/\s+/).length <= 5) {
+    return true;
+  }
+  return false;
+}
+
 function clipUserQuestion(text) {
   const raw = String(text || '').trim();
   const cleaned = raw
     .split('\n')
-    .filter((line) => !/^want:\s/i.test(line.trim()))
+    .filter((line) => !/^want:\s/i.test(line.trim()) && !isDiscordPasteChrome(line))
     .join('\n')
     .replace(/\bping me as\s+@\S+/gi, '')
     .replace(/@yourdiscordname/gi, '')
