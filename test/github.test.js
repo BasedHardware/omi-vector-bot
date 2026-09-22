@@ -228,3 +228,18 @@ test('pull search prefers the deletion pull over a memories search pull', () => 
   assert.match(partial, /desktop part/i);
   assert.match(partial, /phone part is not/i);
 });
+
+test('a listen-socket report does not match the on-premise pull request', () => {
+  const q = [
+    'Connection problem with api.omi.me/v4/listen',
+    'Daily reports are not being produced. Transcription unavailable.',
+    'The server closed wss://api.omi.me/v4/listen with WebSocket code 1011 approximately every 20 seconds.',
+  ].join('\n');
+  const onprem = {
+    number: 10887,
+    state: 'closed',
+    title: 'Omi fully on-premise via Docker Compose or Helm/k8s: every managed service',
+    body: 'connection problem listen daily reports transcription websocket soniox',
+  };
+  assert.ok(github.scorePull(q, onprem) < 4);
+});

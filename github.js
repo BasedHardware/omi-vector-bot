@@ -524,14 +524,12 @@ function symptomTokens(question) {
 
 function scorePull(question, item) {
   const title = String(item?.title || '').toLowerCase();
-  const body = String(item?.body || '').toLowerCase();
   const asked = String(question || '').toLowerCase();
   if (/\bdelet/.test(asked) && !/delet/.test(title)) return 0;
   let score = 0;
   for (const token of symptomTokens(question)) {
     const stem = token.slice(0, 5);
     if (title.includes(stem)) score += 2;
-    else if (body.includes(stem)) score += 1;
   }
   return score;
 }
@@ -564,13 +562,18 @@ async function searchPulls(question, { fetchImpl } = {}) {
       }
     }
     if (!best || bestScore < 4) return null;
-    return {
+    const ref = {
       kind: 'pull',
       number: String(best.number),
       title: String(best.title || ''),
       url: best.html_url || `https://github.com/${repo()}/pull/${best.number}`,
       score: bestScore,
     };
+    if (String(best.state || '').toLowerCase() === 'closed') {
+      const lookup = await lookupChange(ref, { fetchImpl });
+      if (lookup.state !== 'merged') return null;
+    }
+    return ref;
   } catch (err) {
     console.error('[GitHub] pull search failed:', err.message);
     return null;
