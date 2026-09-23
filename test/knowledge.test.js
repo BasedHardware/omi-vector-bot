@@ -214,3 +214,13 @@ test('hydrateFromDiscord reloads faq lines from Handoff threads', async () => {
   if (previous === undefined) delete process.env.VECTOR_TEST_CHANNEL_ID;
   else process.env.VECTOR_TEST_CHANNEL_ID = previous;
 });
+
+test('a question in another script does not pull an unrelated staff fact', () => {
+  resetKnowledge();
+  addSnippet('Order and tracking lookups need a person. Vector cannot see Shopify.');
+  assert.equal(search('मेरा ऑर्डर कहाँ है?').length, 0);
+  assert.equal(search('Мой заказ не пришёл').length, 0);
+  assert.equal(search('주문 어디쯤 왔나요?').length, 0);
+  assert.equal(search('Where is my order?').length, 1);
+  resetKnowledge();
+});
