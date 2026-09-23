@@ -292,3 +292,19 @@ test('a MAC address question is not a computer-app ticket', () => {
   assert.equal(mac.area, 'desktop');
   assert.equal(mac.lane, 'tech');
 });
+
+test('an order mention does not turn a device or app bug into an order ticket', () => {
+  const off = router.classify('My Omi keeps turning itself off after 5 seconds. Order #1042 if you need it.');
+  assert.equal(off.area, 'firmware');
+  assert.equal(router.skipModel(off), false);
+  const crash = router.classify('Got my order yesterday. The Android app crashes every time I open it.');
+  assert.equal(crash.area, 'app');
+  assert.equal(crash.lane, 'tech');
+  assert.equal(router.classify('Order ID 55 - firmware update failed and the device is bricked.').area, 'firmware');
+  assert.equal(router.classify('What is the status of my order #5120? I ordered it through the iOS app.').lane, 'shop');
+  assert.equal(router.classify("I didn't get my order #2233, bought it on iphone").lane, 'shop');
+  assert.equal(router.classify('My order hasnt arrived yet, I placed it from my iPhone.').lane, 'shop');
+  assert.equal(router.classify('In order to receive notifications, does the android app need to stay open?').lane, 'faq');
+  assert.equal(router.classify('Conversations arrive out of order in the Android app.').area, 'app');
+  assert.equal(router.isPublicForumSafe('My Omi keeps turning itself off. Order #1042'), false);
+});

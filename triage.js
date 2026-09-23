@@ -1,4 +1,4 @@
-const { classify, looksLikeCaptureFailure, looksLikeTranscription, looksLikeDocs } = require('./router');
+const { classify, looksLikeCaptureFailure, looksLikeTranscription, looksLikeDocs, mentionsOrder } = require('./router');
 const { clipForDiscord } = require('./utils');
 
 const AREAS = ['shop', 'app', 'desktop', 'firmware', 'privacy'];
@@ -96,7 +96,7 @@ function merge(route, agent, question) {
     area === 'firmware';
   const blocked =
     moneyLock || lane === 'shop' || lane === 'account' || area === 'shop' || area === 'privacy';
-  const fileIssue = techish && !blocked;
+  const fileIssue = techish && !blocked && !mentionsOrder(question);
 
   return {
     area,

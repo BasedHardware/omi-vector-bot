@@ -300,12 +300,13 @@ async function handleMessage(message) {
     await channel.sendTyping();
 
     const route = router.classify(question);
+    const namesOrder = router.mentionsOrder(question);
     const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
     if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
     let botCanAnswer = false;
-    if (router.isTechLane(route) && !changes.length) {
+    if (router.isTechLane(route) && !changes.length && !namesOrder) {
       const found = await github.searchPulls(question);
       if (found) changes.push(found);
     }
@@ -326,7 +327,7 @@ async function handleMessage(message) {
       shopifyLookup = await shopify.lookupOrder(asked || question, { verifiedEmail });
       console.log(`[Shopify] lookup key=${shopifyLookup.reason === 'no-key' ? 'none' : 'set'} status=${shopifyLookup.reason || 'hit'}`);
     }
-    if (github.isConfigured() && router.isTechLane(route)) {
+    if (github.isConfigured() && router.isTechLane(route) && !namesOrder) {
       githubHit = await github.searchIssues(asked || question);
     }
 
@@ -491,7 +492,7 @@ async function handleMessage(message) {
     if (escalate) {
       console.log(`[Bot] Escalating ${channel.id} area=${triaged.area} topic=${triaged.topic}`);
       const techLane = router.isTechLane({ lane: triaged.lane, area: triaged.area });
-      if (github.isConfigured() && techLane && !githubHit?.duplicate) {
+      if (github.isConfigured() && techLane && !githubHit?.duplicate && !namesOrder) {
         fileIssueId = github.stashDraft(draft);
       }
       let pinged = false;

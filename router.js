@@ -31,13 +31,14 @@ const WEAK_MONEY = [
 const PRIVACY = [/\bprivacy\b/i, /\bgdpr\b/i, /\bdelete my (account|data)\b/i];
 
 const SHOP = [
-  /\border\s*(#|number|id|num|status)\b/i,
-  /\b(my|the)\s+order\b/i,
-  /\bwhere\s+is\s+my\s+order\b/i,
+  /\border\s*status\b/i,
+  /\bwhere(\s+is|'?s)\s+(my\s+)?order\b/i,
   /\btracking\b/i,
   /\bshipping\b/i,
   /\bcustoms\b/i,
 ];
+
+const WEAK_SHOP = [/\border\s*(#|number|id|num)\b/i, /\b(my|the)\s+order\b/i];
 
 const FIRMWARE = [
   /\bfirmware\b/i,
@@ -72,8 +73,6 @@ const DESKTOP = [
 ];
 
 const APP = [
-  /\b(android|iphone|ios)\b/i,
-  /\bapple watch\b/i,
   /\b(the )?app (crash|crashed|force.?clos)/i,
   /\bcrash(ed|es|ing)?\b/i,
   /\blisten socket\b/i,
@@ -85,6 +84,8 @@ const APP = [
   /\b(disconnected|offline).{0,40}\bapp\b/i,
   /\bapp.{0,40}(disconnected|offline)\b/i,
 ];
+
+const PLATFORM = [/\b(android|iphone|ios)\b/i, /\bapple watch\b/i];
 
 const CAPTURE_FAILURE = [
   /doesn'?t capture/i,
@@ -132,9 +133,14 @@ function looksLikePii(text) {
   return false;
 }
 
+function mentionsOrder(text) {
+  return any(text, SHOP) || any(text, WEAK_SHOP);
+}
+
 function isPublicForumSafe(text) {
   const route = classify(text);
   if (looksLikePii(text)) return false;
+  if (mentionsOrder(text)) return false;
   if (['shop', 'privacy'].includes(route.area)) return false;
   if (route.lane === 'money') return false;
   return true;
@@ -212,7 +218,7 @@ function classifyRoute(text) {
   const s = String(text || '');
   const wantHuman = any(s, WANT_HUMAN);
 
-  if (/\bin order to\b/i.test(s) && !any(s, SHOP) && !any(s, STRONG_MONEY) && !any(s, WEAK_MONEY)) {
+  if (/\bin order to\b/i.test(s) && !mentionsOrder(s) && !any(s, STRONG_MONEY) && !any(s, WEAK_MONEY)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
 
@@ -232,6 +238,12 @@ function classifyRoute(text) {
     return { area: 'desktop', lane: 'tech', escalate: true, wantHuman };
   }
   if (any(s, APP)) {
+    return { area: 'app', lane: 'tech', escalate: true, wantHuman };
+  }
+  if (any(s, WEAK_SHOP)) {
+    return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
+  }
+  if (any(s, PLATFORM)) {
     return { area: 'app', lane: 'tech', escalate: true, wantHuman };
   }
   if (any(s, WEAK_MONEY)) {
@@ -416,6 +428,7 @@ module.exports = {
   AREAS,
   classify,
   looksLikePii,
+  mentionsOrder,
   isPublicForumSafe,
   parseAreaOwners,
   ownerRef,

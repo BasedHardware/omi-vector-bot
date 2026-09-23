@@ -107,3 +107,12 @@ test('capture and transcription stays off shop when the model calls it an accoun
   assert.equal(merged.labels.includes('faq'), true);
   assert.equal(merged.fileIssue, false);
 });
+
+test('a device bug that mentions an order is not filed on GitHub', () => {
+  const q = 'My Omi keeps turning itself off after 5 seconds. Order #1042 if you need it.';
+  const merged = triage.merge(router.classify(q), { area: 'firmware', lane: 'firmware' }, q);
+  assert.equal(merged.area, 'firmware');
+  assert.equal(merged.fileIssue, false);
+  const plain = 'My Omi keeps turning itself off after 5 seconds.';
+  assert.equal(triage.merge(router.classify(plain), {}, plain).fileIssue, true);
+});
