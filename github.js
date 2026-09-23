@@ -10,6 +10,12 @@ function repo() {
   return String(process.env.GITHUB_REPO || DEFAULT_REPO).replace(/^https?:\/\/github.com\//i, '').replace(/\.git$/, '');
 }
 
+function webhookRepoOk(payload) {
+  const name = String(payload?.repository?.full_name || '').trim();
+  if (!name) return false;
+  return name.toLowerCase() === repo().toLowerCase();
+}
+
 function appPrivateKey() {
   return String(process.env.GITHUB_APP_PRIVATE_KEY || '')
     .replace(/\\n/g, '\n')
@@ -333,7 +339,7 @@ function describeWebhookEvent(payload) {
       kind: 'comment',
       number,
       numbers: [number],
-      threadIds: parseThreadIds(payload.issue.body, payload.comment.body),
+      threadIds: parseThreadIds(payload.issue.body),
       line: `A note was added on #${number}.`,
     };
   }
@@ -540,7 +546,9 @@ function scorePull(question, item) {
 
 // Sharp tokens name one pull. websocket / wss are shared by many titles.
 // If no open title has one, an open listen/stt title can still match a question
-// that says listen or transcription. Body text never counts.
+// that says listen or transcription. After that title search misses, 1011,
+// soniox, or "transcription unavailable" may match one open pull by that token
+// in the body. On-prem titles are skipped. Other words never search bodies.
 const RARE_SHARP = ['1011', 'soniox', 'transcription unavailable'];
 const RARE_BROAD = ['websocket', 'wss'];
 
@@ -589,6 +597,33 @@ function titleHasListenOrStt(title) {
 
 function listenRecallQuery() {
   return [`repo:${repo()}`, 'is:pr', 'is:open', '(listen OR stt)', 'in:title'].join(' ');
+}
+
+function bodyRecallQuery(token) {
+  const term = token.includes(' ') ? `"${token}"` : token;
+  return [`repo:${repo()}`, 'is:pr', 'is:open', term, 'in:body'].join(' ');
+}
+
+function titleBlocksBodyRecall(title) {
+  const t = String(title || '').toLowerCase();
+  return t.includes('on-prem') || t.includes('onprem') || t.includes('self-host') || t.includes('on premise');
+}
+
+async function recallOpenPullFromBody(question, fetchImpl) {
+  const token = RARE_SHARP.find((item) => hasRareToken(question, item));
+  if (!token) return null;
+  const items = await fetchIssueSearch(bodyRecallQuery(token), fetchImpl);
+  if (!items) return null;
+  for (const item of items) {
+    if (titleBlocksBodyRecall(item?.title)) continue;
+    const state = String(item?.state || '').toLowerCase();
+    const score = scorePull(question, item);
+    if (state === 'open') return toPullRef(item, score);
+    if (state !== 'closed') continue;
+    const accepted = await finishPull(item, score, fetchImpl);
+    if (accepted) return accepted;
+  }
+  return null;
 }
 
 function toPullRef(item, score) {
@@ -669,6 +704,9 @@ async function searchPulls(question, { fetchImpl } = {}) {
       : null;
     if (accepted) return accepted;
 
+    const fromBody = await recallOpenPullFromBody(question, fetchImpl);
+    if (fromBody) return fromBody;
+
     if (!rareTokensIn(question).length || !questionWantsListenRecall(question)) return null;
     if (items.some((item) => isOpenPull(item) && titleSharesRareToken(question, item))) return null;
 
@@ -685,6 +723,7 @@ async function searchPulls(question, { fetchImpl } = {}) {
 module.exports = {
   DEFAULT_REPO,
   repo,
+  webhookRepoOk,
   isConfigured,
   isAppConfigured,
   searchQuery,

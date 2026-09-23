@@ -80,6 +80,10 @@ app.post('/github-webhook', express.raw({ type: 'application/json' }), async (re
     res.status(400).send('bad json');
     return;
   }
+  if (!github.webhookRepoOk(payload)) {
+    res.send('ok');
+    return;
+  }
   const event = github.describeWebhookEvent(payload);
   if (event) {
     try {
@@ -305,7 +309,7 @@ async function handleMessage(message) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
     let botCanAnswer = false;
-    if (router.isTechLane(route) && !changes.length) {
+    if (!holdPublicCopy && router.isTechLane(route) && !changes.length) {
       const found = await github.searchPulls(question);
       if (found) changes.push(found);
     }
@@ -326,7 +330,7 @@ async function handleMessage(message) {
       shopifyLookup = await shopify.lookupOrder(asked || question, { verifiedEmail });
       console.log(`[Shopify] lookup key=${shopifyLookup.reason === 'no-key' ? 'none' : 'set'} status=${shopifyLookup.reason || 'hit'}`);
     }
-    if (github.isConfigured() && router.isTechLane(route)) {
+    if (!holdPublicCopy && github.isConfigured() && router.isTechLane(route)) {
       githubHit = await github.searchIssues(asked || question);
     }
 
@@ -339,7 +343,7 @@ async function handleMessage(message) {
         reason: 'Pull request already covers this',
       };
       cleanAnswer = '';
-    } else if (router.skipModel(route)) {
+    } else if (holdPublicCopy || router.skipModel(route)) {
       skipModel = true;
       aiResponse = {
         final_answer: '',

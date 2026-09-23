@@ -654,3 +654,238 @@ test('forum starter title and tags are included once', () => {
     else process.env.HELP_FORUM_CHANNEL_ID = prev;
   }
 });
+
+test('help forum card does not repeat the customer post', async () => {
+  resetHandoffMemory();
+  const prev = {
+    help: process.env.HELP_FORUM_CHANNEL_ID,
+    vector: process.env.VECTOR_TEST_CHANNEL_ID,
+    staff: process.env.STAFF_ALERT_CHANNEL_ID,
+    threads: process.env.HANDOFF_THREADS,
+    users: process.env.STAFF_USER_IDS,
+    role: process.env.STAFF_ROLE_ID,
+  };
+  const HELP = 'help-forum-id';
+  const VECTOR = 'vector-test-id';
+  const STAFF_USER = '123456789012345678';
+  const STAFF_ROLE = '222222222222222222';
+  const question =
+    'Please reach ada@example.com or 415-555-0199 about the pendant stuck in customs at 12 King Street.';
+  const draft = 'UNIQUE_DRAFT would repeat ada@example.com and 12 King Street.';
+  const shopify = 'UNIQUE_SHOPIFY Ship to: Berlin, Germany ada@example.com 415-555-0199';
+  const publicDescription = "The customer's message is above. This card does not repeat it.";
+  process.env.HELP_FORUM_CHANNEL_ID = HELP;
+  process.env.VECTOR_TEST_CHANNEL_ID = VECTOR;
+  process.env.HANDOFF_THREADS = '1';
+  process.env.STAFF_USER_IDS = STAFF_USER;
+  process.env.STAFF_ROLE_ID = STAFF_ROLE;
+  delete process.env.STAFF_ALERT_CHANNEL_ID;
+
+  const telegram = require('../telegram');
+  const originalSend = telegram.sendEscalation;
+  const escalations = [];
+  telegram.sendEscalation = async (payload) => {
+    escalations.push(payload);
+    return true;
+  };
+
+  function helpMessage(id) {
+    const sent = [];
+    let started = 0;
+    const message = {
+      url: 'https://discord.com/channels/1/help-thread/3',
+      author: { id: '99', username: 'ada' },
+      channel: {
+        id,
+        parentId: HELP,
+        isTextBased: () => true,
+        isThread: () => true,
+        send: async (payload) => {
+          sent.push(payload);
+          return payload;
+        },
+      },
+      hasThread: false,
+      startThread: async () => {
+        started += 1;
+        throw new Error('should not start a thread inside a help post');
+      },
+    };
+    return { message, sent, started: () => started };
+  }
+
+  try {
+    const help = helpMessage('help-thread-1');
+    const posted = await notifyStaff({
+      client: null,
+      message: help.message,
+      question,
+      reason: 'Order or shipping',
+      draft,
+      shopify,
+      area: 'shop',
+      route: { area: 'shop', lane: 'shop', escalate: true },
+      skipDedupe: true,
+    });
+    assert.equal(posted.ok, true);
+    assert.equal(posted.via, 'channel');
+    assert.equal(help.started(), 0);
+    assert.equal(help.sent.length, 1);
+    const card = help.sent[0];
+    const embed = card.embeds[0];
+    const blob = JSON.stringify(card);
+    assert.equal(embed.description, publicDescription);
+    assert.equal(embed.title, 'Needs a human');
+    assert.equal(blob.includes('pendant stuck in customs'), false);
+    assert.equal(blob.includes('ada@example.com'), false);
+    assert.equal(blob.includes('415-555-0199'), false);
+    assert.equal(blob.includes('12 King Street'), false);
+    assert.equal(blob.includes('UNIQUE_DRAFT'), false);
+    assert.equal(blob.includes('UNIQUE_SHOPIFY'), false);
+    assert.equal(blob.includes('Berlin'), false);
+    assert.equal(blob.includes('@'), false);
+    assert.equal(blob.includes(STAFF_USER), false);
+    assert.equal(blob.includes(STAFF_ROLE), false);
+    assert.equal(card.content, undefined);
+    assert.deepEqual(card.allowedMentions.users, []);
+    assert.deepEqual(card.allowedMentions.roles, []);
+    assert.equal(
+      embed.fields.some((field) => field.name === 'Shopify' || field.name === 'GitHub'),
+      false
+    );
+    const area = embed.fields.find((field) => field.name === 'Area');
+    const specialist = embed.fields.find((field) => field.name === 'Specialist');
+    const labels = embed.fields.find((field) => field.name === 'Labels');
+    assert.equal(area.value, 'shop');
+    assert.equal(specialist.value, 'Mohsin');
+    assert.equal(specialist.value.includes('@'), false);
+    assert.match(labels.value, /`shop`/);
+    assert.equal(escalations.length, 1);
+    assert.match(escalations[0].userQuestion, /pendant stuck in customs/);
+    assert.match(escalations[0].botDraft, /UNIQUE_DRAFT/);
+    assert.equal(escalations[0].userQuestion.includes(publicDescription), false);
+
+    const staffSent = [];
+    const quiet = helpMessage('help-thread-2');
+    process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
+    const staffResult = await notifyStaff({
+      client: {
+        channels: {
+          fetch: async () => ({
+            isTextBased: () => true,
+            send: async (payload) => {
+              staffSent.push(payload);
+              return payload;
+            },
+          }),
+        },
+      },
+      message: quiet.message,
+      question,
+      reason: 'Order or shipping',
+      draft,
+      shopify,
+      area: 'shop',
+      route: { area: 'shop', lane: 'shop', escalate: true },
+      skipDedupe: true,
+    });
+    assert.equal(staffResult.ok, true);
+    assert.equal(staffResult.via, 'staff-channel');
+    assert.equal(quiet.sent.length, 0);
+    assert.equal(staffSent.length, 1);
+    const staffEmbed = staffSent[0].embeds[0];
+    assert.match(staffEmbed.description, /pendant stuck in customs/);
+    assert.match(staffEmbed.description, /\[email\]/);
+    assert.match(staffEmbed.description, /\[phone\]/);
+    assert.match(staffEmbed.description, /\[address\]/);
+    assert.equal(staffEmbed.description.includes('ada@example.com'), false);
+    assert.equal(staffEmbed.description.includes('415-555-0199'), false);
+    assert.equal(staffEmbed.description.includes('12 King Street'), false);
+    assert.equal(staffEmbed.description.includes(publicDescription), false);
+    assert.match(staffEmbed.fields.find((field) => field.name === 'Shopify').value, /UNIQUE_SHOPIFY/);
+    assert.match(escalations[1].userQuestion, /pendant stuck in customs/);
+    assert.match(escalations[1].botDraft, /UNIQUE_DRAFT/);
+    assert.deepEqual(staffSent[0].allowedMentions.users, []);
+    assert.deepEqual(staffSent[0].allowedMentions.roles, []);
+    assert.equal(staffSent[0].content, undefined);
+    delete process.env.STAFF_ALERT_CHANNEL_ID;
+
+    const vectorSent = [];
+    let vectorStarted = 0;
+    const vector = await notifyStaff({
+      client: null,
+      message: {
+        url: 'https://discord.com/channels/1/vector/3',
+        author: { id: '99' },
+        channel: {
+          id: 'vector-thread',
+          parentId: VECTOR,
+          isTextBased: () => true,
+          isThread: () => true,
+          send: async (payload) => {
+            vectorSent.push(payload);
+            return payload;
+          },
+        },
+        hasThread: false,
+        startThread: async () => {
+          vectorStarted += 1;
+          throw new Error('vector-test is already a thread');
+        },
+      },
+      question: 'Where is my order #20716?',
+      reason: 'Order or shipping',
+      draft: 'UNIQUE_DRAFT for vector-test',
+      area: 'shop',
+      route: { area: 'shop', lane: 'shop' },
+      skipDedupe: true,
+    });
+    assert.equal(vector.via, 'channel');
+    assert.equal(vectorStarted, 0);
+    assert.match(vectorSent[0].embeds[0].description, /Where is my order #20716/);
+    assert.equal(vectorSent[0].embeds[0].description.includes(publicDescription), false);
+
+    const normalSent = [];
+    process.env.HANDOFF_THREADS = '0';
+    const normal = await notifyStaff({
+      client: null,
+      message: {
+        url: 'https://discord.com/channels/1/general/3',
+        author: { id: '99' },
+        channel: {
+          id: 'general',
+          isTextBased: () => true,
+          isThread: () => false,
+          send: async (payload) => {
+            normalSent.push(payload);
+            return payload;
+          },
+        },
+        hasThread: false,
+      },
+      question: 'Where is my order #20716?',
+      reason: 'Order or shipping',
+      area: 'shop',
+      route: { area: 'shop', lane: 'shop' },
+      skipDedupe: true,
+    });
+    assert.equal(normal.via, 'channel');
+    assert.match(normalSent[0].embeds[0].description, /Where is my order #20716/);
+    assert.equal(normalSent[0].embeds[0].description.includes(publicDescription), false);
+  } finally {
+    telegram.sendEscalation = originalSend;
+    if (prev.help === undefined) delete process.env.HELP_FORUM_CHANNEL_ID;
+    else process.env.HELP_FORUM_CHANNEL_ID = prev.help;
+    if (prev.vector === undefined) delete process.env.VECTOR_TEST_CHANNEL_ID;
+    else process.env.VECTOR_TEST_CHANNEL_ID = prev.vector;
+    if (prev.staff === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID;
+    else process.env.STAFF_ALERT_CHANNEL_ID = prev.staff;
+    if (prev.threads === undefined) delete process.env.HANDOFF_THREADS;
+    else process.env.HANDOFF_THREADS = prev.threads;
+    if (prev.users === undefined) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prev.users;
+    if (prev.role === undefined) delete process.env.STAFF_ROLE_ID;
+    else process.env.STAFF_ROLE_ID = prev.role;
+    resetHandoffMemory();
+  }
+});

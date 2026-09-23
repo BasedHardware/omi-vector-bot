@@ -217,21 +217,28 @@ async function handleFileIssue(interaction) {
     return;
   }
   if (!github.isConfigured()) {
+    github.restoreDraft(id, draft);
     await interaction.reply({ content: 'No GitHub token on the host.', flags: MessageFlags.Ephemeral });
     return;
   }
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  } catch (err) {
+    github.restoreDraft(id, draft);
+    throw err;
+  }
   const created = await github.createIssue({
     ...draft,
     threadId: interaction.channelId,
   });
-  if (!created.ok) {
+  const filedUrl = String(created?.url || '');
+  if (!created?.ok || !/\/issues\/[1-9]\d*/.test(filedUrl)) {
     github.restoreDraft(id, draft);
     await interaction.editReply('GitHub did not accept the issue. I did not claim it was filed.');
     return;
   }
   github.linkIssueThread(created.number, interaction.channelId);
-  const line = `GitHub issue ${created.url}`;
+  const line = `GitHub issue ${filedUrl}`;
   try {
     if (interaction.channel?.isTextBased?.()) {
       await interaction.channel.send(line);
@@ -239,7 +246,7 @@ async function handleFileIssue(interaction) {
   } catch (err) {
     console.error('[GitHub] thread notice failed:', err.message);
   }
-  await interaction.editReply(`Filed ${created.url}`);
+  await interaction.editReply(`Filed ${filedUrl}`);
 }
 
 async function handleInteraction(interaction) {

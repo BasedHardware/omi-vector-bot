@@ -592,10 +592,12 @@ test('a help-forum post with an email address gets a canned reply and a staff ca
   const reply = textOf(r.message.replies[0]);
   const card = textOf(post.sent[0]);
   assert.ok(reply);
+  assert.equal(r.modelCalled, false);
   assert.doesNotMatch(reply, /center button/);
   assert.equal(reply.includes('jane.doe@example.com'), false);
-  assert.match(card, /\[email\]/);
+  assert.match(card, /does not repeat it/);
   assert.equal(card.includes('jane.doe@example.com'), false);
+  assert.equal(card.includes('[email]'), false);
   assert.equal(r.thread, null);
   assert.equal(post.name, 'Pairing help');
 });
@@ -624,7 +626,7 @@ test('filing the issue from a held help-forum post sends [email] to GitHub, neve
   });
   const sent = posts().slice(filed);
   assert.equal(sent.length, 1);
-  assert.match(sent[0].body.title, /\[email\]/);
+  assert.equal(sent[0].body.title.includes('jane.doe@example.com'), false);
   assert.match(sent[0].body.body, /\[email\]/);
   assert.equal(JSON.stringify(sent).includes('jane.doe@example.com'), false);
 });

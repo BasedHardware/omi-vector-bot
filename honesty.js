@@ -235,6 +235,23 @@ const ALREADY_DID_STEP = [
   /\b(?:after|when)\s+you\s+(?:un)?plug\b/i,
 ];
 
+// Fixes the model invents on tech, firmware, and faq. The bot cannot see the app,
+// the phone, or the device, so these sentences are dropped.
+const INVENTED_FIX = [
+  /\bre-?install(?:ing)?\s+(?:the\s+|your\s+)?app\b/i,
+  /\bclear(?:ing)?\s+(?:(?:the|your)\s+app(?:'s)?\s+|(?:the|your|its|app)\s+)?cache\b/i,
+  /\btoggle\s+(?:your\s+|the\s+)?bluetooth\b/i,
+  /\brestart(?:ing)?\s+(?:your\s+|the\s+)?phone\b/i,
+  /\bupdat(?:e|ing)\s+(?:the\s+|your\s+)?app\b/i,
+  /\bcheck(?:ing)?\s+(?:your\s+|the\s+)?wi-?fi\b/i,
+  /\bprobably\s+(?:just\s+)?(?:the\s+|a\s+|your\s+)?battery\b/i,
+  /\btry(?:ing)?\s+(?:using\s+|with\s+)?a\s+different\s+cable\b/i,
+  /\breinstale\b/i,
+  /\blimpe\s+o\s+cache\b/i,
+  /\breinstala\b/i,
+  /\bborra\s+la\s+cach(?:e\b|é)/i,
+];
+
 function sentenceIsRealLightFact(sentence) {
   const s = String(sentence || '');
   if (sentenceKeepsLightFact(s)) return true;
@@ -247,6 +264,32 @@ function sentenceIsRealLightFact(sentence) {
 
 function matchesAny(patterns, sentence) {
   return patterns.some((re) => re.test(String(sentence || '')));
+}
+
+function isKeptSymptom(bit) {
+  const s = String(bit || '');
+  if (matchesAny(ALREADY_DID_STEP, s)) return true;
+  if (/\b(?:after|when)\s+you\s+(?:re-?install|clear|toggle|update|check|restart|try)\b/i.test(s)) return true;
+  if (/\btried\s+a different cable\b/i.test(s)) return true;
+  return false;
+}
+
+function clauseIsInventedFix(bit) {
+  const s = String(bit || '').trim();
+  if (!s || isKeptSymptom(s)) return false;
+  return matchesAny(INVENTED_FIX, s);
+}
+
+function looksLikeInventedFix(sentence) {
+  return String(sentence || '')
+    .split(/,\s+|\s+[—–]\s+/)
+    .some((part) => clauseIsInventedFix(part));
+}
+
+function lineHasInventedFix(line) {
+  return String(line || '')
+    .split(/(?<=[.!?])\s+/)
+    .some((sentence) => looksLikeInventedFix(sentence));
 }
 
 function looksLikeDeviceStep(sentence) {
@@ -263,7 +306,7 @@ function dropDeviceStepClauses(sentence) {
   return parts
     .filter((part) => {
       const bit = part.trim();
-      if (!bit || looksLikeDeviceStep(bit)) return false;
+      if (!bit || looksLikeDeviceStep(bit) || clauseIsInventedFix(bit)) return false;
       if (/^(?:bis|until|so that)\b/i.test(bit)) return false;
       return true;
     })
@@ -287,6 +330,7 @@ function stripUnsupportedClaims(text, lane, question) {
       const drop =
         looksLikeCauseClaim(line) ||
         (!allowPlace && looksLikeRecordingsPlace(line)) ||
+        lineHasInventedFix(line) ||
         (dropSteps && lineHasDeviceStep(line));
       if (!drop) return line;
       return line
@@ -294,6 +338,12 @@ function stripUnsupportedClaims(text, lane, question) {
         .map((sentence) => {
           if (looksLikeCauseClaim(sentence)) return '';
           if (!allowPlace && looksLikeRecordingsPlace(sentence)) return '';
+          if (looksLikeInventedFix(sentence)) {
+            const peeled = dropDeviceStepClauses(sentence);
+            if (peeled) return peeled;
+            if (sentenceIsRealLightFact(sentence) || sentenceKeepsLightFact(sentence)) return sentence;
+            return '';
+          }
           if (dropSteps && looksLikeDeviceStep(sentence)) return dropDeviceStepClauses(sentence);
           return sentence;
         })

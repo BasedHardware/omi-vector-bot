@@ -124,7 +124,11 @@ test('fair use and plan confusion is account, not a refund or pairing how-to', (
 
 test('PII and orders are not public-forum safe', () => {
   assert.equal(router.looksLikePii('email is jane@omi.me'), true);
+  assert.equal(router.looksLikePii('call me at 555-123-4567'), true);
+  assert.equal(router.looksLikePii('error code 1011'), false);
   assert.equal(router.isPublicForumSafe('Where is my order?'), false);
+  assert.equal(router.isPublicForumSafe('#12345 never arrived'), false);
+  assert.equal(router.isPublicForumSafe('See pull request #14691'), true);
   assert.equal(router.isPublicForumSafe('delete my data'), false);
   assert.equal(router.isPublicForumSafe('How do I pair my Omi?'), true);
 });
@@ -291,4 +295,54 @@ test('a MAC address question is not a computer-app ticket', () => {
   const mac = router.classify('The Omi app on my Mac keeps crashing');
   assert.equal(mac.area, 'desktop');
   assert.equal(mac.lane, 'tech');
+  assert.equal(router.classify('Mac keeps crashing').area, 'desktop');
+  assert.equal(router.classify('Mac keeps crashing').lane, 'tech');
+  assert.equal(router.classify('macOS keeps crashing').area, 'desktop');
+});
+
+test('an order number does not override a device bug; a real order question still beats the app', () => {
+  const off = router.classify('My Omi keeps turning itself off. Order #1042 if you need it.');
+  assert.equal(off.area, 'firmware');
+  assert.equal(off.lane, 'firmware');
+
+  const where = router.classify('Where is my order? The Windows app shows nothing.');
+  assert.equal(where.area, 'shop');
+  assert.equal(where.lane, 'shop');
+
+  const status = router.classify('What is the status of my order #5120? The iOS app is fine.');
+  assert.equal(status.area, 'shop');
+  assert.equal(status.lane, 'shop');
+
+  const orderStatus = router.classify('What is the order status? The Windows app shows nothing.');
+  assert.equal(orderStatus.area, 'shop');
+  assert.equal(orderStatus.lane, 'shop');
+
+  const android = router.classify(
+    'The Android app crashes every time I open it. I got my order yesterday.'
+  );
+  assert.equal(android.area, 'app');
+  assert.equal(android.lane, 'tech');
+
+  const win = router.classify('The Windows app crashes. Order #9 if you need it.');
+  assert.equal(win.area, 'desktop');
+  assert.equal(win.lane, 'tech');
+
+  assert.equal(router.classify('I got my order').area, 'unknown');
+  assert.equal(router.classify('I received my order').area, 'unknown');
+  assert.equal(router.classify('order #88').lane, 'shop');
+  assert.equal(router.classify('order number 88').lane, 'shop');
+  assert.equal(router.classify('order id 88').lane, 'shop');
+
+  const refund = router.classify('My Omi keeps turning itself off. I want a refund.');
+  assert.equal(refund.area, 'shop');
+  assert.equal(refund.lane, 'money');
+  const charged = router.classify('I was charged twice and the device keeps turning itself off.');
+  assert.equal(charged.area, 'shop');
+  assert.equal(charged.lane, 'money');
+  const tax = router.classify('import tax and my Omi keeps turning itself off');
+  assert.equal(tax.area, 'shop');
+  assert.equal(tax.lane, 'money');
+  const duties = router.classify('extra duties and the device keeps turning itself off');
+  assert.equal(duties.area, 'shop');
+  assert.equal(duties.lane, 'money');
 });

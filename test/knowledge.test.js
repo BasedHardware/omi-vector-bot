@@ -4,6 +4,7 @@ const {
   parseFaqCommand,
   addSnippet,
   search,
+  searchAll,
   resetKnowledge,
   applyStaffFacts,
   collectFaqFromMessages,
@@ -72,6 +73,15 @@ test('tech lanes drop pairing FAQ facts', () => {
     ),
     ['Order and tracking lookups need a person. Vector cannot see Shopify.']
   );
+});
+
+test('a firmware answer does not pick up an order-status fact', async () => {
+  const snippets = filterSnippetsForLane(
+    ['Check order status in Shopify before you promise a date.'],
+    'firmware'
+  );
+  assert.deepEqual(snippets, []);
+  assert.deepEqual(await searchAll('ओमी चालू नहीं हो रहा'), []);
 });
 
 test('a deletion answer does not pick up the Shopify fact', () => {

@@ -679,7 +679,7 @@ function formatStaffTicket({
     plain: {
       threadId: message?.channel?.id,
       jumpUrl: jump,
-      userQuestion: asked,
+      userQuestion: redactCardQuote(asked),
       botDraft: cleanDraft,
       missingInfo: why,
     },
@@ -717,6 +717,41 @@ async function sendToStaffChannel(client, payload) {
   if (!ch?.isTextBased?.() || typeof ch.send !== 'function') return false;
   await ch.send(payload);
   return true;
+}
+
+const PUBLIC_HELP_CARD_DESCRIPTION =
+  "The customer's message is above. This card does not repeat it.";
+
+function publicHelpForumDiscord(discord) {
+  const embed = discord?.embeds?.[0] || {};
+  const keep = new Set(['Area', 'Specialist', 'Labels']);
+  const fields = (embed.fields || [])
+    .filter((field) => keep.has(field?.name))
+    .map((field) => ({
+      name: field.name,
+      value:
+        field.name === 'Specialist' ? String(field.value || '').replace(/@/g, '') : field.value,
+      inline: field.inline,
+    }));
+  const payload = {
+    embeds: [
+      {
+        title: embed.title,
+        color: embed.color,
+        description: PUBLIC_HELP_CARD_DESCRIPTION,
+        fields,
+      },
+    ],
+    allowedMentions: {
+      parse: [],
+      users: [],
+      roles: [],
+    },
+  };
+  if (Array.isArray(discord?.components) && discord.components.length) {
+    payload.components = discord.components;
+  }
+  return payload;
 }
 
 async function notifyStaff({
@@ -791,7 +826,10 @@ async function notifyStaff({
 
   try {
     if (message?.channel?.isTextBased?.() && typeof message.channel.send === 'function') {
-      await message.channel.send(ticket.discord);
+      const payload = isHelpForumThread(message.channel)
+        ? publicHelpForumDiscord(ticket.discord)
+        : ticket.discord;
+      await message.channel.send(payload);
       markHandedOff(channelId, true);
       await telegram.sendEscalation(ticket.plain);
       return { ok: true, via: 'channel' };

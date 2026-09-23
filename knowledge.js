@@ -61,7 +61,7 @@ function searchWords(query) {
 
 const HOWTO_FACT = /\b(pair|pairing|bluetooth|led\b|teal|orange =|dev kit|cv1|center button)\b/i;
 const DEVICE_FACT = /\b(necklace|blue light|teal|pairing|bluetooth|recording|disconnected)\b/i;
-const SHOP_FACT = /\b(shopify|order lookup|order and tracking)\b/i;
+const SHOP_FACT = /\b(shopify|order lookups?|order and tracking|order status|tracking number|where is (?:my|the) order|\/order)\b/i;
 
 function isHowtoFact(text) {
   return HOWTO_FACT.test(String(text || ''));
@@ -138,6 +138,7 @@ function applyStaffFacts(answer, factsIn) {
 }
 
 async function searchAll(query, limit = SEARCH_LIMIT) {
+  if (!searchWords(query).length) return [];
   const local = search(query, limit);
   if (!process.env.DATABASE_URL) return local;
   try {

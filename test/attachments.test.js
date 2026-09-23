@@ -8,6 +8,9 @@ const {
   fetchTextAttachments,
   MAX_BYTES,
   errorLinesFromImageText,
+  screenshotErrorLines,
+  shouldMentionUnreadMedia,
+  unreadMediaSentence,
 } = require('../attachments');
 
 test('allows log/txt/json and text/plain, skips images', () => {
@@ -173,4 +176,106 @@ test('errorLinesFromImageText keeps transcription unavailable, 1011, and server_
   assert.equal(out, 'Transcription unavailable\n1011\nserver_error');
   assert.equal(out.includes('Shipping'), false);
   assert.equal(out.includes('Conversations'), false);
+});
+
+test('errorLinesFromImageText keeps code 1006, timed out, and not capturing', () => {
+  const out = errorLinesFromImageText(
+    [
+      'Weekly sync with Priya',
+      'code 1006',
+      'timed out',
+      'not capturing',
+      'Sep 23, 2026',
+    ].join('\n')
+  );
+  assert.equal(out, 'code 1006\ntimed out\nnot capturing');
+  assert.equal(out.includes('Weekly sync with Priya'), false);
+  assert.equal(out.includes('Priya'), false);
+  assert.equal(errorLinesFromImageText('Weekly sync with Priya'), '');
+});
+
+test('screenshotErrorLines joins filtered lines and does not fetch', () => {
+  const original = globalThis.fetch;
+  let fetched = false;
+  globalThis.fetch = () => {
+    fetched = true;
+    throw new Error('screenshotErrorLines must not fetch');
+  };
+  try {
+    assert.equal(screenshotErrorLines(''), '');
+    assert.equal(screenshotErrorLines('Weekly sync with Priya\nConversations'), '');
+    assert.equal(
+      screenshotErrorLines(['Weekly sync with Priya', 'code 1006', 'timed out', 'not capturing'].join('\n')),
+      'code 1006\ntimed out\nnot capturing'
+    );
+    assert.equal(fetched, false);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('image content type, spoilers, and alt text stay unread and unfetched', async () => {
+  const disguised = {
+    name: 'notes.log.txt',
+    contentType: 'image/png',
+    url: 'https://cdn.example/notes.log.txt',
+    description: 'transcription unavailable',
+  };
+  assert.equal(isAllowedTextAttachment(disguised), false);
+  let fetched = false;
+  const disguisedFiles = await fetchTextAttachments([disguised], async () => {
+    fetched = true;
+    return { ok: true, arrayBuffer: async () => Buffer.from('png-bytes') };
+  });
+  assert.equal(fetched, false);
+  assert.deepEqual(disguisedFiles, []);
+  assert.equal(shouldMentionUnreadMedia([disguised], disguisedFiles), true);
+  assert.equal(
+    shouldMentionUnreadMedia(
+      [disguised],
+      [{ name: 'omi_debug.log', text: 'websocket 1011' }]
+    ),
+    false
+  );
+
+  const spoiler = {
+    name: 'SPOILER_screenshot',
+    url: 'https://cdn.example/spoiler',
+    description: 'code 1006 on the pendant',
+  };
+  fetched = false;
+  const spoilerFiles = await fetchTextAttachments([spoiler], async () => {
+    fetched = true;
+    return { ok: true, arrayBuffer: async () => Buffer.from('png-bytes') };
+  });
+  assert.equal(fetched, false);
+  assert.deepEqual(spoilerFiles, []);
+  assert.equal(shouldMentionUnreadMedia([spoiler], spoilerFiles), true);
+  assert.equal(
+    shouldMentionUnreadMedia(
+      [{ name: 'SPOILER_clip.mp4', contentType: 'video/mp4' }],
+      [{ name: 'omi_debug.log', text: 'hello from the log' }]
+    ),
+    true
+  );
+
+  const described = {
+    name: 'shot.png',
+    contentType: 'image/png',
+    url: 'https://cdn.example/shot.png',
+    description: 'ALT_TEXT_SECRET transcription unavailable',
+    alt: 'ALT_TEXT_SECRET transcription unavailable',
+  };
+  fetched = false;
+  const describedFiles = await fetchTextAttachments([described], async () => {
+    fetched = true;
+    return { ok: true, arrayBuffer: async () => Buffer.from('png-bytes') };
+  });
+  assert.equal(fetched, false);
+  assert.deepEqual(describedFiles, []);
+  assert.equal(JSON.stringify(describedFiles).includes('ALT_TEXT_SECRET'), false);
+  assert.equal(formatQuestion('caption', describedFiles).includes('ALT_TEXT_SECRET'), false);
+  assert.equal(shouldMentionUnreadMedia([described], describedFiles), true);
+  assert.equal(shouldMentionUnreadMedia([described], [described]), true);
+  assert.equal(unreadMediaSentence(), 'I did not watch or listen to the file. Type the error line shown on the screen.');
 });

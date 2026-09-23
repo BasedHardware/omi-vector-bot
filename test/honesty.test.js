@@ -477,11 +477,12 @@ test('tech replies drop account access and device-changing steps', () => {
   assert.match(symptom, /after you restart/i);
   assert.match(symptom, /will not guess/i);
   const faq = stripUnsupportedClaims(
-    'If pairing fails, restart the phone and the device.',
+    'Open Settings, then pair. If pairing fails, restart the phone and the device.',
     'faq',
     'how do I pair'
   );
-  assert.match(faq, /restart the phone/i);
+  assert.match(faq, /Open Settings, then pair/);
+  assert.equal(/restart the phone/i.test(faq), false);
 });
 
 test('firmware and tech replies drop retry, power-cycle, and charging steps', () => {
@@ -580,6 +581,92 @@ test('firmware and tech replies drop retry, power-cycle, and charging steps', ()
     assert.match(prompt, /beiseite/i);
     assert.match(buildToolFacts({ route: { lane, area: 'firmware' } }), /try again/i);
   }
+});
+
+test('tech, firmware, and faq replies drop invented fixes the bot cannot see', () => {
+  const { stripUnsupportedClaims } = require('../honesty');
+  const reply = [
+    "I can't see the app or the device from here.",
+    'I am not sure.',
+    'Ich bin mir nicht sicher.',
+    'The device turns off after 10-15 seconds at 100% battery.',
+    'Blue light means the necklace is on and connected.',
+    'The app saying offline while the light is blue is an app bug.',
+    'Reinstall the app.',
+    'Clear the cache.',
+    'Clear cache.',
+    'Toggle Bluetooth.',
+    'Restart the phone.',
+    'Update the app.',
+    'Check your Wi-Fi.',
+    'Check Wi-Fi.',
+    "It's probably the battery.",
+    'Try a different cable.',
+    'Reinstale o aplicativo.',
+    'Limpe o cache.',
+    'Reinstala la aplicación.',
+    'Borra la caché.',
+  ].join('\n\n');
+  for (const lane of ['tech', 'firmware', 'faq']) {
+    const out = stripUnsupportedClaims(reply, lane, 'the app closes and the light stays blue');
+    assert.match(out, /can't see the app or the device from here/i);
+    assert.match(out, /I am not sure/);
+    assert.match(out, /nicht sicher/);
+    assert.match(out, /10-15 seconds at 100% battery/i);
+    assert.match(out, /Blue light means the necklace is on and connected/);
+    assert.match(out, /app bug/i);
+    assert.equal(/reinstall the app/i.test(out), false);
+    assert.equal(/clear the cache/i.test(out), false);
+    assert.equal(/\bclear cache\b/i.test(out), false);
+    assert.equal(/toggle bluetooth/i.test(out), false);
+    assert.equal(/restart the phone/i.test(out), false);
+    assert.equal(/update the app/i.test(out), false);
+    assert.equal(/wi-?fi/i.test(out), false);
+    assert.equal(/probably the battery/i.test(out), false);
+    assert.equal(/different cable/i.test(out), false);
+    assert.equal(/reinstale/i.test(out), false);
+    assert.equal(/limpe o cache/i.test(out), false);
+    assert.equal(/reinstala/i.test(out), false);
+    assert.equal(/borra la cach/i.test(out), false);
+  }
+  const joined = stripUnsupportedClaims(
+    "I can't see the app or the device from here, so try a different cable. I am not sure, so reinstale o app.",
+    'tech',
+    'it will not connect'
+  );
+  assert.match(joined, /can't see the app or the device from here/i);
+  assert.match(joined, /I am not sure/);
+  assert.equal(/different cable/i.test(joined), false);
+  assert.equal(/reinstale/i.test(joined), false);
+  const tried = stripUnsupportedClaims(
+    'You tried a different cable and it still fails. I am not sure.',
+    'firmware',
+    'it will not charge'
+  );
+  assert.match(tried, /tried a different cable/i);
+  assert.match(tried, /I am not sure/);
+  const afterPhone = stripUnsupportedClaims(
+    'It still turns off after you restart the phone, at 100% battery. Ich bin mir nicht sicher.',
+    'faq',
+    'turns off after I restart the phone'
+  );
+  assert.match(afterPhone, /after you restart the phone/i);
+  assert.match(afterPhone, /100% battery/i);
+  assert.match(afterPhone, /nicht sicher/);
+  const lightCause = stripUnsupportedClaims(
+    "Blue light means the necklace is on and connected, so it's probably the battery.",
+    'tech',
+    'blue light but the app says offline'
+  );
+  assert.match(lightCause, /Blue light means the necklace is on and connected/);
+  assert.equal(/probably the battery/i.test(lightCause), false);
+  const shop = stripUnsupportedClaims(
+    'Try a different cable. Reinstall the app.',
+    'shop',
+    'where is my order'
+  );
+  assert.match(shop, /different cable/i);
+  assert.match(shop, /reinstall the app/i);
 });
 
 test('a light-color fact is kept when a later step is stripped', () => {

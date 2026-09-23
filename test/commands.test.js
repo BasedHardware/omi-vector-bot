@@ -486,3 +486,174 @@ test('a File click that GitHub rejects can be pressed again', async () => {
     github.resetGithubMemory();
   }
 });
+
+test('a File click with no GitHub token keeps the draft', async () => {
+  const github = require('../github');
+  const { handleInteraction } = require('../commands');
+  const { MessageFlags } = require('discord.js');
+  github.resetGithubMemory();
+  const prevStaff = process.env.STAFF_USER_IDS;
+  const prevConfigured = github.isConfigured;
+  process.env.STAFF_USER_IDS = '123456789012345678';
+  github.isConfigured = () => false;
+  const draft = { title: 'App crashes on open', body: 'It crashes.', labels: ['vector'] };
+  const id = github.stashDraft(draft);
+  const stashed = github.peekDraft(id);
+  const replies = [];
+  const sent = [];
+  try {
+    assert.equal(github.isConfigured(), false);
+    await handleInteraction({
+      customId: `file:${id}`,
+      channelId: '555555555555555555',
+      user: { id: '123456789012345678' },
+      isChatInputCommand: () => false,
+      isButton: () => true,
+      deferReply: async () => {
+        throw new Error('must not defer without a token');
+      },
+      editReply: async (text) => {
+        replies.push(text);
+      },
+      reply: async (payload) => {
+        replies.push(payload);
+      },
+      channel: {
+        isTextBased: () => true,
+        send: async (text) => {
+          sent.push(text);
+          return text;
+        },
+      },
+    });
+    assert.equal(replies.length, 1);
+    assert.match(replies[0].content, /No GitHub token/);
+    assert.equal(replies[0].flags, MessageFlags.Ephemeral);
+    assert.equal(sent.length, 0);
+    assert.equal(github.peekDraft(id), stashed);
+    assert.equal(stashed.title, draft.title);
+    assert.equal(stashed.body, draft.body);
+    assert.deepEqual(stashed.labels, draft.labels);
+  } finally {
+    github.isConfigured = prevConfigured;
+    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prevStaff;
+    github.resetGithubMemory();
+  }
+});
+
+test('a File click does not claim a filing when GitHub returns no issue', async () => {
+  const github = require('../github');
+  const { handleInteraction } = require('../commands');
+  github.resetGithubMemory();
+  const prevStaff = process.env.STAFF_USER_IDS;
+  const prevToken = process.env.GITHUB_TOKEN;
+  const prevAppId = process.env.GITHUB_APP_ID;
+  const prevInstall = process.env.GITHUB_APP_INSTALLATION_ID;
+  const prevKey = process.env.GITHUB_APP_PRIVATE_KEY;
+  const prevFetch = globalThis.fetch;
+  process.env.STAFF_USER_IDS = '123456789012345678';
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  delete process.env.GITHUB_APP_ID;
+  delete process.env.GITHUB_APP_INSTALLATION_ID;
+  delete process.env.GITHUB_APP_PRIVATE_KEY;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 201,
+    json: async () => ({}),
+  });
+  const draft = { title: 'App crashes on open', body: 'It crashes.', labels: ['vector'] };
+  const id = github.stashDraft(draft);
+  const stashed = github.peekDraft(id);
+  const replies = [];
+  const sent = [];
+  try {
+    await handleInteraction({
+      customId: `file:${id}`,
+      channelId: '555555555555555555',
+      user: { id: '123456789012345678' },
+      isChatInputCommand: () => false,
+      isButton: () => true,
+      deferReply: async () => {},
+      editReply: async (text) => {
+        replies.push(text);
+      },
+      reply: async ({ content }) => {
+        replies.push(content);
+      },
+      channel: {
+        isTextBased: () => true,
+        send: async (text) => {
+          sent.push(text);
+          return text;
+        },
+      },
+    });
+    assert.equal(replies[0], 'GitHub did not accept the issue. I did not claim it was filed.');
+    assert.equal(sent.length, 0);
+    assert.equal(github.peekDraft(id), stashed);
+    assert.equal(github.takeDraft(id).title, draft.title);
+  } finally {
+    globalThis.fetch = prevFetch;
+    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prevStaff;
+    if (prevToken == null) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = prevToken;
+    if (prevAppId == null) delete process.env.GITHUB_APP_ID;
+    else process.env.GITHUB_APP_ID = prevAppId;
+    if (prevInstall == null) delete process.env.GITHUB_APP_INSTALLATION_ID;
+    else process.env.GITHUB_APP_INSTALLATION_ID = prevInstall;
+    if (prevKey == null) delete process.env.GITHUB_APP_PRIVATE_KEY;
+    else process.env.GITHUB_APP_PRIVATE_KEY = prevKey;
+    github.resetGithubMemory();
+  }
+});
+
+test('a File click keeps the draft when Discord rejects the defer', async () => {
+  const github = require('../github');
+  const { handleInteraction } = require('../commands');
+  github.resetGithubMemory();
+  const prevStaff = process.env.STAFF_USER_IDS;
+  const prevToken = process.env.GITHUB_TOKEN;
+  process.env.STAFF_USER_IDS = '123456789012345678';
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  const draft = { title: 'App crashes on open', body: 'It crashes.', labels: ['vector'] };
+  const id = github.stashDraft(draft);
+  const stashed = github.peekDraft(id);
+  const replies = [];
+  try {
+    await handleInteraction({
+      customId: `file:${id}`,
+      channelId: '555555555555555555',
+      user: { id: '123456789012345678' },
+      isChatInputCommand: () => false,
+      isButton: () => true,
+      deferReply: async () => {
+        throw new Error('already acknowledged');
+      },
+      editReply: async (text) => {
+        replies.push(text);
+      },
+      reply: async ({ content }) => {
+        replies.push(content);
+      },
+      followUp: async ({ content }) => {
+        replies.push(content);
+      },
+      channel: {
+        isTextBased: () => true,
+        send: async () => {
+          throw new Error('must not announce a filing');
+        },
+      },
+    });
+    assert.equal(replies.some((text) => /Filed/i.test(String(text))), false);
+    assert.equal(github.peekDraft(id), stashed);
+  } finally {
+    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prevStaff;
+    if (prevToken == null) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = prevToken;
+    github.resetGithubMemory();
+  }
+});

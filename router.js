@@ -30,14 +30,23 @@ const WEAK_MONEY = [
 
 const PRIVACY = [/\bprivacy\b/i, /\bgdpr\b/i, /\bdelete my (account|data)\b/i];
 
-const SHOP = [
-  /\border\s*(#|number|id|num|status)\b/i,
-  /\b(my|the)\s+order\b/i,
+// Where-is-it, status, tracking, shipping, and customs stay above firmware.
+// A bare order number stays below firmware, desktop, and app.
+// "got my order" / "received my order" is not a lookup.
+const STRONG_SHOP = [
   /\bwhere\s+is\s+my\s+order\b/i,
+  /\border\s*status\b/i,
+  /\bstatus\s+of\s+(?:my\s+|the\s+)?order\b/i,
   /\btracking\b/i,
   /\bshipping\b/i,
   /\bcustoms\b/i,
+  /\B#\d{3,}\b[^\n]{0,48}\b(?:never|not|hasn'?t|has not)\s+arrived\b/i,
+  /\b(?:never|not|hasn'?t|has not)\s+arrived\b[^\n]{0,48}\B#\d{3,}\b/i,
 ];
+
+const WEAK_SHOP = [/\border\s*(#|number|id|num)\b/i];
+
+const SHOP = [...STRONG_SHOP, ...WEAK_SHOP];
 
 const FIRMWARE = [
   /\bfirmware\b/i,
@@ -124,11 +133,23 @@ function any(text, patterns) {
   return patterns.some((re) => re.test(s));
 }
 
+function looksLikePhone(text) {
+  const re = /(?<![\d#])\+?(?:\d[\s().-]*){6,14}\d(?!\d)/g;
+  const s = String(text || '');
+  let match;
+  while ((match = re.exec(s))) {
+    const digits = match[0].replace(/\D/g, '');
+    if (digits.length >= 7 && digits.length <= 15) return true;
+  }
+  return false;
+}
+
 function looksLikePii(text) {
   const s = String(text || '');
   if (/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(s)) return true;
   if (/\b\d{1,5}\s+\w+.+\b(st|street|ave|avenue|rd|road|blvd)\b/i.test(s)) return true;
   if (/\b(phone|tel)\b.{0,12}\d{7,}/i.test(s)) return true;
+  if (looksLikePhone(s)) return true;
   return false;
 }
 
@@ -222,7 +243,7 @@ function classifyRoute(text) {
   if (any(s, STRONG_MONEY)) {
     return { area: 'shop', lane: 'money', escalate: true, wantHuman };
   }
-  if (any(s, SHOP)) {
+  if (any(s, STRONG_SHOP)) {
     return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
   }
   if (any(s, FIRMWARE)) {
@@ -233,6 +254,9 @@ function classifyRoute(text) {
   }
   if (any(s, APP)) {
     return { area: 'app', lane: 'tech', escalate: true, wantHuman };
+  }
+  if (any(s, WEAK_SHOP)) {
+    return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
   }
   if (any(s, WEAK_MONEY)) {
     return { area: 'shop', lane: 'money', escalate: true, wantHuman };

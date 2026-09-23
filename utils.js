@@ -48,25 +48,29 @@ function markReplied(threadId) {
 const claimedMessages = new Map();
 const CLAIM_MS = 10 * 60_000;
 
-function claimMessage(id) {
+function claimMessage(id, now = Date.now()) {
   const key = String(id || '').trim();
   if (!key) return true;
-  const now = Date.now();
   const prev = claimedMessages.get(key);
   if (prev && now - prev < CLAIM_MS) return false;
   claimedMessages.set(key, now);
   return true;
 }
 
-// Prevent unbounded growth — prune entries older than 5 minutes every 2 minutes
-setInterval(() => {
-  const cutoff = Date.now() - 5 * 60_000;
+function pruneTracked(now = Date.now()) {
+  const replyCutoff = now - 5 * 60_000;
+  const claimCutoff = now - CLAIM_MS;
   for (const [key, ts] of lastReplyMap) {
-    if (ts < cutoff) lastReplyMap.delete(key);
+    if (ts < replyCutoff) lastReplyMap.delete(key);
   }
   for (const [key, ts] of claimedMessages) {
-    if (ts < cutoff) claimedMessages.delete(key);
+    if (ts < claimCutoff) claimedMessages.delete(key);
   }
+}
+
+// Prevent unbounded growth. Claims last 10 minutes; reply cooldowns last 5.
+setInterval(() => {
+  pruneTracked();
 }, 2 * 60_000).unref();
 
 function containsEscalationKeyword(text) {
@@ -287,7 +291,9 @@ function dropPingNarration(text) {
 // Claims that a bug is already fixed, solved, or shipped, plus improvised repair steps.
 // "It has not shipped." stays — that sentence is the honest status.
 // "I am not sure" / "Ich bin mir nicht sicher" stay — those are not a diagnosis.
+// "Não tenho certeza." / "No estoy seguro." stay — they do not match the fix claims below.
 // "I am sure" does not match "I am not sure": "not" sits between "am" and "sure".
+// Recordings location and "firmware bug" stay in honesty.js.
 const FALSE_CERTAINTY = [
   /\bhalf[-\s]+solved\b/i,
   /\balready\s+solved\b/i,
@@ -299,6 +305,12 @@ const FALSE_CERTAINTY = [
   /\b(?:bug|issue|problem)\s+is\s+(?:fixed|solved)\b/i,
   /\bhas\s+been\s+fixed\b/i,
   /\bhas\s+been\s+solved\b/i,
+  /\bjá\s+foi\s+corrigido\b/i,
+  /\bjá\s+está\s+resolvido\b/i,
+  /\bya\s+está\s+arreglado\b/i,
+  /\besto\s+está\s+solucionado\b/i,
+  /\bschon\s+behoben\b/i,
+  /\bbereits\s+gelöst\b/i,
   /\b(?:do\s+not|don['’]?t)\s+keep\s+turning\s+it\s+on\b/i,
   /\bset\s+it\s+aside\b/i,
   /\bleave\s+it\s+as\s+it\s+is\b/i,
@@ -385,6 +397,7 @@ module.exports = {
   isOnCooldown,
   markReplied,
   claimMessage,
+  pruneTracked,
   containsEscalationKeyword,
   shouldEscalate,
   typingDelay,

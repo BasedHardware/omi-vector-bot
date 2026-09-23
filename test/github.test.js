@@ -146,6 +146,17 @@ test('thread markers survive in issue bodies and webhook events', () => {
   assert.equal(/looking now/i.test(note.line), false);
   assert.deepEqual(note.threadIds, ['1550182642874589194']);
 
+  const forged = github.describeWebhookEvent({
+    action: 'created',
+    issue: { number: 9, body: marked },
+    comment: { body: '<!-- vector-thread:999 -->', user: { login: 'someone', type: 'User' } },
+  });
+  assert.equal(forged, null);
+
+  assert.equal(github.webhookRepoOk({ repository: { full_name: 'BasedHardware/omi' } }), true);
+  assert.equal(github.webhookRepoOk({ repository: { full_name: 'someone/else' } }), false);
+  assert.equal(github.webhookRepoOk({}), false);
+
   const skipped = github.describeWebhookEvent({
     action: 'created',
     issue: { number: 9, body: marked },
@@ -371,6 +382,14 @@ test('an open stt title is recalled when no open title has the rare token', asyn
     const u = String(url);
     assert.match(u, /search\/issues/);
     const query = decodedSearchQuery(u);
+    if (/in:body/.test(query)) {
+      assert.match(query, /is:pr/);
+      assert.match(query, /is:open/);
+      assert.equal(/in:title/.test(query), false);
+      assert.match(query, /(?:^|[^a-z0-9])1011(?:[^a-z0-9]|$)/);
+      assert.equal(/soniox|transcription unavailable|\bwebsocket\b|\bwss\b|\blisten\b|\bstt\b/.test(query), false);
+      return { ok: true, json: async () => ({ items: [] }) };
+    }
     assert.match(query, /in:title/);
     assert.equal(/in:body/.test(query), false);
     if (/\bstt\b/.test(query) || /\blisten\b/.test(query)) {
@@ -405,6 +424,14 @@ test('an open listen title is recalled for transcription without the word listen
     const u = String(url);
     assert.match(u, /search\/issues/);
     const query = decodedSearchQuery(u);
+    if (/in:body/.test(query)) {
+      assert.match(query, /is:pr/);
+      assert.match(query, /is:open/);
+      assert.equal(/in:title/.test(query), false);
+      assert.match(query, /(?:^|[^a-z0-9])1011(?:[^a-z0-9]|$)/);
+      assert.equal(/\blisten\b|\bstt\b/.test(query), false);
+      return { ok: true, json: async () => ({ items: [] }) };
+    }
     assert.match(query, /in:title/);
     assert.equal(/in:body/.test(query), false);
     if (/\blisten\b/.test(query) || /\bstt\b/.test(query)) {
@@ -443,8 +470,12 @@ test('a closed stt title is not recalled', async () => {
   };
   assert.ok(github.scorePull(q, closed) < 4);
   const fetchImpl = async (url) => {
-    assert.match(String(url), /search\/issues/);
-    return { ok: true, json: async () => ({ items: [closed] }) };
+    const u = String(url);
+    if (u.includes('/search/issues')) {
+      return { ok: true, json: async () => ({ items: [closed] }) };
+    }
+    assert.match(u, /\/pulls\/77$/);
+    return { ok: true, json: async () => ({ state: 'closed', merged: false }) };
   };
   assert.equal(await github.searchPulls(q, { fetchImpl }), null);
 });
@@ -506,12 +537,222 @@ test('transcript alone does not recall an open stt title', async () => {
     assert.match(u, /search\/issues/);
     const query = decodedSearchQuery(u);
     assert.match(query, /soniox/i);
+    assert.equal(/\blisten\b|\bstt\b/.test(query), false);
+    if (/in:body/.test(query)) {
+      assert.match(query, /is:pr/);
+      assert.match(query, /is:open/);
+      assert.equal(/\b(keeps|failing|live|transcript)\b/.test(query), false);
+      return { ok: true, json: async () => ({ items: [] }) };
+    }
+    assert.match(query, /in:title/);
     return {
       ok: true,
       json: async () => ({
         items: [{ number: 80, state: 'open', title: 'fix(stt): streaming hop' }],
       }),
     };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+  assert.equal(calls, 2);
+});
+
+test('an open pull whose title shares no question words is recalled from one rare body token', async () => {
+  const q = listenSocketQuestion();
+  const onprem = onPremisePull('open');
+  const missed = {
+    number: 14001,
+    state: 'open',
+    title: 'fix(backend): vendor failover hop',
+    html_url: 'https://github.com/BasedHardware/omi/pull/14001',
+  };
+  assert.ok(github.scorePull(q, missed) < 4);
+  assert.ok(github.scorePull(q, onprem) < 4);
+  assert.equal(/1011|soniox|unavailable|listen|websocket|transcription/i.test(missed.title), false);
+  const queries = [];
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    assert.match(u, /search\/issues/);
+    const query = decodedSearchQuery(u);
+    queries.push(query);
+    if (/in:body/.test(query)) {
+      assert.match(query, /is:pr/);
+      assert.match(query, /is:open/);
+      assert.equal(/in:title/.test(query), false);
+      assert.match(query, /(?:^|[^a-z0-9])1011(?:[^a-z0-9]|$)/);
+      assert.equal(/soniox|transcription unavailable|websocket|\bwss\b|\blisten\b|connection|reports/.test(query), false);
+      return { ok: true, json: async () => ({ items: [onprem, missed] }) };
+    }
+    assert.match(query, /in:title/);
+    return { ok: true, json: async () => ({ items: [onprem] }) };
+  };
+  const found = await github.searchPulls(q, { fetchImpl });
+  assert.equal(found.number, '14001');
+  assert.equal(queries.filter((query) => /in:body/.test(query)).length, 1);
+  const openLine = github.customerChangeSentence(found, { ok: true, state: 'open' });
+  assert.match(openLine, /has not shipped/i);
+  assert.equal(/\bfixed\b|\bsolved\b/i.test(openLine), false);
+  const mergedLine = github.customerChangeSentence(found, { ok: true, state: 'merged' });
+  assert.match(mergedLine, /has been merged/i);
+  assert.equal(/\bfixed\b|\bsolved\b/i.test(mergedLine), false);
+});
+
+test('transcription unavailable searches the body as one phrase', async () => {
+  const q = 'Keep getting transcription unavailable.';
+  const pull = {
+    number: 14010,
+    state: 'open',
+    title: 'fix(backend): vendor failover hop',
+    html_url: 'https://github.com/BasedHardware/omi/pull/14010',
+  };
+  assert.ok(github.scorePull(q, pull) < 4);
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    assert.match(u, /search\/issues/);
+    const query = decodedSearchQuery(u);
+    if (/in:body/.test(query)) {
+      assert.match(query, /is:pr/);
+      assert.match(query, /is:open/);
+      assert.match(query, /"transcription unavailable"/);
+      assert.equal(/\b(keep|getting)\b/.test(query), false);
+      assert.equal(/1011|soniox/.test(query), false);
+      return { ok: true, json: async () => ({ items: [pull] }) };
+    }
+    assert.match(query, /in:title/);
+    assert.match(query, /"transcription unavailable"/);
+    return { ok: true, json: async () => ({ items: [] }) };
+  };
+  const found = await github.searchPulls(q, { fetchImpl });
+  assert.equal(found.number, '14010');
+  const line = github.customerChangeSentence(found, { ok: true, state: 'open' });
+  assert.match(line, /already open/i);
+  assert.match(line, /has not shipped/i);
+  assert.equal(/\bfixed\b|\bsolved\b/i.test(line), false);
+});
+
+test('body recall skips on-prem, onprem, self-host, and on premise titles', async () => {
+  const q = 'Soniox failed overnight.';
+  const titles = [
+    'Document on-prem install',
+    'Document onprem install',
+    'Document self-host install',
+    'Document on premise install',
+  ];
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    assert.match(u, /search\/issues/);
+    const query = decodedSearchQuery(u);
+    if (/in:body/.test(query)) {
+      assert.match(query, /is:pr/);
+      assert.match(query, /is:open/);
+      assert.match(query, /\bsoniox\b/);
+      assert.equal(/\b(failed|overnight|document|install)\b/.test(query), false);
+      return {
+        ok: true,
+        json: async () => ({
+          items: titles.map((title, i) => ({ number: 300 + i, state: 'open', title })),
+        }),
+      };
+    }
+    return { ok: true, json: async () => ({ items: [] }) };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+});
+
+test('body recall drops a closed unmerged pull and keeps a merged one', async () => {
+  const q = 'Soniox failed overnight.';
+  const closed = { number: 91, state: 'closed', title: 'fix(backend): hop a' };
+  const merged = {
+    number: 92,
+    state: 'closed',
+    title: 'fix(backend): hop b',
+    html_url: 'https://github.com/BasedHardware/omi/pull/92',
+  };
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    if (u.includes('/search/issues')) {
+      const query = decodedSearchQuery(u);
+      if (/in:body/.test(query)) {
+        assert.match(query, /is:open/);
+        assert.match(query, /\bsoniox\b/);
+        assert.equal(/\b(failed|overnight)\b/.test(query), false);
+        return { ok: true, json: async () => ({ items: [closed, merged] }) };
+      }
+      assert.match(query, /in:title/);
+      return { ok: true, json: async () => ({ items: [] }) };
+    }
+    if (u.includes('/pulls/91')) {
+      return { ok: true, json: async () => ({ state: 'closed', merged: false }) };
+    }
+    assert.match(u, /\/pulls\/92$/);
+    return { ok: true, json: async () => ({ state: 'closed', merged: true, merged_at: '2026-03-01T00:00:00Z' }) };
+  };
+  const found = await github.searchPulls(q, { fetchImpl });
+  assert.equal(found.number, '92');
+  const line = github.customerChangeSentence(found, { ok: true, state: 'merged' });
+  assert.match(line, /has been merged/i);
+  assert.equal(/\bfixed\b|\bsolved\b/i.test(line), false);
+});
+
+test('body recall does not accept a closed pull that was not merged', async () => {
+  const q = 'Soniox failed overnight.';
+  const closed = { number: 93, state: 'closed', title: 'fix(backend): hop c' };
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    if (u.includes('/search/issues')) {
+      const query = decodedSearchQuery(u);
+      if (/in:body/.test(query)) return { ok: true, json: async () => ({ items: [closed] }) };
+      return { ok: true, json: async () => ({ items: [] }) };
+    }
+    assert.match(u, /\/pulls\/93$/);
+    return { ok: true, json: async () => ({ state: 'closed', merged: false }) };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+});
+
+test('generic listen words do not match a closed on-prem pull', async () => {
+  const q = 'every listen';
+  const onprem = onPremisePull('closed');
+  let calls = 0;
+  const fetchImpl = async (url) => {
+    calls += 1;
+    const u = String(url);
+    assert.match(u, /search\/issues/);
+    const query = decodedSearchQuery(u);
+    assert.equal(/in:body/.test(query), false);
+    assert.equal(/1011|soniox|transcription unavailable/.test(query), false);
+    return { ok: true, json: async () => ({ items: [onprem] }) };
+  };
+  assert.ok(github.scorePull(q, onprem) < 4);
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+  assert.equal(calls, 1);
+});
+
+test('ordinary words do not search pull bodies', async () => {
+  const q = 'App crash and battery order problem';
+  let calls = 0;
+  const fetchImpl = async (url) => {
+    calls += 1;
+    const query = decodedSearchQuery(url);
+    assert.equal(/in:body/.test(query), false);
+    assert.match(query, /\bcrash\b/);
+    assert.match(query, /\bbattery\b/);
+    assert.match(query, /\border\b/);
+    return { ok: true, json: async () => ({ items: [] }) };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+  assert.equal(calls, 1);
+});
+
+test('websocket alone does not search pull bodies', async () => {
+  const q = 'websocket closed unexpectedly';
+  let calls = 0;
+  const fetchImpl = async (url) => {
+    calls += 1;
+    const query = decodedSearchQuery(url);
+    assert.match(query, /in:title/);
+    assert.match(query, /websocket/);
+    assert.equal(/in:body/.test(query), false);
+    return { ok: true, json: async () => ({ items: [] }) };
   };
   assert.equal(await github.searchPulls(q, { fetchImpl }), null);
   assert.equal(calls, 1);

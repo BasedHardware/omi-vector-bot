@@ -14,7 +14,7 @@ function isAllowedTextAttachment(att) {
   if (!att) return false;
   const name = String(att.name || att.filename || '');
   const type = String(att.contentType || att.content_type || '').toLowerCase();
-  if (type.startsWith('image/')) return false;
+  if (type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/')) return false;
   if (ALLOWED_EXT.test(name)) return true;
   if (type === 'text/plain' || type === 'application/json') return true;
   return false;
@@ -34,12 +34,18 @@ function clipAttachmentText(text, max = MAX_BYTES) {
   return `${out}\n…`;
 }
 
+function isSpoilerImageName(name) {
+  if (!String(name).startsWith('SPOILER_')) return false;
+  return !/\.(mp4|mov|webm|mp3|m4a|wav|ogg|log|txt|json)$/i.test(name);
+}
+
 function isWatchableAttachment(att) {
   if (!att) return false;
   const type = String(att.contentType || att.content_type || '').toLowerCase();
   const name = String(att.name || att.filename || '');
   if (type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/')) return true;
-  return /\.(png|jpe?g|gif|webp|mp4|mov|webm|mp3|m4a|wav|ogg)$/i.test(name);
+  if (/\.(png|jpe?g|gif|webp|mp4|mov|webm|mp3|m4a|wav|ogg)$/i.test(name)) return true;
+  return isSpoilerImageName(name);
 }
 
 function shouldMentionUnreadMedia(attachments, textFiles) {
@@ -62,7 +68,9 @@ function isErrorLine(line) {
     || /\bexception\b/i.test(line)
     || /\bfailed\b/i.test(line)
     || /\bdisconnected\b/i.test(line)
-    || /\bcode\s*[:#-]?\s*\d+/i.test(line);
+    || /\bcode\s*[:#-]?\s*\d+/i.test(line)
+    || /\btimed out\b/i.test(line)
+    || /\bnot capturing\b/i.test(line);
 }
 
 function isOtherChatLine(line) {
@@ -100,12 +108,19 @@ function errorLinesFromImageText(text) {
   return kept.join('\n');
 }
 
+function screenshotErrorLines(text) {
+  return errorLinesFromImageText(text);
+}
+
 function isImageAttachment(att) {
   if (!att) return false;
   const type = String(att.contentType || att.content_type || '').toLowerCase();
   const name = String(att.name || att.filename || '');
   if (type.startsWith('image/')) return true;
-  return /\.(png|jpe?g|gif|webp)$/i.test(name);
+  if (type.startsWith('video/') || type.startsWith('audio/')) return false;
+  if (/\.(mp4|mov|webm|mp3|m4a|wav|ogg)$/i.test(name)) return false;
+  if (/\.(png|jpe?g|gif|webp)$/i.test(name)) return true;
+  return isSpoilerImageName(name);
 }
 
 function shouldMentionUnreadImage(attachments, textFiles) {
@@ -132,7 +147,7 @@ function formatQuestion(userText, files) {
 
 async function fetchTextAttachments(discordAttachments, fetchImpl = globalThis.fetch) {
   const picked = attachmentsList(discordAttachments)
-    .filter(isAllowedTextAttachment)
+    .filter((att) => isAllowedTextAttachment(att) && !isWatchableAttachment(att))
     .slice(0, MAX_FILES);
   const out = [];
   for (const att of picked) {
@@ -169,4 +184,5 @@ module.exports = {
   shouldMentionUnreadMedia,
   unreadMediaSentence,
   errorLinesFromImageText,
+  screenshotErrorLines,
 };
