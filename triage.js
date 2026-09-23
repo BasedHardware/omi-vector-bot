@@ -50,10 +50,12 @@ function merge(route, agent, question) {
   const classified = route || classify(question);
   const moneyLock = classified.lane === 'money' || classified.lane === 'privacy';
   const docsLock = classified.lane === 'faq' && looksLikeDocs(question);
+  const bothCaptureAndTranscript =
+    looksLikeCaptureFailure(question) && looksLikeTranscription(question);
 
   let area = classified.area || 'unknown';
   let lane = classified.lane || 'unknown';
-  if (!moneyLock && !docsLock) {
+  if (!moneyLock && !docsLock && !bothCaptureAndTranscript) {
     const weak = area === 'unknown' || lane === 'unknown' || lane === 'faq';
     if (weak && AREAS.includes(agent?.area)) area = agent.area;
     if (weak && LANES.includes(agent?.lane) && agent.lane !== 'unknown') lane = agent.lane;
@@ -72,7 +74,7 @@ function merge(route, agent, question) {
     labels.push('shipping');
   }
   labels = labels.filter((label) => label !== 'needs-human');
-  if (docsLock) {
+  if (docsLock || (bothCaptureAndTranscript && lane === 'faq')) {
     labels = labels.filter((label) => label !== 'shop' && label !== 'account' && label !== 'money');
     if (!labels.includes('faq')) labels.unshift('faq');
   }
@@ -82,8 +84,6 @@ function merge(route, agent, question) {
     sanitizeTopic(agent?.topic) ||
     fallbackTopic(question, { area, lane }) ||
     'needs a person';
-  const bothCaptureAndTranscript =
-    looksLikeCaptureFailure(question) && looksLikeTranscription(question);
   const resolvedTopic = bothCaptureAndTranscript
     ? 'Transcription unavailable, device not capturing'
     : topic;

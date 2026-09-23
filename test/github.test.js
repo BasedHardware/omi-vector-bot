@@ -300,6 +300,7 @@ test('a rare token in the pull title matches even when the generic score is unde
       const query = decodeURIComponent(u.replace(/\+/g, ' '));
       assert.match(query, /1011/);
       assert.match(query, /in:title/);
+      assert.equal(/is:open/i.test(query), false);
       assert.equal(/\bconnection\b/.test(query), false);
       assert.equal(/\b(problem|every|reports)\b/.test(query), false);
       return { ok: true, json: async () => ({ items: [onprem, listen] }) };
@@ -328,4 +329,190 @@ test('a closed rare-token pull that was not merged does not match', async () => 
     return { ok: true, json: async () => ({ state: 'closed', merged: false }) };
   };
   assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+});
+
+function listenSocketQuestion() {
+  return [
+    'Connection problem with api.omi.me/v4/listen',
+    'Daily reports are not being produced. Transcription unavailable.',
+    'The server closed wss://api.omi.me/v4/listen with WebSocket code 1011 approximately every 20 seconds.',
+  ].join('\n');
+}
+
+function onPremisePull(state) {
+  return {
+    number: 10887,
+    state,
+    title: 'Omi fully on-premise via Docker Compose or Helm/k8s: every managed service',
+    body: 'connection problem listen daily reports transcription websocket soniox stt 1011',
+  };
+}
+
+function decodedSearchQuery(url) {
+  return decodeURIComponent(String(url).replace(/\+/g, ' '));
+}
+
+test('an open stt title is recalled when no open title has the rare token', async () => {
+  const q = listenSocketQuestion();
+  const onprem = onPremisePull('closed');
+  const sttPull = {
+    number: 13001,
+    state: 'open',
+    title: 'fix(stt): streaming failover hop',
+    html_url: 'https://github.com/BasedHardware/omi/pull/13001',
+    body: 'generic notes',
+  };
+  assert.equal(onprem.title.toLowerCase().includes('listen'), false);
+  assert.equal(onprem.title.toLowerCase().includes('stt'), false);
+  assert.ok(github.scorePull(q, onprem) < 4);
+  assert.ok(github.scorePull(q, sttPull) < 4);
+  assert.equal(/\blisten\b/i.test(sttPull.title), false);
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    assert.match(u, /search\/issues/);
+    const query = decodedSearchQuery(u);
+    assert.match(query, /in:title/);
+    assert.equal(/in:body/.test(query), false);
+    if (/\bstt\b/.test(query) || /\blisten\b/.test(query)) {
+      assert.match(query, /is:open/);
+      assert.match(query, /\blisten\b/);
+      assert.match(query, /\bstt\b/);
+      return { ok: true, json: async () => ({ items: [onprem, sttPull] }) };
+    }
+    assert.match(query, /1011/);
+    return { ok: true, json: async () => ({ items: [onprem] }) };
+  };
+  const found = await github.searchPulls(q, { fetchImpl });
+  assert.equal(found.number, '13001');
+  assert.match(found.title, /\bstt\b/i);
+});
+
+test('an open listen title is recalled for transcription without the word listen', async () => {
+  const q = 'Transcription unavailable. The socket died with code 1011.';
+  assert.equal(q.toLowerCase().includes('listen'), false);
+  const onprem = onPremisePull('open');
+  const listenPull = {
+    number: 13002,
+    state: 'open',
+    title: 'fix(listen): vendor hop',
+    html_url: 'https://github.com/BasedHardware/omi/pull/13002',
+    body: 'on-premise helm notes',
+  };
+  assert.equal(listenPull.title.toLowerCase().includes('stt'), false);
+  assert.ok(github.scorePull(q, listenPull) < 4);
+  assert.ok(github.scorePull(q, onprem) < 4);
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    assert.match(u, /search\/issues/);
+    const query = decodedSearchQuery(u);
+    assert.match(query, /in:title/);
+    assert.equal(/in:body/.test(query), false);
+    if (/\blisten\b/.test(query) || /\bstt\b/.test(query)) {
+      assert.match(query, /is:open/);
+      return { ok: true, json: async () => ({ items: [onprem, listenPull] }) };
+    }
+    assert.match(query, /1011/);
+    assert.equal(/\blisten\b/.test(query), false);
+    return { ok: true, json: async () => ({ items: [onprem] }) };
+  };
+  const found = await github.searchPulls(q, { fetchImpl });
+  assert.equal(found.number, '13002');
+  assert.match(found.title, /\blisten\b/i);
+});
+
+test('an open on-premise pull is not recalled from body words', async () => {
+  const q = listenSocketQuestion();
+  const onprem = onPremisePull('open');
+  assert.equal(onprem.title.toLowerCase().includes('listen'), false);
+  assert.equal(onprem.title.toLowerCase().includes('stt'), false);
+  assert.ok(github.scorePull(q, onprem) < 4);
+  const fetchImpl = async (url) => {
+    assert.match(String(url), /search\/issues/);
+    return { ok: true, json: async () => ({ items: [onprem] }) };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+});
+
+test('a closed stt title is not recalled', async () => {
+  const q = listenSocketQuestion();
+  const closed = {
+    number: 77,
+    state: 'closed',
+    title: 'fix(stt): vendor hop',
+    body: 'listen 1011 websocket soniox transcription unavailable',
+  };
+  assert.ok(github.scorePull(q, closed) < 4);
+  const fetchImpl = async (url) => {
+    assert.match(String(url), /search\/issues/);
+    return { ok: true, json: async () => ({ items: [closed] }) };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+});
+
+test('a closed high-score listen title that was not merged does not match', async () => {
+  const q = listenSocketQuestion();
+  const closed = {
+    number: 78,
+    state: 'closed',
+    title: 'fix(listen): vendor hop',
+    body: 'notes',
+  };
+  assert.ok(github.scorePull(q, closed) >= 4);
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    if (u.includes('/search/issues')) {
+      return { ok: true, json: async () => ({ items: [closed] }) };
+    }
+    assert.match(u, /\/pulls\/78$/);
+    return { ok: true, json: async () => ({ state: 'closed', merged: false }) };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+});
+
+test('an open rare-token title is not replaced by listen recall', async () => {
+  const q = listenSocketQuestion();
+  const listenOnly = {
+    number: 7001,
+    state: 'open',
+    title: 'fix(stt): buffer hop',
+    html_url: 'https://github.com/BasedHardware/omi/pull/7001',
+  };
+  const rareOpen = {
+    number: 7002,
+    state: 'open',
+    title: 'fix 1011 disconnect',
+    html_url: 'https://github.com/BasedHardware/omi/pull/7002',
+  };
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    assert.match(u, /search\/issues/);
+    const query = decodedSearchQuery(u);
+    assert.match(query, /1011/);
+    assert.equal(/\bstt\b/.test(query), false);
+    return { ok: true, json: async () => ({ items: [listenOnly, rareOpen] }) };
+  };
+  const found = await github.searchPulls(q, { fetchImpl });
+  assert.equal(found.number, '7002');
+});
+
+test('transcript alone does not recall an open stt title', async () => {
+  const q = 'Soniox keeps failing the live transcript.';
+  assert.equal(q.toLowerCase().includes('transcription'), false);
+  assert.equal(q.toLowerCase().includes('listen'), false);
+  let calls = 0;
+  const fetchImpl = async (url) => {
+    calls += 1;
+    const u = String(url);
+    assert.match(u, /search\/issues/);
+    const query = decodedSearchQuery(u);
+    assert.match(query, /soniox/i);
+    return {
+      ok: true,
+      json: async () => ({
+        items: [{ number: 80, state: 'open', title: 'fix(stt): streaming hop' }],
+      }),
+    };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+  assert.equal(calls, 1);
 });

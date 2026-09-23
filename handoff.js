@@ -455,6 +455,105 @@ async function applyThreadName(thread, meta = {}) {
   }
 }
 
+const MONTH_NAME =
+  'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
+
+function isDateOnlyLine(line) {
+  const t = String(line || '')
+    .trim()
+    .replace(/[.,:]\s*$/g, '')
+    .replace(/^[—–-]\s*/, '');
+  if (!t || /#/.test(t)) return false;
+  if (/^\d{1,2}[/.]\d{1,2}[/.]\d{2,4}(?:[, ]+\d{1,2}:\d{2}(?:\s*[ap]m)?)?$/i.test(t)) return true;
+  if (/^\d{4}-\d{1,2}-\d{1,2}(?:[ t]\d{1,2}:\d{2})?$/i.test(t)) return true;
+  if (/^\d{1,2}-\d{1,2}-\d{2,4}$/.test(t)) return true;
+  if (/^\d{1,2}:\d{2}(?:\s*[ap]m)?$/i.test(t)) return true;
+  if (/^(yesterday|today)(?:\s+at\s+\d{1,2}:\d{2}(?:\s*[ap]m)?)?$/i.test(t)) return true;
+  const weekday = '(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\\s+)?';
+  const clock = '(?:\\s+\\d{1,2}:\\d{2}(?:\\s*[ap]m)?)?';
+  const monthDay = new RegExp(
+    `^${weekday}(?:${MONTH_NAME})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?${clock}$`,
+    'i'
+  );
+  const dayMonth = new RegExp(
+    `^${weekday}\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${MONTH_NAME})\\.?(?:,?\\s+\\d{4})?${clock}$`,
+    'i'
+  );
+  return monthDay.test(t) || dayMonth.test(t);
+}
+
+function isLabeledDateLine(line) {
+  const raw = String(line || '').trim();
+  if (/#\s*\d{3,}/.test(raw) || /\border\b/i.test(raw)) return false;
+  const match = raw.match(/^[A-Za-z0-9][A-Za-z0-9]{1,16}\s*[—–-]\s+(.+)$/);
+  if (!match) return false;
+  return isDateOnlyLine(match[1]);
+}
+
+function quoteHasBody(lines) {
+  return lines.some((line) => {
+    const t = line.trim();
+    if (!t) return false;
+    if (/^op\s*[,.:]?$/i.test(t) || /^e\s+embaixo\s*[,.:]?\s*$/i.test(t)) return false;
+    if (isDateOnlyLine(t) || isLabeledDateLine(t)) return false;
+    if (/^[A-Za-z][A-Za-z'’-]{1,20}[,.]?$/.test(t)) return false;
+    return true;
+  });
+}
+
+function stripQuoteChrome(text) {
+  const lines = String(text || '').split('\n');
+  const hasBody = quoteHasBody(lines);
+  const kept = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) {
+      kept.push(line);
+      continue;
+    }
+    if (/^op\s*[,.:]?$/i.test(t) || /^e\s+embaixo\s*[,.:]?\s*$/i.test(t)) continue;
+    if (isDateOnlyLine(t) || isLabeledDateLine(t)) continue;
+    if (hasBody && /^[A-Za-z][A-Za-z'’-]{1,20}[,.]?$/.test(t)) continue;
+    kept.push(line);
+  }
+  return kept.join('\n').replace(/[^\S\n]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function hasMailboxMark(token) {
+  return /[._\d]/.test(token) && !/^[0-9]+$/.test(token);
+}
+
+function redactBareMailbox(text) {
+  const provider = '(?:gmail|hotmail)';
+  const handle = '(?![0-9]+\\b)(?=[A-Z0-9._%+-]*[._\\d])[A-Z0-9._%+-]+';
+  let out = String(text || '');
+  out = out.replace(
+    new RegExp(`\\b[A-Z0-9._%+-]+\\s*@\\s*${provider}(?:\\.[A-Z]{2,})?\\b`, 'gi'),
+    '[email]'
+  );
+  out = out.replace(
+    new RegExp(
+      `\\b([A-Z0-9._%+-]{2,})\\s*(?:\\(|\\[)\\s*at\\s*(?:\\)|\\])\\s*${provider}(?:\\.[A-Z]{2,})?\\b`,
+      'gi'
+    ),
+    (match, token) => (hasMailboxMark(token) ? '[email]' : match)
+  );
+  out = out.replace(new RegExp(`\\b${handle}\\s+(?:at\\s+)?${provider}(?:\\.[A-Z]{2,})?\\b`, 'gi'), '[email]');
+  out = out.replace(
+    new RegExp(`\\b${provider}(?:\\.[A-Z]{2,})?\\s+(?:is\\s+)?${handle}\\b`, 'gi'),
+    '[email]'
+  );
+  out = out.replace(
+    new RegExp(`\\b${provider}\\s*[:/]\\s*([A-Z0-9._%+-]{2,})\\b`, 'gi'),
+    (match, token) => (hasMailboxMark(token) ? '[email]' : match)
+  );
+  out = out.replace(
+    new RegExp(`\\b([A-Z0-9._%+-]{2,})\\s*[\\[(]\\s*${provider}\\s*[\\])]`, 'gi'),
+    (match, token) => (hasMailboxMark(token) ? '[email]' : match)
+  );
+  return out;
+}
+
 function redactCardQuote(text) {
   let out = String(text || '');
   out = out.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]');
@@ -470,7 +569,8 @@ function redactCardQuote(text) {
       return '[phone]';
     }
   );
-  return out;
+  out = redactBareMailbox(out);
+  return stripQuoteChrome(out);
 }
 
 function formatStaffTicket({

@@ -32,9 +32,12 @@ function faqTextForLane(lane) {
       : RAILS_FAQ.filter((line) => !/^Device lights:/i.test(line));
   const text = [...how, ...rails].join('\n');
   if (lane === 'tech' || lane === 'firmware') {
-    return text.replace(
-      'A person with account access needs this.',
-      'Do not mention account access.'
+    return (
+      text.replace(
+        'A person with account access needs this.',
+        'Do not mention account access.'
+      ) +
+      '\nDo not tell them to try again, turn it off and on, leave it plugged in, or charge it. Do not say schalte ihn nicht, beiseite, or lass den Omi.'
     );
   }
   return text;
@@ -46,7 +49,7 @@ function buildToolFacts({ route, shopifyText, githubText } = {}) {
   const lines = [`Lane: ${lane}. Area: ${area}.`, `This ticket: ${describe(route)}`];
   if (lane === 'tech' || lane === 'firmware') {
     lines.push(
-      'Read what they already did. If they paired, pairing is done — do not teach Bluetooth, pairing steps, or keeping the app open. If they named a light colour, say what that colour means. Do not say you are not sure what blue, red, orange, or teal means. You cannot open their phone, computer, or device. Do not guess API keys, OpenRouter, BYOK, or Settings paths. Do not tell them to rerun npm with --force or --legacy-peer-deps. Do not invent a command that changes their project. Do not tell them to unpair. escalate=true. First sentence: show you understood their case (video, seconds, error text). Do not write that a person on the team will look. Do not give a step that changes the device or the app. Do not mention account access. Do not say you know the cause.'
+      'Read what they already did. If they paired, pairing is done — do not teach Bluetooth, pairing steps, or keeping the app open. If they named a light colour, say what that colour means. Do not say you are not sure what blue, red, orange, or teal means. You cannot open their phone, computer, or device. Do not guess API keys, OpenRouter, BYOK, or Settings paths. Do not tell them to rerun npm with --force or --legacy-peer-deps. Do not invent a command that changes their project. Do not tell them to unpair. escalate=true. First sentence: show you understood their case (video, seconds, error text). Do not write that a person on the team will look. Do not give a step that changes the device or the app. Do not tell them to try again, turn it off and on, leave it plugged in, or charge it. Do not say schalte ihn nicht, beiseite, or lass den Omi. Do not mention account access. Do not say you know the cause.'
     );
   }
   if (lane === 'shop') {
@@ -85,7 +88,7 @@ Write like you are sitting with them, not like a log or a ticket:
 - Everyday words. If you must use a tech word they did not use, say what it means in the same sentence.
 - First sentence: show you understood them. ${
     lane === 'tech' || lane === 'firmware'
-      ? 'Do not give a step that changes the device or the app. Do not mention account access. Do not say you know the cause.'
+      ? 'Do not give a step that changes the device or the app. Do not tell them to try again, turn it off and on, leave it plugged in, or charge it. Do not mention account access. Do not say you know the cause.'
       : 'Then the next step they can actually do — or say a person needs this if you cannot.'
   }
 - Same language as the user.
@@ -110,7 +113,7 @@ You cannot see orders, tracking, warehouse, accounts, phone or computer apps, or
 Never write about pinging, flagging, tickets, mailboxes, colleagues, or “a person on the team.” Code writes the thread and the issue card.
 ${
     lane === 'tech' || lane === 'firmware'
-      ? '\nReport the symptom they wrote. Say you cannot see the app or the device. Do not name a cause (app-side, app bug, or firmware bug) or a place the recordings are. A device-light colour from the FAQ is not a cause. Do not guess delete/reinstall/reset steps. Do not give a step that changes the device or the app. Do not mention account access. Do not say you know the cause.\n'
+      ? '\nReport the symptom they wrote. Say you cannot see the app or the device. Do not name a cause (app-side, app bug, or firmware bug) or a place the recordings are. A device-light colour from the FAQ is not a cause. Do not guess delete/reinstall/reset steps. Do not give a step that changes the device or the app. Do not tell them to try again, turn it off and on, leave it plugged in, or charge it. Do not say schalte ihn nicht, beiseite, or lass den Omi. Do not mention account access. Do not say you know the cause.\n'
       : lane === 'faq'
         ? '\nReport the symptom they wrote. Say you cannot see the app or the device. Do not name a cause (app-side, app bug, or firmware bug) or a place the recordings are. A device-light colour from the FAQ is not a cause. Do not guess delete/reinstall/reset steps.\n'
         : ''

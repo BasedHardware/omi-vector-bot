@@ -224,3 +224,13 @@ test('a question in another script does not pull an unrelated staff fact', () =>
   assert.equal(search('Where is my order?').length, 1);
   resetKnowledge();
 });
+
+test('a short latin word does not return every stored snippet', () => {
+  resetKnowledge();
+  addSnippet('Order and tracking lookups need a person. Vector cannot see Shopify.');
+  assert.deepEqual(search('hi'), []);
+  const hits = search('Where is my order?');
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /Shopify/);
+  resetKnowledge();
+});

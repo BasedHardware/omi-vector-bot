@@ -158,3 +158,19 @@ test('errorLinesFromImageText keeps exception, failed, disconnected, and code di
   );
   assert.equal(out, 'exception while saving\nfailed\ndisconnected\ncode: 1006');
 });
+
+test('errorLinesFromImageText keeps transcription unavailable, 1011, and server_error alone', () => {
+  const out = errorLinesFromImageText(
+    [
+      'Conversations',
+      'Shipping, Found Wallet',
+      'Transcription unavailable',
+      '1011',
+      'server_error',
+      'Today',
+    ].join('\n')
+  );
+  assert.equal(out, 'Transcription unavailable\n1011\nserver_error');
+  assert.equal(out.includes('Shipping'), false);
+  assert.equal(out.includes('Conversations'), false);
+});

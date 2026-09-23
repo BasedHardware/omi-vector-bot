@@ -179,26 +179,60 @@ function looksLikeRecordingsPlace(sentence) {
 }
 
 // Steps and handoffs the bot cannot know on a tech or firmware ticket.
-// Symptom restatements ("powers off", "after you restart") stay.
-const DEVICE_STEP = [
+// Symptom restatements ("powers off", "after you restart", "when you try again") stay.
+// HARD steps still drop inside a sentence that also restates something they already did.
+const HARD_DEVICE_STEP = [
   /\baccount access\b/i,
   /\bkontozugriff\b/i,
   /\bset (it|the device|the omi|this|that) aside\b/i,
   /\bset aside\b/i,
-  /\bbeiseite\b/i,
+  /\bbeiseite/i,
   /\b(don'?t|do not|stop)\s+(keep\s+)?turning\b/i,
   /\bnicht (immer wieder|weiter|ständig) ein(schalten)?\b/i,
+  /\bschalt(?:e|et|en)?(?:\s+sie)?\s+(?:ihn|es|den(?:\s+omi)?|das(?:\s+ger(?:ä|ae)t)?)\s+nicht\b/i,
+  /\blass(?:e|t|en)?(?:\s+sie)?\s+den\s+omi\b/i,
+  /\blass(?:e)?\s+ihn\s+(?:aus|in\s+ruhe|liegen|eingesteckt|so|erst(?:mal| einmal))\b/i,
+  /\bleg(?:e|t|en)?(?:\s+sie)?\s+(?:den\s+omi|ihn|es)\b/i,
+  /\b(?:do not|don['’]?t|never|avoid)\s+(?:keep\s+)?charg(?:e|ing)\b/i,
+  /\bbitte\s+nicht\s+(?:mehr\s+|weiter\s+|weiterhin\s+)?(?:auf)?laden\b/i,
+  /\bnicht\s+(?:mehr|weiter|weiterhin)\s+(?:auf)?laden\b/i,
+  /^(?:bitte\s+)?nicht\s+(?:auf)?laden\b/i,
+  /\b(?:ihn|den\s+omi|das\s+ger(?:ä|ae)t)\s+nicht\s+(?:auf)?laden\b/i,
+  /\blad(?:e|et)?\s+(?:ihn|es|den(?:\s+omi)?|das(?:\s+ger(?:ä|ae)t)?)\s+nicht\b/i,
+  /\b(?:leave|keep|put|take)\s+(?:it|the(?:\s+\w+)?|your(?:\s+\w+)?)\s+(?:on|off)\s+the\s+charger\b/i,
+  /\bkeep\s+charg(?:e|ing)\b/i,
+  /\blet\s+it\s+sit\b/i,
+  /\b(?:please\s+|just\s+)?(?:leave|keep)\s+(?:it|the(?:\s+\w+)?|your(?:\s+\w+)?)\s+plugged\s+in\b/i,
+  /\b(?:please\s+|just\s+)?(?:leave|keep)\s+(?:it|the\s+(?:device|omi|necklace)|your\s+(?:device|omi|necklace))\s+(?:off|alone)\b/i,
+  /\beingesteckt\s+lassen\b/i,
+  /^(?:please\s+|just\s+)?charge\s+(?:it|the(?:\s+\w+)?|your(?:\s+\w+)?)\b/i,
+];
+
+const DEVICE_STEP = [
   /\b(restart|reboot|reinstall|reset|unpair)(ing)?\b/i,
   /\b(neu starten|zurücksetzen|neu installieren|entkoppeln)\b/i,
   /\bpower\s+cycle\b/i,
   /^(?:please\s+|just\s+|try\s+(?:to\s+)?)?power\s+(?:it|the|your|this|that)\b/i,
   /\b(?:don'?t|do not|stop|avoid|try(?:\s+to)?|please|just)\s+power(?:ing)?\b/i,
+  /\btry(?:\s+(?:it|that|this))?\s+again\b/i,
+  /\bversuch(?:e|t|en)?(?:\s+sie)?\s+es\s+(?:noch\s*mal|nochmal|erneut|noch einmal|wieder)\b/i,
+  /\bnoch(?:\s*mal|mal| einmal)\s+versuchen\b/i,
+  /\b(?:turn|switch|turning)\s+(?:it|the(?:\s+\w+)?|your(?:\s+\w+)?|this|that)\s+off\b/i,
+  /\bturning\s+(?:it|the(?:\s+\w+)?|your(?:\s+\w+)?)\s+on\b/i,
+  /\b(?:schalt|mach)(?:e|et|en)?(?:\s+sie)?\s+(?:ihn|es|den(?:\s+omi)?)\s+aus\s+und\s+(?:wieder\s+)?(?:ein|an)\b/i,
+  /\baus-\s*und\s+(?:wieder\s+)?einschalten\b/i,
+  /\b(?:unplug|plug)\s+(?:it|the(?:\s+\w+)?|your(?:\s+\w+)?|this|that)\b/i,
 ];
 
 const ALREADY_DID_STEP = [
   /\b(after you|when you)\s+(restart|reset|unpair|reinstall|power)/i,
   /\balready\s+(restarted|reset|unpaired|reinstalled|powered)\b/i,
   /\b(you|they|i)\s+(restarted|reset|unpaired|reinstalled|powered)\b/i,
+  /\b(?:after|when)\s+you\s+try(?:\s+(?:it|that|this))?\s+again\b/i,
+  /\b(?:after|when)\s+you\s+(?:turn|switch)\b/i,
+  /\bafter\s+turning\b/i,
+  /\bwhen\s+you\s+(?:keep\s+)?turning\b/i,
+  /\b(?:after|when)\s+you\s+(?:un)?plug\b/i,
 ];
 
 function sentenceIsRealLightFact(sentence) {
@@ -211,17 +245,29 @@ function sentenceIsRealLightFact(sentence) {
   );
 }
 
+function matchesAny(patterns, sentence) {
+  return patterns.some((re) => re.test(String(sentence || '')));
+}
+
 function looksLikeDeviceStep(sentence) {
   const s = String(sentence || '');
   if (sentenceIsRealLightFact(s)) return false;
-  if (ALREADY_DID_STEP.some((re) => re.test(s))) {
-    if (/\baccount access\b|\bkontozugriff\b/i.test(s)) return true;
-    if (/\bset (it|the device|the omi|this|that) aside\b|\bset aside\b|\bbeiseite\b/i.test(s)) return true;
-    if (/\b(don'?t|do not|stop)\s+(keep\s+)?turning\b/i.test(s)) return true;
-    if (/\bnicht (immer wieder|weiter|ständig) ein(schalten)?\b/i.test(s)) return true;
-    return false;
-  }
-  return DEVICE_STEP.some((re) => re.test(s));
+  if (matchesAny(HARD_DEVICE_STEP, s)) return true;
+  if (matchesAny(ALREADY_DID_STEP, s)) return false;
+  return matchesAny(DEVICE_STEP, s);
+}
+
+function dropDeviceStepClauses(sentence) {
+  const parts = String(sentence || '').split(/,\s+|\s+[—–]\s+/);
+  if (parts.length < 2) return '';
+  return parts
+    .filter((part) => {
+      const bit = part.trim();
+      if (!bit || looksLikeDeviceStep(bit)) return false;
+      if (/^(?:bis|until|so that)\b/i.test(bit)) return false;
+      return true;
+    })
+    .join(', ');
 }
 
 function lineHasDeviceStep(line) {
@@ -245,12 +291,13 @@ function stripUnsupportedClaims(text, lane, question) {
       if (!drop) return line;
       return line
         .split(/(?<=[.!?])\s+/)
-        .filter((sentence) => {
-          if (looksLikeCauseClaim(sentence)) return false;
-          if (!allowPlace && looksLikeRecordingsPlace(sentence)) return false;
-          if (dropSteps && looksLikeDeviceStep(sentence)) return false;
-          return true;
+        .map((sentence) => {
+          if (looksLikeCauseClaim(sentence)) return '';
+          if (!allowPlace && looksLikeRecordingsPlace(sentence)) return '';
+          if (dropSteps && looksLikeDeviceStep(sentence)) return dropDeviceStepClauses(sentence);
+          return sentence;
         })
+        .filter(Boolean)
         .join(' ')
         .trim();
     })

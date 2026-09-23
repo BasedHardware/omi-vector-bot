@@ -484,6 +484,104 @@ test('tech replies drop account access and device-changing steps', () => {
   assert.match(faq, /restart the phone/i);
 });
 
+test('firmware and tech replies drop retry, power-cycle, and charging steps', () => {
+  const { stripUnsupportedClaims } = require('../honesty');
+  const { buildSystemPrompt, buildToolFacts } = require('../prompt');
+  const out = stripUnsupportedClaims(
+    [
+      'The device turns off after 10-15 seconds at 100% battery.',
+      'Try again. Turn it off and on. Leave it plugged in. Don\'t charge it.',
+      'I will not guess, so do not charge it.',
+    ].join('\n\n'),
+    'firmware',
+    'turns off after 10-15 seconds at 100% battery'
+  );
+  assert.match(out, /turns off after 10-15 seconds/i);
+  assert.match(out, /I will not guess/i);
+  assert.equal(/try again/i.test(out), false);
+  assert.equal(/off and on/i.test(out), false);
+  assert.equal(/plugged in/i.test(out), false);
+  assert.equal(/charge it/i.test(out), false);
+  const german = stripUnsupportedClaims(
+    [
+      'Du hast den Omi geladen, die App zeigt 100 %, aber er geht etwa 10–15 Sekunden nach dem Einschalten von selbst wieder aus.',
+      'Schalte ihn nicht ein. Lass den Omi in Ruhe. Nicht weiter aufladen.',
+      'Woran das liegt, bin ich mir nicht sicher.',
+    ].join('\n\n'),
+    'firmware',
+    'geht nach 10-15 sek wieder aus'
+  );
+  assert.match(german, /10–15 Sekunden/);
+  assert.match(german, /Einschalten/);
+  assert.match(german, /nicht sicher/);
+  assert.equal(/schalte ihn nicht/i.test(german), false);
+  assert.equal(/lass den omi/i.test(german), false);
+  assert.equal(/aufladen/i.test(german), false);
+  const symptom = stripUnsupportedClaims(
+    'It still turns off when you try again, at 100% battery. I will not guess.',
+    'tech',
+    'turns off when I try again'
+  );
+  assert.match(symptom, /when you try again/i);
+  assert.match(symptom, /will not guess/i);
+  const light = stripUnsupportedClaims(
+    'Blue light means the necklace is on and connected. Do not charge it. Leave it alone.',
+    'tech',
+    'blue light but the app says offline'
+  );
+  assert.match(light, /Blue light means the necklace is on and connected/);
+  assert.equal(/charge it/i.test(light), false);
+  assert.equal(/leave it alone/i.test(light), false);
+  const wontTurnOn = stripUnsupportedClaims(
+    'Der Omi lässt sich nicht einschalten, auch bei vollem Akku. Ich rate nichts.',
+    'firmware',
+    'lässt sich nicht einschalten'
+  );
+  assert.match(wontTurnOn, /nicht einschalten/);
+  const wontCharge = stripUnsupportedClaims(
+    'Der Akku lässt sich nicht aufladen. Die Seite kann nicht laden. Er geht aus und wieder an. I will not guess.',
+    'firmware',
+    'akku lädt nicht'
+  );
+  assert.match(wontCharge, /nicht aufladen/);
+  assert.match(wontCharge, /nicht laden/);
+  assert.match(wontCharge, /aus und wieder an/);
+  assert.match(wontCharge, /will not guess/);
+  const paraphrase = stripUnsupportedClaims(
+    [
+      'The device turns off after 10-15 seconds at 100% battery.',
+      'Schalt ihn aus und wieder an. Leave it on the charger. Keep charging it. Unplug it and plug it back in. Let it sit.',
+      'You left it plugged in and it still turns off. I will not guess.',
+    ].join('\n\n'),
+    'firmware',
+    'turns off after 10-15 seconds'
+  );
+  assert.match(paraphrase, /turns off after 10-15 seconds/i);
+  assert.match(paraphrase, /left it plugged in/i);
+  assert.match(paraphrase, /will not guess/i);
+  assert.equal(/aus und wieder an/i.test(paraphrase), false);
+  assert.equal(/charger|keep charging/i.test(paraphrase), false);
+  assert.equal(/\bunplug\b|\bplug it\b/i.test(paraphrase), false);
+  assert.equal(/let it sit/i.test(paraphrase), false);
+  const faq = stripUnsupportedClaims(
+    'If it fails, turn it off and on and try again.',
+    'faq',
+    'how do I pair'
+  );
+  assert.match(faq, /turn it off and on/i);
+  assert.match(faq, /try again/i);
+  for (const lane of ['tech', 'firmware']) {
+    const prompt = buildSystemPrompt({ lane });
+    assert.match(prompt, /try again/i);
+    assert.match(prompt, /turn it off and on/i);
+    assert.match(prompt, /leave it plugged in/i);
+    assert.match(prompt, /schalte ihn nicht/i);
+    assert.match(prompt, /lass den Omi/i);
+    assert.match(prompt, /beiseite/i);
+    assert.match(buildToolFacts({ route: { lane, area: 'firmware' } }), /try again/i);
+  }
+});
+
 test('a light-color fact is kept when a later step is stripped', () => {
   const { stripUnsupportedClaims } = require('../honesty');
   const kept = 'Blue light means the necklace is on and connected, so do not restart it.';

@@ -539,6 +539,8 @@ function scorePull(question, item) {
 }
 
 // Sharp tokens name one pull. websocket / wss are shared by many titles.
+// If no open title has one, an open listen/stt title can still match a question
+// that says listen or transcription. Body text never counts.
 const RARE_SHARP = ['1011', 'soniox', 'transcription unavailable'];
 const RARE_BROAD = ['websocket', 'wss'];
 
@@ -571,24 +573,81 @@ function pullSearchQuery(question) {
   return [`repo:${repo()}`, 'is:pr', ...tokens].join(' ');
 }
 
-async function searchPulls(question, { fetchImpl } = {}) {
-  const q = pullSearchQuery(question);
-  if (!q) return null;
+function isOpenPull(item) {
+  return String(item?.state || '').toLowerCase() === 'open';
+}
+
+function questionWantsListenRecall(question) {
+  const q = String(question || '').toLowerCase();
+  return q.includes('listen') || q.includes('transcription');
+}
+
+function titleHasListenOrStt(title) {
+  const t = String(title || '').toLowerCase();
+  return t.includes('listen') || t.includes('stt');
+}
+
+function listenRecallQuery() {
+  return [`repo:${repo()}`, 'is:pr', 'is:open', '(listen OR stt)', 'in:title'].join(' ');
+}
+
+function toPullRef(item, score) {
+  return {
+    kind: 'pull',
+    number: String(item.number),
+    title: String(item.title || ''),
+    url: item.html_url || `https://github.com/${repo()}/pull/${item.number}`,
+    score,
+  };
+}
+
+async function fetchIssueSearch(q, fetchImpl) {
   const fetchFn = fetchImpl || fetch;
   const url = new URL('https://api.github.com/search/issues');
   url.searchParams.set('q', q);
   url.searchParams.set('per_page', '8');
+  const res = await fetchFn(url, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'omi-vector-bot',
+    },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+async function finishPull(item, score, fetchImpl) {
+  if (!item) return null;
+  const ref = toPullRef(item, score);
+  if (String(item.state || '').toLowerCase() === 'closed') {
+    const lookup = await lookupChange(ref, { fetchImpl });
+    if (lookup.state !== 'merged') return null;
+  }
+  return ref;
+}
+
+function pickOpenListen(question, items) {
+  let best = null;
+  let bestScore = -1;
+  for (const item of items || []) {
+    if (!isOpenPull(item) || !titleHasListenOrStt(item.title)) continue;
+    const score = scorePull(question, item);
+    if (!best || score > bestScore) {
+      best = item;
+      bestScore = score;
+    }
+  }
+  return best ? { item: best, score: bestScore } : null;
+}
+
+async function searchPulls(question, { fetchImpl } = {}) {
+  const q = pullSearchQuery(question);
+  if (!q) return null;
   try {
-    const res = await fetchFn(url, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'omi-vector-bot',
-      },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const items = Array.isArray(data?.items) ? data.items : [];
+    const items = await fetchIssueSearch(q, fetchImpl);
+    if (!items) return null;
     let best = null;
     let bestScore = 0;
     let rareBest = null;
@@ -605,19 +664,18 @@ async function searchPulls(question, { fetchImpl } = {}) {
       }
     }
     const chosen = bestScore >= 4 ? best : rareBest;
-    if (!chosen) return null;
-    const ref = {
-      kind: 'pull',
-      number: String(chosen.number),
-      title: String(chosen.title || ''),
-      url: chosen.html_url || `https://github.com/${repo()}/pull/${chosen.number}`,
-      score: bestScore >= 4 ? bestScore : rareScore,
-    };
-    if (String(chosen.state || '').toLowerCase() === 'closed') {
-      const lookup = await lookupChange(ref, { fetchImpl });
-      if (lookup.state !== 'merged') return null;
-    }
-    return ref;
+    const accepted = chosen
+      ? await finishPull(chosen, bestScore >= 4 ? bestScore : rareScore, fetchImpl)
+      : null;
+    if (accepted) return accepted;
+
+    if (!rareTokensIn(question).length || !questionWantsListenRecall(question)) return null;
+    if (items.some((item) => isOpenPull(item) && titleSharesRareToken(question, item))) return null;
+
+    const local = pickOpenListen(question, items);
+    const recalled = local || pickOpenListen(question, await fetchIssueSearch(listenRecallQuery(), fetchImpl));
+    if (!recalled || !isOpenPull(recalled.item)) return null;
+    return toPullRef(recalled.item, recalled.score);
   } catch (err) {
     console.error('[GitHub] pull search failed:', err.message);
     return null;

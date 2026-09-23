@@ -139,6 +139,47 @@ test('staff card quote redacts email, phone, and street address', () => {
   assert.equal(specialist.value.includes('@'), false);
 });
 
+test('staff card quote drops leftover discord chrome', () => {
+  const ticket = formatStaffTicket({
+    message: {
+      url: 'https://discord.com/channels/1/2/3',
+      author: { id: '99' },
+      channel: { id: '2' },
+    },
+    question: [
+      'gregory',
+      'OP:',
+      '- 15/09/2026, 05:26',
+      'OMI — AUGUST 11:',
+      'BRAZIL — SEPTEMBER 14:',
+      'E embaixo:',
+      'Please take ownership of Order #20716.',
+      'On August 11, Omi confirmed the duties were prepaid.',
+      'My gmail is gregory.brazil and hotmail: ada.lane.',
+      'I use gmail for the receipt. Email me on hotmail if the site is down. See gmail: the receipt.',
+    ].join('\n'),
+    area: 'shop',
+    lane: 'shop',
+  });
+  const description = ticket.discord.embeds[0].description;
+  assert.match(description, /Order #20716/);
+  assert.match(description, /On August 11, Omi confirmed/i);
+  assert.match(description, /I use gmail for the receipt/);
+  assert.match(description, /on hotmail/i);
+  assert.match(description, /gmail: the receipt/);
+  assert.match(description, /\[email\]/);
+  assert.equal(/\bgregory\b/i.test(description), false);
+  assert.equal(/gregory\.brazil/i.test(description), false);
+  assert.equal(/ada\.lane/i.test(description), false);
+  assert.equal(/\bOP\b/.test(description), false);
+  assert.equal(/15\/09\/2026/.test(description), false);
+  assert.equal(/SEPTEMBER 14/i.test(description), false);
+  assert.equal(/AUGUST 11:/i.test(description), false);
+  assert.equal(/embaixo/i.test(description), false);
+  const specialist = ticket.discord.embeds[0].fields.find((field) => field.name === 'Specialist');
+  assert.equal(specialist.value.includes('@'), false);
+});
+
 test('handoff threads are skipped by name', () => {
   const { handoffThreadName, isHandoffThread } = require('../handoff');
   assert.equal(isHandoffThread({ isThread: () => true, name: 'Handoff · david' }), true);

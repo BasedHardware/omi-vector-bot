@@ -57,7 +57,7 @@ const FIRMWARE = [
 const DESKTOP = [
   /\bmac\s?os\b/i,
   /\bmacos\b/i,
-  /\bmac\b(?![- ](?:add?ress|addr)\b|\s+of\s+my\s+omi\b)/i,
+  /(?<!\bhardware\s)\bmac\b(?!(?:[- ]|['\u2019]s\s+)(?:add?ress(?:es)?|addr)\b|\s+id\b|\s+(?:of|on)\s+(?:(?:the|this|my|your)\s+)?omi\b)/i,
   /\bdesktop app\b/i,
   /\bomi desktop\b/i,
   /\bdesktop voice\b/i,

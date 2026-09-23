@@ -286,6 +286,8 @@ function dropPingNarration(text) {
 
 // Claims that a bug is already fixed, solved, or shipped, plus improvised repair steps.
 // "It has not shipped." stays — that sentence is the honest status.
+// "I am not sure" / "Ich bin mir nicht sicher" stay — those are not a diagnosis.
+// "I am sure" does not match "I am not sure": "not" sits between "am" and "sure".
 const FALSE_CERTAINTY = [
   /\bhalf[-\s]+solved\b/i,
   /\balready\s+solved\b/i,
@@ -301,6 +303,8 @@ const FALSE_CERTAINTY = [
   /\bset\s+it\s+aside\b/i,
   /\bleave\s+it\s+as\s+it\s+is\b/i,
   /\bstop\s+turning\s+it\s+on\b/i,
+  /\bI(?:['’]m|\s+am)\s+sure\b/i,
+  /\bthis\s+will\s+fix\s+it\b/i,
 ];
 
 function claimsBugShipped(sentence) {
@@ -310,10 +314,27 @@ function claimsBugShipped(sentence) {
   return /\bshipped\b/i.test(s);
 }
 
+function isHonestUncertainty(sentence) {
+  const s = String(sentence || '');
+  return /\bI(?:['’]m|\s+am)\s+not\s+sure\b/i.test(s) || /\bnicht\s+sicher\b/i.test(s);
+}
+
+// "kein bekannter Fix" is the negation. Drop only when a positive known-fix claim remains.
+function claimsKnownFix(sentence) {
+  const s = String(sentence || '')
+    .replace(/\bno\s+known\s+fix\b/gi, ' ')
+    .replace(/\bkein(?:e[mnrs]?)?\s+bekannt(?:e[rsn]?)?\s+fix(?:es|e)?\b/gi, ' ');
+  return /\bknown\s+fix\b/i.test(s) || /\bbekannt(?:e[rsn]?)?\s+fix(?:es|e)?\b/i.test(s);
+}
+
 function looksLikeFalseCertainty(sentence) {
   const s = String(sentence || '');
   if (FALSE_CERTAINTY.some((re) => re.test(s))) return true;
-  return claimsBugShipped(s);
+  if (claimsBugShipped(s)) return true;
+  if (claimsKnownFix(s)) return true;
+  if (isHonestUncertainty(s)) return false;
+  if (/\bthe\s+cause\s+is\b/i.test(s)) return true;
+  return /\bno\s+known\s+fix\b/i.test(s);
 }
 
 function stripFalseCertainty(text) {

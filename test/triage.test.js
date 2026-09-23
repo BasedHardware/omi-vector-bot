@@ -85,3 +85,25 @@ test('a docs question stays faq when the model calls it shop', () => {
   assert.equal(merged.escalate, true);
   assert.equal(merged.fileIssue, false);
 });
+
+test('capture and transcription stays off shop when the model calls it an account', () => {
+  const q = "in order to pair, device doesn't capture and transcription is unavailable";
+  const merged = triage.merge(
+    router.classify(q),
+    {
+      area: 'shop',
+      lane: 'account',
+      labels: ['shop', 'account', 'money'],
+      topic: 'Account shop takeover',
+    },
+    q
+  );
+  assert.equal(merged.area, 'unknown');
+  assert.equal(merged.lane, 'faq');
+  assert.equal(merged.topic, 'Transcription unavailable, device not capturing');
+  assert.equal(merged.labels.includes('shop'), false);
+  assert.equal(merged.labels.includes('account'), false);
+  assert.equal(merged.labels.includes('money'), false);
+  assert.equal(merged.labels.includes('faq'), true);
+  assert.equal(merged.fileIssue, false);
+});

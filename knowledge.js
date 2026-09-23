@@ -87,14 +87,12 @@ function filterSnippetsForLane(snippets, lane) {
 
 function search(query, limit = SEARCH_LIMIT) {
   const words = searchWords(query);
-  if (!words.length && !/[a-z]/i.test(String(query || ''))) return [];
+  if (!words.length) return [];
 
-  const pool = words.length
-    ? snippets.filter((s) => {
-        const lower = s.toLowerCase();
-        return words.some((w) => lower.includes(w));
-      })
-    : snippets;
+  const pool = snippets.filter((s) => {
+    const lower = s.toLowerCase();
+    return words.some((w) => lower.includes(w));
+  });
 
   return pool.slice(0, limit);
 }

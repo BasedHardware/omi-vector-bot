@@ -454,6 +454,14 @@ async function handleMessage(message) {
         router.cannedReply(route, asked || question) ||
           "I can't share account or order details in this public post."
       );
+      if (
+        /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(cleanAnswer) ||
+        /\b\d{1,5}\s+(?:(?:[A-Za-z][A-Za-z.'-]*|\d{1,3}(?:st|nd|rd|th))\s+){0,4}(?:street|st|avenue|ave|road|rd|blvd)\b/i.test(
+          cleanAnswer
+        )
+      ) {
+        cleanAnswer = "I can't share account or order details in this public post.";
+      }
     }
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
