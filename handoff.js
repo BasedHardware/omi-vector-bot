@@ -275,6 +275,7 @@ function markHandoffClosed(thread) {
   if (!thread?.id) return;
   closedHandoffs.add(String(thread.id));
   forgetOpenHandoff(thread);
+  lastHandoff.delete(String(thread.parentId || ''));
 }
 
 function isClosedHandoff(thread) {
@@ -924,7 +925,6 @@ module.exports = {
   isWeakerHandoffName,
   findOpenHandoff,
   rememberOpenHandoff,
-  forgetOpenHandoff,
   markHandoffClosed,
   notifyStaff,
   isHandoffThread,

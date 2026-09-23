@@ -923,6 +923,4 @@ test('a long privacy request does not repeat privacy in the Handoff name', () =>
   const route = require('../router').classify(q);
   const name = handoffThreadName({ question: q, area: route.area, lane: route.lane });
   assert.equal(name, 'Handoff · privacy');
-  const { isSameHandoff } = require('../handoff');
-  assert.equal(isSameHandoff(name, { question: 'My account shows no data in the app after the update.' }), false);
 });

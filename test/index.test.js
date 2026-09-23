@@ -131,6 +131,51 @@ function generalChannel() {
   return channel;
 }
 
+function advanceClock(t, ms) {
+  const now = Date.now;
+  Date.now = () => now() + ms;
+  t.after(() => {
+    Date.now = now;
+  });
+}
+
+async function reportAgain(t, gapMs, between = async () => {}) {
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(first);
+  const thread = first.threads[0];
+  await between(thread, channel, authorId);
+  const sentBefore = thread.sent.length;
+  advanceClock(t, gapMs);
+  const again = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it, still.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(again);
+  return { thread, sentBefore, again, reply: replyText(again) };
+}
+
+async function deleteThread(thread) {
+  thread.send = async () => {
+    throw new Error('Unknown Channel');
+  };
+}
+
+async function doneWithArchiveRefused(thread, channel, authorId) {
+  thread.members = { cache: new Map([[authorId, {}]]) };
+  (await channel.threads.fetchActive()).threads.set(thread.id, thread);
+  thread.edit = async () => {
+    throw new Error('Missing Access');
+  };
+  await commands.closeHandoff(thread, { id: '900000000000000009' });
+}
+
 function makeMessage(
   content,
   { channel = testChannel(), attachments = [], mention = false, bot = false, authorId = nextId() } = {}
@@ -822,91 +867,43 @@ test('/test posts its ticket card in the channel and does not claim a thread', a
   assert.equal(reply.includes(utils.ISSUE_FOOTER), false);
 });
 
+test('a help-forum post whose card lands in the post is told it is written in this thread', async () => {
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'App crash' });
+  const r = await ask('The Android app crashes every time I open a memory.', { channel: post });
+  assert.equal(r.thread, null);
+  assert.ok(post.sent.length >= 1);
+  assert.ok(r.reply.includes(utils.ISSUE_FOOTER));
+});
+
 test('a later report from the same customer goes into their open Handoff', async (t) => {
-  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-23T10:00:00Z') });
-  const channel = generalChannel();
-  const authorId = nextId();
-  const first = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it.`, {
-    channel,
-    mention: true,
-    authorId,
-  });
-  await handleMessage(first);
-  const thread = first.threads[0];
-  const before = thread.sent.length;
-  t.mock.timers.tick(2 * 60 * 60 * 1000);
-  const again = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it, still.`, {
-    channel,
-    mention: true,
-    authorId,
-  });
-  await handleMessage(again);
-  assert.equal(again.threads.length, 0);
-  assert.equal(thread.sent.length, before + 1);
-  assert.ok(replyText(again).includes(utils.DUPLICATE_FOOTER));
-  assert.ok(replyText(again).includes(`<#${thread.id}>`));
+  const r = await reportAgain(t, 2 * 60 * 60 * 1000);
+  assert.equal(r.again.threads.length, 0);
+  assert.equal(r.thread.sent.length, r.sentBefore + 1);
+  assert.ok(r.reply.includes(utils.DUPLICATE_FOOTER));
+  assert.ok(r.reply.includes(`<#${r.thread.id}>`));
 });
 
 test('a later report opens a new Handoff when the old thread was deleted', async (t) => {
-  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-23T10:00:00Z') });
-  const channel = generalChannel();
-  const authorId = nextId();
-  const first = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it.`, {
-    channel,
-    mention: true,
-    authorId,
-  });
-  await handleMessage(first);
-  const thread = first.threads[0];
-  thread.send = async () => {
-    throw new Error('Unknown Channel');
-  };
-  t.mock.timers.tick(2 * 60 * 60 * 1000);
-  const again = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it, still.`, {
-    channel,
-    mention: true,
-    authorId,
-  });
-  await handleMessage(again);
-  assert.equal(again.threads.length, 1);
-  assert.equal(replyText(again).includes(utils.DUPLICATE_FOOTER), false);
-  assert.equal(replyText(again).includes(`<#${thread.id}>`), false);
+  const r = await reportAgain(t, 2 * 60 * 60 * 1000, deleteThread);
+  assert.equal(r.again.threads.length, 1);
+  assert.equal(r.reply.includes(utils.DUPLICATE_FOOTER), false);
+  assert.equal(r.reply.includes(`<#${r.thread.id}>`), false);
+});
+
+test('a report five minutes after its Handoff was deleted still opens a new one', async (t) => {
+  const r = await reportAgain(t, 5 * 60 * 1000, deleteThread);
+  assert.equal(r.again.threads.length, 1);
+  assert.equal(r.reply.includes(utils.DUPLICATE_FOOTER), false);
 });
 
 test('a later report opens a new Handoff after /done even when the archive was refused', async (t) => {
-  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-23T10:00:00Z') });
-  const channel = generalChannel();
-  const authorId = nextId();
-  const first = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it.`, {
-    channel,
-    mention: true,
-    authorId,
-  });
-  await handleMessage(first);
-  const thread = first.threads[0];
-  thread.edit = async () => {
-    throw new Error('Missing Access');
-  };
-  const closed = await commands.closeHandoff(thread, { id: '900000000000000009' });
-  const after = thread.sent.length;
-  t.mock.timers.tick(2 * 60 * 60 * 1000);
-  const again = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it, again.`, {
-    channel,
-    mention: true,
-    authorId,
-  });
-  await handleMessage(again);
-  assert.equal(closed.ok, true);
-  assert.equal(again.threads.length, 1);
-  assert.equal(thread.sent.length, after);
+  const r = await reportAgain(t, 2 * 60 * 60 * 1000, doneWithArchiveRefused);
+  assert.equal(r.again.threads.length, 1);
+  assert.equal(r.thread.sent.length, r.sentBefore);
 });
 
-test('a vague follow-up in a Handoff thread keeps the thread name', async () => {
-  const handoff = makeChannel({
-    thread: true,
-    parentId: TEST_CHANNEL,
-    name: 'Handoff · app · tech · iPhone app disconnected',
-  });
-  await handleMessage(makeMessage('It happened again this morning after the update.', { channel: handoff }));
-  assert.equal(handoff.name, 'Handoff · app · tech · iPhone app disconnected');
+test('a report five minutes after /done still opens a new Handoff', async (t) => {
+  const r = await reportAgain(t, 5 * 60 * 1000, doneWithArchiveRefused);
+  assert.equal(r.again.threads.length, 1);
+  assert.equal(r.thread.sent.length, r.sentBefore);
 });

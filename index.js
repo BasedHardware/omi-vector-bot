@@ -36,7 +36,6 @@ const {
   staffMentionIds,
   findOpenHandoff,
   rememberOpenHandoff,
-  forgetOpenHandoff,
   shouldReuseOpenHandoff,
   forumStarterPrefix,
   threadHasKnownIssueTag,
@@ -502,6 +501,8 @@ async function handleMessage(message) {
       let pinged = false;
       let duplicate = false;
       let reused = false;
+      let reuseFailed = false;
+      let cardHere = false;
       let handoffThread = inHandoff ? channel : null;
       if (!inHandoff && shouldReuseOpenHandoff(channel)) {
         const existing = await findOpenHandoff(channel, {
@@ -522,7 +523,7 @@ async function handleMessage(message) {
             await applyThreadName(existing, nameMeta);
             console.log(`[Bot] Reusing Handoff ${existing.id} for ${channel.id}`);
           } catch (err) {
-            forgetOpenHandoff(existing);
+            reuseFailed = true;
             console.error('[Bot] reuse thread reply failed:', err.message);
           }
         }
@@ -542,11 +543,12 @@ async function handleMessage(message) {
             github: changeSentence || githubHit?.duplicate?.url,
             fileIssueId,
             route: { area: triaged.area, lane: triaged.lane, escalate: true },
-            skipDedupe: isTestChannel(channel) && !inHandoff,
+            skipDedupe: (isTestChannel(channel) && !inHandoff) || reuseFailed,
             topic: nameMeta.topic,
             labels: triaged.labels,
           });
           pinged = Boolean(handoff.ok);
+          cardHere = handoff.via === 'channel' && Boolean(channel.isThread?.());
           duplicate = Boolean(handoff.duplicate);
           handoffThread = handoff.thread || handoffThread;
           if (handoff.thread) {
@@ -590,8 +592,7 @@ async function handleMessage(message) {
           (triaged.fileIssue || triage.wantsShopTicket(triaged)) &&
           !inHandoff &&
           !reused &&
-          pinged &&
-          Boolean(handoffThread),
+          (Boolean(handoffThread) || cardHere),
         pingAuthor,
       });
       if (reused && handoffThread?.id && !inHandoff) {
