@@ -226,6 +226,7 @@ async function handleFileIssue(interaction) {
     threadId: interaction.channelId,
   });
   if (!created.ok) {
+    github.restoreDraft(id, draft);
     await interaction.editReply('GitHub did not accept the issue. I did not claim it was filed.');
     return;
   }
