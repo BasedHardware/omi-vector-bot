@@ -93,7 +93,7 @@ async function fetchTextAttachments(discordAttachments, fetchImpl = globalThis.f
       const res = await fetchImpl(att.url, { signal: ctrl.signal });
       if (!res.ok) continue;
       const buf = Buffer.from(await res.arrayBuffer());
-      const text = clipAttachmentText(buf.subarray(0, MAX_BYTES).toString('utf8'));
+      const text = clipAttachmentText(buf.subarray(0, MAX_BYTES + 1).toString('utf8'));
       if (text.trim()) out.push({ name: att.name || 'file', text });
     } catch (err) {
       console.error('[Attach] fetch failed:', err.message);

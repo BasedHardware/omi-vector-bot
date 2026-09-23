@@ -71,6 +71,12 @@ test('fetchTextAttachments clips logs, ignores png, uses at most two files', asy
   );
   assert.equal(calls.includes('https://cdn/shot.png'), false);
   assert.match(files[0].text, /log-from-https:\/\/cdn\/a\.log/);
+  const big = await fetchTextAttachments([{ name: 'big.log', url: 'https://cdn/big.log' }], async () => ({
+    ok: true,
+    arrayBuffer: async () => Buffer.from('a'.repeat(MAX_BYTES * 2)),
+  }));
+  assert.equal(big[0].text.endsWith('\n…'), true);
+  assert.ok(Buffer.byteLength(big[0].text, 'utf8') <= MAX_BYTES + 10);
 });
 
 test('a picture is not fetched and gets an unread sentence', async () => {
