@@ -261,6 +261,25 @@ function rememberOpenHandoff(parentId, userId, thread) {
   );
 }
 
+const closedHandoffs = new Set();
+
+function forgetOpenHandoff(thread) {
+  const id = String(thread?.id || '');
+  for (const [key, list] of rememberedHandoffs) {
+    rememberedHandoffs.set(key, list.filter((item) => String(item.id) !== id));
+  }
+}
+
+function markHandoffClosed(thread) {
+  if (!thread?.id) return;
+  closedHandoffs.add(String(thread.id));
+  forgetOpenHandoff(thread);
+}
+
+function isClosedHandoff(thread) {
+  return Boolean(thread?.archived || thread?.locked || closedHandoffs.has(String(thread?.id)));
+}
+
 function recallOpenHandoff(parentId, userId, hint) {
   const list = rememberedHandoffs.get(`${parentId}:${userId}`) || [];
   const hit = list.find((item) => isSameHandoff(item.name, hint));
@@ -293,7 +312,7 @@ async function findOpenHandoff(channel, { userId, question, topic } = {}) {
   const parentId = parent?.id || channel?.id;
   const hint = { question, topic };
   const remembered = recallOpenHandoff(parentId, userId, hint);
-  if (remembered && !remembered.archived) return remembered;
+  if (remembered && !isClosedHandoff(remembered)) return remembered;
   if (!parent?.threads?.fetchActive || !userId) return null;
   let active;
   try {
@@ -304,7 +323,7 @@ async function findOpenHandoff(channel, { userId, question, topic } = {}) {
   const threads = active?.threads;
   if (!threads || typeof threads.values !== 'function') return null;
   for (const thread of threads.values()) {
-    if (thread?.archived) continue;
+    if (isClosedHandoff(thread)) continue;
     if (!isSameHandoff(thread.name, hint)) continue;
     if (await threadBelongsToUser(thread, userId)) {
       rememberOpenHandoff(parentId, userId, thread);
@@ -903,6 +922,8 @@ module.exports = {
   isWeakerHandoffName,
   findOpenHandoff,
   rememberOpenHandoff,
+  forgetOpenHandoff,
+  markHandoffClosed,
   notifyStaff,
   isHandoffThread,
   isHelpForumThread,

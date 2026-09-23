@@ -36,6 +36,7 @@ const {
   staffMentionIds,
   findOpenHandoff,
   rememberOpenHandoff,
+  forgetOpenHandoff,
   shouldReuseOpenHandoff,
   forumStarterPrefix,
   threadHasKnownIssueTag,
@@ -509,12 +510,21 @@ async function handleMessage(message) {
           topic: triaged.topic,
         });
         if (existing) {
-          reused = true;
-          duplicate = true;
-          pinged = true;
-          handoffThread = existing;
-          await applyThreadName(existing, nameMeta);
-          console.log(`[Bot] Reusing Handoff ${existing.id} for ${channel.id}`);
+          try {
+            await existing.send({
+              content: rewriteUserMentions(escalateReply(cleanAnswer, { conversation: true }), message),
+              allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
+            });
+            reused = true;
+            duplicate = true;
+            pinged = true;
+            handoffThread = existing;
+            await applyThreadName(existing, nameMeta);
+            console.log(`[Bot] Reusing Handoff ${existing.id} for ${channel.id}`);
+          } catch (err) {
+            forgetOpenHandoff(existing);
+            console.error('[Bot] reuse thread reply failed:', err.message);
+          }
         }
       }
       if (!reused && !inHandoff) {
@@ -572,24 +582,16 @@ async function handleMessage(message) {
       ) {
         await postShopTicketCard(handoffThread, triaged);
       }
-      if (reused && handoffThread && typeof handoffThread.send === 'function') {
-        try {
-          await handoffThread.send({
-            content: rewriteUserMentions(
-              escalateReply(cleanAnswer, { conversation: true }),
-              message
-            ),
-            allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
-          });
-        } catch (err) {
-          console.error('[Bot] reuse thread reply failed:', err.message);
-        }
-      }
       let parentReply = escalateReply(cleanAnswer, {
         pinged,
         duplicate,
         conversation: inHandoff,
-        issue: (triaged.fileIssue || triage.wantsShopTicket(triaged)) && !inHandoff && !reused,
+        issue:
+          (triaged.fileIssue || triage.wantsShopTicket(triaged)) &&
+          !inHandoff &&
+          !reused &&
+          pinged &&
+          Boolean(handoffThread),
         pingAuthor,
       });
       if (reused && handoffThread?.id && !inHandoff) {

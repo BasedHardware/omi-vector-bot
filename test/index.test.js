@@ -124,12 +124,22 @@ function testChannel() {
   return makeChannel({ id: TEST_CHANNEL, name: 'vector-test' });
 }
 
-function makeMessage(content, { channel = testChannel(), attachments = [], mention = false, bot = false } = {}) {
+function generalChannel() {
+  const channel = makeChannel();
+  const threads = new Map();
+  channel.threads = { fetchActive: async () => ({ threads }) };
+  return channel;
+}
+
+function makeMessage(
+  content,
+  { channel = testChannel(), attachments = [], mention = false, bot = false, authorId = nextId() } = {}
+) {
   const message = {
     id: nextId(),
     content,
     channel,
-    author: { id: nextId(), username: 'customer', bot },
+    author: { id: authorId, username: 'customer', bot },
     attachments: new Map(attachments.map((a, i) => [String(i), a])),
     embeds: [],
     mentions: { has: () => mention },
@@ -779,4 +789,114 @@ test('a message delivered twice is answered once and opens one Handoff', async (
   await Promise.all([handleMessage(message), handleMessage(message)]);
   assert.equal(message.threads.length, 1);
   assert.equal(message.replies.length, 1);
+});
+
+test('a ticket whose Handoff thread cannot be opened is told nobody was pinged yet', async () => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  const message = makeMessage('The Android app crashes every time I open it.');
+  message.startThread = async () => {
+    throw new Error('Missing Permissions');
+  };
+  message.channel.send = async () => {
+    throw new Error('Missing Permissions');
+  };
+  await handleMessage(message);
+  const reply = replyText(message);
+  assert.ok(reply.includes(utils.ESCALATE_FOOTER));
+  assert.equal(reply.includes(utils.ISSUE_FOOTER), false);
+  assert.equal(posts().length, 0);
+});
+
+test('a tech ticket with a Handoff thread is still told it is written in that thread', async () => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  const r = await ask('The Android app crashes every time I open a memory.');
+  assert.ok(r.thread);
+  assert.ok(r.reply.includes(utils.ISSUE_FOOTER));
+});
+
+test('/test posts its ticket card in the channel and does not claim a thread', async () => {
+  const interaction = slashTest('I want a refund for my Omi, it is not what I expected.');
+  await commands.handleInteraction(interaction);
+  const reply = interaction.channel.sent.map(textOf).join('\n');
+  assert.ok(reply.includes(utils.PINGED_FOOTER));
+  assert.equal(reply.includes(utils.ISSUE_FOOTER), false);
+});
+
+test('a later report from the same customer goes into their open Handoff', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-23T10:00:00Z') });
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(first);
+  const thread = first.threads[0];
+  const before = thread.sent.length;
+  t.mock.timers.tick(2 * 60 * 60 * 1000);
+  const again = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it, still.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(again);
+  assert.equal(again.threads.length, 0);
+  assert.equal(thread.sent.length, before + 1);
+  assert.ok(replyText(again).includes(utils.DUPLICATE_FOOTER));
+  assert.ok(replyText(again).includes(`<#${thread.id}>`));
+});
+
+test('a later report opens a new Handoff when the old thread was deleted', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-23T10:00:00Z') });
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(first);
+  const thread = first.threads[0];
+  thread.send = async () => {
+    throw new Error('Unknown Channel');
+  };
+  t.mock.timers.tick(2 * 60 * 60 * 1000);
+  const again = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it, still.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(again);
+  assert.equal(again.threads.length, 1);
+  assert.equal(replyText(again).includes(utils.DUPLICATE_FOOTER), false);
+  assert.equal(replyText(again).includes(`<#${thread.id}>`), false);
+});
+
+test('a later report opens a new Handoff after /done even when the archive was refused', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-23T10:00:00Z') });
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(first);
+  const thread = first.threads[0];
+  thread.edit = async () => {
+    throw new Error('Missing Access');
+  };
+  const closed = await commands.closeHandoff(thread, { id: '900000000000000009' });
+  const after = thread.sent.length;
+  t.mock.timers.tick(2 * 60 * 60 * 1000);
+  const again = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it, again.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(again);
+  assert.equal(closed.ok, true);
+  assert.equal(again.threads.length, 1);
+  assert.equal(thread.sent.length, after);
 });
