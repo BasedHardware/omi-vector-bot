@@ -723,13 +723,17 @@ async function shutdown(signal) {
   process.exit(0);
 }
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('unhandledRejection', (err) => {
-  console.error('[Bot] Unhandled rejection:', err);
-});
+if (require.main === module) {
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('unhandledRejection', (err) => {
+    console.error('[Bot] Unhandled rejection:', err);
+  });
 
-start().catch((err) => {
-  console.error('[Boot] Fatal error:', err);
-  process.exit(1);
-});
+  start().catch((err) => {
+    console.error('[Boot] Fatal error:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { client, handleMessage, shouldHandle };
