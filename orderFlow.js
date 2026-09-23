@@ -76,11 +76,17 @@ function orderLines(order) {
   return shopify.formatUserReply(order);
 }
 
+async function verifiedOrders(email) {
+  const found = await shopify.ordersForVerifiedEmail(email);
+  if (!found.ok) throw new Error(`Shopify lookup failed: ${found.reason}`);
+  return found.orders;
+}
+
 async function replyBoundOrder(interaction, requested) {
   const binding = await shopifyBind.get(interaction.user.id);
   if (!binding) return false;
-  const found = await shopify.ordersForVerifiedEmail(binding.email);
-  if (!found.orders.length) {
+  const orders = await verifiedOrders(binding.email);
+  if (!orders.length) {
     await interaction.reply({
       content: 'No recent orders were found for your verified email.',
       ...ephemeral,
@@ -91,8 +97,8 @@ async function replyBoundOrder(interaction, requested) {
     .replace(/^#/, '')
     .trim();
   const order = want
-    ? found.orders.find((item) => String(item.name || '').replace(/^#/, '') === want)
-    : found.orders[0];
+    ? orders.find((item) => String(item.name || '').replace(/^#/, '') === want)
+    : orders[0];
   if (!order) {
     await interaction.reply({
       content: `I could not find order #${want} among your recent orders.`,
@@ -129,15 +135,15 @@ async function handleOrderInteraction(interaction) {
         await replyBoundOrder(interaction, interaction.options?.getString?.('number'));
         return true;
       }
-      const found = await shopify.ordersForVerifiedEmail(binding.email);
-      if (!found.orders.length) {
+      const orders = await verifiedOrders(binding.email);
+      if (!orders.length) {
         await interaction.reply({
           content: 'No recent orders were found for your verified email.',
           ...ephemeral,
         });
         return true;
       }
-      const body = found.orders
+      const body = orders
         .slice(0, 5)
         .map((order) => orderLines(order))
         .join('\n\n');
@@ -155,11 +161,18 @@ async function handleOrderInteraction(interaction) {
         await interaction.reply({ content: 'That does not look like a valid email address.', ...ephemeral });
         return true;
       }
-      if (!verification.reserveAttempt(interaction.user.id, email)) {
+      const reservedAt = verification.reserveAttempt(interaction.user.id, email);
+      if (!reservedAt) {
         await interaction.reply({ content: 'Too many verification requests. Try again later.', ...ephemeral });
         return true;
       }
-      const exists = await shopify.hasRecentOrderForEmail(email);
+      let exists;
+      try {
+        exists = await shopify.hasRecentOrderForEmail(email);
+      } catch (err) {
+        verification.releaseAttempt(interaction.user.id, email, reservedAt);
+        throw err;
+      }
       if (exists) {
         const code = verification.create(interaction.user.id, email);
         const sent = await shopifyEmail.sendVerificationCode(email, code);
@@ -196,8 +209,18 @@ async function handleOrderInteraction(interaction) {
         return true;
       }
       await shopifyBind.set(interaction.user.id, result.email);
-      const found = await shopify.ordersForVerifiedEmail(result.email);
-      if (!found.orders.length) {
+      let orders;
+      try {
+        orders = await verifiedOrders(result.email);
+      } catch (err) {
+        console.error('[Bot] order command failed:', err.message);
+        await interaction.reply({
+          content: 'Verified. Order lookup failed. Try /order again in a moment.',
+          ...ephemeral,
+        });
+        return true;
+      }
+      if (!orders.length) {
         await interaction.reply({
           content: 'Verified. No recent orders are currently accessible.',
           ...ephemeral,
@@ -205,7 +228,7 @@ async function handleOrderInteraction(interaction) {
         return true;
       }
       await interaction.reply({
-        content: `${orderLines(found.orders[0])}\n\nYour Discord account is linked. Use /order next time.`,
+        content: `${orderLines(orders[0])}\n\nYour Discord account is linked. Use /order next time.`,
         ...ephemeral,
       });
       return true;

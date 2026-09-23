@@ -275,7 +275,8 @@ async function ordersForVerifiedEmail(email, { fetchImpl, limit = 5 } = {}) {
 
 async function hasRecentOrderForEmail(email, { fetchImpl } = {}) {
   const found = await ordersForVerifiedEmail(email, { fetchImpl, limit: 1 });
-  return Boolean(found.ok && found.orders.length);
+  if (!found.ok) throw new Error(`Shopify lookup failed: ${found.reason}`);
+  return found.orders.length > 0;
 }
 
 function orderEmailMatches(raw, verifiedEmail) {
