@@ -42,8 +42,11 @@ function isWatchableAttachment(att) {
   return /\.(png|jpe?g|gif|webp|mp4|mov|webm|mp3|m4a|wav|ogg)$/i.test(name);
 }
 
-function shouldMentionUnreadMedia(attachments) {
-  return attachmentsList(attachments).some(isWatchableAttachment);
+function shouldMentionUnreadMedia(attachments, textFiles) {
+  const logRead = (textFiles || []).some((file) => file && String(file.text || '').trim());
+  return attachmentsList(attachments).some(
+    (att) => isWatchableAttachment(att) && !(logRead && isImageAttachment(att))
+  );
 }
 
 function unreadMediaSentence() {

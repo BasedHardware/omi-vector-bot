@@ -253,7 +253,7 @@ async function handleMessage(message) {
 
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   const files = await fetchTextAttachments(message.attachments);
-  const unreadMedia = shouldMentionUnreadMedia(message.attachments);
+  const unreadMedia = shouldMentionUnreadMedia(message.attachments, files);
   let asked = clipUserQuestion(caption) || caption;
   const forumPrefix = forumStarterPrefix(message);
   if (forumPrefix) asked = [forumPrefix, asked].filter(Boolean).join('\n');

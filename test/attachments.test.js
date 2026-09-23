@@ -90,6 +90,26 @@ test('a picture is not fetched and gets an unread sentence', async () => {
   assert.equal(shouldMentionUnreadMedia(new Map([['1', { name: 'clip.mp4', contentType: 'video/mp4' }]])), true);
   assert.match(unreadMediaSentence(), /did not watch or listen/i);
   assert.equal(
+    shouldMentionUnreadMedia(
+      new Map([
+        ['1', { name: 'shot.png', contentType: 'image/png' }],
+        ['2', { name: 'omi_debug.log' }],
+      ]),
+      [{ name: 'omi_debug.log', text: 'hello from the log' }]
+    ),
+    false
+  );
+  assert.equal(
+    shouldMentionUnreadMedia(
+      new Map([
+        ['1', { name: 'voice.m4a', contentType: 'audio/mp4' }],
+        ['2', { name: 'omi_debug.log' }],
+      ]),
+      [{ name: 'omi_debug.log', text: 'hello from the log' }]
+    ),
+    true
+  );
+  assert.equal(
     shouldMentionUnreadImage(
       new Map([
         ['1', { name: 'shot.png', contentType: 'image/png' }],
