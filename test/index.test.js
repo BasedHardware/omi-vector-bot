@@ -707,6 +707,35 @@ test('a new help-forum post puts its title and tags in front of the model questi
   assert.match(replyText(starter), /center button/);
 });
 
+test('a new help-forum post with only a screenshot is answered from its title', async () => {
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Omi app crashes every time I open it' });
+  const starter = makeMessage('', {
+    channel: post,
+    attachments: [
+      { name: 'shot.png', contentType: 'image/png', url: 'https://cdn.discordapp.com/attachments/1/2/shot.png' },
+    ],
+  });
+  starter.id = post.id;
+  post.fetchStarterMessage = async () => starter;
+  const models = modelCalls.length;
+  await emit(Events.ThreadCreate, post);
+  assert.equal(modelCalls.length, models + 1);
+  assert.equal(modelCalls.at(-1).question, 'Post: Omi app crashes every time I open it');
+  assert.ok(replyText(starter).includes(unreadMediaSentence()));
+});
+
+test('a bare screenshot inside an existing help-forum post is still left alone', async () => {
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Omi app crashes every time I open it' });
+  const r = await ask('', {
+    channel: post,
+    attachments: [
+      { name: 'shot.png', contentType: 'image/png', url: 'https://cdn.discordapp.com/attachments/1/2/shot.png' },
+    ],
+  });
+  assert.equal(r.modelCalled, false);
+  assert.equal(r.reply, '');
+});
+
 test('a help-forum post tagged Known issue gets the known-issue reply instead of a new diagnosis', async () => {
   modelReply = { final_answer: 'This happens because the settings screen loads every memory at once.' };
   const post = makeChannel({

@@ -129,7 +129,7 @@ function isTestChannel(channel) {
 function shouldHandle(message) {
   if (message.author.bot) return false;
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
-  if (caption.length < 5 && !hasUsableAttachment(message)) return false;
+  if (caption.length < 5 && !hasUsableAttachment(message) && !forumStarterPrefix(message)) return false;
   if (isHandoffThread(message.channel)) {
     if (isTestChannel(message.channel)) return true;
     const { users } = staffMentionIds();
