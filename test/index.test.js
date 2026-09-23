@@ -364,6 +364,29 @@ test('a phone app crash opens an app Handoff and files an app issue', async () =
   assert.deepEqual(filed[0].body.labels.slice(0, 2), ['vector', 'app']);
 });
 
+test('a different report from the same customer after the dedupe window opens its own Handoff', async (t) => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  modelReply = { escalate: true };
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> My Android app stopped working after the update`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(first);
+  advanceClock(t, 16 * 60_000);
+  const second = makeMessage(`<@${BOT_ID}> Android battery drain is huge after the latest update`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(second);
+  assert.equal(second.threads.length, 1);
+  assert.match(first.threads[0].name, /stopped working/);
+  assert.equal(posts().filter((c) => /\/issues$/.test(c.url)).length, 2);
+});
+
 test('asking to talk to a human opens a Handoff even when the model says not to escalate', async () => {
   modelReply = { escalate: false, confidence: 0.95 };
   const r = await ask('How do I pair my Omi with a new phone? I want to talk to a human.');

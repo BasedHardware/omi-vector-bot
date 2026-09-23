@@ -496,6 +496,42 @@ test('#vector-test parent messages do not reuse an old Handoff', () => {
   }
 });
 
+test('a different report on the same platform is not glued onto the open Handoff', () => {
+  const { isSameHandoff } = require('../handoff');
+  assert.equal(
+    isSameHandoff('Handoff · app · tech · Android app stopped working after update', {
+      question: 'Android battery drain is huge after the latest update',
+      topic: 'Android battery drain after update',
+    }),
+    false
+  );
+  assert.equal(
+    isSameHandoff('Handoff · desktop · tech · Mac desktop app will not start after update', {
+      question: 'The desktop app on my Mac shows the wrong transcription language after the update',
+      topic: 'wrong transcription language on Mac',
+    }),
+    false
+  );
+  assert.equal(
+    isSameHandoff('Handoff · app · tech · iPhone app will not open', {
+      question: 'The iPhone app will not show my memories',
+      topic: 'iPhone app memories',
+    }),
+    false
+  );
+  assert.equal(
+    isSameHandoff('Handoff · app · tech · Android app stopped working after update', {
+      question: 'My Android app stopped working after the update and it still is not working',
+      topic: 'Android app stopped working after update',
+    }),
+    true
+  );
+  assert.equal(
+    isSameHandoff('Handoff · app · tech · Android app crashing', { question: 'android app is still crashing', topic: '' }),
+    true
+  );
+});
+
 test('open Handoff threads match the same Watch ticket, not a refund', async () => {
   const { isSameHandoff, findOpenHandoff } = require('../handoff');
   const watch = 'Handoff · app · tech · Apple Watch recordings missing from app';
