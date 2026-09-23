@@ -187,6 +187,10 @@ function takeDraft(id) {
   return draft;
 }
 
+function restoreDraft(id, draft) {
+  drafts.set(id, draft);
+}
+
 function peekDraft(id) {
   return drafts.get(id) || null;
 }
@@ -594,6 +598,7 @@ module.exports = {
   parseThreadIds,
   stashDraft,
   takeDraft,
+  restoreDraft,
   peekDraft,
   linkIssueThread,
   threadsForIssue,

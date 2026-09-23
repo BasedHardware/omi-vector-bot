@@ -433,3 +433,56 @@ test('GitHub webhook notify uses vector-thread ids after a restart', async () =>
   assert.equal(sent[0].id, '1550182642874589194');
   assert.equal(sent[0].text, 'A note was added on #9.');
 });
+
+test('a File click that GitHub rejects can be pressed again', async () => {
+  const github = require('../github');
+  const { handleInteraction } = require('../commands');
+  github.resetGithubMemory();
+  const prevStaff = process.env.STAFF_USER_IDS;
+  const prevToken = process.env.GITHUB_TOKEN;
+  const prevFetch = globalThis.fetch;
+  process.env.STAFF_USER_IDS = '123456789012345678';
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  const statuses = [502, 201];
+  let posts = 0;
+  globalThis.fetch = async () => {
+    posts += 1;
+    const status = statuses.shift();
+    return {
+      ok: status < 300,
+      status,
+      json: async () => ({ number: 42, html_url: 'https://github.com/BasedHardware/omi/issues/42' }),
+    };
+  };
+  const id = github.stashDraft({ title: 'App crashes on open', body: 'It crashes.', labels: ['vector'] });
+  const replies = [];
+  const click = () => ({
+    customId: `file:${id}`,
+    channelId: '555555555555555555',
+    user: { id: '123456789012345678' },
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    deferReply: async () => {},
+    editReply: async (text) => {
+      replies.push(text);
+    },
+    reply: async ({ content }) => {
+      replies.push(content);
+    },
+    channel: { isTextBased: () => true, send: async (text) => text },
+  });
+  try {
+    await handleInteraction(click());
+    await handleInteraction(click());
+    assert.equal(replies[0], 'GitHub did not accept the issue. I did not claim it was filed.');
+    assert.equal(replies[1], 'Filed https://github.com/BasedHardware/omi/issues/42');
+    assert.equal(posts, 2);
+  } finally {
+    globalThis.fetch = prevFetch;
+    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prevStaff;
+    if (prevToken == null) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = prevToken;
+    github.resetGithubMemory();
+  }
+});
