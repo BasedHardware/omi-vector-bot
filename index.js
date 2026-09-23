@@ -138,7 +138,7 @@ function shouldHandle(message) {
   }
   if (isTestChannel(message.channel)) return true;
   if (isHelpThread(message.channel)) return true;
-  if (client.user && message.mentions.has(client.user)) return true;
+  if (client.user && message.mentions.has(client.user, { ignoreEveryone: true })) return true;
   return false;
 }
 
