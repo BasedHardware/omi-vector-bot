@@ -455,6 +455,24 @@ async function applyThreadName(thread, meta = {}) {
   }
 }
 
+function redactCardQuote(text) {
+  let out = String(text || '');
+  out = out.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]');
+  out = out.replace(
+    /(?<!#)\b\d{1,5}[A-Za-z]?\s+(?:[A-Za-z][A-Za-z.'-]*\s+){1,4}(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|court|ct|place|pl|way|terrace|crescent)\b\.?/gi,
+    '[address]'
+  );
+  out = out.replace(
+    /(?<![\w#])\+?(?:\(\d{1,4}\)|\d{1,4})(?:[\s.-]*(?:\(\d{1,4}\)|\d{1,4})){1,4}(?![\w])/g,
+    (match) => {
+      const digits = match.replace(/\D/g, '');
+      if (digits.length < 10 || digits.length > 15) return match;
+      return '[phone]';
+    }
+  );
+  return out;
+}
+
 function formatStaffTicket({
   message,
   question,
@@ -490,7 +508,7 @@ function formatStaffTicket({
   const embed = {
     title: 'Needs a human',
     color: 0xe67e22,
-    description: asked || '(no text)',
+    description: redactCardQuote(asked) || '(no text)',
     fields: [
       { name: 'Why', value: why, inline: false },
     ],

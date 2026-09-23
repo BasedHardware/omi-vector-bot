@@ -117,6 +117,28 @@ test('staff ticket can carry Shopify facts without street or email', () => {
   assert.equal(/@/.test(field.value), false);
 });
 
+test('staff card quote redacts email, phone, and street address', () => {
+  const ticket = formatStaffTicket({
+    message: {
+      url: 'https://discord.com/channels/1/2/3',
+      author: { id: '99' },
+      channel: { id: '2' },
+    },
+    question:
+      'Please reach ada@example.com or 415-555-0199 about order #20716 at 12 King Street.',
+  });
+  const description = ticket.discord.embeds[0].description;
+  assert.match(description, /\[email\]/);
+  assert.match(description, /\[phone\]/);
+  assert.match(description, /\[address\]/);
+  assert.equal(description.includes('ada@example.com'), false);
+  assert.equal(description.includes('415-555-0199'), false);
+  assert.equal(description.includes('12 King Street'), false);
+  assert.match(description, /#20716/);
+  const specialist = ticket.discord.embeds[0].fields.find((field) => field.name === 'Specialist');
+  assert.equal(specialist.value.includes('@'), false);
+});
+
 test('handoff threads are skipped by name', () => {
   const { handoffThreadName, isHandoffThread } = require('../handoff');
   assert.equal(isHandoffThread({ isThread: () => true, name: 'Handoff · david' }), true);

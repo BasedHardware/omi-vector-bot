@@ -178,21 +178,77 @@ function looksLikeRecordingsPlace(sentence) {
   return RECORDINGS_PLACE.some((re) => re.test(String(sentence || '')));
 }
 
+// Steps and handoffs the bot cannot know on a tech or firmware ticket.
+// Symptom restatements ("powers off", "after you restart") stay.
+const DEVICE_STEP = [
+  /\baccount access\b/i,
+  /\bkontozugriff\b/i,
+  /\bset (it|the device|the omi|this|that) aside\b/i,
+  /\bset aside\b/i,
+  /\bbeiseite\b/i,
+  /\b(don'?t|do not|stop)\s+(keep\s+)?turning\b/i,
+  /\bnicht (immer wieder|weiter|ständig) ein(schalten)?\b/i,
+  /\b(restart|reboot|reinstall|reset|unpair)(ing)?\b/i,
+  /\b(neu starten|zurücksetzen|neu installieren|entkoppeln)\b/i,
+  /\bpower\s+cycle\b/i,
+  /^(?:please\s+|just\s+|try\s+(?:to\s+)?)?power\s+(?:it|the|your|this|that)\b/i,
+  /\b(?:don'?t|do not|stop|avoid|try(?:\s+to)?|please|just)\s+power(?:ing)?\b/i,
+];
+
+const ALREADY_DID_STEP = [
+  /\b(after you|when you)\s+(restart|reset|unpair|reinstall|power)/i,
+  /\balready\s+(restarted|reset|unpaired|reinstalled|powered)\b/i,
+  /\b(you|they|i)\s+(restarted|reset|unpaired|reinstalled|powered)\b/i,
+];
+
+function sentenceIsRealLightFact(sentence) {
+  const s = String(sentence || '');
+  if (sentenceKeepsLightFact(s)) return true;
+  return (
+    /\b(blue|red|teal|orange)\b/i.test(s) &&
+    /\b(light|led|dot)\b/i.test(s) &&
+    /\bmeans\b/i.test(s)
+  );
+}
+
+function looksLikeDeviceStep(sentence) {
+  const s = String(sentence || '');
+  if (sentenceIsRealLightFact(s)) return false;
+  if (ALREADY_DID_STEP.some((re) => re.test(s))) {
+    if (/\baccount access\b|\bkontozugriff\b/i.test(s)) return true;
+    if (/\bset (it|the device|the omi|this|that) aside\b|\bset aside\b|\bbeiseite\b/i.test(s)) return true;
+    if (/\b(don'?t|do not|stop)\s+(keep\s+)?turning\b/i.test(s)) return true;
+    if (/\bnicht (immer wieder|weiter|ständig) ein(schalten)?\b/i.test(s)) return true;
+    return false;
+  }
+  return DEVICE_STEP.some((re) => re.test(s));
+}
+
+function lineHasDeviceStep(line) {
+  return String(line || '')
+    .split(/(?<=[.!?])\s+/)
+    .some((sentence) => looksLikeDeviceStep(sentence));
+}
+
 function stripUnsupportedClaims(text, lane, question) {
   if (!['tech', 'firmware', 'faq'].includes(lane)) return String(text || '');
   const allowPlace = askedWhereRecordingsWent(question);
+  const dropSteps = lane === 'tech' || lane === 'firmware';
   const cleaned = String(text || '')
     .split('\n')
     .map((line) => {
       if (!line.trim()) return line;
       const drop =
-        looksLikeCauseClaim(line) || (!allowPlace && looksLikeRecordingsPlace(line));
+        looksLikeCauseClaim(line) ||
+        (!allowPlace && looksLikeRecordingsPlace(line)) ||
+        (dropSteps && lineHasDeviceStep(line));
       if (!drop) return line;
       return line
         .split(/(?<=[.!?])\s+/)
         .filter((sentence) => {
           if (looksLikeCauseClaim(sentence)) return false;
           if (!allowPlace && looksLikeRecordingsPlace(sentence)) return false;
+          if (dropSteps && looksLikeDeviceStep(sentence)) return false;
           return true;
         })
         .join(' ')

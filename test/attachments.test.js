@@ -7,6 +7,7 @@ const {
   formatQuestion,
   fetchTextAttachments,
   MAX_BYTES,
+  errorLinesFromImageText,
 } = require('../attachments');
 
 test('allows log/txt/json and text/plain, skips images', () => {
@@ -127,4 +128,33 @@ test('a picture is not fetched and gets an unread sentence', async () => {
   );
   const question = formatQuestion('Keep getting transcription unavailable', files);
   assert.equal(/png|image/i.test(question), false);
+});
+
+test('errorLinesFromImageText keeps error lines and drops other chats', () => {
+  const blob = [
+    'Conversations',
+    'Shipping, Found Wallet',
+    'Waiting for transcript',
+    'Sep 23, 2026',
+    'transcription unavailable',
+    'websocket closed code 1011 server_error',
+    'Can you check shipping tomorrow',
+  ].join('\n');
+  const out = errorLinesFromImageText(blob);
+  assert.equal(
+    out,
+    'transcription unavailable\nwebsocket closed code 1011 server_error'
+  );
+  assert.equal(out.includes('Shipping'), false);
+  assert.equal(out.includes('Found Wallet'), false);
+  assert.equal(out.includes('Conversations'), false);
+  assert.equal(out.includes('Waiting for transcript'), false);
+  assert.equal(errorLinesFromImageText('Shipping\nFound Wallet\nConversations'), '');
+});
+
+test('errorLinesFromImageText keeps exception, failed, disconnected, and code digits', () => {
+  const out = errorLinesFromImageText(
+    ['Alex', 'exception while saving', 'failed', 'disconnected', 'code: 1006', 'Hello there'].join('\n')
+  );
+  assert.equal(out, 'exception while saving\nfailed\ndisconnected\ncode: 1006');
 });

@@ -538,12 +538,45 @@ function scorePull(question, item) {
   return score;
 }
 
-async function searchPulls(question, { fetchImpl } = {}) {
+// Sharp tokens name one pull. websocket / wss are shared by many titles.
+const RARE_SHARP = ['1011', 'soniox', 'transcription unavailable'];
+const RARE_BROAD = ['websocket', 'wss'];
+
+function hasRareToken(text, token) {
+  const hay = String(text || '').toLowerCase();
+  if (token.includes(' ')) return hay.includes(token);
+  if (token.length <= 4) return new RegExp(`(?:^|[^a-z0-9])${token}(?:[^a-z0-9]|$)`).test(hay);
+  return hay.includes(token);
+}
+
+function rareTokensIn(text) {
+  return [...RARE_SHARP, ...RARE_BROAD].filter((token) => hasRareToken(text, token));
+}
+
+function titleSharesRareToken(question, item) {
+  const title = item?.title;
+  return rareTokensIn(question).some((token) => hasRareToken(title, token));
+}
+
+function pullSearchQuery(question) {
+  const present = rareTokensIn(question);
+  const sharp = present.filter((token) => RARE_SHARP.includes(token));
+  const rare = sharp.length ? sharp : present;
+  if (rare.length) {
+    const clause = rare.map((token) => (token.includes(' ') ? `"${token}"` : token)).join(' OR ');
+    return [`repo:${repo()}`, 'is:pr', `(${clause})`, 'in:title'].join(' ');
+  }
   const tokens = symptomTokens(question).slice(0, 6);
-  if (!tokens.length) return null;
+  if (!tokens.length) return '';
+  return [`repo:${repo()}`, 'is:pr', ...tokens].join(' ');
+}
+
+async function searchPulls(question, { fetchImpl } = {}) {
+  const q = pullSearchQuery(question);
+  if (!q) return null;
   const fetchFn = fetchImpl || fetch;
   const url = new URL('https://api.github.com/search/issues');
-  url.searchParams.set('q', [`repo:${repo()}`, 'is:pr', ...tokens].join(' '));
+  url.searchParams.set('q', q);
   url.searchParams.set('per_page', '8');
   try {
     const res = await fetchFn(url, {
@@ -558,22 +591,29 @@ async function searchPulls(question, { fetchImpl } = {}) {
     const items = Array.isArray(data?.items) ? data.items : [];
     let best = null;
     let bestScore = 0;
+    let rareBest = null;
+    let rareScore = -1;
     for (const item of items) {
       const score = scorePull(question, item);
       if (score > bestScore) {
         best = item;
         bestScore = score;
       }
+      if (titleSharesRareToken(question, item) && score > rareScore) {
+        rareBest = item;
+        rareScore = score;
+      }
     }
-    if (!best || bestScore < 4) return null;
+    const chosen = bestScore >= 4 ? best : rareBest;
+    if (!chosen) return null;
     const ref = {
       kind: 'pull',
-      number: String(best.number),
-      title: String(best.title || ''),
-      url: best.html_url || `https://github.com/${repo()}/pull/${best.number}`,
-      score: bestScore,
+      number: String(chosen.number),
+      title: String(chosen.title || ''),
+      url: chosen.html_url || `https://github.com/${repo()}/pull/${chosen.number}`,
+      score: bestScore >= 4 ? bestScore : rareScore,
     };
-    if (String(best.state || '').toLowerCase() === 'closed') {
+    if (String(chosen.state || '').toLowerCase() === 'closed') {
       const lookup = await lookupChange(ref, { fetchImpl });
       if (lookup.state !== 'merged') return null;
     }

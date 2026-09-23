@@ -229,7 +229,7 @@ test('pull search prefers the deletion pull over a memories search pull', () => 
   assert.match(partial, /phone part is not/i);
 });
 
-test('a listen-socket report does not match the on-premise pull request', () => {
+test('a listen-socket report does not match the on-premise pull request', async () => {
   const q = [
     'Connection problem with api.omi.me/v4/listen',
     'Daily reports are not being produced. Transcription unavailable.',
@@ -242,4 +242,90 @@ test('a listen-socket report does not match the on-premise pull request', () => 
     body: 'connection problem listen daily reports transcription websocket soniox',
   };
   assert.ok(github.scorePull(q, onprem) < 4);
+  const fetchImpl = async (url) => {
+    assert.match(String(url), /search\/issues/);
+    return {
+      ok: true,
+      json: async () => ({ items: [onprem] }),
+    };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+});
+
+test('pull search still returns the deletion pull', async () => {
+  const q = 'Once again, I cannot delete memories or conversations on either the desktop app or the mobile app. The desktop app gives me an error and the mobile app shows them deleted and then they resurface 30 seconds later.';
+  const wrong = {
+    number: 11743,
+    state: 'open',
+    title: 'Windows search: find anything across conversations, memories, tasks and screen',
+  };
+  const right = {
+    number: 14691,
+    state: 'open',
+    title: 'fix(backend): make memory & conversation deletion work again on desktop and mobile',
+  };
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    assert.match(u, /search\/issues/);
+    assert.equal(/in:title|in%3Atitle/i.test(u), false);
+    return { ok: true, json: async () => ({ items: [wrong, right] }) };
+  };
+  const found = await github.searchPulls(q, { fetchImpl });
+  assert.equal(found.number, '14691');
+});
+
+test('a rare token in the pull title matches even when the generic score is under 4', async () => {
+  const q = [
+    'Connection problem with api.omi.me/v4/listen',
+    'Daily reports are not being produced. Transcription unavailable.',
+    'The server closed wss://api.omi.me/v4/listen with WebSocket code 1011 approximately every 20 seconds.',
+  ].join('\n');
+  const onprem = {
+    number: 10887,
+    state: 'closed',
+    title: 'Omi fully on-premise via Docker Compose or Helm/k8s: every managed service',
+    body: 'connection problem listen daily reports transcription websocket soniox',
+  };
+  const listen = {
+    number: 5235,
+    state: 'closed',
+    title: 'Fix VAD gate keepalive: 20s → 5s to prevent DG 1011 disconnect',
+    html_url: 'https://github.com/BasedHardware/omi/pull/5235',
+  };
+  assert.ok(github.scorePull(q, onprem) < 4);
+  assert.ok(github.scorePull(q, listen) < 4);
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    if (u.includes('/search/issues')) {
+      const query = decodeURIComponent(u.replace(/\+/g, ' '));
+      assert.match(query, /1011/);
+      assert.match(query, /in:title/);
+      assert.equal(/\bconnection\b/.test(query), false);
+      assert.equal(/\b(problem|every|reports)\b/.test(query), false);
+      return { ok: true, json: async () => ({ items: [onprem, listen] }) };
+    }
+    assert.match(u, /\/pulls\/5235$/);
+    return { ok: true, json: async () => ({ state: 'closed', merged: true, merged_at: '2026-02-28T02:41:38Z' }) };
+  };
+  const found = await github.searchPulls(q, { fetchImpl });
+  assert.equal(found.number, '5235');
+  assert.match(found.title, /1011/);
+});
+
+test('a closed rare-token pull that was not merged does not match', async () => {
+  const q = 'Soniox keeps failing the live transcript.';
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    if (u.includes('/search/issues')) {
+      return {
+        ok: true,
+        json: async () => ({
+          items: [{ number: 50, state: 'closed', title: 'fix(stt): restore Soniox as the streaming failover hop' }],
+        }),
+      };
+    }
+    assert.match(u, /\/pulls\/50$/);
+    return { ok: true, json: async () => ({ state: 'closed', merged: false }) };
+  };
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
 });

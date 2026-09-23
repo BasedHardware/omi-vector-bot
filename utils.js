@@ -284,6 +284,54 @@ function dropPingNarration(text) {
     .trim();
 }
 
+// Claims that a bug is already fixed, solved, or shipped, plus improvised repair steps.
+// "It has not shipped." stays — that sentence is the honest status.
+const FALSE_CERTAINTY = [
+  /\bhalf[-\s]+solved\b/i,
+  /\balready\s+solved\b/i,
+  /\balready\s+fixed\b/i,
+  /\bthis\s+is\s+fixed\b/i,
+  /\bthis\s+is\s+solved\b/i,
+  /\bit(?:['’]s|\s+is)\s+fixed\b/i,
+  /\bit(?:['’]s|\s+is)\s+solved\b/i,
+  /\b(?:bug|issue|problem)\s+is\s+(?:fixed|solved)\b/i,
+  /\bhas\s+been\s+fixed\b/i,
+  /\bhas\s+been\s+solved\b/i,
+  /\b(?:do\s+not|don['’]?t)\s+keep\s+turning\s+it\s+on\b/i,
+  /\bset\s+it\s+aside\b/i,
+  /\bleave\s+it\s+as\s+it\s+is\b/i,
+  /\bstop\s+turning\s+it\s+on\b/i,
+];
+
+function claimsBugShipped(sentence) {
+  const s = String(sentence || '')
+    .replace(/\b(?:not|never|cannot)(?:\s+\w+){0,3}\s+shipped\b/gi, '')
+    .replace(/n['’]t(?:\s+\w+){0,3}\s+shipped\b/gi, '');
+  return /\bshipped\b/i.test(s);
+}
+
+function looksLikeFalseCertainty(sentence) {
+  const s = String(sentence || '');
+  if (FALSE_CERTAINTY.some((re) => re.test(s))) return true;
+  return claimsBugShipped(s);
+}
+
+function stripFalseCertainty(text) {
+  return String(text || '')
+    .split('\n')
+    .map((line) =>
+      line
+        .split(/(?<=[.!?])\s+|\s+[—–]\s+/)
+        .filter((sentence) => sentence.trim() && !looksLikeFalseCertainty(sentence))
+        .join(' ')
+    )
+    .map((line) => line.replace(/^[,\s]+/, '').replace(/\s{2,}/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const ISSUE_FOOTER = 'The problem is written in this thread. Keep talking here — you do not need to ping anyone.';
 
 function escalateReply(answer, opts = {}) {
@@ -337,4 +385,5 @@ module.exports = {
   CONFIDENCE_THRESHOLD,
   needsHumanAccess,
   stripPingNarration: dropPingNarration,
+  stripFalseCertainty,
 };

@@ -53,6 +53,53 @@ function unreadMediaSentence() {
   return 'I did not watch or listen to the file. Type the error line shown on the screen.';
 }
 
+function isErrorLine(line) {
+  return /transcription unavailable/i.test(line)
+    || /websocket/i.test(line)
+    || /\b1011\b/.test(line)
+    || /server_error/i.test(line)
+    || /\berror\b/i.test(line)
+    || /\bexception\b/i.test(line)
+    || /\bfailed\b/i.test(line)
+    || /\bdisconnected\b/i.test(line)
+    || /\bcode\s*[:#-]?\s*\d+/i.test(line);
+}
+
+function isOtherChatLine(line) {
+  if (isErrorLine(line)) return false;
+  if (/\bconversations\b/i.test(line)) return true;
+  if (/waiting for transcript/i.test(line)) return true;
+  if (looksLikeDate(line)) return true;
+  if (looksLikeShortName(line)) return true;
+  return !isErrorLine(line);
+}
+
+function looksLikeDate(line) {
+  if (/^(today|yesterday|tomorrow)$/i.test(line)) return true;
+  if (/^\d{1,2}[\/.-]\d{1,2}([\/.-]\d{2,4})?$/.test(line)) return true;
+  if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(,\s*\d{4})?$/i.test(line)) return true;
+  if (/^\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?(,\s*\d{4})?$/i.test(line)) return true;
+  return false;
+}
+
+function looksLikeShortName(line) {
+  const cleaned = line.replace(/[,|·•]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!cleaned || cleaned.length > 40) return false;
+  const words = cleaned.split(' ');
+  if (words.length > 4) return false;
+  return words.every((word) => /^[A-Z][a-zA-Z'-]{0,20}$/.test(word) || /^[A-Z]{2,6}$/.test(word));
+}
+
+function errorLinesFromImageText(text) {
+  const kept = [];
+  for (const raw of String(text ?? '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || isOtherChatLine(line)) continue;
+    kept.push(line);
+  }
+  return kept.join('\n');
+}
+
 function isImageAttachment(att) {
   if (!att) return false;
   const type = String(att.contentType || att.content_type || '').toLowerCase();
@@ -121,4 +168,5 @@ module.exports = {
   isWatchableAttachment,
   shouldMentionUnreadMedia,
   unreadMediaSentence,
+  errorLinesFromImageText,
 };

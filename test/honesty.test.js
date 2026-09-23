@@ -417,6 +417,85 @@ test('a blue-light fact that mentions an app bug is kept', () => {
   assert.match(out, /Blue light means/i);
 });
 
+test('firmware replies drop set-aside and stop-turning-on steps', () => {
+  const { stripUnsupportedClaims } = require('../honesty');
+  const out = stripUnsupportedClaims(
+    [
+      'The device turns off after 10-15 seconds at 100% battery.',
+      "Don't keep turning it on. Set it aside.",
+      'A person must look. I will not guess.',
+    ].join('\n\n'),
+    'firmware',
+    'device turns off after 10-15 seconds at 100% battery'
+  );
+  assert.match(out, /turns off after 10-15 seconds/i);
+  assert.match(out, /person must look/i);
+  assert.match(out, /will not guess/i);
+  assert.equal(/turning it on/i.test(out), false);
+  assert.equal(/set it aside/i.test(out), false);
+  const german = stripUnsupportedClaims(
+    [
+      'Du hast den Omi geladen, die App zeigt 100 %, aber er geht etwa 10–15 Sekunden nach dem Einschalten von selbst wieder aus.',
+      'Woran das genau liegt, bin ich mir nicht sicher, und ich möchte dir nichts Falsches raten.',
+      'Leg den Omi am besten erstmal beiseite und schalte ihn nicht immer wieder ein, bis das geklärt ist.',
+    ].join('\n\n'),
+    'firmware',
+    'geht nach 10-15 sek wieder aus'
+  );
+  assert.match(german, /10–15 Sekunden/);
+  assert.match(german, /nicht sicher/);
+  assert.equal(/beiseite/i.test(german), false);
+  assert.equal(/nicht immer wieder ein/i.test(german), false);
+});
+
+test('tech replies drop account access and device-changing steps', () => {
+  const { stripUnsupportedClaims } = require('../honesty');
+  const out = stripUnsupportedClaims(
+    [
+      'Deleting a memory is not working: the desktop app gives an error, and on your phone they come back after about 30 seconds.',
+      "I can't see the app from here, so I will not guess.",
+      'This needs someone with account access to look into it.',
+      'Power it off. Try restarting the app. Reset the device. Reinstall it. Unpair it.',
+    ].join('\n\n'),
+    'tech',
+    'cannot delete memories or conversations'
+  );
+  assert.match(out, /desktop app/i);
+  assert.match(out, /30 seconds/i);
+  assert.match(out, /will not guess/i);
+  assert.equal(/account access/i.test(out), false);
+  assert.equal(/\bpower it off\b/i.test(out), false);
+  assert.equal(/restart/i.test(out), false);
+  assert.equal(/\breset\b/i.test(out), false);
+  assert.equal(/reinstall/i.test(out), false);
+  assert.equal(/unpair/i.test(out), false);
+  const symptom = stripUnsupportedClaims(
+    'It still turns off after you restart it, at 100% battery. A person must look. I will not guess.',
+    'firmware',
+    'turns off after restart at 100% battery'
+  );
+  assert.match(symptom, /after you restart/i);
+  assert.match(symptom, /will not guess/i);
+  const faq = stripUnsupportedClaims(
+    'If pairing fails, restart the phone and the device.',
+    'faq',
+    'how do I pair'
+  );
+  assert.match(faq, /restart the phone/i);
+});
+
+test('a light-color fact is kept when a later step is stripped', () => {
+  const { stripUnsupportedClaims } = require('../honesty');
+  const kept = 'Blue light means the necklace is on and connected, so do not restart it.';
+  const out = stripUnsupportedClaims(
+    `${kept} Set it aside.`,
+    'tech',
+    'blue light but the app says offline'
+  );
+  assert.match(out, /Blue light means the necklace is on and connected/);
+  assert.equal(/set it aside/i.test(out), false);
+});
+
 test('formatDiscordReply turns LED pipe lists into bullets', () => {
   const out = formatDiscordReply(
     'LED colours: red = on, disconnected | blue = on, connected | orange = charging, disconnected'

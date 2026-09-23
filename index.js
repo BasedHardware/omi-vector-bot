@@ -17,6 +17,7 @@ const {
   clipThreadHistory,
   escalateReply,
   stripPingNarration,
+  stripFalseCertainty,
   rewriteUserMentions,
   wantsAuthorPing,
   attachAuthorMention,
@@ -237,6 +238,28 @@ async function postShopTicketCard(channel, triaged) {
   }
 }
 
+function redactStaffQuestion(text) {
+  const orders = [];
+  let s = String(text || '')
+    .replace(/\s*\n+\s*/g, ' ')
+    .trim()
+    .replace(/#\d{3,}/g, (match) => {
+      orders.push(match);
+      return `§${orders.length - 1}§`;
+    });
+  s = s.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]');
+  s = s.replace(
+    /\b\d{1,5}\s+(?:(?:[A-Za-z][A-Za-z.'-]*|\d{1,3}(?:st|nd|rd|th))\s+){0,4}(?:street|st|avenue|ave|road|rd|blvd)\b\.?/gi,
+    '[address]'
+  );
+  s = s.replace(/(?<![\d#])\+?(?:\d[\s().-]*){6,14}\d(?!\d)/g, (match) => {
+    const digits = match.replace(/\D/g, '');
+    if (digits.length < 7 || digits.length > 15) return match;
+    return '[phone]';
+  });
+  return s.replace(/§(\d+)§/g, (_, i) => orders[Number(i)] || '');
+}
+
 async function handleMessage(message) {
   if (!shouldHandle(message)) return;
   if (!claimMessage(message.id)) {
@@ -277,7 +300,8 @@ async function handleMessage(message) {
     await channel.sendTyping();
 
     const route = router.classify(question);
-    if (isHelpThread(channel) && !router.isPublicForumSafe(asked || question)) {
+    const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
+    if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
     let botCanAnswer = false;
@@ -388,10 +412,12 @@ async function handleMessage(message) {
       );
     }
     cleanAnswer = clipForDiscord(
-      stripUnsupportedClaims(
-        stripShopBleed(stripHowtoBleed(cleanAnswer || '', triaged.lane), triaged.lane),
-        triaged.lane,
-        asked || question
+      stripFalseCertainty(
+        stripUnsupportedClaims(
+          stripShopBleed(stripHowtoBleed(cleanAnswer || '', triaged.lane), triaged.lane),
+          triaged.lane,
+          asked || question
+        )
       )
     );
     if (threadHasKnownIssueTag(channel)) {
@@ -423,19 +449,28 @@ async function handleMessage(message) {
       }
     }
 
+    if (holdPublicCopy) {
+      cleanAnswer = clipForDiscord(
+        router.cannedReply(route, asked || question) ||
+          "I can't share account or order details in this public post."
+      );
+    }
+    const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
+
     const nameMeta = {
-      question: asked,
+      question: staffQuestion,
       area: triaged.area,
       lane: triaged.lane,
-      topic: triaged.topic,
+      topic: holdPublicCopy ? redactStaffQuestion(triaged.topic) : triaged.topic,
       labels: triaged.labels,
     };
     const inHandoff = isHandoffThread(channel);
     const pingAuthor = wantsAuthorPing(caption);
     const escalate =
-      !botCanAnswer && (shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate);
-    const draft = github.draftFromQuestion(asked, triaged.area, {
-      topic: triaged.topic,
+      holdPublicCopy ||
+      (!botCanAnswer && (shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate));
+    const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
+      topic: nameMeta.topic,
       labels: triaged.labels,
     });
 
@@ -475,8 +510,10 @@ async function handleMessage(message) {
           const handoff = await notifyStaff({
             client,
             message,
-            question: asked,
-            reason: aiResponse.reason || router.staffReason(triaged, asked),
+            question: staffQuestion,
+            reason: holdPublicCopy
+              ? redactStaffQuestion(aiResponse.reason || router.staffReason(triaged, asked))
+              : aiResponse.reason || router.staffReason(triaged, asked),
             draft: cleanAnswer,
             shopify: shopifyLookup?.order ? shopify.formatStaffFacts(shopifyLookup.order) : undefined,
             area: triaged.area,
@@ -484,7 +521,7 @@ async function handleMessage(message) {
             fileIssueId,
             route: { area: triaged.area, lane: triaged.lane, escalate: true },
             skipDedupe: isTestChannel(channel) && !inHandoff,
-            topic: triaged.topic,
+            topic: nameMeta.topic,
             labels: triaged.labels,
           });
           pinged = Boolean(handoff.ok);
@@ -546,6 +583,7 @@ async function handleMessage(message) {
       if (reused && handoffThread?.id && !inHandoff) {
         parentReply = `${parentReply}\n\n<#${handoffThread.id}>`;
       }
+      if (holdPublicCopy) parentReply = cleanAnswer;
       await replySafe(message, parentReply, { pingAuthor });
       if (dbReady) {
         await db.createEscalation(channel.id);

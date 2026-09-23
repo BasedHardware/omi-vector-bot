@@ -275,7 +275,10 @@ test('a MAC address question is not a computer-app ticket', () => {
   assert.equal(/computer app/i.test(router.staffReason(route, q)), false);
   assert.equal(router.classify('need the mac-address of my omi for my router').area, 'unknown');
   assert.equal(router.classify('whats the mac adress of my omi').area, 'unknown');
+  assert.equal(router.classify('the MAC of my omi').area, 'unknown');
+  assert.equal(router.classify('mac addr').area, 'unknown');
   assert.equal(router.classify('is the mic bug on mac addressed yet').area, 'desktop');
+  assert.equal(router.classify('macOS desktop app').area, 'desktop');
   const mac = router.classify('The Omi app on my Mac keeps crashing');
   assert.equal(mac.area, 'desktop');
   assert.equal(mac.lane, 'tech');
