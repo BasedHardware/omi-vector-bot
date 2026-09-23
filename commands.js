@@ -1,5 +1,5 @@
 const { REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { isCloseableThread, canStaffAct } = require('./handoff');
+const { isCloseableThread, canStaffAct, markHandoffClosed } = require('./handoff');
 const github = require('./github');
 const orderFlow = require('./orderFlow');
 
@@ -136,6 +136,7 @@ async function closeHandoff(channel, user) {
     console.error('[Bot] /done notice failed:', err.message);
     return { ok: false, reason: 'Could not post the resolved message.' };
   }
+  markHandoffClosed(channel);
   try {
     await applyResolvedTag(channel);
   } catch (err) {

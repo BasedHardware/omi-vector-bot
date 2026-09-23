@@ -228,6 +228,7 @@ function shouldReuseOpenHandoff(channel) {
 
 function isWeakerHandoffName(nextName, currentName) {
   if (!/^Handoff\b/i.test(String(currentName || ''))) return false;
+  if (/^Handoff · needs-human\b/i.test(nextName) && !/^Handoff · needs-human\b/i.test(currentName)) return true;
   const next = handoffSubject(nextName);
   const current = handoffSubject(currentName);
   if (!current) return false;
@@ -259,6 +260,26 @@ function rememberOpenHandoff(parentId, userId, thread) {
     key,
     [{ id: thread.id, name: thread.name, thread, at: Date.now() }, ...rest].slice(0, 12)
   );
+}
+
+const closedHandoffs = new Set();
+
+function forgetOpenHandoff(thread) {
+  const id = String(thread?.id || '');
+  for (const [key, list] of rememberedHandoffs) {
+    rememberedHandoffs.set(key, list.filter((item) => String(item.id) !== id));
+  }
+}
+
+function markHandoffClosed(thread) {
+  if (!thread?.id) return;
+  closedHandoffs.add(String(thread.id));
+  forgetOpenHandoff(thread);
+  lastHandoff.delete(String(thread.parentId || ''));
+}
+
+function isClosedHandoff(thread) {
+  return Boolean(thread?.archived || thread?.locked || closedHandoffs.has(String(thread?.id)));
 }
 
 function recallOpenHandoff(parentId, userId, hint) {
@@ -293,7 +314,7 @@ async function findOpenHandoff(channel, { userId, question, topic } = {}) {
   const parentId = parent?.id || channel?.id;
   const hint = { question, topic };
   const remembered = recallOpenHandoff(parentId, userId, hint);
-  if (remembered && !remembered.archived) return remembered;
+  if (remembered && !isClosedHandoff(remembered)) return remembered;
   if (!parent?.threads?.fetchActive || !userId) return null;
   let active;
   try {
@@ -304,7 +325,7 @@ async function findOpenHandoff(channel, { userId, question, topic } = {}) {
   const threads = active?.threads;
   if (!threads || typeof threads.values !== 'function') return null;
   for (const thread of threads.values()) {
-    if (thread?.archived) continue;
+    if (isClosedHandoff(thread)) continue;
     if (!isSameHandoff(thread.name, hint)) continue;
     if (await threadBelongsToUser(thread, userId)) {
       rememberOpenHandoff(parentId, userId, thread);
@@ -438,7 +459,8 @@ function handoffThreadName({ question, area, lane, topic, labels } = {}) {
   ).filter((label) => label !== 'needs-human');
   if (!tag.length) tag.push('needs-human');
   const subject = String(topic || '').trim() || threadTopic(question, resolved);
-  return clipForDiscord(`Handoff · ${tag.join(' · ')} · ${subject}`, 100);
+  const parts = tag.includes(subject.toLowerCase()) ? tag : [...tag, subject];
+  return clipForDiscord(`Handoff · ${parts.join(' · ')}`, 100);
 }
 
 async function applyThreadName(thread, meta = {}) {
@@ -903,6 +925,7 @@ module.exports = {
   isWeakerHandoffName,
   findOpenHandoff,
   rememberOpenHandoff,
+  markHandoffClosed,
   notifyStaff,
   isHandoffThread,
   isHelpForumThread,

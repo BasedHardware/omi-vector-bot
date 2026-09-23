@@ -501,6 +501,8 @@ async function handleMessage(message) {
       let pinged = false;
       let duplicate = false;
       let reused = false;
+      let reuseFailed = false;
+      let cardHere = false;
       let handoffThread = inHandoff ? channel : null;
       if (!inHandoff && shouldReuseOpenHandoff(channel)) {
         const existing = await findOpenHandoff(channel, {
@@ -509,12 +511,21 @@ async function handleMessage(message) {
           topic: triaged.topic,
         });
         if (existing) {
-          reused = true;
-          duplicate = true;
-          pinged = true;
-          handoffThread = existing;
-          await applyThreadName(existing, nameMeta);
-          console.log(`[Bot] Reusing Handoff ${existing.id} for ${channel.id}`);
+          try {
+            await existing.send({
+              content: rewriteUserMentions(escalateReply(cleanAnswer, { conversation: true }), message),
+              allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
+            });
+            reused = true;
+            duplicate = true;
+            pinged = true;
+            handoffThread = existing;
+            await applyThreadName(existing, nameMeta);
+            console.log(`[Bot] Reusing Handoff ${existing.id} for ${channel.id}`);
+          } catch (err) {
+            reuseFailed = true;
+            console.error('[Bot] reuse thread reply failed:', err.message);
+          }
         }
       }
       if (!reused && !inHandoff) {
@@ -532,11 +543,12 @@ async function handleMessage(message) {
             github: changeSentence || githubHit?.duplicate?.url,
             fileIssueId,
             route: { area: triaged.area, lane: triaged.lane, escalate: true },
-            skipDedupe: isTestChannel(channel) && !inHandoff,
+            skipDedupe: (isTestChannel(channel) && !inHandoff) || reuseFailed,
             topic: nameMeta.topic,
             labels: triaged.labels,
           });
           pinged = Boolean(handoff.ok);
+          cardHere = handoff.via === 'channel' && Boolean(channel.isThread?.());
           duplicate = Boolean(handoff.duplicate);
           handoffThread = handoff.thread || handoffThread;
           if (handoff.thread) {
@@ -572,24 +584,15 @@ async function handleMessage(message) {
       ) {
         await postShopTicketCard(handoffThread, triaged);
       }
-      if (reused && handoffThread && typeof handoffThread.send === 'function') {
-        try {
-          await handoffThread.send({
-            content: rewriteUserMentions(
-              escalateReply(cleanAnswer, { conversation: true }),
-              message
-            ),
-            allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
-          });
-        } catch (err) {
-          console.error('[Bot] reuse thread reply failed:', err.message);
-        }
-      }
       let parentReply = escalateReply(cleanAnswer, {
         pinged,
         duplicate,
         conversation: inHandoff,
-        issue: (triaged.fileIssue || triage.wantsShopTicket(triaged)) && !inHandoff && !reused,
+        issue:
+          (triaged.fileIssue || triage.wantsShopTicket(triaged)) &&
+          !inHandoff &&
+          !reused &&
+          (Boolean(handoffThread) || cardHere),
         pingAuthor,
       });
       if (reused && handoffThread?.id && !inHandoff) {

@@ -889,3 +889,38 @@ test('help forum card does not repeat the customer post', async () => {
     resetHandoffMemory();
   }
 });
+
+test('a locked Handoff thread is not reused for a new report', async () => {
+  const { findOpenHandoff } = require('../handoff');
+  const thread = {
+    id: 'locked',
+    name: 'Handoff · app · tech · Apple Watch recordings missing from app',
+    archived: false,
+    locked: true,
+    members: { cache: { has: (id) => id === '99' } },
+  };
+  const found = await findOpenHandoff(
+    { threads: { fetchActive: async () => ({ threads: new Map([['locked', thread]]) }) } },
+    {
+      userId: '99',
+      question: 'Apple Watch recordings still missing.',
+      topic: 'Apple Watch recordings missing from app',
+    }
+  );
+  assert.equal(found, null);
+});
+
+test('an unclassified follow-up does not rename a Handoff that already has an area', () => {
+  const { isWeakerHandoffName } = require('../handoff');
+  const named = 'Handoff · app · tech · iPhone app disconnected';
+  assert.equal(isWeakerHandoffName('Handoff · needs-human · It happened again this morning.', named), true);
+  assert.equal(isWeakerHandoffName(named, 'Handoff · needs-human · It happened again this morning.'), false);
+});
+
+test('a long privacy request does not repeat privacy in the Handoff name', () => {
+  const { handoffThreadName } = require('../handoff');
+  const q = 'Please delete my data, the Android app keeps crashing and I am done with it.';
+  const route = require('../router').classify(q);
+  const name = handoffThreadName({ question: q, area: route.area, lane: route.lane });
+  assert.equal(name, 'Handoff · privacy');
+});

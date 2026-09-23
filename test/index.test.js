@@ -124,12 +124,67 @@ function testChannel() {
   return makeChannel({ id: TEST_CHANNEL, name: 'vector-test' });
 }
 
-function makeMessage(content, { channel = testChannel(), attachments = [], mention = false, bot = false } = {}) {
+function generalChannel() {
+  const channel = makeChannel();
+  const threads = new Map();
+  channel.threads = { fetchActive: async () => ({ threads }) };
+  return channel;
+}
+
+function advanceClock(t, ms) {
+  const now = Date.now;
+  Date.now = () => now() + ms;
+  t.after(() => {
+    Date.now = now;
+  });
+}
+
+async function reportAgain(t, gapMs, between = async () => {}) {
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(first);
+  const thread = first.threads[0];
+  await between(thread, channel, authorId);
+  const sentBefore = thread.sent.length;
+  advanceClock(t, gapMs);
+  const again = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it, still.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(again);
+  return { thread, sentBefore, again, reply: replyText(again) };
+}
+
+async function deleteThread(thread) {
+  thread.send = async () => {
+    throw new Error('Unknown Channel');
+  };
+}
+
+async function doneWithArchiveRefused(thread, channel, authorId) {
+  thread.members = { cache: new Map([[authorId, {}]]) };
+  (await channel.threads.fetchActive()).threads.set(thread.id, thread);
+  thread.edit = async () => {
+    throw new Error('Missing Access');
+  };
+  await commands.closeHandoff(thread, { id: '900000000000000009' });
+}
+
+function makeMessage(
+  content,
+  { channel = testChannel(), attachments = [], mention = false, bot = false, authorId = nextId() } = {}
+) {
   const message = {
     id: nextId(),
     content,
     channel,
-    author: { id: nextId(), username: 'customer', bot },
+    author: { id: authorId, username: 'customer', bot },
     attachments: new Map(attachments.map((a, i) => [String(i), a])),
     embeds: [],
     mentions: { has: () => mention },
@@ -282,7 +337,7 @@ test('a privacy request that also names an app crash is never sent to GitHub', a
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('Please delete my data, the Android app keeps crashing and I am done with it.');
   assert.ok(r.thread);
-  assert.match(r.thread.name, /^Handoff · privacy · /);
+  assert.match(r.thread.name, /^Handoff · privacy\b/);
   assert.equal(r.github.length, 0);
   assert.equal(r.thread.sent[0].components, undefined);
 });
@@ -779,4 +834,76 @@ test('a message delivered twice is answered once and opens one Handoff', async (
   await Promise.all([handleMessage(message), handleMessage(message)]);
   assert.equal(message.threads.length, 1);
   assert.equal(message.replies.length, 1);
+});
+
+test('a ticket whose Handoff thread cannot be opened is told nobody was pinged yet', async () => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  const message = makeMessage('The Android app crashes every time I open it.');
+  message.startThread = async () => {
+    throw new Error('Missing Permissions');
+  };
+  message.channel.send = async () => {
+    throw new Error('Missing Permissions');
+  };
+  await handleMessage(message);
+  const reply = replyText(message);
+  assert.ok(reply.includes(utils.ESCALATE_FOOTER));
+  assert.equal(reply.includes(utils.ISSUE_FOOTER), false);
+  assert.equal(posts().length, 0);
+});
+
+test('a tech ticket with a Handoff thread is still told it is written in that thread', async () => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  const r = await ask('The Android app crashes every time I open a memory.');
+  assert.ok(r.thread);
+  assert.ok(r.reply.includes(utils.ISSUE_FOOTER));
+});
+
+test('/test posts its ticket card in the channel and does not claim a thread', async () => {
+  const interaction = slashTest('I want a refund for my Omi, it is not what I expected.');
+  await commands.handleInteraction(interaction);
+  const reply = interaction.channel.sent.map(textOf).join('\n');
+  assert.ok(reply.includes(utils.PINGED_FOOTER));
+  assert.equal(reply.includes(utils.ISSUE_FOOTER), false);
+});
+
+test('a help-forum post whose card lands in the post is told it is written in this thread', async () => {
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'App crash' });
+  const r = await ask('The Android app crashes every time I open a memory.', { channel: post });
+  assert.equal(r.thread, null);
+  assert.ok(post.sent.length >= 1);
+  assert.ok(r.reply.includes(utils.ISSUE_FOOTER));
+});
+
+test('a later report from the same customer goes into their open Handoff', async (t) => {
+  const r = await reportAgain(t, 2 * 60 * 60 * 1000);
+  assert.equal(r.again.threads.length, 0);
+  assert.equal(r.thread.sent.length, r.sentBefore + 1);
+  assert.ok(r.reply.includes(utils.DUPLICATE_FOOTER));
+  assert.ok(r.reply.includes(`<#${r.thread.id}>`));
+});
+
+test('a later report opens a new Handoff when the old thread was deleted', async (t) => {
+  const r = await reportAgain(t, 2 * 60 * 60 * 1000, deleteThread);
+  assert.equal(r.again.threads.length, 1);
+  assert.equal(r.reply.includes(utils.DUPLICATE_FOOTER), false);
+  assert.equal(r.reply.includes(`<#${r.thread.id}>`), false);
+});
+
+test('a report five minutes after its Handoff was deleted still opens a new one', async (t) => {
+  const r = await reportAgain(t, 5 * 60 * 1000, deleteThread);
+  assert.equal(r.again.threads.length, 1);
+  assert.equal(r.reply.includes(utils.DUPLICATE_FOOTER), false);
+});
+
+test('a later report opens a new Handoff after /done even when the archive was refused', async (t) => {
+  const r = await reportAgain(t, 2 * 60 * 60 * 1000, doneWithArchiveRefused);
+  assert.equal(r.again.threads.length, 1);
+  assert.equal(r.thread.sent.length, r.sentBefore);
+});
+
+test('a report five minutes after /done still opens a new Handoff', async (t) => {
+  const r = await reportAgain(t, 5 * 60 * 1000, doneWithArchiveRefused);
+  assert.equal(r.again.threads.length, 1);
+  assert.equal(r.thread.sent.length, r.sentBefore);
 });
