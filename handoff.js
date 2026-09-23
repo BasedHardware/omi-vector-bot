@@ -228,6 +228,7 @@ function shouldReuseOpenHandoff(channel) {
 
 function isWeakerHandoffName(nextName, currentName) {
   if (!/^Handoff\b/i.test(String(currentName || ''))) return false;
+  if (/^Handoff · needs-human\b/i.test(nextName) && !/^Handoff · needs-human\b/i.test(currentName)) return true;
   const next = handoffSubject(nextName);
   const current = handoffSubject(currentName);
   if (!current) return false;
@@ -457,7 +458,8 @@ function handoffThreadName({ question, area, lane, topic, labels } = {}) {
   ).filter((label) => label !== 'needs-human');
   if (!tag.length) tag.push('needs-human');
   const subject = String(topic || '').trim() || threadTopic(question, resolved);
-  return clipForDiscord(`Handoff · ${tag.join(' · ')} · ${subject}`, 100);
+  const parts = tag.includes(subject.toLowerCase()) ? tag : [...tag, subject];
+  return clipForDiscord(`Handoff · ${parts.join(' · ')}`, 100);
 }
 
 async function applyThreadName(thread, meta = {}) {

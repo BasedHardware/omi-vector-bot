@@ -909,3 +909,20 @@ test('a locked Handoff thread is not reused for a new report', async () => {
   );
   assert.equal(found, null);
 });
+
+test('an unclassified follow-up does not rename a Handoff that already has an area', () => {
+  const { isWeakerHandoffName } = require('../handoff');
+  const named = 'Handoff · app · tech · iPhone app disconnected';
+  assert.equal(isWeakerHandoffName('Handoff · needs-human · It happened again this morning.', named), true);
+  assert.equal(isWeakerHandoffName(named, 'Handoff · needs-human · It happened again this morning.'), false);
+});
+
+test('a long privacy request does not repeat privacy in the Handoff name', () => {
+  const { handoffThreadName } = require('../handoff');
+  const q = 'Please delete my data, the Android app keeps crashing and I am done with it.';
+  const route = require('../router').classify(q);
+  const name = handoffThreadName({ question: q, area: route.area, lane: route.lane });
+  assert.equal(name, 'Handoff · privacy');
+  const { isSameHandoff } = require('../handoff');
+  assert.equal(isSameHandoff(name, { question: 'My account shows no data in the app after the update.' }), false);
+});

@@ -292,7 +292,7 @@ test('a privacy request that also names an app crash is never sent to GitHub', a
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('Please delete my data, the Android app keeps crashing and I am done with it.');
   assert.ok(r.thread);
-  assert.match(r.thread.name, /^Handoff · privacy · /);
+  assert.match(r.thread.name, /^Handoff · privacy\b/);
   assert.equal(r.github.length, 0);
   assert.equal(r.thread.sent[0].components, undefined);
 });
@@ -899,4 +899,14 @@ test('a later report opens a new Handoff after /done even when the archive was r
   assert.equal(closed.ok, true);
   assert.equal(again.threads.length, 1);
   assert.equal(thread.sent.length, after);
+});
+
+test('a vague follow-up in a Handoff thread keeps the thread name', async () => {
+  const handoff = makeChannel({
+    thread: true,
+    parentId: TEST_CHANNEL,
+    name: 'Handoff · app · tech · iPhone app disconnected',
+  });
+  await handleMessage(makeMessage('It happened again this morning after the update.', { channel: handoff }));
+  assert.equal(handoff.name, 'Handoff · app · tech · iPhone app disconnected');
 });
