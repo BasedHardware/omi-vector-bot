@@ -202,6 +202,14 @@ test('AREA_OWNERS parses users and roles; empty means no ping', () => {
   assert.equal(router.ownerMention('app', map), '');
   assert.equal(router.shouldPingOwner(router.classify('Where is my order?')), true);
   assert.equal(router.shouldPingOwner(router.classify('How do I pair my Omi?')), false);
+  assert.equal(router.specialistNames('shop', 'money'), 'Mohsin');
+  assert.equal(router.specialistNames('app', 'tech'), 'Mohsin');
+  assert.equal(router.specialistNames('desktop', 'tech'), 'Aryan');
+  assert.equal(router.specialistNames('firmware', 'firmware'), 'TuEmb');
+  assert.equal(router.specialistNames('privacy', 'privacy'), 'David');
+  assert.equal(router.specialistNames('unknown', 'unknown'), 'Aryan, David, undivisible');
+  assert.equal(router.specialistNames('unknown', 'faq'), '');
+  assert.equal(/@/.test(router.specialistNames('shop', 'money')), false);
 });
 
 test('device not capturing stays with transcription and does not become a firmware repair', () => {

@@ -34,7 +34,7 @@ Needs `DISCORD_TOKEN`, `OPENCODE_API_KEY`, and `VECTOR_TEST_CHANNEL_ID`. Host wi
 3. Else a **Needs a human** card in the same channel.
 4. Optional Telegram: `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID`.
 
-The user reply only claims a ping if one of those sends succeeded. Optional `STAFF_USER_IDS` / `STAFF_ROLE_ID` mention staff on the card. `AREA_OWNERS` (example `shop:ID,app:ID`) pings the named owner on hard tickets. Empty means no extra ping.
+The user reply only claims a ping if one of those sends succeeded. The staff card names a specialist in plain text and does not ping anyone. Shop and app: Mohsin. Desktop: Aryan. Firmware: TuEmb. Privacy: David. Anything else: Aryan, David, undivisible. A how-to stays with the bot.
 
 The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` / `privacy`). Tax, duties, customs, refunds, and orders stay off GitHub. They get a Discord shop ticket card; updates stay in that Handoff. Chat never looks up Shopify from a guessed order number. `/order` after email OTP is the lookup path. Refunds, cancels, and address changes still need a person.
 

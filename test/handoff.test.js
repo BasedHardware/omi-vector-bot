@@ -28,7 +28,10 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
     draft:
       "I can't see orders, tracking, or shipping from here.\nI'm flagging this for a person on the Omi team. I'm not able to ping anyone myself, so I won't tell you I did.",
   });
-  assert.match(ticket.discord.content, /<@123456789012345678>/);
+  assert.equal(ticket.discord.content, undefined);
+  assert.equal(/<@123456789012345678>/.test(JSON.stringify(ticket.discord.embeds)), false);
+  const specialist = ticket.discord.embeds[0].fields.find((f) => f.name === 'Specialist');
+  assert.equal(specialist.value, 'Mohsin');
   assert.equal(ticket.discord.embeds[0].title, 'Needs a human');
   assert.match(ticket.discord.embeds[0].description, /Where is my order/);
   assert.equal(ticket.discord.embeds[0].description.includes('Want:'), false);
@@ -324,8 +327,11 @@ test('staff ticket pings the area owner when AREA_OWNERS is set', async () => {
     route: { area: 'shop', lane: 'money', escalate: true },
     skipDedupe: true,
   });
-  assert.match(sent[0].content, /<@555555555555555555>/);
-  assert.equal(sent[0].allowedMentions.users.includes('555555555555555555'), true);
+  assert.equal(sent[0].content, undefined);
+  assert.equal(/<@555555555555555555>|<@&/.test(JSON.stringify(sent[0])), false);
+  const specialist = sent[0].embeds[0].fields.find((f) => f.name === 'Specialist');
+  assert.equal(specialist.value, 'Mohsin');
+  assert.equal(sent[0].allowedMentions.users.length, 0);
 
   if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
   else delete process.env.HANDOFF_THREADS;

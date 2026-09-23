@@ -259,6 +259,15 @@ function isTechLane(route) {
   return route?.lane === 'tech' || route?.area === 'firmware';
 }
 
+function specialistNames(area, lane) {
+  if (lane === 'faq') return '';
+  if (area === 'shop' || area === 'app') return 'Mohsin';
+  if (area === 'desktop') return 'Aryan';
+  if (area === 'firmware') return 'TuEmb';
+  if (area === 'privacy') return 'David';
+  return 'Aryan, David, undivisible';
+}
+
 function shouldPingOwner(route) {
   if (!route || route.lane === 'faq') return false;
   return Boolean(route.escalate) && route.area !== 'unknown';
@@ -413,6 +422,7 @@ module.exports = {
   ownerMention,
   isTechLane,
   shouldPingOwner,
+  specialistNames,
   skipModel,
   looksLikeTax,
   looksLikePlan,

@@ -1,6 +1,6 @@
 const telegram = require('./telegram');
 const { clipForDiscord, stripPingNarration } = require('./utils');
-const { ownerMention, ownerRef, shouldPingOwner, parseAreaOwners, classify, pickStaffReason, looksLikeCaptureFailure, looksLikeTranscription } = require('./router');
+const { classify, pickStaffReason, looksLikeCaptureFailure, looksLikeTranscription, specialistNames } = require('./router');
 
 const DEDUPE_MS = 15 * 60_000;
 const lastHandoff = new Map();
@@ -474,8 +474,7 @@ function formatStaffTicket({
   const jump = message?.url || '';
   const from = message?.author?.id ? `<@${message.author.id}>` : 'unknown user';
   const channel = message?.channel?.id ? `<#${message.channel.id}>` : '';
-  const mentions = [staffMentions(), extraMentions].filter(Boolean).join(' ').trim();
-  const { users, roles } = staffMentionIds();
+  const mentions = '';
   const cleanDraft = stripPingNarration(draft || '');
   const resolved = resolveRoute({ area, lane, question });
   const why = clipForDiscord(
@@ -505,6 +504,10 @@ function formatStaffTicket({
   if (areaValue) {
     embed.fields.push({ name: 'Area', value: String(areaValue), inline: true });
   }
+  const specialist = specialistNames(resolved.area, resolved.lane);
+  if (specialist) {
+    embed.fields.push({ name: 'Specialist', value: specialist, inline: true });
+  }
   const shopifyFacts = clipForDiscord(String(shopify || '').trim(), 500);
   if (shopifyFacts) {
     embed.fields.push({ name: 'Shopify', value: shopifyFacts, inline: false });
@@ -533,8 +536,8 @@ function formatStaffTicket({
     embeds: [embed],
     allowedMentions: {
       parse: [],
-      users: [...users, ...(extraUsers || [])],
-      roles: [...roles, ...(extraRoles || [])],
+      users: [],
+      roles: [],
     },
   };
   if (fileIssueId) {
@@ -621,13 +624,6 @@ async function notifyStaff({
   let extraMentions = '';
   const extraUsers = [];
   const extraRoles = [];
-  if (shouldPingOwner(route || { area, escalate: true, lane: area })) {
-    const owners = parseAreaOwners();
-    extraMentions = ownerMention(area, owners);
-    const ref = ownerRef(area, owners);
-    if (ref?.kind === 'user') extraUsers.push(ref.id);
-    if (ref?.kind === 'role') extraRoles.push(ref.id);
-  }
 
   const ticket = formatStaffTicket({
     message,
