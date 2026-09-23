@@ -259,3 +259,16 @@ test('desktop and phone together name both apps', () => {
   const picked = router.pickStaffReason(route, 'Cannot see the computer app from chat', q);
   assert.equal(picked, reason);
 });
+
+test('a MAC address question is not a computer-app ticket', () => {
+  const q = 'What is the MAC address of my Omi?';
+  const route = router.classify(q);
+  assert.equal(route.area, 'unknown');
+  assert.equal(/computer app/i.test(router.staffReason(route, q)), false);
+  assert.equal(router.classify('need the mac-address of my omi for my router').area, 'unknown');
+  assert.equal(router.classify('whats the mac adress of my omi').area, 'unknown');
+  assert.equal(router.classify('is the mic bug on mac addressed yet').area, 'desktop');
+  const mac = router.classify('The Omi app on my Mac keeps crashing');
+  assert.equal(mac.area, 'desktop');
+  assert.equal(mac.lane, 'tech');
+});
