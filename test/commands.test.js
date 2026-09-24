@@ -445,7 +445,10 @@ test('a File click that GitHub rejects can be pressed again', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const statuses = [502, 201];
   let posts = 0;
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/search/issues')) {
+      return { ok: true, status: 200, json: async () => ({ items: [] }) };
+    }
     posts += 1;
     const status = statuses.shift();
     return {
@@ -605,6 +608,57 @@ test('a File click does not claim a filing when GitHub returns no issue', async 
     else process.env.GITHUB_APP_INSTALLATION_ID = prevInstall;
     if (prevKey == null) delete process.env.GITHUB_APP_PRIVATE_KEY;
     else process.env.GITHUB_APP_PRIVATE_KEY = prevKey;
+    github.resetGithubMemory();
+  }
+});
+
+test('a File click does not file when GitHub already has a matching issue', async () => {
+  const github = require('../github');
+  const { handleInteraction } = require('../commands');
+  github.resetGithubMemory();
+  const prevStaff = process.env.STAFF_USER_IDS;
+  const prevToken = process.env.GITHUB_TOKEN;
+  const prevFetch = globalThis.fetch;
+  process.env.STAFF_USER_IDS = '123456789012345678';
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  let posts = 0;
+  globalThis.fetch = async (url, init) => {
+    const href = String(url);
+    if (href.includes('/search/issues')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [{ number: 2850, title: 'mac recording stops randomly', html_url: 'https://github.com/BasedHardware/omi/issues/2850' }],
+        }),
+      };
+    }
+    if (init && init.method === 'POST') posts += 1;
+    return { ok: true, status: 201, json: async () => ({ number: 1, html_url: 'https://github.com/BasedHardware/omi/issues/1' }) };
+  };
+  const id = github.stashDraft({ title: 'mac recording stops', body: 'It stops.', labels: ['vector'] });
+  const replies = [];
+  try {
+    await handleInteraction({
+      customId: `file:${id}`,
+      channelId: '555555555555555555',
+      user: { id: '123456789012345678' },
+      isChatInputCommand: () => false,
+      isButton: () => true,
+      deferReply: async () => {},
+      editReply: async (text) => { replies.push(text); },
+      reply: async ({ content }) => { replies.push(content); },
+      channel: { isTextBased: () => true, send: async () => {} },
+    });
+    assert.equal(posts, 0);
+    assert.match(replies[0], /Already on GitHub: https:\/\/github.com\/BasedHardware\/omi\/issues\/2850/);
+    assert.match(replies[0], /did not file another/);
+  } finally {
+    globalThis.fetch = prevFetch;
+    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
+    else process.env.STAFF_USER_IDS = prevStaff;
+    if (prevToken == null) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = prevToken;
     github.resetGithubMemory();
   }
 });

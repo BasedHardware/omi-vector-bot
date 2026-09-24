@@ -131,6 +131,12 @@ test('thread markers survive in issue bodies and webhook events', () => {
   assert.equal(opened.line, '#9 was opened.');
   assert.deepEqual(opened.threadIds, ['1550182642874589194']);
 
+  const filedByBot = github.describeWebhookEvent({
+    action: 'opened',
+    issue: { number: 18473, body: marked, user: { login: 'omi-vector', type: 'Bot' } },
+  });
+  assert.equal(filedByBot, null);
+
   const reopened = github.describeWebhookEvent({
     action: 'reopened',
     issue: { number: 9, body: marked },

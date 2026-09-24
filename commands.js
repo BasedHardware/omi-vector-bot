@@ -228,8 +228,20 @@ async function handleFileIssue(interaction) {
     github.restoreDraft(id, draft);
     throw err;
   }
+  const prior = await github.existingWork(`${draft.title}\n${draft.body}`);
+  if (prior.error) {
+    github.restoreDraft(id, draft);
+    await interaction.editReply('I could not check GitHub for an existing issue. I did not file another.');
+    return;
+  }
+  if (prior.hit) {
+    github.restoreDraft(id, draft);
+    await interaction.editReply(`Already on GitHub: ${prior.hit.url}. I did not file another.`);
+    return;
+  }
   const created = await github.createIssue({
     ...draft,
+    body: `${draft.body}\n\n${github.checkedNote()}`,
     threadId: interaction.channelId,
   });
   const filedUrl = String(created?.url || '');

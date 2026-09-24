@@ -263,6 +263,19 @@ async function searchIssues(question, { fetchImpl } = {}) {
   }
 }
 
+function checkedNote() {
+  return 'Checked GitHub before filing. No open issue, open pull request, or merged fix had a matching title.';
+}
+
+async function existingWork(text, { fetchImpl } = {}) {
+  const issues = await searchIssues(text, { fetchImpl });
+  if (!issues.ok && issues.reason !== 'no-query') return { error: true };
+  if (issues.duplicate) return { hit: { ...issues.duplicate, kind: 'issue' } };
+  const pull = await searchPulls(text, { fetchImpl });
+  if (pull) return { hit: { ...pull, kind: 'pull' } };
+  return { hit: null };
+}
+
 async function createIssue(draft, { fetchImpl } = {}) {
   if (!isConfigured()) return { ok: false, reason: 'unconfigured' };
   const url = `https://api.github.com/repos/${repo()}/issues`;
@@ -344,6 +357,10 @@ function describeWebhookEvent(payload) {
     };
   }
   if (payload?.issue && payload.action === 'opened') {
+    const opener = payload.issue.user || {};
+    if (/bot/i.test(String(opener.type || '')) || /omi-vector/i.test(String(opener.login || ''))) {
+      return null;
+    }
     const number = payload.issue.number;
     return {
       kind: 'opened',
@@ -741,6 +758,8 @@ module.exports = {
   threadsForIssue,
   resetGithubMemory,
   searchIssues,
+  existingWork,
+  checkedNote,
   linkedChanges,
   textFromEmbeds,
   lookupChange,
