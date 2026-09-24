@@ -796,6 +796,30 @@ test('a follow-up in a Handoff thread sends the earlier thread messages to the m
   assert.equal(follow.threads.length, 0);
 });
 
+test('a follow-up in a vector-test post sees the report and does not open a second card', async () => {
+  modelReply = { final_answer: 'The paid-plan problem above still needs a person. I cannot change the account from chat.' };
+  const post = makeChannel({
+    thread: true,
+    parentId: TEST_CHANNEL,
+    name: 'Bug: Upgrade to Unlimited downgraded my paid account',
+  });
+  const follow = makeMessage(
+    "I get it's a startup, but you've got to at least reply to the customers who paid to support you.",
+    { channel: post }
+  );
+  post.messages.fetch = async () =>
+    new Map([
+      [follow.id, follow],
+      ['1', { id: '1', author: { bot: false, username: 'customer' }, content: 'Upgrade to Unlimited downgraded my paid account to Free.' }],
+    ]);
+  await handleMessage(follow);
+  assert.deepEqual(modelCalls.at(-1).threadHistory, [
+    { author: 'customer', content: 'Upgrade to Unlimited downgraded my paid account to Free.' },
+  ]);
+  assert.equal(post.sent.length, 0);
+  assert.equal(follow.threads.length, 0);
+});
+
 test('a staff faq line in a Handoff thread is saved for later questions and not answered as a ticket', async () => {
   const handoff = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Handoff · faq · LED colours' });
   const line = makeMessage('faq: The Omi LED turns solid green when the battery is full.', { channel: handoff });

@@ -153,7 +153,9 @@ function buildUserPrompt({ question, threadHistory, knowledgeSnippets, route, to
   return [
     `Facts from tools (only source of truth):\n${tools}`,
     knowledge ? `Knowledge (staff-saved; use these words if they apply):\n${knowledge}` : 'Knowledge: (none yet)',
-    history ? `Thread:\n${history}` : '',
+    history
+      ? `Thread (earlier messages in this same post, oldest first):\n${history}\nDo not say you cannot see these messages. Do not treat this reply as a new problem.`
+      : '',
     askedWhereRecordingsWent(question)
       ? 'They asked whether recordings were deleted. You may say the recordings may still be on the watch or phone. Do not say they are gone for good.'
       : '',

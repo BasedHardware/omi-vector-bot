@@ -142,10 +142,21 @@ function shouldHandle(message) {
   return false;
 }
 
+async function hasEarlierMessages(channel, messageId) {
+  if (!channel?.isThread?.()) return false;
+  try {
+    const messages = await channel.messages.fetch({ limit: 12 });
+    return [...messages.values()].some((m) => m.id !== messageId);
+  } catch {
+    return false;
+  }
+}
+
 async function getHistory(channel, excludeId) {
   // Parent #vector-test is a pile of unrelated tickets. Only follow-ups
   // inside an existing Handoff or help post may see prior messages.
-  if (!isHandoffThread(channel) && !isHelpThread(channel)) return [];
+  const samePost = channel.isThread?.() && (isHelpThread(channel) || isTestChannel(channel));
+  if (!isHandoffThread(channel) && !samePost) return [];
   const messages = await channel.messages.fetch({ limit: 12 });
   const entries = [...messages.values()]
     .reverse()
@@ -477,6 +488,8 @@ async function handleMessage(message) {
       labels: triaged.labels,
     };
     const inHandoff = isHandoffThread(channel);
+    const continuingPost = await hasEarlierMessages(channel, message.id);
+    const stayInPost = inHandoff || continuingPost;
     const pingAuthor = wantsAuthorPing(caption);
     const escalate =
       holdPublicCopy ||
@@ -528,7 +541,7 @@ async function handleMessage(message) {
           }
         }
       }
-      if (!reused && !inHandoff) {
+      if (!reused && !stayInPost) {
         try {
           const handoff = await notifyStaff({
             client,
