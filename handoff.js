@@ -140,6 +140,7 @@ function significantWords(text) {
   const stop = new Set([
     'handoff',
     'still',
+    'after',
     'from',
     'this',
     'that',
@@ -247,6 +248,8 @@ function isSameHandoff(threadName, { question, topic } = {}) {
   const hay = new Set(significantWords(asked));
   const overlap = sub.filter((word) => hay.has(word));
   if (overlap.length < 2) return false;
+  const core = sub.filter((word) => !SURFACE.test(word));
+  if (core.length >= 2 && core.filter((word) => hay.has(word)).length < 2) return false;
   return overlap.some((word) => !GENERIC_OVERLAP.has(word));
 }
 

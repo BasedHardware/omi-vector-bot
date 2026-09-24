@@ -57,6 +57,20 @@ function claimMessage(id, now = Date.now()) {
   return true;
 }
 
+const answeringAskers = new Map();
+const ANSWER_CLAIM_MS = 2 * 60_000;
+
+function claimAsker(key, now = Date.now()) {
+  const prev = answeringAskers.get(key);
+  if (prev && now - prev < ANSWER_CLAIM_MS) return false;
+  answeringAskers.set(key, now);
+  return true;
+}
+
+function releaseAsker(key) {
+  answeringAskers.delete(key);
+}
+
 function pruneTracked(now = Date.now()) {
   const replyCutoff = now - 5 * 60_000;
   const claimCutoff = now - CLAIM_MS;
@@ -397,6 +411,8 @@ module.exports = {
   isOnCooldown,
   markReplied,
   claimMessage,
+  claimAsker,
+  releaseAsker,
   pruneTracked,
   containsEscalationKeyword,
   shouldEscalate,

@@ -383,6 +383,81 @@ test('a phone app crash opens an app Handoff and files an app issue', async () =
   assert.deepEqual(filed[0].body.labels.slice(0, 2), ['vector', 'app']);
 });
 
+test('two quick copies of one report from a customer open one Handoff and file one issue', async () => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  const second = makeMessage(`<@${BOT_ID}> The Android app crashes every time I open it. Please help.`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await Promise.all([handleMessage(first), handleMessage(second)]);
+  assert.equal(first.threads.length + second.threads.length, 1);
+  assert.equal(posts().filter((c) => /\/issues$/.test(c.url)).length, 1);
+});
+
+test('a different report from the same customer after the dedupe window opens its own Handoff', async (t) => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  modelReply = { escalate: true };
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> My Android app stopped working after the update`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(first);
+  advanceClock(t, 16 * 60_000);
+  const second = makeMessage(`<@${BOT_ID}> Android battery drain is huge after the latest update`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(second);
+  assert.equal(second.threads.length, 1);
+  assert.match(first.threads[0].name, /stopped working/);
+  assert.equal(posts().filter((c) => /\/issues$/.test(c.url)).length, 2);
+});
+
+test('two customers asking at once in one channel both get an answer', async () => {
+  const channel = generalChannel();
+  const first = makeMessage(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true });
+  const second = makeMessage(`<@${BOT_ID}> How do I pair my Omi with my tablet?`, { channel, mention: true });
+  await Promise.all([handleMessage(first), handleMessage(second)]);
+  assert.match(textOf(first.replies[0]), /center button/);
+  assert.match(textOf(second.replies[0]), /center button/);
+});
+
+test('after a failed answer the customer can ask again right away', async () => {
+  const channel = generalChannel();
+  const authorId = nextId();
+  channel.sendTyping = async () => {
+    throw new Error('Discord is down');
+  };
+  const failed = makeMessage(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true, authorId });
+  await handleMessage(failed);
+  assert.match(replyText(failed), /Something broke/);
+  channel.sendTyping = async () => {};
+  const retry = makeMessage(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true, authorId });
+  await handleMessage(retry);
+  assert.match(textOf(retry.replies[0]), /center button/);
+});
+
+test('#vector-test still answers two quick questions from one person', async () => {
+  const authorId = nextId();
+  const first = makeMessage('How do I pair my Omi with a new phone?', { authorId });
+  const second = makeMessage('How do I pair my Omi with my tablet?', { authorId });
+  await Promise.all([handleMessage(first), handleMessage(second)]);
+  assert.equal(first.replies.length, 1);
+  assert.equal(second.replies.length, 1);
+});
+
 test('asking to talk to a human opens a Handoff even when the model says not to escalate', async () => {
   modelReply = { escalate: false, confidence: 0.95 };
   const r = await ask('How do I pair my Omi with a new phone? I want to talk to a human.');

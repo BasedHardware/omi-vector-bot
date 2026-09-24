@@ -9,6 +9,8 @@ const {
   isOnCooldown,
   markReplied,
   claimMessage,
+  claimAsker,
+  releaseAsker,
   shouldEscalate,
   typingDelay,
   sanitizeReply,
@@ -288,7 +290,20 @@ async function handleMessage(message) {
     console.log(`[Bot] Cooldown active for ${channel.id}, skipping`);
     return;
   }
+  const asker = `${channel.id}:${message.author.id}`;
+  if (!isTestChannel(channel) && !claimAsker(asker)) {
+    console.log(`[Bot] Still answering this customer in ${channel.id}, skipping`);
+    return;
+  }
+  try {
+    await answerMessage(message);
+  } finally {
+    releaseAsker(asker);
+  }
+}
 
+async function answerMessage(message) {
+  const channel = message.channel;
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   const files = await fetchTextAttachments(message.attachments);
   const unreadMedia = shouldMentionUnreadMedia(message.attachments, files);
