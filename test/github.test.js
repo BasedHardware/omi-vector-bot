@@ -51,6 +51,14 @@ test('draftFromQuestion never uses shop or privacy labels', () => {
   assert.match(formatted, /40\+ min/);
   assert.match(formatted, /#7528|pull\/7528/);
   assert.match(formatted, /still a problem after those changes/);
+  const openCharging = github.issueBody({
+    quote: 'My OMI is not charging on the charger.',
+    reason: 'Device stopped charging.',
+    related: [{ kind: 'issue', title: 'Charging reliability', url: 'https://github.com/BasedHardware/omi/issues/5469', state: 'open' }],
+  });
+  assert.match(openCharging, /issues\/5469/);
+  assert.match(openCharging, /Not treated as the fix/);
+  assert.equal(openCharging.includes('still a problem after those changes'), false);
   assert.equal(/fixed|I think|probably/i.test(formatted), false);
   const card = github.formatIssueCard(named);
   assert.match(card.title, /ERESOLVE/);
@@ -58,6 +66,34 @@ test('draftFromQuestion never uses shop or privacy labels', () => {
   assert.match(labelField, /desktop/);
   assert.equal(/vector/i.test(labelField), false);
   assert.equal(named.labels.includes('vector'), true);
+});
+
+test('a not-charging report lists the open charging issue', async () => {
+  const hits = await github.relatedIssues('Device not charging on the charger', {
+    fetchImpl: async (url) => {
+      assert.match(String(url), /is%3Aissue\+is%3Aopen\+charging/);
+      return {
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              title: "Charging reliability — device not recognized or won't charge intermittently",
+              html_url: 'https://github.com/BasedHardware/omi/issues/5469',
+              state: 'open',
+            },
+            {
+              title: 'iOS background BLE timeouts leave live transcription unavailable',
+              html_url: 'https://github.com/BasedHardware/omi/issues/11307',
+              state: 'open',
+            },
+          ],
+        }),
+      };
+    },
+  });
+  assert.equal(hits.length, 1);
+  assert.match(hits[0].url, /5469/);
+  assert.equal(hits[0].kind, 'issue');
 });
 
 test('searchIssues returns the first open hit', async () => {

@@ -58,7 +58,16 @@ function shouldMentionUnreadMedia(attachments, textFiles, read = {}) {
   });
 }
 
-function unreadMediaSentence() {
+function looksLikeDevicePhoto(question) {
+  const q = String(question || '');
+  if (/\b(error|screenshot|screen|crash|exception|log)\b/i.test(q)) return false;
+  return /\b(charg(?:e|er|ing)|cable|pendant)\b/i.test(q);
+}
+
+function unreadMediaSentence(question) {
+  if (looksLikeDevicePhoto(question)) {
+    return 'I did not use the photo to guess a hardware fault. A still picture cannot show whether the contact, the cable, or the device is the problem.';
+  }
   return 'I did not watch or listen to the file. Type the error line shown on the screen.';
 }
 

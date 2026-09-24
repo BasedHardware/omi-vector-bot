@@ -280,6 +280,9 @@ test('image content type, spoilers, and alt text stay unread and unfetched', asy
   assert.equal(shouldMentionUnreadMedia([described], describedFiles), true);
   assert.equal(shouldMentionUnreadMedia([described], [described]), true);
   assert.equal(unreadMediaSentence(), 'I did not watch or listen to the file. Type the error line shown on the screen.');
+  const charging = 'My OMI is not charging when placed on the charger';
+  assert.match(unreadMediaSentence(charging), /did not use the photo/i);
+  assert.equal(unreadMediaSentence(charging).includes('error line shown on the screen'), false);
 });
 
 test('a screenshot keeps the error line and drops another person name', async () => {

@@ -127,7 +127,12 @@ function issueBody({ quote, reason, threadUrl, related } = {}) {
     for (const item of related) {
       lines.push(`- ${item.title} (${item.state}) ${item.url}`);
     }
-    lines.push('This report is still a problem after those changes.');
+    if (related.some((item) => item.kind !== 'issue')) {
+      lines.push('This report is still a problem after those changes.');
+    }
+    if (related.some((item) => item.kind === 'issue')) {
+      lines.push('Related open issue. Not treated as the fix.');
+    }
   }
   return lines.join('\n');
 }
@@ -306,6 +311,35 @@ async function relatedPulls(text, { fetchImpl } = {}) {
       title: String(item.title || ''),
       url: item.html_url || '',
       state: merged ? 'merged' : String(item.state || 'open'),
+    });
+    if (hits.length >= 3) break;
+  }
+  return hits;
+}
+
+function stemToken(word) {
+  if (String(word).startsWith('charg')) return 'charg';
+  return word;
+}
+
+function titleTokens(text) {
+  return searchQuery(text).split(' ').filter(Boolean).map(stemToken);
+}
+
+async function relatedIssues(text, { fetchImpl } = {}) {
+  const tokens = new Set(titleTokens(text));
+  if (!tokens.has('charg')) return [];
+  const items = await fetchIssueSearch(`repo:${repo()} is:issue is:open charging`, fetchImpl);
+  if (!items) return [];
+  const hits = [];
+  for (const item of items) {
+    const shared = titleTokens(item.title).filter((word) => tokens.has(word));
+    if (shared.length < 2) continue;
+    hits.push({
+      kind: 'issue',
+      title: String(item.title || ''),
+      url: item.html_url || '',
+      state: 'open',
     });
     if (hits.length >= 3) break;
   }
@@ -832,6 +866,7 @@ module.exports = {
   issueBody,
   discordThreadUrl,
   relatedPulls,
+  relatedIssues,
   formatIssueCard,
   formatShopTicketCard,
   threadMarker,

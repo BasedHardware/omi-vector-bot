@@ -695,6 +695,16 @@ test('a voice memo sent with a log is still asked for the error line', async () 
   assert.ok(r.reply.includes(unreadMediaSentence()));
 });
 
+test('a photo of a device that will not charge is not asked for a screen error', async () => {
+  const r = await ask('My OMI is not charging when placed on the charger. What should I do?', {
+    attachments: [
+      { name: 'photo.jpg', contentType: 'image/jpeg', url: 'https://cdn.discordapp.com/attachments/1/2/photo.jpg' },
+    ],
+  });
+  assert.equal(r.reply.includes('Type the error line shown on the screen.'), false);
+  assert.match(r.reply, /did not use the photo/i);
+});
+
 test('a screenshot with a caption and no log is asked for the error line', async () => {
   const r = await ask('My Omi stops recording after a few minutes, what should I try?', {
     attachments: [

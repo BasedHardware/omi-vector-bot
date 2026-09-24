@@ -239,7 +239,8 @@ async function handleFileIssue(interaction) {
     await interaction.editReply(`Already on GitHub: ${prior.hit.url}. I did not file another.`);
     return;
   }
-  const related = await github.relatedPulls(`${draft.title}\n${draft.quote || draft.body}`);
+  const asked = `${draft.title}\n${draft.quote || draft.body}`;
+  const related = [...(await github.relatedPulls(asked)), ...(await github.relatedIssues(asked))];
   const created = await github.createIssue({
     ...draft,
     body: github.issueBody({

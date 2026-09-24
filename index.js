@@ -477,7 +477,7 @@ async function answerMessage(message) {
       );
     }
     if (unreadMedia && !changes.length) {
-      const note = unreadMediaSentence();
+      const note = unreadMediaSentence(asked || question);
       if (!String(cleanAnswer || '').includes(note)) {
         cleanAnswer = [cleanAnswer, note].filter(Boolean).join('\n\n');
       }
