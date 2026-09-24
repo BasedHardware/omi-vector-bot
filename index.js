@@ -26,7 +26,7 @@ const {
   replyMentions,
   isUnknownMessageRef,
 } = require('./utils');
-const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadMedia, unreadMediaSentence } = require('./attachments');
+const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadMedia, unreadMediaSentence, imageErrorLines } = require('./attachments');
 const {
   notifyStaff,
   canNotifyStaff,
@@ -307,6 +307,10 @@ async function answerMessage(message) {
   const channel = message.channel;
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   const files = await fetchTextAttachments(message.attachments);
+  if (process.env.VECTOR_OCR === '1') {
+    const screenText = await imageErrorLines(message.attachments);
+    if (screenText) files.push({ name: 'screen.txt', text: screenText });
+  }
   const unreadMedia = shouldMentionUnreadMedia(message.attachments, files);
   let asked = clipUserQuestion(caption) || caption;
   const forumPrefix = forumStarterPrefix(message);
@@ -349,6 +353,7 @@ async function answerMessage(message) {
     let githubHit = null;
     let fileIssueId;
     let aiResponse;
+    let threadHistory = [];
     let cleanAnswer;
     let skipModel = false;
     let snippets = [];
@@ -389,10 +394,11 @@ async function answerMessage(message) {
     }
 
     if (!skipModel) {
-      const [threadHistory, knowledgeSnippets] = await Promise.all([
+      const [history, knowledgeSnippets] = await Promise.all([
         getHistory(channel, message.id),
         searchKnowledge(asked || question),
       ]);
+      threadHistory = history;
       snippets = knowledge.filterSnippetsForLane(
         shopify.filterKnowledge(knowledgeSnippets),
         route.lane
@@ -494,6 +500,7 @@ async function answerMessage(message) {
         cleanAnswer = "I can't share account or order details in this public post.";
       }
     }
+    if (threadHistory.length) cleanAnswer = github.keepMergedPull(threadHistory, cleanAnswer);
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
     const nameMeta = {

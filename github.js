@@ -500,6 +500,23 @@ function coverNote(question, title) {
   return '';
 }
 
+function keepMergedPull(history, answer) {
+  const blob = (history || []).map((item) => item?.content || '').join('\n');
+  const match = blob.match(/https:\/\/github\.com\/BasedHardware\/omi\/pull\/(\d+)/i);
+  if (!match || !/has been merged/i.test(blob)) return String(answer || '');
+  const url = match[0];
+  const number = match[1];
+  let text = String(answer || '')
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => !/cause is still unknown|needs someone who can look at the app/i.test(sentence))
+    .join(' ')
+    .trim();
+  if (!text.includes(url)) {
+    text = [text, `Pull request #${number} has been merged. ${url}`].filter(Boolean).join('\n\n');
+  }
+  return text;
+}
+
 function customerChangeSentence(ref, lookup, extra = {}) {
   const url = ref?.url || '';
   if (!url) return '';
@@ -787,6 +804,7 @@ module.exports = {
   lookupChange,
   stripShippedClaims,
   customerChangeSentence,
+  keepMergedPull,
   scorePull,
   searchPulls,
   createIssue,

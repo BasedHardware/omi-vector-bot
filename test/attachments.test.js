@@ -11,6 +11,7 @@ const {
   screenshotErrorLines,
   shouldMentionUnreadMedia,
   unreadMediaSentence,
+  imageErrorLines,
 } = require('../attachments');
 
 test('allows log/txt/json and text/plain, skips images', () => {
@@ -278,4 +279,17 @@ test('image content type, spoilers, and alt text stay unread and unfetched', asy
   assert.equal(shouldMentionUnreadMedia([described], describedFiles), true);
   assert.equal(shouldMentionUnreadMedia([described], [described]), true);
   assert.equal(unreadMediaSentence(), 'I did not watch or listen to the file. Type the error line shown on the screen.');
+});
+
+test('a screenshot keeps the error line and drops another person name', async () => {
+  const lines = await imageErrorLines(
+    [{ name: 'shot.png', contentType: 'image/png', url: 'https://cdn.example/shot.png' }],
+    {
+      fetchImpl: async () => ({ ok: true, arrayBuffer: async () => Buffer.from('png') }),
+      recognize: async () => 'Weekly sync with Priya\ntranscription unavailable\ncode 1011',
+    }
+  );
+  assert.match(lines, /transcription unavailable/);
+  assert.match(lines, /1011/);
+  assert.equal(lines.includes('Priya'), false);
 });

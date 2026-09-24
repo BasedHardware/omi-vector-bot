@@ -112,6 +112,40 @@ function screenshotErrorLines(text) {
   return errorLinesFromImageText(text);
 }
 
+async function defaultRecognize(buf) {
+  const { createWorker } = require('tesseract.js');
+  const worker = await createWorker('eng');
+  try {
+    const result = await worker.recognize(buf);
+    return result?.data?.text || '';
+  } finally {
+    await worker.terminate();
+  }
+}
+
+async function imageErrorLines(attachments, { fetchImpl, recognize } = {}) {
+  const fetchFn = fetchImpl || fetch;
+  const read = recognize || (process.env.VECTOR_OCR === '1' ? defaultRecognize : null);
+  if (typeof read !== 'function') return '';
+  const images = attachmentsList(attachments).filter(isImageAttachment).slice(0, 1);
+  const kept = [];
+  for (const att of images) {
+    const url = att.url || att.proxyURL || att.proxy_url;
+    if (!url) continue;
+    try {
+      const res = await fetchFn(url);
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      const text = await read(buf);
+      const lines = errorLinesFromImageText(text);
+      if (lines) kept.push(lines);
+    } catch (err) {
+      console.error('[Attach] image read failed:', err.message);
+    }
+  }
+  return kept.join('\n');
+}
+
 function isImageAttachment(att) {
   if (!att) return false;
   const type = String(att.contentType || att.content_type || '').toLowerCase();
@@ -185,4 +219,5 @@ module.exports = {
   unreadMediaSentence,
   errorLinesFromImageText,
   screenshotErrorLines,
+  imageErrorLines,
 };
