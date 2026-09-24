@@ -160,6 +160,7 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   assert.equal(/Pairing|swipe it away/i.test(faqTextForLane('account')), false);
   assert.match(faqTextForLane('account'), /do not need a computer/i);
   assert.match(faqTextForLane('tech'), /Do not invent order status/);
+  assert.match(faqTextForLane('faq'), /Do not quote a return window/);
   assert.match(faqTextForLane('tech'), /blue = on, connected/);
   assert.equal(/Pairing: turn the device/i.test(faqTextForLane('tech')), false);
   assert.match(faqTextForLane('faq'), /Do not quote a plan price/);
