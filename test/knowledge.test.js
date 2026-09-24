@@ -162,7 +162,9 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
   assert.match(faqTextForLane('tech'), /Do not invent order status/);
   assert.match(faqTextForLane('tech'), /blue = on, connected/);
   assert.equal(/Pairing: turn the device/i.test(faqTextForLane('tech')), false);
-  assert.match(faqTextForLane('shop'), /Do not invent order status/);
+  assert.match(faqTextForLane('faq'), /BYOK means they use their own API key/);
+  assert.match(faqTextForLane('tech'), /1011 means the transcription service/);
+  assert.equal(/BYOK means/i.test(faqTextForLane('shop')), false);
   assert.equal(/blue = on|necklace|recording/i.test(faqTextForLane('shop')), false);
   assert.match(buildSystemPrompt({ lane: 'shop' }), /Do not mention device lights/);
   assert.equal(/If they mention a device light/i.test(buildSystemPrompt({ lane: 'shop' })), false);
