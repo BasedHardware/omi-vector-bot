@@ -20,6 +20,10 @@ const RAILS_FAQ = [
   'A listen-socket close of 1011 means the transcription service could not use the speech engine and closed the connection. Do not say an old pull request fixed it. Do not name Deepgram unless they said Deepgram.',
   'Deleting a conversation deletes that transcript and any stored audio for it. Deleting a memory is permanent. To delete an account, use the Omi phone app or email help@omi.me. Do not invent menu steps.',
   'Device lights: red = on, not connected to the phone; blue = on, connected; orange = charging, not connected; teal = charging and connected. If they name a colour, say what it means. Never say you do not know what blue, red, orange, or teal means. If the light says connected and the app says disconnected or offline, that is an app bug — escalate. Do not tell them to unpair or pair again.',
+  'Charging lights are not the same on every device. The consumer setup guide says green while charging. Help articles say orange. DevKit 2 docs say orange or teal. Do not pick a charging color unless they named the device.',
+  'On the current necklace, one press turns it on and holding the button about 3 seconds turns it off. One tap can ask a voice question. Force-closing the phone app stops transcription. The device can record offline and transcribe after it reconnects.',
+  'Do not quote a plan price. The store page lists Free and Unlimited yearly. The help article lists Basic, Plus, and Unlimited. A redemption code is not defined on those pages. Changing a plan needs a person.',
+  'Developers use https://api.omi.me. An app is created in the phone app under Explore. Do not invent an API key or a webhook URL.',
 ];
 
 const STATIC_FAQ = [...HOWTO_FAQ, ...RAILS_FAQ].join('\n');
