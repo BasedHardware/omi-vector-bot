@@ -60,15 +60,14 @@ test('a Plaud 24-hour recording question is a product answer, not an app bug', (
   const q = "I'd like to keep my new Omi device (not app) to keep recording, just like Plaud does for 24 hours. I kept turning on the device for couple days, but seems nothing has recorded yet.";
   const route = router.classify(q);
   assert.equal(route.lane, 'faq');
-  assert.equal(route.productAnswer, true);
   assert.equal(route.escalate, false);
-  assert.equal(router.skipModel(route), true);
-  const canned = router.cannedReply(route, q);
-  assert.match(canned, /battery life/i);
-  assert.match(canned, /background/i);
-  assert.equal(/file an issue|github/i.test(canned), false);
+  assert.equal(router.skipModel(route), false);
+  const other = router.classify('Any clue what the blue light means on the device?');
+  assert.equal(other.lane, 'faq');
+  assert.equal(other.escalate, false);
   const failed = router.classify('The app stayed open, the light was blue, and still nothing recorded.');
-  assert.equal(failed.productAnswer, undefined);
+  assert.equal(failed.lane === 'faq' && failed.escalate === false, false);
+  assert.equal(router.classify('The Android app crashes every time I open it.').lane, 'tech');
 });
 
 test('app crash and macOS are tech; pairing how-to is faq', () => {

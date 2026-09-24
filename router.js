@@ -246,8 +246,8 @@ function classifyRoute(text) {
   if (any(s, STRONG_SHOP)) {
     return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
   }
-  if (looksLikeRecordingHow(s)) {
-    return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman, productAnswer: true };
+  if (looksLikeProductQuestion(s)) {
+    return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
   if (any(s, FIRMWARE)) {
     return { area: 'firmware', lane: 'firmware', escalate: true, wantHuman };
@@ -301,7 +301,7 @@ function shouldPingOwner(route) {
 }
 
 function skipModel(route) {
-  return route?.lane === 'money' || route?.lane === 'privacy' || route?.lane === 'shop' || Boolean(route?.productAnswer);
+  return route?.lane === 'money' || route?.lane === 'privacy' || route?.lane === 'shop';
 }
 
 function looksLikeTax(text) {
@@ -314,11 +314,23 @@ function looksLikePlan(text) {
   );
 }
 
+function looksLikeHardFailure(text) {
+  const s = String(text || '');
+  if (/\b(crash|crashed|1011|exception|error code|won'?t charge|not charging|turns? itself off)\b/i.test(s)) return true;
+  return /\b(app (was|stayed) open|kept the app (open|running)|blue light)\b/i.test(s) && /\b(nothing|still)\b/i.test(s);
+}
+
+function looksLikeProductQuestion(text) {
+  const s = String(text || '');
+  if (looksLikeHardFailure(s)) return false;
+  if (any(s, STRONG_MONEY) || any(s, STRONG_SHOP) || any(s, PRIVACY) || any(s, ACCOUNT)) return false;
+  if (looksLikeRecordingHow(s)) return true;
+  return /\b(how (do|does|can|should)|is it (meant|supposed)|supposed to|any clue|like \w+ does|can (it|omi|the device)|does (it|omi|the device)|what does|why (does|is|can)|i'?d like)\b/i.test(s);
+}
+
 function looksLikeRecordingHow(text) {
   const s = String(text || '');
-  if (/\b(app (was|stayed) open|kept the app (open|running)|blue light)\b/i.test(s) && /\bnothing\b/i.test(s)) {
-    return false;
-  }
+  if (looksLikeHardFailure(s)) return false;
   const plaud = /\bplaud\b/i.test(s) && /\b(record|24)/i.test(s);
   const day = /\b24\s*hours?\b/i.test(s) && /\brecord/i.test(s);
   const alone = /\b(not app|without the app|by itself)\b/i.test(s) && /\brecord/i.test(s);
@@ -384,7 +396,7 @@ function cannedReply(route, question) {
     }
     return shopStatusReply();
   }
-  if (route?.productAnswer || looksLikeRecordingHow(question)) return recordingHowReply();
+  if (looksLikeRecordingHow(question)) return recordingHowReply();
   if (lane === 'firmware') {
     return "This looks like a problem with the Omi device itself. I can't see your device from here, so I won't guess what's wrong.";
   }
@@ -488,6 +500,7 @@ module.exports = {
   looksLikePlan,
   looksLikeDocs,
   looksLikeRecordingHow,
+  looksLikeProductQuestion,
   cannedReply,
   whenModelDown,
   staffReason,

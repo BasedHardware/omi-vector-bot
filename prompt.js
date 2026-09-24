@@ -124,7 +124,7 @@ ${
     lane === 'tech' || lane === 'firmware'
       ? '\nReport the symptom they wrote. Say you cannot see the app or the device. Do not name a cause (app-side, app bug, or firmware bug) or a place the recordings are. A device-light colour from the FAQ is not a cause. Do not guess delete/reinstall/reset steps. Do not give a step that changes the device or the app. Do not tell them to try again, turn it off and on, leave it plugged in, or charge it. Do not say schalte ihn nicht, beiseite, or lass den Omi. Do not mention account access. Do not say you know the cause.\n'
       : lane === 'faq'
-        ? '\nReport the symptom they wrote. Say you cannot see the app or the device. Do not name a cause (app-side, app bug, or firmware bug) or a place the recordings are. A device-light colour from the FAQ is not a cause. Do not guess delete/reinstall/reset steps.\n'
+        ? '\nIf the FAQ explains how this is meant to work, answer from that in plain words. Do not say you cannot tell, and do not turn it into a bug. Escalate only if they asked for a person, or they already did what the FAQ says and it still failed. Do not invent a menu path that is not in the FAQ.\n'
         : ''
   }
 
