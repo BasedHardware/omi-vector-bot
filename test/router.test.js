@@ -56,6 +56,21 @@ test('paid plan / redemption is money, not shipping, even if they mention Order 
   assert.match(router.staffReason(route, q), /plan or redemption/i);
 });
 
+test('a Plaud 24-hour recording question is a product answer, not an app bug', () => {
+  const q = "I'd like to keep my new Omi device (not app) to keep recording, just like Plaud does for 24 hours. I kept turning on the device for couple days, but seems nothing has recorded yet.";
+  const route = router.classify(q);
+  assert.equal(route.lane, 'faq');
+  assert.equal(route.productAnswer, true);
+  assert.equal(route.escalate, false);
+  assert.equal(router.skipModel(route), true);
+  const canned = router.cannedReply(route, q);
+  assert.match(canned, /battery life/i);
+  assert.match(canned, /background/i);
+  assert.equal(/file an issue|github/i.test(canned), false);
+  const failed = router.classify('The app stayed open, the light was blue, and still nothing recorded.');
+  assert.equal(failed.productAnswer, undefined);
+});
+
 test('app crash and macOS are tech; pairing how-to is faq', () => {
   assert.equal(router.classify('the app crashed on iPhone').area, 'app');
   assert.equal(router.classify('the app crashed on iPhone').lane, 'tech');

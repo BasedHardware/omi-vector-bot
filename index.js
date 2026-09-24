@@ -537,7 +537,10 @@ async function answerMessage(message) {
     const continuingPost = await hasEarlierMessages(channel, message.id);
     const stayInPost = inHandoff || continuingPost;
     const pingAuthor = wantsAuthorPing(caption);
-    const docsQuiet = route.lane === 'faq' && router.looksLikeDocs(asked || question) && !route.wantHuman;
+    const docsQuiet =
+      route.lane === 'faq' &&
+      (router.looksLikeDocs(asked || question) || router.looksLikeRecordingHow(asked || question)) &&
+      !route.wantHuman;
     const escalate =
       holdPublicCopy ||
       (!docsQuiet &&

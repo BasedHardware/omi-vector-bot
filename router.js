@@ -246,6 +246,9 @@ function classifyRoute(text) {
   if (any(s, STRONG_SHOP)) {
     return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
   }
+  if (looksLikeRecordingHow(s)) {
+    return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman, productAnswer: true };
+  }
   if (any(s, FIRMWARE)) {
     return { area: 'firmware', lane: 'firmware', escalate: true, wantHuman };
   }
@@ -298,7 +301,7 @@ function shouldPingOwner(route) {
 }
 
 function skipModel(route) {
-  return route?.lane === 'money' || route?.lane === 'privacy' || route?.lane === 'shop';
+  return route?.lane === 'money' || route?.lane === 'privacy' || route?.lane === 'shop' || Boolean(route?.productAnswer);
 }
 
 function looksLikeTax(text) {
@@ -309,6 +312,21 @@ function looksLikePlan(text) {
   return /\b(subscription|redemption code|unlimited yearly|plus plan|no active plan|stuck on free|downgraded to free|billing bug)\b/i.test(
     String(text || '')
   );
+}
+
+function looksLikeRecordingHow(text) {
+  const s = String(text || '');
+  if (/\b(app (was|stayed) open|kept the app (open|running)|blue light)\b/i.test(s) && /\bnothing\b/i.test(s)) {
+    return false;
+  }
+  const plaud = /\bplaud\b/i.test(s) && /\b(record|24)/i.test(s);
+  const day = /\b24\s*hours?\b/i.test(s) && /\brecord/i.test(s);
+  const alone = /\b(not app|without the app|by itself)\b/i.test(s) && /\brecord/i.test(s);
+  return plaud || day || alone;
+}
+
+function recordingHowReply() {
+  return "The 24 hours on the Omi page is battery life, about a day to a few days depending on the device. It is not a full day of recording with the phone app closed. The necklace needs the Omi app. You can leave the app in the background. If you swipe it away, it stops writing down what was said and the device disconnects. Turn it on with one press. Blue means it is connected to the phone. Red means it is on but not connected. Speak near it. The words can take up to a minute to show in the app. DevKit 2 is the one whose docs say it can record on its own. If the app stayed open, the light was blue, and still nothing showed up, say so here.";
 }
 
 function looksLikeDocs(text) {
@@ -366,6 +384,7 @@ function cannedReply(route, question) {
     }
     return shopStatusReply();
   }
+  if (route?.productAnswer || looksLikeRecordingHow(question)) return recordingHowReply();
   if (lane === 'firmware') {
     return "This looks like a problem with the Omi device itself. I can't see your device from here, so I won't guess what's wrong.";
   }
@@ -468,6 +487,7 @@ module.exports = {
   looksLikeTax,
   looksLikePlan,
   looksLikeDocs,
+  looksLikeRecordingHow,
   cannedReply,
   whenModelDown,
   staffReason,

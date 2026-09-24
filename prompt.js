@@ -8,7 +8,8 @@ const HOWTO_FAQ = [
   'Pairing: turn the device on, open the Omi app, and follow the steps on the screen. Wait for the phone to find it. If that fails: turn phone Bluetooth on, restart the phone and the device, and make sure the device is charged.',
   'Omi hears voices nearby by default. In the app you can switch it to listen only to you.',
   'What Omi heard can be saved on the phone or in the cloud, locked, and deleted with one tap in the app. Breaking or losing the device does not delete that. You delete it in the app.',
-  'Omi (the necklace) has 2 mics, Wi-Fi, no speaker, about 19 hours of recording. Dev Kit 2 has 1 mic, a speaker, no Wi-Fi, about 36 hours of recording. Do not list chip names unless they asked.',
+  'The product page lists battery life as 24 hours to a few days, depending on the device. That is battery life, not a full day of recording with the app closed.',
+  'The consumer necklace needs the Omi app. Leave the app in the background. Force-closing it stops transcription and disconnects the device. A transcript can take up to a minute to show. DevKit 2 is the device whose docs say it can record on its own. Do not say the necklace records like Plaud for 24 hours.',
 ];
 
 const RAILS_FAQ = [

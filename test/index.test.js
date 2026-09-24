@@ -326,6 +326,15 @@ test('an @here announcement is not a question for Vector, while a direct mention
   assert.equal(shouldHandle(direct), true);
 });
 
+test('a Plaud 24-hour question is answered from the docs and does not file', async () => {
+  const q = "I'd like to keep my new Omi device (not app) recording, just like Plaud does for 24 hours. Nothing has recorded yet.";
+  const r = await ask(q);
+  assert.equal(r.modelCalled, false);
+  assert.match(r.reply, /battery life/i);
+  assert.equal(r.thread, null);
+  assert.equal(r.github.length, 0);
+});
+
 test('an order status question points to email while /order is off, skips the model and opens a shop Handoff', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('Where is my order? I still have no tracking email.');
