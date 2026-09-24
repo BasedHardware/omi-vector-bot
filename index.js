@@ -600,7 +600,7 @@ async function handleMessage(message) {
       let parentReply = escalateReply(cleanAnswer, {
         pinged,
         duplicate,
-        conversation: inHandoff,
+        conversation: stayInPost,
         issue:
           (triaged.fileIssue || triage.wantsShopTicket(triaged)) &&
           !inHandoff &&

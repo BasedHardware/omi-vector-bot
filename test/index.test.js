@@ -818,6 +818,7 @@ test('a follow-up in a vector-test post sees the report and does not open a seco
   ]);
   assert.equal(post.sent.length, 0);
   assert.equal(follow.threads.length, 0);
+  assert.doesNotMatch(replyText(follow), /have not pinged/i);
 });
 
 test('a staff faq line in a Handoff thread is saved for later questions and not answered as a ticket', async () => {

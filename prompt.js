@@ -154,7 +154,7 @@ function buildUserPrompt({ question, threadHistory, knowledgeSnippets, route, to
     `Facts from tools (only source of truth):\n${tools}`,
     knowledge ? `Knowledge (staff-saved; use these words if they apply):\n${knowledge}` : 'Knowledge: (none yet)',
     history
-      ? `Thread (earlier messages in this same post, oldest first):\n${history}\nDo not say you cannot see these messages. Do not treat this reply as a new problem.`
+      ? `Thread (earlier messages in this same post, oldest first):\n${history}\nDo not say you cannot see these messages. Do not treat this reply as a new problem. If they ask you to ping someone, say you do not ping. The request is already in this thread. Do not say you have not pinged anyone.`
       : '',
     askedWhereRecordingsWent(question)
       ? 'They asked whether recordings were deleted. You may say the recordings may still be on the watch or phone. Do not say they are gone for good.'
