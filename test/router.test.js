@@ -251,7 +251,7 @@ test('a docs question that mentions a paid plan stays faq, not shop', () => {
   const route = router.classify(q);
   assert.equal(route.lane, 'faq');
   assert.equal(route.area, 'unknown');
-  assert.equal(route.escalate, true);
+  assert.equal(route.escalate, false);
   assert.equal(router.skipModel(route), false);
   assert.match(router.staffReason(route, q), /Docs question/i);
   assert.equal(/shop|account access/i.test(router.staffReason(route, q)), false);

@@ -271,7 +271,7 @@ function classifyRoute(text) {
     !any(s, WEAK_MONEY) &&
     !any(s, ACCOUNT)
   ) {
-    return { area: 'unknown', lane: 'faq', escalate: true, wantHuman };
+    return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
   if (any(s, FAQ)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };

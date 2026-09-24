@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   parseFaqCommand,
+  learnFromStaff,
   addSnippet,
   search,
   searchAll,
@@ -12,6 +13,16 @@ const {
   filterSnippetsForLane,
 } = require('../knowledge');
 const { canSaveFaq, isHandoffThread } = require('../handoff');
+
+test('a staff statement is learned and a guess or a question is not', () => {
+  assert.equal(
+    learnFromStaff('BYOK means the customer uses their own OpenAI key for transcription.'),
+    'BYOK means the customer uses their own OpenAI key for transcription.'
+  );
+  assert.equal(learnFromStaff('I think BYOK is probably an OpenAI key.'), null);
+  assert.equal(learnFromStaff("I'll check the account and write back."), null);
+  assert.equal(learnFromStaff('How does BYOK work?'), null);
+});
 
 test('parseFaqCommand reads faq lines and rejects normal staff talk', () => {
   assert.equal(parseFaqCommand('Keep the app in the background.'), null);

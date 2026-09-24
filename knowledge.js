@@ -7,6 +7,16 @@ const SEARCH_LIMIT = 5;
 
 const snippets = [];
 
+function learnFromStaff(text) {
+  const raw = String(text || '').replace(/<@!?\d+>/g, '').trim();
+  if (!raw || raw.length < 24 || raw.length > 280) return null;
+  if (/[?]/.test(raw) || /^(faq:|\/)/i.test(raw)) return null;
+  if (/\b(i'll|i will|let me|i'm|i am|i think|maybe|not sure|might|probably|i guess)\b/i.test(raw)) return null;
+  if (!/\b(is|are|means|works|uses|stores|deletes)\b/i.test(raw)) return null;
+  if (looksLikeStaffLie(raw)) return null;
+  return clipForDiscord(raw, MAX_SNIPPET);
+}
+
 function parseFaqCommand(text) {
   const raw = String(text || '').replace(/<@!?\d+>/g, '').trim();
   const match = raw.match(/^faq:\s*([\s\S]*)$/i);
@@ -204,6 +214,7 @@ async function hydrateFromDiscord(client) {
 module.exports = {
   MAX_SNIPPET,
   parseFaqCommand,
+  learnFromStaff,
   resetKnowledge,
   listSnippets,
   addSnippet,

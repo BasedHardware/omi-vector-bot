@@ -327,10 +327,12 @@ function stripUnsupportedClaims(text, lane, question) {
     .split('\n')
     .map((line) => {
       if (!line.trim()) return line;
+      const dropAccount = lane === 'faq' && /\b(account access|someone with account)\b/i.test(line);
       const drop =
         looksLikeCauseClaim(line) ||
         (!allowPlace && looksLikeRecordingsPlace(line)) ||
         lineHasInventedFix(line) ||
+        dropAccount ||
         (dropSteps && lineHasDeviceStep(line));
       if (!drop) return line;
       return line
@@ -345,6 +347,7 @@ function stripUnsupportedClaims(text, lane, question) {
             return '';
           }
           if (dropSteps && looksLikeDeviceStep(sentence)) return dropDeviceStepClauses(sentence);
+          if (lane === 'faq' && /\b(account access|someone with account)\b/i.test(sentence)) return '';
           return sentence;
         })
         .filter(Boolean)

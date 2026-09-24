@@ -104,7 +104,9 @@ function merge(route, agent, question) {
     labels,
     topic: resolvedTopic,
     fileIssue,
-    escalate: Boolean(classified.escalate || agent?.escalate || moneyLock),
+    escalate: docsLock
+      ? Boolean(classified.wantHuman)
+      : Boolean(classified.escalate || agent?.escalate || moneyLock),
   };
 }
 

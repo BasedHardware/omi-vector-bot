@@ -82,7 +82,7 @@ test('a docs question stays faq when the model calls it shop', () => {
   assert.equal(merged.labels.includes('shop'), false);
   assert.equal(merged.labels.includes('account'), false);
   assert.equal(merged.labels.includes('faq'), true);
-  assert.equal(merged.escalate, true);
+  assert.equal(merged.escalate, false);
   assert.equal(merged.fileIssue, false);
 });
 

@@ -183,8 +183,9 @@ async function handleFaqSave(message) {
   if (message.author?.bot) return false;
   if (!isHandoffThread(message.channel)) return false;
 
-  const snippet = knowledge.parseFaqCommand(message.content);
-  if (snippet === null) return false;
+  const commanded = knowledge.parseFaqCommand(message.content);
+  const snippet = commanded || (canSaveFaq(message.author.id) ? knowledge.learnFromStaff(message.content) : null);
+  if (!snippet) return false;
 
   if (!canSaveFaq(message.author.id)) {
     try {
@@ -506,9 +507,12 @@ async function answerMessage(message) {
     const continuingPost = await hasEarlierMessages(channel, message.id);
     const stayInPost = inHandoff || continuingPost;
     const pingAuthor = wantsAuthorPing(caption);
+    const docsQuiet = route.lane === 'faq' && router.looksLikeDocs(asked || question) && !route.wantHuman;
     const escalate =
       holdPublicCopy ||
-      (!botCanAnswer && (shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate));
+      (!docsQuiet &&
+        !botCanAnswer &&
+        (shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate));
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,
       labels: triaged.labels,
