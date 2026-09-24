@@ -230,3 +230,50 @@ test('lookupOrder does not return another customer order for a guessed number', 
     assert.equal(result.reason, 'miss');
   });
 });
+
+test('client id and secret are exchanged once and reused for the next lookup', async () => {
+  const prev = {
+    shop: process.env.SHOPIFY_SHOP,
+    store: process.env.SHOPIFY_STORE,
+    token: process.env.SHOPIFY_ACCESS_TOKEN,
+    id: process.env.SHOPIFY_CLIENT_ID,
+    secret: process.env.SHOPIFY_CLIENT_SECRET,
+  };
+  delete process.env.SHOPIFY_STORE;
+  delete process.env.SHOPIFY_ACCESS_TOKEN;
+  process.env.SHOPIFY_SHOP = 'omidotme';
+  process.env.SHOPIFY_CLIENT_ID = 'client-id';
+  process.env.SHOPIFY_CLIENT_SECRET = 'client-secret';
+  shopify.resetShopifyAuth();
+  const calls = [];
+  const fetchImpl = async (url) => {
+    const href = String(url);
+    calls.push(href);
+    if (href.includes('/admin/oauth/access_token')) {
+      return { status: 200, ok: true, json: async () => ({ access_token: 'shpca_test', expires_in: 86399 }) };
+    }
+    return { status: 200, ok: true, json: async () => ({ orders: [SAMPLE] }) };
+  };
+  try {
+    assert.equal(shopify.isConfigured(), true);
+    assert.equal(shopify.storeHost(), 'omidotme.myshopify.com');
+    const first = await shopify.lookupOrder('order #1042', { fetchImpl, verifiedEmail: 'hidden@example.com' });
+    const second = await shopify.lookupOrder('order #1042', { fetchImpl, verifiedEmail: 'hidden@example.com' });
+    assert.equal(first.ok, true);
+    assert.equal(second.ok, true);
+    assert.equal(calls.filter((href) => href.includes('/admin/oauth/access_token')).length, 1);
+    assert.equal(calls.filter((href) => href.includes('orders.json')).length, 2);
+  } finally {
+    shopify.resetShopifyAuth();
+    for (const [key, envName] of [
+      ['shop', 'SHOPIFY_SHOP'],
+      ['store', 'SHOPIFY_STORE'],
+      ['token', 'SHOPIFY_ACCESS_TOKEN'],
+      ['id', 'SHOPIFY_CLIENT_ID'],
+      ['secret', 'SHOPIFY_CLIENT_SECRET'],
+    ]) {
+      if (prev[key] === undefined) delete process.env[envName];
+      else process.env[envName] = prev[key];
+    }
+  }
+});

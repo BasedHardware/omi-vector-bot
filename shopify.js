@@ -1,17 +1,79 @@
 const API_VERSION = '2024-10';
 const LOOKUP_TIMEOUT_MS = 8000;
 
+function shopName() {
+  return String(process.env.SHOPIFY_SHOP || process.env.SHOPIFY_STORE || '').trim();
+}
+
+function hasStaticToken() {
+  return Boolean(String(process.env.SHOPIFY_ACCESS_TOKEN || '').trim());
+}
+
+function hasClientCredentials() {
+  const id = String(process.env.SHOPIFY_CLIENT_ID || '').trim();
+  const secret = String(process.env.SHOPIFY_CLIENT_SECRET || '').trim();
+  return Boolean(id && secret);
+}
+
 function isConfigured() {
-  return Boolean(String(process.env.SHOPIFY_STORE || '').trim() && String(process.env.SHOPIFY_ACCESS_TOKEN || '').trim());
+  return Boolean(shopName() && (hasStaticToken() || hasClientCredentials()));
 }
 
 function storeHost() {
-  const raw = String(process.env.SHOPIFY_STORE || '')
-    .trim()
+  const raw = shopName()
     .replace(/^https?:\/\//i, '')
     .replace(/\/.*$/, '');
   if (!raw) return '';
   return raw.includes('.') ? raw : `${raw}.myshopify.com`;
+}
+
+let cachedToken = null;
+
+function resetShopifyAuth() {
+  cachedToken = null;
+}
+
+async function adminToken(fetchImpl, now = Date.now()) {
+  const staticToken = String(process.env.SHOPIFY_ACCESS_TOKEN || '').trim();
+  if (staticToken) return staticToken;
+  if (cachedToken && cachedToken.expiresAt > now + 60_000) return cachedToken.token;
+
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: String(process.env.SHOPIFY_CLIENT_ID || '').trim(),
+    client_secret: String(process.env.SHOPIFY_CLIENT_SECRET || '').trim(),
+  });
+  const res = await fetchImpl(`https://${storeHost()}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    },
+    body,
+    signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const err = new Error('shopify token');
+    err.reason = res.status === 401 || res.status === 403 ? 'auth' : 'error';
+    throw err;
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    const err = new Error('shopify token');
+    err.reason = 'error';
+    throw err;
+  }
+  const token = String(data?.access_token || '');
+  if (!token) {
+    const err = new Error('shopify token');
+    err.reason = 'auth';
+    throw err;
+  }
+  const ttl = Number(data.expires_in) > 0 ? Number(data.expires_in) : 86399;
+  cachedToken = { token, expiresAt: now + ttl * 1000 };
+  return token;
 }
 
 function isOrderQuestion(text) {
@@ -235,9 +297,16 @@ async function shopifyList(params, fetchImpl) {
     url.searchParams.set(key, value);
   }
 
+  let token;
+  try {
+    token = await adminToken(fetchImpl);
+  } catch (err) {
+    return { ok: false, reason: err.reason || 'error' };
+  }
+
   const res = await fetchImpl(url, {
     headers: {
-      'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+      'X-Shopify-Access-Token': token,
       Accept: 'application/json',
     },
     signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
@@ -312,6 +381,7 @@ module.exports = {
   API_VERSION,
   isConfigured,
   storeHost,
+  resetShopifyAuth,
   isOrderQuestion,
   needsWriteHuman,
   extractLookupKeys,
