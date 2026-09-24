@@ -232,6 +232,17 @@ function unreadImageSentence() {
   return 'I did not read the picture. Type the error line shown on the screen.';
 }
 
+function chatFiles(attachments) {
+  return attachmentsList(attachments)
+    .map((att) => ({
+      name: String(att?.name || att?.filename || 'file'),
+      url: String(att?.url || att?.proxyURL || att?.proxy_url || ''),
+      type: String(att?.contentType || att?.content_type || ''),
+    }))
+    .filter((file) => file.url)
+    .slice(0, 4);
+}
+
 function formatQuestion(userText, files) {
   const caption = String(userText || '').trim();
   const blocks = (files || [])
@@ -280,6 +291,7 @@ module.exports = {
   isWatchableAttachment,
   shouldMentionUnreadMedia,
   unreadMediaSentence,
+  chatFiles,
   errorLinesFromImageText,
   screenshotErrorLines,
   imageErrorLines,

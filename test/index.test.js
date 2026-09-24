@@ -70,6 +70,9 @@ globalThis.fetch = async (url, opts = {}) => {
   if (u.includes('/search/issues')) {
     return { ok: true, status: 200, json: async () => ({ items: u.includes('is%3Apr') ? pulls : issues }) };
   }
+  if (method === 'POST' && /\/issues\/\d+\/comments$/.test(u)) {
+    return { ok: true, status: 201, json: async () => ({ id: 1 }) };
+  }
   if (method === 'POST' && /\/issues$/.test(u)) {
     return {
       ok: true,
@@ -853,6 +856,27 @@ test('a help-forum post tagged Known issue gets the known-issue reply instead of
   assert.equal(r.modelCalled, true);
   assert.ok(textOf(r.message.replies[0]).includes(router.knownIssueReply()));
   assert.doesNotMatch(r.reply, /every memory/);
+});
+
+test('a later customer lead is added to the filed issue', async () => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  const post = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'not charging' });
+  github.linkIssueThread(18537, post.id);
+  const before = githubCalls.length;
+  const follow = makeMessage('It charged fine on Monday and the light never comes on now.', {
+    channel: post,
+    attachments: [{ name: 'photo.jpg', contentType: 'image/jpeg', url: 'https://cdn.discordapp.com/attachments/1/2/photo.jpg' }],
+  });
+  post.messages.fetch = async () => new Map([
+    ['1', { id: '1', author: { bot: false, username: 'customer' }, content: 'My OMI is not charging.' }],
+  ]);
+  await handleMessage(follow);
+  const comment = githubCalls.slice(before).find((call) => call.method === 'POST' && /\/comments$/.test(call.url));
+  assert.ok(comment);
+  assert.match(comment.body.body, /light never comes on/);
+  assert.match(comment.body.body, /photo\.jpg/);
+  process.env.GITHUB_TOKEN = '';
+  github.resetGithubMemory();
 });
 
 test('a follow-up in a Handoff thread sends the earlier thread messages to the model, oldest first', async () => {

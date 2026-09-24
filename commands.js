@@ -248,6 +248,7 @@ async function handleFileIssue(interaction) {
       reason: draft.reason,
       threadUrl: github.discordThreadUrl(interaction),
       related,
+      files: draft.files,
     }),
     threadId: interaction.channelId,
   });

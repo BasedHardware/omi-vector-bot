@@ -26,7 +26,7 @@ const {
   replyMentions,
   isUnknownMessageRef,
 } = require('./utils');
-const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadMedia, unreadMediaSentence, imageErrorLines, videoErrorLines } = require('./attachments');
+const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadMedia, unreadMediaSentence, imageErrorLines, videoErrorLines, chatFiles } = require('./attachments');
 const {
   notifyStaff,
   canNotifyStaff,
@@ -221,6 +221,20 @@ async function handleFaqSave(message) {
     console.error('[Knowledge] reply failed:', err.message);
   }
   return true;
+}
+
+async function noteCustomerLead(channel, message) {
+  if (message?.author?.bot) return;
+  const files = chatFiles(message?.attachments);
+  const text = String(message?.content || '').replace(/<@!?\d+>/g, '').trim();
+  if (!github.isImportantLead(text, files)) return;
+  try {
+    const number = await github.findIssueForThread(channel.id);
+    if (!number) return;
+    await github.commentOnIssue(number, github.leadComment(text, files));
+  } catch (err) {
+    console.error('[GitHub] lead update failed:', err.message);
+  }
 }
 
 async function postIssueCard(channel, draft, githubHit) {
@@ -534,6 +548,7 @@ async function answerMessage(message) {
       labels: triaged.labels,
       reason: aiResponse.reason || router.staffReason({ area: triaged.area, lane: triaged.lane }, staffQuestion),
     });
+    draft.files = chatFiles(message.attachments);
 
     await typingDelay();
 
@@ -656,6 +671,7 @@ async function answerMessage(message) {
       await replySafe(message, cleanAnswer, { pingAuthor });
     }
 
+    if (stayInPost) await noteCustomerLead(channel, message);
     markReplied(channel.id);
     if (dbReady) {
       await db.upsertThread(channel.id, message.id);

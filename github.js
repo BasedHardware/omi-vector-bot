@@ -5,6 +5,7 @@ const DEFAULT_REPO = 'BasedHardware/omi';
 const TIMEOUT_MS = 8000;
 const drafts = new Map();
 const issueThreads = new Map();
+const threadToIssue = new Map();
 
 function repo() {
   return String(process.env.GITHUB_REPO || DEFAULT_REPO).replace(/^https?:\/\/github.com\//i, '').replace(/\.git$/, '');
@@ -115,7 +116,19 @@ function draftFromQuestion(question, area, extra = {}) {
   };
 }
 
-function issueBody({ quote, reason, threadUrl, related } = {}) {
+function fileMarkdown(files) {
+  const lines = [];
+  for (const file of (files || []).slice(0, 4)) {
+    const url = String(file?.url || '');
+    if (!url) continue;
+    const name = String(file.name || 'file').replace(/[\r\n[\]]/g, ' ').trim() || 'file';
+    const image = /^image\//i.test(file.type) || /\.(png|jpe?g|gif|webp)$/i.test(name);
+    lines.push(image ? `![${name}](${url})` : `[${name}](${url})`);
+  }
+  return lines;
+}
+
+function issueBody({ quote, reason, threadUrl, related, files } = {}) {
   const lines = ['Reported in Discord.'];
   if (threadUrl) lines.push(`Discord thread: ${threadUrl}`);
   lines.push('', '## What they wrote', '', quote || '(no text)', '', '## What support can see', '');
@@ -134,6 +147,26 @@ function issueBody({ quote, reason, threadUrl, related } = {}) {
       lines.push('Related open issue. Not treated as the fix.');
     }
   }
+  const attached = fileMarkdown(files);
+  if (attached.length) {
+    lines.push('', '## Files from the chat', '', ...attached);
+  }
+  return lines.join('\n');
+}
+
+function isImportantLead(text, files) {
+  if (fileMarkdown(files).length) return true;
+  const t = String(text || '').trim();
+  if (t.length < 15) return false;
+  if (/^(thanks|thank you|ok|okay|got it|cool|hello|hi|hey|lol)\b/i.test(t) && t.length < 40) return false;
+  if (/\?\s*$/.test(t) && t.length < 80) return false;
+  return true;
+}
+
+function leadComment(text, files) {
+  const lines = ['Later from the customer:', '', String(text || '').trim() || '(no text)'];
+  const attached = fileMarkdown(files);
+  if (attached.length) lines.push('', '## Files from the chat', '', ...attached);
   return lines.join('\n');
 }
 
@@ -149,6 +182,12 @@ function threadMarker(threadId) {
   const id = String(threadId || '').trim();
   if (!/^\d+$/.test(id)) return '';
   return `<!-- vector-thread:${id} -->`;
+}
+
+function withFiles(body, files) {
+  const extra = fileMarkdown(files).filter((line) => !String(body || '').includes(line));
+  if (!extra.length) return String(body || '');
+  return `${String(body || '').trim()}\n\n## Files from the chat\n\n${extra.join('\n')}`;
 }
 
 function withThreadMarker(body, threadId) {
@@ -237,6 +276,7 @@ function linkIssueThread(number, threadId) {
   const key = String(number);
   if (!issueThreads.has(key)) issueThreads.set(key, new Set());
   if (threadId) issueThreads.get(key).add(String(threadId));
+  if (threadId && number) threadToIssue.set(String(threadId), key);
 }
 
 function threadsForIssue(number) {
@@ -246,6 +286,7 @@ function threadsForIssue(number) {
 function resetGithubMemory() {
   drafts.clear();
   issueThreads.clear();
+  threadToIssue.clear();
   installationCache = { token: '', exp: 0 };
 }
 
@@ -355,10 +396,44 @@ async function existingWork(text, { fetchImpl } = {}) {
   return { hit: null };
 }
 
+async function findIssueForThread(threadId, { fetchImpl } = {}) {
+  const known = threadToIssue.get(String(threadId || ''));
+  if (known) return known;
+  if (!isConfigured() || !/^\d+$/.test(String(threadId || ''))) return '';
+  const url = new URL('https://api.github.com/search/issues');
+  url.searchParams.set('q', `repo:${repo()} is:issue ${threadId}`);
+  url.searchParams.set('per_page', '5');
+  try {
+    const res = await githubFetch(url, { fetchImpl });
+    if (!res.ok) return '';
+    const data = await res.json();
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const hit = items.find((item) => String(item.body || '').includes(String(threadId)));
+    if (!hit?.number) return '';
+    linkIssueThread(hit.number, threadId);
+    return String(hit.number);
+  } catch (err) {
+    console.error('[GitHub] thread lookup failed:', err.message);
+    return '';
+  }
+}
+
+async function commentOnIssue(number, body, { fetchImpl } = {}) {
+  if (!isConfigured() || !number) return false;
+  const url = `https://api.github.com/repos/${repo()}/issues/${number}/comments`;
+  try {
+    const res = await githubFetch(url, { method: 'POST', body: { body }, fetchImpl });
+    return res.ok;
+  } catch (err) {
+    console.error('[GitHub] comment failed:', err.message);
+    return false;
+  }
+}
+
 async function createIssue(draft, { fetchImpl } = {}) {
   if (!isConfigured()) return { ok: false, reason: 'unconfigured' };
   const url = `https://api.github.com/repos/${repo()}/issues`;
-  const body = withThreadMarker(draft.body, draft.threadId);
+  const body = withThreadMarker(withFiles(draft.body, draft.files), draft.threadId);
   try {
     const res = await githubFetch(url, {
       method: 'POST',
@@ -864,6 +939,10 @@ module.exports = {
   searchQuery,
   draftFromQuestion,
   issueBody,
+  isImportantLead,
+  leadComment,
+  findIssueForThread,
+  commentOnIssue,
   discordThreadUrl,
   relatedPulls,
   relatedIssues,

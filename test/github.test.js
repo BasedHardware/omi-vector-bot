@@ -51,6 +51,16 @@ test('draftFromQuestion never uses shop or privacy labels', () => {
   assert.match(formatted, /40\+ min/);
   assert.match(formatted, /#7528|pull\/7528/);
   assert.match(formatted, /still a problem after those changes/);
+  const withPhoto = github.issueBody({
+    quote: 'It is not charging.',
+    reason: 'Device stopped charging.',
+    files: [{ name: 'photo.jpg', url: 'https://cdn.discordapp.com/attachments/1/2/photo.jpg', type: 'image/jpeg' }],
+  });
+  assert.match(withPhoto, /!\[photo\.jpg\]\(https:\/\/cdn\.discordapp\.com\/attachments\/1\/2\/photo\.jpg\)/);
+  assert.equal(github.isImportantLead('thanks'), false);
+  assert.equal(github.isImportantLead('what should I do?'), false);
+  assert.equal(github.isImportantLead('It charged on Monday and the light never comes on now.'), true);
+  assert.equal(github.isImportantLead('ok', [{ name: 'clip.mp4', url: 'https://cdn.example/clip.mp4', type: 'video/mp4' }]), true);
   const openCharging = github.issueBody({
     quote: 'My OMI is not charging on the charger.',
     reason: 'Device stopped charging.',
