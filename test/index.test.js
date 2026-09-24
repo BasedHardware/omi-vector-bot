@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { Events, MessageFlags } = require('discord.js');
+const { Events, MessageFlags, MessageMentions, User } = require('discord.js');
 
 const TEST_CHANNEL = '100000000000000100';
 const HELP_FORUM = '100000000000000200';
@@ -90,7 +90,7 @@ const { client, handleMessage, shouldHandle } = require('../index');
 const router = require('../router');
 const { unreadMediaSentence } = require('../attachments');
 
-client.user = { id: BOT_ID };
+client.user = new User(client, { id: BOT_ID, username: 'vector', bot: true });
 
 let seq = 0;
 function nextId() {
@@ -302,6 +302,25 @@ test('bot messages and empty captions are not handled', () => {
   assert.equal(shouldHandle(makeMessage('How do I pair my Omi?', { bot: true })), false);
   assert.equal(shouldHandle(makeMessage('hi')), false);
   assert.equal(shouldHandle(makeMessage('How do I pair my Omi?')), true);
+});
+
+test('an @here announcement is not a question for Vector, while a direct mention still is', async () => {
+  const content = '@here Omi firmware 2.1 is rolling out today, your device will update overnight';
+  const announcement = makeMessage(content, { channel: generalChannel() });
+  announcement.mentions = new MessageMentions({ client, guild: null, content }, [], [], true);
+  const direct = makeMessage(`<@${BOT_ID}> my Omi app keeps crashing on my Pixel`, { channel: generalChannel() });
+  direct.mentions = new MessageMentions(
+    { client, guild: null, content: direct.content },
+    [{ id: BOT_ID, username: 'vector', bot: true }],
+    [],
+    false
+  );
+  const models = modelCalls.length;
+  await handleMessage(announcement);
+  assert.equal(modelCalls.length, models);
+  assert.equal(replyText(announcement), '');
+  assert.equal(announcement.threads.length, 0);
+  assert.equal(shouldHandle(direct), true);
 });
 
 test('an order status question points to /order, skips the model and opens a shop Handoff', async () => {
@@ -705,6 +724,35 @@ test('a new help-forum post puts its title and tags in front of the model questi
     'Post: Omi will not pair\nTags: Setup\nHow do I pair my Omi with a new phone?'
   );
   assert.match(replyText(starter), /center button/);
+});
+
+test('a new help-forum post with only a screenshot is answered from its title', async () => {
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Omi app crashes every time I open it' });
+  const starter = makeMessage('', {
+    channel: post,
+    attachments: [
+      { name: 'shot.png', contentType: 'image/png', url: 'https://cdn.discordapp.com/attachments/1/2/shot.png' },
+    ],
+  });
+  starter.id = post.id;
+  post.fetchStarterMessage = async () => starter;
+  const models = modelCalls.length;
+  await emit(Events.ThreadCreate, post);
+  assert.equal(modelCalls.length, models + 1);
+  assert.equal(modelCalls.at(-1).question, 'Post: Omi app crashes every time I open it');
+  assert.ok(replyText(starter).includes(unreadMediaSentence()));
+});
+
+test('a bare screenshot inside an existing help-forum post is still left alone', async () => {
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Omi app crashes every time I open it' });
+  const r = await ask('', {
+    channel: post,
+    attachments: [
+      { name: 'shot.png', contentType: 'image/png', url: 'https://cdn.discordapp.com/attachments/1/2/shot.png' },
+    ],
+  });
+  assert.equal(r.modelCalled, false);
+  assert.equal(r.reply, '');
 });
 
 test('a help-forum post tagged Known issue gets the known-issue reply instead of a new diagnosis', async () => {

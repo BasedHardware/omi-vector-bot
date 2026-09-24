@@ -129,7 +129,7 @@ function isTestChannel(channel) {
 function shouldHandle(message) {
   if (message.author.bot) return false;
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
-  if (caption.length < 5 && !hasUsableAttachment(message)) return false;
+  if (caption.length < 5 && !hasUsableAttachment(message) && !forumStarterPrefix(message)) return false;
   if (isHandoffThread(message.channel)) {
     if (isTestChannel(message.channel)) return true;
     const { users } = staffMentionIds();
@@ -138,7 +138,7 @@ function shouldHandle(message) {
   }
   if (isTestChannel(message.channel)) return true;
   if (isHelpThread(message.channel)) return true;
-  if (client.user && message.mentions.has(client.user)) return true;
+  if (client.user && message.mentions.has(client.user, { ignoreEveryone: true })) return true;
   return false;
 }
 
