@@ -326,11 +326,12 @@ test('an @here announcement is not a question for Vector, while a direct mention
   assert.equal(shouldHandle(direct), true);
 });
 
-test('an order status question points to /order, skips the model and opens a shop Handoff', async () => {
+test('an order status question points to email while /order is off, skips the model and opens a shop Handoff', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('Where is my order? I still have no tracking email.');
   assert.equal(r.modelCalled, false);
-  assert.match(r.reply, /\/order/);
+  assert.match(r.reply, /help@omi\.me/);
+  assert.equal(/\/order/.test(r.reply), false);
   assert.ok(r.thread);
   assert.match(r.thread.name, /^Handoff · shop · /);
   assert.equal(r.github.length, 0);

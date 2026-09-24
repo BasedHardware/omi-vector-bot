@@ -33,7 +33,9 @@ test('order and tracking are shop', () => {
   assert.equal(numbered.lane, 'shop');
   assert.equal(router.skipModel(numbered), true);
   const canned = router.cannedReply(numbered, 'where is order #1042');
-  assert.match(canned, /\/order/);
+  assert.match(canned, /help@omi\.me/);
+  assert.match(canned, /not live yet/);
+  assert.equal(/\/order/.test(canned), false);
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
 });
 

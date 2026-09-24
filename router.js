@@ -329,6 +329,23 @@ function whenModelDown(route, question) {
   };
 }
 
+function orderLookupLive() {
+  try {
+    return require('./orderFlow').isLive();
+  } catch {
+    return false;
+  }
+}
+
+function shopStatusReply() {
+  const head =
+    "I can't see order status from here, so I can't tell you where that order is or when it will arrive. That needs someone with access to the order system, and I'm not going to guess a date.";
+  if (orderLookupLive()) {
+    return `${head}\n\nUse /order to check your own orders. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.`;
+  }
+  return `${head}\n\nEmail help@omi.me with the order number. Order lookup in chat is not live yet. Keep your order number handy.`;
+}
+
 function cannedReply(route, question) {
   const lane = route?.lane;
   if (lane === 'money') {
@@ -347,7 +364,7 @@ function cannedReply(route, question) {
     if (looksLikeTax(question)) {
       return "This is about tax or duties on an order. I can't change that from chat.";
     }
-    return "I can't see order status from here, so I can't tell you where that order is or when it will arrive. That needs someone with access to the order system, and I'm not going to guess a date.\n\nUse /order to check your own orders. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.";
+    return shopStatusReply();
   }
   if (lane === 'firmware') {
     return "This looks like a problem with the Omi device itself. I can't see your device from here, so I won't guess what's wrong.";
