@@ -108,9 +108,36 @@ function draftFromQuestion(question, area, extra = {}) {
   }
   return {
     title,
+    quote: asked || '(no text)',
+    reason: String(extra.reason || '').trim(),
     body: `Reported in Discord.\n\n## What they wrote\n\n${asked || '(no text)'}\n\nCannot see the app or device from chat. No versions invented.`,
     labels,
   };
+}
+
+function issueBody({ quote, reason, threadUrl, related } = {}) {
+  const lines = ['Reported in Discord.'];
+  if (threadUrl) lines.push(`Discord thread: ${threadUrl}`);
+  lines.push('', '## What they wrote', '', quote || '(no text)', '', '## What support can see', '');
+  if (reason) lines.push(reason);
+  lines.push('Cannot see the app or device from chat. No versions invented.', '', '## Earlier changes');
+  if (!related?.length) {
+    lines.push('No open issue, open pull request, or merged fix had a matching title.');
+  } else {
+    for (const item of related) {
+      lines.push(`- ${item.title} (${item.state}) ${item.url}`);
+    }
+    lines.push('This report is still a problem after those changes.');
+  }
+  return lines.join('\n');
+}
+
+function discordThreadUrl(interaction) {
+  if (interaction?.channel?.url) return String(interaction.channel.url);
+  const guild = String(interaction?.guildId || '');
+  const channel = String(interaction?.channelId || '');
+  if (guild && channel) return `https://discord.com/channels/${guild}/${channel}`;
+  return '';
 }
 
 function threadMarker(threadId) {
@@ -263,8 +290,26 @@ async function searchIssues(question, { fetchImpl } = {}) {
   }
 }
 
-function checkedNote() {
-  return 'Checked GitHub before filing. No open issue, open pull request, or merged fix had a matching title.';
+async function relatedPulls(text, { fetchImpl } = {}) {
+  const q = searchQuery(text);
+  if (!q) return [];
+  const query = [`repo:${repo()}`, 'is:pr', ...q.split(' ').slice(0, 6)].join(' ');
+  const items = await fetchIssueSearch(query, fetchImpl);
+  if (!items) return [];
+  const wanted = new Set(q.split(' '));
+  const hits = [];
+  for (const item of items) {
+    const shared = searchQuery(item.title).split(' ').filter((word) => wanted.has(word));
+    if (shared.length < 2) continue;
+    const merged = Boolean(item.pull_request?.merged_at);
+    hits.push({
+      title: String(item.title || ''),
+      url: item.html_url || '',
+      state: merged ? 'merged' : String(item.state || 'open'),
+    });
+    if (hits.length >= 3) break;
+  }
+  return hits;
 }
 
 async function existingWork(text, { fetchImpl } = {}) {
@@ -784,6 +829,9 @@ module.exports = {
   isAppConfigured,
   searchQuery,
   draftFromQuestion,
+  issueBody,
+  discordThreadUrl,
+  relatedPulls,
   formatIssueCard,
   formatShopTicketCard,
   threadMarker,
@@ -798,7 +846,7 @@ module.exports = {
   resetGithubMemory,
   searchIssues,
   existingWork,
-  checkedNote,
+  relatedPulls,
   linkedChanges,
   textFromEmbeds,
   lookupChange,

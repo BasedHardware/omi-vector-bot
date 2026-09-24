@@ -532,6 +532,7 @@ async function answerMessage(message) {
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,
       labels: triaged.labels,
+      reason: router.staffReason({ area: triaged.area, lane: triaged.lane }, staffQuestion),
     });
 
     await typingDelay();

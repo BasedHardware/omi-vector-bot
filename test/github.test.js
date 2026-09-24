@@ -41,6 +41,17 @@ test('draftFromQuestion never uses shop or privacy labels', () => {
   );
   assert.equal(named.title, 'omi-windows ERESOLVE');
   assert.match(named.body, /What they wrote/);
+  const formatted = github.issueBody({
+    quote: 'There is 2 min conversation but it shows 40+ min.',
+    reason: 'Cannot see the phone app from chat',
+    threadUrl: 'https://discord.com/channels/1/2',
+    related: [{ title: 'compute conversation duration from transcript', url: 'https://github.com/BasedHardware/omi/pull/7528', state: 'merged' }],
+  });
+  assert.match(formatted, /Discord thread: https:\/\/discord.com\/channels\/1\/2/);
+  assert.match(formatted, /40\+ min/);
+  assert.match(formatted, /#7528|pull\/7528/);
+  assert.match(formatted, /still a problem after those changes/);
+  assert.equal(/fixed|I think|probably/i.test(formatted), false);
   const card = github.formatIssueCard(named);
   assert.match(card.title, /ERESOLVE/);
   const labelField = card.fields.find((f) => f.name === 'Labels').value;

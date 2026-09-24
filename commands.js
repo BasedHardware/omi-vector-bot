@@ -239,9 +239,15 @@ async function handleFileIssue(interaction) {
     await interaction.editReply(`Already on GitHub: ${prior.hit.url}. I did not file another.`);
     return;
   }
+  const related = await github.relatedPulls(`${draft.title}\n${draft.quote || draft.body}`);
   const created = await github.createIssue({
     ...draft,
-    body: `${draft.body}\n\n${github.checkedNote()}`,
+    body: github.issueBody({
+      quote: draft.quote,
+      reason: draft.reason,
+      threadUrl: github.discordThreadUrl(interaction),
+      related,
+    }),
     threadId: interaction.channelId,
   });
   const filedUrl = String(created?.url || '');
