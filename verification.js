@@ -32,7 +32,13 @@ class VerificationService {
     }
     record.timestamps.push(now);
     this.sends.set(key, record);
-    return true;
+    return now;
+  }
+
+  releaseAttempt(discordUserId, email, reservedAt) {
+    const timestamps = this.sends.get(`${discordUserId}:${email}`)?.timestamps || [];
+    const index = timestamps.lastIndexOf(reservedAt);
+    if (index !== -1) timestamps.splice(index, 1);
   }
 
   create(discordUserId, email) {
