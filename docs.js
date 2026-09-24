@@ -20,18 +20,17 @@ function pagesFromIndex(text) {
   return pages;
 }
 
-function bestPage(question, pages) {
+function topPages(question, pages, limit = 2) {
   const wanted = new Set(words(question));
-  let best = null;
-  let score = 0;
-  for (const page of pages) {
-    const shared = words(`${page.title} ${page.blurb} ${page.url}`).filter((word) => wanted.has(word));
-    if (shared.length > score) {
-      score = shared.length;
-      best = page;
-    }
-  }
-  return score > 0 ? best : null;
+  return pages
+    .map((page) => ({
+      page,
+      score: words(`${page.title} ${page.blurb} ${page.url}`).filter((word) => wanted.has(word)).length,
+    }))
+    .filter((hit) => hit.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((hit) => hit.page);
 }
 
 function clipPage(text) {
@@ -53,17 +52,20 @@ async function relevantDocs(question, { fetchImpl } = {}) {
       if (!indexRes.ok) return '';
       indexCache = { at: now, text: await indexRes.text() };
     }
-    const page = bestPage(question, pagesFromIndex(indexCache.text));
-    if (!page) return '';
-    const pageRes = await fetchFn(page.url);
-    if (!pageRes.ok) return '';
-    const excerpt = clipPage(await pageRes.text());
-    if (!excerpt) return '';
-    return `${page.title}\n${page.url}\n${excerpt}`;
+    const picked = topPages(question, pagesFromIndex(indexCache.text));
+    if (!picked.length) return '';
+    const blocks = [];
+    for (const page of picked) {
+      const pageRes = await fetchFn(page.url);
+      if (!pageRes.ok) continue;
+      const excerpt = clipPage(await pageRes.text());
+      if (excerpt) blocks.push(`${page.title}\n${page.url}\n${excerpt}`);
+    }
+    return blocks.join('\n\n');
   } catch (err) {
     console.error('[Docs] lookup failed:', err.message);
     return '';
   }
 }
 
-module.exports = { relevantDocs, pagesFromIndex, bestPage, clipPage };
+module.exports = { relevantDocs, pagesFromIndex, topPages, clipPage };

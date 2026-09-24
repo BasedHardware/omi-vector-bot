@@ -3,8 +3,7 @@ const { askedWhereRecordingsWent } = require('./honesty');
 
 const HOWTO_FAQ = [
   'Omi works with iPhone and Android. Keep the Omi app open. If you fully close it (swipe it away), it stops writing down what was said and the device disconnects.',
-  'Power: press the center button once to turn the device on or off.',
-  'Lights on the device:\n- red = on, not connected to the phone\n- blue = on, connected\n- orange = charging, not connected\n- teal = charging and connected.',
+  'Name the device before you describe a button or a charging light. Consumer necklace and DevKit 2 are not the same.',
   'Pairing: turn the device on, open the Omi app, and follow the steps on the screen. Wait for the phone to find it. If that fails: turn phone Bluetooth on, restart the phone and the device, and make sure the device is charged.',
   'Omi hears voices nearby by default. In the app you can switch it to listen only to you.',
   'What Omi heard can be saved on the phone or in the cloud, locked, and deleted with one tap in the app. Breaking or losing the device does not delete that. You delete it in the app.',
@@ -28,7 +27,20 @@ const RAILS_FAQ = [
   'Developers use https://api.omi.me. An app is created in the phone app under Explore. Do not invent an API key or a webhook URL.',
 ];
 
-const STATIC_FAQ = [...HOWTO_FAQ, ...RAILS_FAQ].join('\n');
+const OFFICIAL = [
+  'Source: docs.omi.me. Three devices: the consumer necklace (Omi), DevKit 2, and Omi Glass. The phone app is on iPhone and Android. Search the store for Omi AI.',
+  'Consumer necklace: one press turns it on. Hold the button about 3 seconds to turn it off. One tap starts a voice question; tap again or wait 15 seconds. Double tap is set in Settings → Device Settings → Double Tap Action (end and save, pause or resume, or star).',
+  'Consumer lights: solid red = on, not connected. Blinking red = the phone has not synced the time yet; connect it in the app. Solid blue = on and connected. Blinking green and red = charging, not connected. Blinking green and blue = charging and connected. Solid green = full, about 98 percent or more.',
+  'DevKit 2 lights: red = on, not connected. Blue = on and connected. Orange = charging, not connected. Teal = charging and connected. DevKit 2 can power from the switch, a 3 second hold, or USB-C. Its docs also call a single press on or off, and a long press a voice question. It is the kit whose hardware page says it can record on its own. No LED at all means it may need firmware flashed.',
+  'DevKit 1 is the older necklace. It is no longer sold. DevKit 2 is the one to buy. Firmware updates for a paired device are in the app: Settings → Device Settings → Update Firmware. The app also notifies when an update exists.',
+  'Battery on the product page is 24 hours to a few days, depending on the device. That is battery life. The consumer necklace does not record all day with the phone app closed.',
+  'Leave the Omi app in the background. Force-closing it stops transcription and disconnects the device. Speak near the device. A transcript can take 30 to 60 seconds. Offline transcription works without internet. The consumer device can record offline and transcribe after it reconnects.',
+  'No light and no transcript: it may need firmware, a charge, or a power cycle. If that does not fix it, help@omi.me. Discord is discord.omi.me. Delivery questions on the get-started page go to team@basedhardware.com.',
+  'Conversations are stored on Omi cloud. Settings in the app can delete everything. The wearable app version collects no data at Omi: they bring their own API keys and data stays on the device. Do not invent the BYOK setup steps.',
+  'Developer API is https://api.omi.me. Apps are created in the phone app under Explore. Do not invent an API key or a webhook URL.',
+].join('\n');
+
+const STATIC_FAQ = [...HOWTO_FAQ, ...RAILS_FAQ, OFFICIAL].join('\n');
 
 function faqTextForLane(lane) {
   if (lane === 'shop' || lane === 'money' || lane === 'privacy') {
@@ -146,6 +158,9 @@ file_issue: true only for a phone-app, computer-app, or device bug. false for or
 FAQ:
 ${faqTextForLane(lane)}
 
+Official Omi knowledge (docs.omi.me). Use this for how the product works. If a live docs excerpt is also in the tool facts, prefer that excerpt when they disagree. Do not invent a step that is not here.
+${OFFICIAL}
+
 Reply with ONLY JSON (no markdown fences):
 {"topic":"short problem","labels":["area"],"area":"shop|app|desktop|firmware|privacy","lane":"shop|money|privacy|firmware|tech|faq|account","final_answer":"string","confidence":0.0,"escalate":false,"file_issue":false,"reason":""}`;
 }
@@ -184,6 +199,7 @@ module.exports = {
   STATIC_FAQ,
   HOWTO_FAQ,
   RAILS_FAQ,
+  OFFICIAL,
   faqTextForLane,
   buildToolFacts,
   buildSystemPrompt,
