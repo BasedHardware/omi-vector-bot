@@ -749,6 +749,18 @@ test('ordinary words do not search pull bodies', async () => {
   assert.equal(calls, 1);
 });
 
+test('a Soniox 1011 report does not cite the merged Deepgram keepalive pull', async () => {
+  const q = 'Transcription unavailable. Socket wss://api.omi.me/v4/listen closes with 1011. Soniox fails. OpenAI whisper works.';
+  const dg = {
+    number: 5235,
+    title: 'Fix VAD gate keepalive: 20s → 5s to prevent DG 1011 disconnect',
+    state: 'closed',
+    html_url: 'https://github.com/BasedHardware/omi/pull/5235',
+  };
+  const fetchImpl = async () => ({ ok: true, json: async () => ({ items: [dg], merged: true, state: 'closed', title: dg.title }) });
+  assert.equal(await github.searchPulls(q, { fetchImpl }), null);
+});
+
 test('websocket alone does not search pull bodies', async () => {
   const q = 'websocket closed unexpectedly';
   let calls = 0;

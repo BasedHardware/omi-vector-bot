@@ -580,6 +580,24 @@ function rareTokensIn(text) {
   return [...RARE_SHARP, ...RARE_BROAD].filter((token) => hasRareToken(text, token));
 }
 
+const PROVIDERS = [
+  ['soniox', /soniox/i],
+  ['deepgram', /\b(?:deepgram|dg)\b/i],
+  ['openai', /openai/i],
+  ['whisper', /whisper/i],
+];
+
+function namedProviders(text) {
+  return PROVIDERS.filter(([, re]) => re.test(String(text || ''))).map(([name]) => name);
+}
+
+function providerClash(question, title) {
+  const asked = namedProviders(question);
+  const titled = namedProviders(title);
+  if (!asked.length || !titled.length) return false;
+  return !asked.some((name) => titled.includes(name));
+}
+
 function titleSharesRareToken(question, item) {
   const title = item?.title;
   return rareTokensIn(question).some((token) => hasRareToken(title, token));
@@ -632,7 +650,7 @@ async function recallOpenPullFromBody(question, fetchImpl) {
   const items = await fetchIssueSearch(bodyRecallQuery(token), fetchImpl);
   if (!items) return null;
   for (const item of items) {
-    if (titleBlocksBodyRecall(item?.title)) continue;
+    if (titleBlocksBodyRecall(item?.title) || providerClash(question, item?.title)) continue;
     const state = String(item?.state || '').toLowerCase();
     const score = scorePull(question, item);
     if (state === 'open') return toPullRef(item, score);
@@ -705,6 +723,7 @@ async function searchPulls(question, { fetchImpl } = {}) {
     let rareBest = null;
     let rareScore = -1;
     for (const item of items) {
+      if (providerClash(question, item?.title)) continue;
       const score = scorePull(question, item);
       if (score > bestScore) {
         best = item;
@@ -730,6 +749,9 @@ async function searchPulls(question, { fetchImpl } = {}) {
     const local = pickOpenListen(question, items);
     const recalled = local || pickOpenListen(question, await fetchIssueSearch(listenRecallQuery(), fetchImpl));
     if (!recalled || !isOpenPull(recalled.item)) return null;
+    if (providerClash(question, recalled.item.title)) return null;
+    const asked = namedProviders(question);
+    if (asked.length && !namedProviders(recalled.item.title).some((name) => asked.includes(name))) return null;
     return toPullRef(recalled.item, recalled.score);
   } catch (err) {
     console.error('[GitHub] pull search failed:', err.message);
