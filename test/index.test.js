@@ -62,6 +62,9 @@ let issues = [];
 let pullState = { state: 'open', merged: false };
 globalThis.fetch = async (url, opts = {}) => {
   const u = String(url);
+  if (u.includes('docs.omi.me')) {
+    return { ok: false, status: 404, text: async () => '', json: async () => ({}) };
+  }
   if (files.has(u)) {
     return { ok: true, status: 200, arrayBuffer: async () => Buffer.from(files.get(u)) };
   }

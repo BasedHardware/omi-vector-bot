@@ -52,7 +52,7 @@ function faqTextForLane(lane) {
   return text;
 }
 
-function buildToolFacts({ route, shopifyText, githubText } = {}) {
+function buildToolFacts({ route, shopifyText, githubText, docsText } = {}) {
   const lane = route?.lane || 'unknown';
   const area = route?.area || 'unknown';
   const lines = [`Lane: ${lane}. Area: ${area}.`, `This ticket: ${describe(route)}`];
@@ -79,6 +79,11 @@ function buildToolFacts({ route, shopifyText, githubText } = {}) {
     );
   } else if (lane === 'tech' || lane === 'firmware') {
     lines.push('No GitHub issue is linked. Do not invent an issue number.');
+  }
+  if (docsText) {
+    lines.push(
+      `Official docs page fetched for this question. Answer from it when it covers what they asked. Do not file that as a bug.\n${docsText}`
+    );
   }
   lines.push('Only use these facts plus Knowledge and FAQ. If a fact is missing, say you are not sure in plain words.');
   return lines.join('\n');

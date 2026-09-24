@@ -49,6 +49,7 @@ const router = require('./router');
 const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts } = require('./prompt');
+const { relevantDocs } = require('./docs');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
 const triage = require('./triage');
 
@@ -429,10 +430,15 @@ async function answerMessage(message) {
       const shopifyText = shopifyLookup
         ? shopify.buildUserReply(shopifyLookup, asked || question)
         : '';
+      const docsText =
+        route.lane === 'faq' || router.looksLikeProductQuestion(asked || question)
+          ? await relevantDocs(asked || question)
+          : '';
       const toolFacts = buildToolFacts({
         route,
         shopifyText,
         githubText: githubHit?.duplicate?.url || '',
+        docsText,
       });
 
       try {
