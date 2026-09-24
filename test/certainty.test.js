@@ -123,6 +123,15 @@ test('a user line cannot rewrite the tool facts', () => {
   assert.equal(prompt.includes('order shipped yesterday'), false);
 });
 
+test('a follow-up keeps a merged pull request already in the thread', () => {
+  const prompt = buildUserPrompt({
+    question: 'so if this is the wrong pr bring a support guy',
+    threadHistory: [{ author: 'bot', content: 'Pull request #12473 has been merged.' }],
+    route: { lane: 'tech', area: 'desktop' },
+  });
+  assert.match(prompt, /If an earlier message says a pull request has been merged, keep that/);
+});
+
 test('a claim still blocks a redelivery after the five-minute prune', () => {
   const id = 'claim-prune-msg';
   const start = 1_700_000_000_000;
