@@ -26,7 +26,7 @@ const {
   replyMentions,
   isUnknownMessageRef,
 } = require('./utils');
-const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadMedia, unreadMediaSentence, imageErrorLines } = require('./attachments');
+const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadMedia, unreadMediaSentence, imageErrorLines, videoErrorLines } = require('./attachments');
 const {
   notifyStaff,
   canNotifyStaff,
@@ -307,11 +307,20 @@ async function answerMessage(message) {
   const channel = message.channel;
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   const files = await fetchTextAttachments(message.attachments);
+  const read = { image: false, video: false };
   if (process.env.VECTOR_OCR === '1') {
     const screenText = await imageErrorLines(message.attachments);
-    if (screenText) files.push({ name: 'screen.txt', text: screenText });
+    const videoText = await videoErrorLines(message.attachments);
+    if (screenText) {
+      read.image = true;
+      files.push({ name: 'screen.txt', text: screenText });
+    }
+    if (videoText) {
+      read.video = true;
+      files.push({ name: 'video.txt', text: videoText });
+    }
   }
-  const unreadMedia = shouldMentionUnreadMedia(message.attachments, files);
+  const unreadMedia = shouldMentionUnreadMedia(message.attachments, files, read);
   let asked = clipUserQuestion(caption) || caption;
   const forumPrefix = forumStarterPrefix(message);
   if (forumPrefix) asked = [forumPrefix, asked].filter(Boolean).join('\n');

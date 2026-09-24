@@ -508,7 +508,7 @@ function keepMergedPull(history, answer) {
   const number = match[1];
   let text = String(answer || '')
     .split(/(?<=[.!?])\s+/)
-    .filter((sentence) => !/cause is still unknown|needs someone who can look at the app/i.test(sentence))
+    .filter((sentence) => !/cause is still unknown|look at the app|leaving it for them|can(?:not|'t) sort out|still needs someone/i.test(sentence))
     .join(' ')
     .trim();
   if (!text.includes(url)) {

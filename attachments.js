@@ -48,11 +48,14 @@ function isWatchableAttachment(att) {
   return isSpoilerImageName(name);
 }
 
-function shouldMentionUnreadMedia(attachments, textFiles) {
+function shouldMentionUnreadMedia(attachments, textFiles, read = {}) {
   const logRead = (textFiles || []).some((file) => file && String(file.text || '').trim());
-  return attachmentsList(attachments).some(
-    (att) => isWatchableAttachment(att) && !(logRead && isImageAttachment(att))
-  );
+  return attachmentsList(attachments).some((att) => {
+    if (!isWatchableAttachment(att)) return false;
+    if ((logRead || read.image) && isImageAttachment(att)) return false;
+    if (read.video && isVideoAttachment(att)) return false;
+    return true;
+  });
 }
 
 function unreadMediaSentence() {
@@ -146,6 +149,57 @@ async function imageErrorLines(attachments, { fetchImpl, recognize } = {}) {
   return kept.join('\n');
 }
 
+function isVideoAttachment(att) {
+  if (!att) return false;
+  const type = String(att.contentType || att.content_type || '').toLowerCase();
+  const name = String(att.name || att.filename || '');
+  if (type.startsWith('video/')) return true;
+  return /\.(mp4|mov|webm)$/i.test(name);
+}
+
+const VIDEO_CAP = 8 * 1024 * 1024;
+
+function extractVideoFrame(buf) {
+  const ffmpeg = require('ffmpeg-static');
+  const { spawnSync } = require('child_process');
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vec-'));
+  const input = path.join(dir, 'clip.bin');
+  const output = path.join(dir, 'frame.png');
+  fs.writeFileSync(input, buf);
+  const result = spawnSync(ffmpeg, ['-y', '-ss', '1', '-i', input, '-frames:v', '1', output], { timeout: 8000 });
+  if (result.status !== 0 || !fs.existsSync(output)) return null;
+  return fs.readFileSync(output);
+}
+
+async function videoErrorLines(attachments, { fetchImpl, extractFrame, recognize } = {}) {
+  const fetchFn = fetchImpl || fetch;
+  const frameOf = extractFrame || extractVideoFrame;
+  const read = recognize || (process.env.VECTOR_OCR === '1' ? defaultRecognize : null);
+  if (typeof read !== 'function') return '';
+  const clips = attachmentsList(attachments).filter(isVideoAttachment).slice(0, 1);
+  const kept = [];
+  for (const att of clips) {
+    const url = att.url || att.proxyURL || att.proxy_url;
+    if (!url) continue;
+    try {
+      const res = await fetchFn(url);
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > VIDEO_CAP) continue;
+      const frame = await frameOf(buf);
+      if (!frame) continue;
+      const lines = errorLinesFromImageText(await read(frame));
+      if (lines) kept.push(lines);
+    } catch (err) {
+      console.error('[Attach] video read failed:', err.message);
+    }
+  }
+  return kept.join('\n');
+}
+
 function isImageAttachment(att) {
   if (!att) return false;
   const type = String(att.contentType || att.content_type || '').toLowerCase();
@@ -220,4 +274,6 @@ module.exports = {
   errorLinesFromImageText,
   screenshotErrorLines,
   imageErrorLines,
+  isVideoAttachment,
+  videoErrorLines,
 };

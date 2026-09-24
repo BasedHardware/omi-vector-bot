@@ -12,6 +12,7 @@ const {
   shouldMentionUnreadMedia,
   unreadMediaSentence,
   imageErrorLines,
+  videoErrorLines,
 } = require('../attachments');
 
 test('allows log/txt/json and text/plain, skips images', () => {
@@ -292,4 +293,22 @@ test('a screenshot keeps the error line and drops another person name', async ()
   assert.match(lines, /transcription unavailable/);
   assert.match(lines, /1011/);
   assert.equal(lines.includes('Priya'), false);
+});
+
+test('a video frame keeps the error line and the clip is not sent on', async () => {
+  const lines = await videoErrorLines(
+    [{ name: 'clip.mp4', contentType: 'video/mp4', url: 'https://cdn.example/clip.mp4' }],
+    {
+      fetchImpl: async () => ({ ok: true, arrayBuffer: async () => Buffer.from('video-bytes') }),
+      extractFrame: async () => Buffer.from('frame'),
+      recognize: async () => 'Weekly sync with Priya\nserver_error 1011',
+    }
+  );
+  assert.match(lines, /1011/);
+  assert.equal(lines.includes('Priya'), false);
+  assert.equal(shouldMentionUnreadMedia(
+    [{ name: 'clip.mp4', contentType: 'video/mp4' }],
+    [{ name: 'video.txt', text: lines }],
+    { video: true }
+  ), false);
 });
