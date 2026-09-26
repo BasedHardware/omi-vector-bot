@@ -40,6 +40,8 @@ const STRONG_SHOP = [
   /\btracking\b/i,
   /\bshipping\b/i,
   /\bcustoms\b/i,
+  /\bexpress delivery\b/i,
+  /\bstill in ["']?preparing\b/i,
   /\B#\d{3,}\b[^\n]{0,48}\b(?:never|not|hasn'?t|has not)\s+arrived\b/i,
   /\b(?:never|not|hasn'?t|has not)\s+arrived\b[^\n]{0,48}\B#\d{3,}\b/i,
 ];
@@ -61,6 +63,9 @@ const FIRMWARE = [
   /turns? itself off/i,
   /keeps turning (itself )?off/i,
   /shuts? (itself )?off after/i,
+  /\bnot charging\b/i,
+  /\bwon'?t charge\b/i,
+  /\bcharger\b/i,
 ];
 
 const DESKTOP = [
@@ -93,6 +98,8 @@ const APP = [
   /\b(recordings?|clips?) (are )?(missing|gone)\b/i,
   /\b(disconnected|offline).{0,40}\bapp\b/i,
   /\bapp.{0,40}(disconnected|offline)\b/i,
+  /\bapp stayed open\b/i,
+  /\bstill nothing recorded\b/i,
 ];
 
 const CAPTURE_FAILURE = [
@@ -405,6 +412,15 @@ function cannedReply(route, question) {
   }
   if (lane === 'tech') {
     return "You wrote about the phone app. I can't open that app from here, so I won't guess a fix.";
+  }
+  if (/\bblue\b/i.test(String(question || '')) && /\blight\b/i.test(String(question || ''))) {
+    return 'A solid blue light means the Omi is on and connected to your phone.';
+  }
+  if (/\bhow do i turn\b/i.test(String(question || '')) && /\boff\b/i.test(String(question || ''))) {
+    return 'On the necklace, hold the button for about 3 seconds to turn it off. One press turns it on.';
+  }
+  if (/\bdelete\b/i.test(String(question || '')) && /\bconversation\b/i.test(String(question || ''))) {
+    return 'Open that conversation and delete it from its detail view. That deletes the transcript and any stored audio for it.';
   }
   return null;
 }
