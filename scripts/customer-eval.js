@@ -3,6 +3,7 @@ const router = require('../router');
 const { relevantDocs } = require('../docs');
 const { buildToolFacts } = require('../prompt');
 const { queryAgent } = require('../opencode');
+const triage = require('../triage');
 
 const scenarios = [
   {
@@ -81,9 +82,16 @@ function judge(scene, route, answer) {
   return problems;
 }
 
+let modelBlocked = process.env.EVAL_NO_MODEL === '1';
+
 async function replyFor(scene, route) {
-  if (process.env.EVAL_NO_MODEL === '1' || router.skipModel(route)) {
-    return router.cannedReply(route, scene.ask) || router.whenModelDown(route, scene.ask).reply;
+  if (modelBlocked || router.skipModel(route)) {
+    const down = router.whenModelDown(route, scene.ask);
+    return {
+      answer: router.cannedReply(route, scene.ask) || down.reply,
+      agent: down.agent,
+      from: 'rules',
+    };
   }
   const docsText = route.lane === 'faq' || router.looksLikeProductQuestion(scene.ask)
     ? await relevantDocs(scene.ask)
@@ -96,26 +104,35 @@ async function replyFor(scene, route) {
       toolFacts,
       sessionId: `eval-${scene.id}`,
     });
-    return String(agent.final_answer || '');
+    return { answer: String(agent.final_answer || ''), agent, from: 'model' };
   } catch (err) {
+    if (/429|usage limit|wallet/i.test(err.message)) modelBlocked = true;
     const down = router.whenModelDown(route, scene.ask);
-    return `${down.reply}\n[${err.message}]`;
+    return {
+      answer: router.cannedReply(route, scene.ask) || down.reply,
+      agent: down.agent,
+      from: `rules (${err.message})`,
+    };
   }
 }
 
 async function main() {
   const key = Boolean(String(process.env.OPENCODE_API_KEY || '').trim());
-  console.log(`model ${key ? 'on' : 'off'}`);
+  console.log(`model ${key && !modelBlocked ? 'on' : 'off'}`);
   let failed = 0;
   for (const scene of scenarios) {
     const route = router.classify(scene.ask);
-    const answer = await replyFor(scene, route);
-    const problems = judge(scene, route, answer);
+    const result = await replyFor(scene, route);
+    const merged = triage.merge(route, result.agent, scene.ask);
+    const problems = judge(scene, route, result.answer);
     if (problems.length) failed += 1;
-    const specialist = router.specialistNames(route.area, route.lane);
-    console.log(`\n# ${scene.id} ${problems.length ? 'MISS' : 'OK'} first=${scene.first}`);
-    console.log(`lane=${route.lane} area=${route.area} specialist=${specialist || 'bot'}`);
-    console.log(answer.replace(/\s+/g, ' ').slice(0, 420));
+    const specialist = router.specialistNames(merged.area, merged.lane);
+    const action = merged.escalate
+      ? `person ${specialist || 'staff'}${merged.fileIssue ? ', would file a GitHub issue' : ', no GitHub issue'}`
+      : 'answers in the thread, no ping';
+    console.log(`\n# ${scene.id} ${problems.length ? 'MISS' : 'OK'} via ${result.from}`);
+    console.log(action);
+    console.log(result.answer.replace(/\s+/g, ' ').slice(0, 420));
     if (problems.length) console.log(`problems: ${problems.join('; ')}`);
   }
   console.log(`\n${scenarios.length - failed}/${scenarios.length} ok`);

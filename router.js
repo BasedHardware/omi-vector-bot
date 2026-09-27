@@ -355,14 +355,16 @@ function looksLikeDocs(text) {
 }
 
 function whenModelDown(route, question) {
+  const known = cannedReply(route, question);
+  const canAnswer = route?.lane === 'faq' && !route?.wantHuman && known;
   return {
     agent: {
       final_answer: '',
-      confidence: 0.2,
-      escalate: true,
-      reason: staffReason(route, question),
+      confidence: canAnswer ? 0.9 : 0.2,
+      escalate: !canAnswer,
+      reason: canAnswer ? '' : staffReason(route, question),
     },
-    reply: cannedReply(route, question) || "I can't finish this from chat right now.",
+    reply: known || "I can't finish this from chat right now.",
   };
 }
 
