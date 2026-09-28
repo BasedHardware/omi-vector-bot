@@ -46,7 +46,7 @@ const STRONG_SHOP = [
   /\b(?:never|not|hasn'?t|has not)\s+arrived\b[^\n]{0,48}\B#\d{3,}\b/i,
 ];
 
-const WEAK_SHOP = [/\border\s*(#|number|id|num)\b/i];
+const WEAK_SHOP = [/\border\s*(#|number|id|num)\b/i, /\border\s*no\.?\s*#?\d{3,}/i];
 
 const SHOP = [...STRONG_SHOP, ...WEAK_SHOP];
 

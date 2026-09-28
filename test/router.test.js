@@ -337,6 +337,9 @@ test('an order number does not override a device bug; a real order question stil
     'The Android app crashes every time I open it. I got my order yesterday.'
   );
   assert.equal(android.area, 'app');
+  const detail = router.classify('give detail for order no 21519');
+  assert.equal(detail.lane, 'shop');
+  assert.equal(router.skipModel(detail), true);
   assert.equal(android.lane, 'tech');
 
   const win = router.classify('The Windows app crashes. Order #9 if you need it.');
