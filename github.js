@@ -272,11 +272,28 @@ function peekDraft(id) {
   return drafts.get(id) || null;
 }
 
-function linkIssueThread(number, threadId) {
+function linkIssueThread(number, threadId, options = {}) {
   const key = String(number);
   if (!issueThreads.has(key)) issueThreads.set(key, new Set());
   if (threadId) issueThreads.get(key).add(String(threadId));
   if (threadId && number) threadToIssue.set(String(threadId), key);
+  if (options.persist !== false) rememberIssueThread(number, threadId);
+}
+
+function rememberIssueThread(number, threadId) {
+  if (!process.env.DATABASE_URL || !number || !threadId) return;
+  const db = require('./db');
+  db.saveIssueThread(number, threadId).catch((err) => {
+    console.error('[GitHub] thread save failed:', err.message);
+  });
+}
+
+async function hydrateIssueThreads() {
+  if (!process.env.DATABASE_URL) return 0;
+  const db = require('./db');
+  const rows = await db.listIssueThreads();
+  for (const row of rows) linkIssueThread(row.issue_number, row.thread_id, { persist: false });
+  return rows.length;
 }
 
 function threadsForIssue(number) {
@@ -956,6 +973,7 @@ module.exports = {
   restoreDraft,
   peekDraft,
   linkIssueThread,
+  hydrateIssueThreads,
   threadsForIssue,
   resetGithubMemory,
   searchIssues,

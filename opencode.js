@@ -60,6 +60,7 @@ async function queryAgent({
   route,
   toolFacts,
   sessionId,
+  post,
 }) {
   const key = process.env.OPENCODE_API_KEY;
   if (!key) {
@@ -70,7 +71,8 @@ async function queryAgent({
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const { data } = await axios.post(
+      const send = post || axios.post.bind(axios);
+      const { data } = await send(
         OPENCODE_URL,
         {
           model: OPENCODE_MODEL,

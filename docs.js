@@ -43,28 +43,65 @@ function clipPage(text) {
   return plain.length > CLIP ? `${plain.slice(0, CLIP)}…` : plain;
 }
 
-async function relevantDocs(question, { fetchImpl } = {}) {
+function activeStore(store) {
+  if (store) return store;
+  if (!process.env.DATABASE_URL) return null;
+  return require('./db');
+}
+
+async function rememberPages(store, pages) {
+  if (!store?.saveDocPage) return;
+  for (const page of pages) {
+    try {
+      await store.saveDocPage(page);
+    } catch (err) {
+      console.error('[Docs] save failed:', err.message);
+    }
+  }
+}
+
+async function storedDocs(question, store) {
+  if (!store?.searchDocPages) return '';
+  try {
+    const rows = await store.searchDocPages(question);
+    return (rows || [])
+      .map((row) => `${row.title}\n${row.url}\n${clipPage(row.body)}`)
+      .filter((block) => block.trim())
+      .join('\n\n');
+  } catch (err) {
+    console.error('[Docs] stored lookup failed:', err.message);
+    return '';
+  }
+}
+
+async function relevantDocs(question, { fetchImpl, store } = {}) {
   const fetchFn = fetchImpl || fetch;
+  const saved = activeStore(store);
   try {
     const now = Date.now();
     if (!indexCache.text || now - indexCache.at > 60 * 60 * 1000) {
       const indexRes = await fetchFn(INDEX_URL);
-      if (!indexRes.ok) return '';
+      if (!indexRes.ok) return storedDocs(question, saved);
       indexCache = { at: now, text: await indexRes.text() };
     }
     const picked = topPages(question, pagesFromIndex(indexCache.text));
-    if (!picked.length) return '';
+    if (!picked.length) return storedDocs(question, saved);
     const blocks = [];
+    const pages = [];
     for (const page of picked) {
       const pageRes = await fetchFn(page.url);
       if (!pageRes.ok) continue;
       const excerpt = clipPage(await pageRes.text());
-      if (excerpt) blocks.push(`${page.title}\n${page.url}\n${excerpt}`);
+      if (!excerpt) continue;
+      blocks.push(`${page.title}\n${page.url}\n${excerpt}`);
+      pages.push({ url: page.url, title: page.title, body: excerpt });
     }
-    return blocks.join('\n\n');
+    await rememberPages(saved, pages);
+    if (blocks.length) return blocks.join('\n\n');
+    return storedDocs(question, saved);
   } catch (err) {
     console.error('[Docs] lookup failed:', err.message);
-    return '';
+    return storedDocs(question, saved);
   }
 }
 

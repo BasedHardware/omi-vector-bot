@@ -104,6 +104,14 @@ function looksLikeHowtoBleed(text) {
   return HOWTO_BLEED.some((re) => re.test(String(text || '')));
 }
 
+function looksLikeHowtoInstruction(text) {
+  const s = String(text || '');
+  if (!looksLikeHowtoBleed(s)) return false;
+  return /\b(make sure|needs to|stay open|turn |keep |try |pair (it|the|from|with|your|again)|unpair|swipe|swiped|don't|do not)\b/i.test(
+    s
+  );
+}
+
 function looksLikeShopDeviceBleed(text) {
   return SHOP_DEVICE_BLEED.some((re) => re.test(String(text || '')));
 }
@@ -115,12 +123,12 @@ function stripHowtoBleed(text, lane) {
   const cleaned = raw
     .split('\n')
     .map((line) => {
-      const drop = looksLikeHowtoBleed(line) || (shopLane && looksLikeShopDeviceBleed(line));
+      const drop = looksLikeHowtoInstruction(line) || (shopLane && looksLikeShopDeviceBleed(line));
       if (!drop) return line;
       return line
         .split(/(?<=[.!?])\s+/)
         .filter((sentence) => {
-          if (looksLikeHowtoBleed(sentence)) return false;
+          if (looksLikeHowtoInstruction(sentence)) return false;
           if (shopLane && looksLikeShopDeviceBleed(sentence)) return false;
           return true;
         })

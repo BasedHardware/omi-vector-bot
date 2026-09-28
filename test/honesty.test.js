@@ -692,6 +692,16 @@ test('formatDiscordReply turns LED pipe lists into bullets', () => {
   assert.equal(out.includes(' | '), false);
 });
 
+test('a crash reply keeps the sentence that only restates Bluetooth', () => {
+  const { stripHowtoBleed } = require('../honesty');
+  const out = stripHowtoBleed(
+    'You already had Bluetooth on when the app crashed. Make sure Bluetooth is on and pair the device again.',
+    'tech'
+  );
+  assert.match(out, /already had Bluetooth on/i);
+  assert.equal(/pair the device again/i.test(out), false);
+});
+
 test('the same message id is only claimed once', () => {
   const { claimMessage } = require('../utils');
   assert.equal(claimMessage('forum-starter-1'), true);

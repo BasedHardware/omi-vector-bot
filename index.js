@@ -50,6 +50,7 @@ const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts } = require('./prompt');
 const { relevantDocs } = require('./docs');
+const { matchingRelease } = require('./releases');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
 const triage = require('./triage');
 
@@ -417,11 +418,13 @@ async function answerMessage(message) {
         router.looksLikeProductQuestion(asked || question)
           ? await relevantDocs(asked || question)
           : '';
+      const releaseText = await matchingRelease(asked || question);
       const toolFacts = buildToolFacts({
         route,
         shopifyText,
         githubText: githubHit?.duplicate?.url || '',
         docsText,
+        releaseText,
       });
 
       try {
@@ -770,7 +773,12 @@ async function start() {
   }
 
   if (dbReady) {
-    await db.initSchema();
+    try {
+      await db.initSchema();
+      await github.hydrateIssueThreads();
+    } catch (err) {
+      console.error('[DB] schema failed:', err.message);
+    }
   }
 
   app.listen(PORT, () => {

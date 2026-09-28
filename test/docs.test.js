@@ -33,3 +33,23 @@ test('a docs lookup that fails leaves the answer path alone', async () => {
   });
   assert.equal(text, '');
 });
+
+test('a docs lookup uses the saved page when the site is down', async () => {
+  const pages = [
+    {
+      title: 'Battery',
+      url: 'https://docs.omi.me/doc/battery.md',
+      body: 'Battery life is 24 hours to a few days.',
+    },
+  ];
+  const text = await relevantDocs('How long is the battery?', {
+    fetchImpl: async () => {
+      throw new Error('docs down');
+    },
+    store: {
+      searchDocPages: async () => pages,
+    },
+  });
+  assert.match(text, /24 hours/);
+  assert.match(text, /docs\.omi\.me\/doc\/battery\.md/);
+});

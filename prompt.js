@@ -64,7 +64,16 @@ function faqTextForLane(lane) {
   return text;
 }
 
-function buildToolFacts({ route, shopifyText, githubText, docsText } = {}) {
+const SUPPORT_POLICY = [
+  'Support policy:',
+  'Answer a how-to from the docs in this prompt. Do not turn that into a bug.',
+  'A phone app, computer app, or device failure goes to a person. Do not invent a fix, a cause, or a step that changes the device.',
+  'Money, orders, refunds, plans, and deleting an account always go to a person. Do not invent a status, a price, or a date.',
+  'Use the customer\'s language. If a fact is not in the docs or the tool facts, say you are not sure.',
+  'Never claim you pinged, filed, or emailed anyone.',
+].join(' ');
+
+function buildToolFacts({ route, shopifyText, githubText, docsText, releaseText } = {}) {
   const lane = route?.lane || 'unknown';
   const area = route?.area || 'unknown';
   const lines = [`Lane: ${lane}. Area: ${area}.`, `This ticket: ${describe(route)}`];
@@ -97,6 +106,11 @@ function buildToolFacts({ route, shopifyText, githubText, docsText } = {}) {
       `Official docs page fetched for this question. Answer from it when it covers what they asked. Do not file that as a bug.\n${docsText}`
     );
   }
+  if (releaseText) {
+    lines.push(
+      `Release note that matches this question. Use it only if they asked what changed or which version to get.\n${releaseText}`
+    );
+  }
   lines.push('Only use these facts plus Knowledge and FAQ. If a fact is missing, say you are not sure in plain words.');
   return lines.join('\n');
 }
@@ -104,6 +118,8 @@ function buildToolFacts({ route, shopifyText, githubText, docsText } = {}) {
 function buildSystemPrompt(route) {
   const lane = route?.lane || '';
   return `You are Omi Support, a support agent in Discord. You are a bot. Never claim to be a human named Vector.
+
+${SUPPORT_POLICY}
 
 The person asking is a customer. They may paste a rant, a screenshot dump, numbered questions, or one messy paragraph. Read it like a person would. Figure out the actual problem.
 
@@ -204,4 +220,5 @@ module.exports = {
   buildToolFacts,
   buildSystemPrompt,
   buildUserPrompt,
+  SUPPORT_POLICY,
 };
