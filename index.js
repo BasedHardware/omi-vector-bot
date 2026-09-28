@@ -286,7 +286,7 @@ async function handleMessage(message) {
 
   const channel = message.channel;
   // Test channel: do not silently drop a second question. Help-forum cooldown stays.
-  if (isOnCooldown(channel.id) && !isTestChannel(channel)) {
+  if (isOnCooldown(channel.id) && !isTestChannel(channel) && !channel.isThread?.()) {
     console.log(`[Bot] Cooldown active for ${channel.id}, skipping`);
     return;
   }

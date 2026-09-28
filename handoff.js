@@ -282,7 +282,10 @@ function markHandoffClosed(thread) {
   if (!thread?.id) return;
   closedHandoffs.add(String(thread.id));
   forgetOpenHandoff(thread);
-  lastHandoff.delete(String(thread.parentId || ''));
+  const parent = String(thread.parentId || '');
+  for (const key of [...lastHandoff.keys()]) {
+    if (parent && (key === parent || key.startsWith(`${parent}:`))) lastHandoff.delete(key);
+  }
 }
 
 function isClosedHandoff(thread) {
@@ -935,6 +938,7 @@ module.exports = {
   rememberOpenHandoff,
   markHandoffClosed,
   notifyStaff,
+  sendToStaffChannel,
   isHandoffThread,
   isHelpForumThread,
   forumStarterPrefix,

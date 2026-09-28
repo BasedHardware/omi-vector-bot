@@ -147,7 +147,10 @@ async function imageErrorLines(attachments, { fetchImpl, recognize } = {}) {
     try {
       const res = await fetchFn(url);
       if (!res.ok) continue;
+      const len = Number(res.headers?.get?.('content-length') || 0);
+      if (len > 4 * 1024 * 1024) continue;
       const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > 4 * 1024 * 1024) continue;
       const text = await read(buf);
       const lines = errorLinesFromImageText(text);
       if (lines) kept.push(lines);
@@ -196,6 +199,8 @@ async function videoErrorLines(attachments, { fetchImpl, extractFrame, recognize
     try {
       const res = await fetchFn(url);
       if (!res.ok) continue;
+      const len = Number(res.headers?.get?.('content-length') || 0);
+      if (len > VIDEO_CAP) continue;
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.length > VIDEO_CAP) continue;
       const frame = await frameOf(buf);

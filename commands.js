@@ -1,5 +1,5 @@
 const { REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { isCloseableThread, canStaffAct, markHandoffClosed } = require('./handoff');
+const { isCloseableThread, canStaffAct, markHandoffClosed, sendToStaffChannel } = require('./handoff');
 const github = require('./github');
 const orderFlow = require('./orderFlow');
 
@@ -88,8 +88,35 @@ function closePayload(user) {
   };
   return {
     embeds: [embed],
+    components: [
+      {
+        type: 1,
+        components: [
+          { type: 2, style: 3, label: 'Yes, this helped', custom_id: 'rate:yes' },
+          { type: 2, style: 2, label: 'Still need help', custom_id: 'rate:no' },
+        ],
+      },
+    ],
     allowedMentions: user?.id ? { users: [String(user.id)] } : { parse: [] },
   };
+}
+
+async function handleRating(interaction) {
+  const helped = interaction.customId === 'rate:yes';
+  const threadId = String(interaction.channelId || interaction.channel?.id || '');
+  const where = threadId ? ` <#${threadId}>` : '';
+  try {
+    await sendToStaffChannel(interaction.client, {
+      content: helped
+        ? `Customer said the closed thread helped.${where}`
+        : `Customer still needs help after the thread was closed.${where}`,
+      allowedMentions: { parse: [] },
+    });
+  } catch (err) {
+    console.error('[Bot] rating note failed:', err.message);
+  }
+  const note = helped ? 'Glad it helped.' : 'Noted. A person can still see this thread.';
+  await interaction.reply({ content: note, flags: MessageFlags.Ephemeral });
 }
 
 function resolvedTagId(channel) {
@@ -279,6 +306,10 @@ async function handleInteraction(interaction) {
     }
     if (interaction.isChatInputCommand?.() && interaction.commandName === 'done') {
       await handleDone(interaction);
+      return;
+    }
+    if (interaction.isButton?.() && String(interaction.customId || '').startsWith('rate:')) {
+      await handleRating(interaction);
       return;
     }
     if (interaction.isButton?.() && String(interaction.customId || '').startsWith('file:')) {

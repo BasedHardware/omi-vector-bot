@@ -236,6 +236,13 @@ function classify(text) {
   return { ...classifyRoute(text), captureFailure: looksLikeCaptureFailure(text) };
 }
 
+function looksLikeOtherLanguage(text) {
+  const letters = String(text || '').match(/\p{L}/gu) || [];
+  if (letters.length < 12) return false;
+  const nonLatin = letters.filter((ch) => !/\p{Script=Latin}/u.test(ch)).length;
+  return nonLatin / letters.length >= 0.35;
+}
+
 function classifyRoute(text) {
   const s = String(text || '');
   const wantHuman = any(s, WANT_HUMAN);
@@ -252,6 +259,9 @@ function classifyRoute(text) {
   }
   if (any(s, STRONG_SHOP)) {
     return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
+  }
+  if (looksLikeOtherLanguage(s)) {
+    return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
   if (looksLikeProductQuestion(s)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
@@ -355,6 +365,17 @@ function looksLikeDocs(text) {
 }
 
 function whenModelDown(route, question) {
+  if (looksLikeOtherLanguage(question) && route?.lane === 'faq' && !route?.wantHuman) {
+    return {
+      agent: {
+        final_answer: '',
+        confidence: 0.2,
+        escalate: true,
+        reason: 'Question is not in English.',
+      },
+      reply: "I can't answer that language from chat right now. A person will take it.",
+    };
+  }
   const known = cannedReply(route, question);
   const canAnswer = route?.lane === 'faq' && !route?.wantHuman && known;
   return {
@@ -519,6 +540,7 @@ module.exports = {
   looksLikeDocs,
   looksLikeRecordingHow,
   looksLikeProductQuestion,
+  looksLikeOtherLanguage,
   cannedReply,
   whenModelDown,
   staffReason,

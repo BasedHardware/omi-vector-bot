@@ -365,3 +365,21 @@ test('an order number does not override a device bug; a real order question stil
   assert.equal(duties.area, 'shop');
   assert.equal(duties.lane, 'money');
 });
+
+test('a question that is not in a Latin script goes to the model, not an English bug report', () => {
+  const q = '我的设备无法充电，指示灯不亮，已经插了一整晚';
+  const route = router.classify(q);
+  assert.equal(route.lane, 'faq');
+  assert.equal(route.escalate, false);
+  assert.equal(router.isTechLane(route), false);
+  assert.equal(router.skipModel(route), false);
+  const down = router.whenModelDown(route, q);
+  assert.equal(down.agent.escalate, true);
+  assert.match(down.reply, /language/i);
+});
+
+test('a refund written in another language still reaches a person', () => {
+  const route = router.classify('请帮我 refund 这个订单，钱已经扣了两次');
+  assert.equal(route.lane, 'money');
+  assert.equal(route.escalate, true);
+});

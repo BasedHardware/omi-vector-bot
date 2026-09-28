@@ -719,3 +719,39 @@ test('a File click keeps the draft when Discord rejects the defer', async () => 
     github.resetGithubMemory();
   }
 });
+
+test('a rating button tells staff without pinging anyone', async () => {
+  const { handleInteraction } = require('../commands');
+  const prev = process.env.STAFF_ALERT_CHANNEL_ID;
+  process.env.STAFF_ALERT_CHANNEL_ID = '1554155306504814633';
+  const sent = [];
+  try {
+    await handleInteraction({
+      customId: 'rate:no',
+      isButton: () => true,
+      isChatInputCommand: () => false,
+      channelId: '700000000000000369',
+      client: {
+        channels: {
+          fetch: async () => ({
+            isTextBased: () => true,
+            send: async (payload) => {
+              sent.push(payload);
+              return payload;
+            },
+          }),
+        },
+      },
+      reply: async (payload) => {
+        sent.push(payload);
+      },
+    });
+    const staff = sent.find((item) => /still needs help/i.test(String(item.content || '')));
+    assert.ok(staff);
+    assert.deepEqual(staff.allowedMentions, { parse: [] });
+    assert.equal(JSON.stringify(staff).includes('@'), false);
+  } finally {
+    if (prev == null) delete process.env.STAFF_ALERT_CHANNEL_ID;
+    else process.env.STAFF_ALERT_CHANNEL_ID = prev;
+  }
+});
