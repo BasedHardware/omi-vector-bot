@@ -776,6 +776,8 @@ async function start() {
     try {
       await db.initSchema();
       await github.hydrateIssueThreads();
+      const { fillIfEmpty } = require('./scripts/fill-db');
+      fillIfEmpty().catch((err) => console.error('[DB] fill failed:', err.message));
     } catch (err) {
       console.error('[DB] schema failed:', err.message);
     }
