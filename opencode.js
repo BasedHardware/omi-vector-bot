@@ -68,60 +68,63 @@ async function queryAgent({
 
   const session = sessionId || process.env.OPENCODE_SESSION || crypto.randomUUID();
 
-  try {
-    const { data } = await axios.post(
-      OPENCODE_URL,
-      {
-        model: OPENCODE_MODEL,
-        temperature: 0.4,
-        messages: [
-          { role: 'system', content: buildSystemPrompt(route) },
-          {
-            role: 'user',
-            content: buildUserPrompt({
-              question,
-              threadHistory,
-              knowledgeSnippets,
-              route,
-              toolFacts,
-            }),
-          },
-        ],
-      },
-      {
-        timeout: TIMEOUT_MS,
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'omi-vector-bot/1.0',
-          'x-opencode-session': session,
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const { data } = await axios.post(
+        OPENCODE_URL,
+        {
+          model: OPENCODE_MODEL,
+          temperature: 0.4,
+          messages: [
+            { role: 'system', content: buildSystemPrompt(route) },
+            {
+              role: 'user',
+              content: buildUserPrompt({
+                question,
+                threadHistory,
+                knowledgeSnippets,
+                route,
+                toolFacts,
+              }),
+            },
+          ],
         },
-      }
-    );
+        {
+          timeout: TIMEOUT_MS,
+          headers: {
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'omi-vector-bot/1.0',
+            'x-opencode-session': session,
+          },
+        }
+      );
 
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error('OpenCode response empty');
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error('OpenCode response empty');
+      const parsed = parseAgentJson(content);
+      if (parsed.reason === 'model json failed' && attempt === 0) continue;
+      return parsed;
+    } catch (err) {
+      const apiErr = err.response?.data?.error;
+      const kind = apiErr?.type || '';
+      if (kind === 'CreditsError' || /insufficient balance/i.test(apiErr?.message || '')) {
+        throw new Error(
+          'OpenCode wallet is empty. Ask David to add credits on this test key, then retry npm run ask.'
+        );
+      }
+      if (kind === 'MissingSessionID') {
+        throw new Error(
+          'OpenCode Go needs x-opencode-session. This is a bot bug — retry after a fix.'
+        );
+      }
+      if (err.response?.status) {
+        throw new Error(`OpenCode HTTP ${err.response.status}: ${apiErr?.message || err.message}`);
+      }
+      if (attempt === 1) throw err;
     }
-    return parseAgentJson(content);
-  } catch (err) {
-    const apiErr = err.response?.data?.error;
-    const kind = apiErr?.type || '';
-    if (kind === 'CreditsError' || /insufficient balance/i.test(apiErr?.message || '')) {
-      throw new Error(
-        'OpenCode wallet is empty. Ask David to add credits on this test key, then retry npm run ask.'
-      );
-    }
-    if (kind === 'MissingSessionID') {
-      throw new Error(
-        'OpenCode Go needs x-opencode-session. This is a bot bug — retry after a fix.'
-      );
-    }
-    if (err.response?.status) {
-      throw new Error(`OpenCode HTTP ${err.response.status}: ${apiErr?.message || err.message}`);
-    }
-    throw err;
   }
+  throw new Error('OpenCode response empty');
 }
 
 module.exports = { queryAgent, parseAgentJson };

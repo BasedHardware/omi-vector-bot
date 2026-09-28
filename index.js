@@ -133,6 +133,7 @@ function shouldHandle(message) {
   if (message.author.bot) return false;
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   if (caption.length < 5 && !hasUsableAttachment(message) && !forumStarterPrefix(message)) return false;
+  if (/^(thanks|thank you|thx|ok|okay|got it|cool|lol|ty|hello|hi|hey)[.!\s]*$/i.test(caption)) return false;
   if (isHandoffThread(message.channel)) {
     if (isTestChannel(message.channel)) return true;
     const { users } = staffMentionIds();

@@ -670,7 +670,7 @@ function formatStaffTicket({
   embed.fields.push({
     name: 'Staff',
     value:
-      'Reply in this thread. The user can read it.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
+      'Reply here. If this card is in the customer thread, they can read it.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
     inline: false,
   });
 
