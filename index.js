@@ -224,30 +224,13 @@ async function handleFaqSave(message) {
   return true;
 }
 
-async function noteCustomerLead(channel, message) {
-  if (message?.author?.bot) return;
-  const files = chatFiles(message?.attachments);
-  const text = String(message?.content || '').replace(/<@!?\d+>/g, '').trim();
-  if (!github.isImportantLead(text, files)) return;
-  try {
-    const number = await github.findIssueForThread(channel.id);
-    if (!number) return;
-    await github.commentOnIssue(number, github.leadComment(text, files));
-  } catch (err) {
-    console.error('[GitHub] lead update failed:', err.message);
-  }
+async function noteCustomerLead() {
+  return;
 }
 
 async function postIssueCard(channel, draft, githubHit) {
   if (!channel?.send || !draft) return;
-  let url = githubHit?.duplicate?.url || '';
-  if (!url && github.isConfigured()) {
-    const created = await github.createIssue({ ...draft, threadId: channel.id });
-    if (created.ok) {
-      url = created.url;
-      github.linkIssueThread(created.number, channel.id);
-    }
-  }
+  const url = githubHit?.duplicate?.url || '';
   try {
     await channel.send({ embeds: [github.formatIssueCard(draft, { url })] });
   } catch (err) {
@@ -408,11 +391,7 @@ async function answerMessage(message) {
         reason: router.staffReason(route, asked || question),
       };
       cleanAnswer = clipForDiscord(router.cannedReply(route, asked || question) || '');
-      if (shopifyLookup) {
-        const extra = shopify.buildUserReply(shopifyLookup, asked || question);
-        if (extra) {
-          cleanAnswer = clipForDiscord([cleanAnswer, extra].filter(Boolean).join('\n\n'));
-        }
+      if (shopifyLookup?.reason) {
         aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
       }
     }
@@ -431,7 +410,10 @@ async function answerMessage(message) {
         ? shopify.buildUserReply(shopifyLookup, asked || question)
         : '';
       const docsText =
-        route.lane === 'faq' || router.looksLikeProductQuestion(asked || question)
+        route.lane === 'faq' ||
+        route.lane === 'tech' ||
+        route.lane === 'firmware' ||
+        router.looksLikeProductQuestion(asked || question)
           ? await relevantDocs(asked || question)
           : '';
       const toolFacts = buildToolFacts({

@@ -294,14 +294,12 @@ test('a refund request skips the model and opens a money Handoff', async () => {
   assert.ok(r.reply);
 });
 
-test('a firmware report opens a firmware Handoff and files one GitHub issue', async () => {
+test('a firmware report opens a firmware Handoff and does not file until staff approve', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('My Omi keeps turning itself off after 5 seconds.');
   assert.ok(r.thread);
   assert.match(r.thread.name, /firmware/);
-  assert.equal(posts().length, 1);
-  assert.match(posts()[0].body.body, /turning itself off/);
-  assert.deepEqual(posts()[0].body.labels.slice(0, 2), ['vector', 'firmware']);
+  assert.equal(posts().length, 0);
 });
 
 test('bot messages and empty captions are not handled', () => {
@@ -383,8 +381,7 @@ test('a desktop app bug opens a desktop Handoff and files a desktop issue', asyn
   assert.equal(r.modelCalled, true);
   assert.ok(r.thread);
   assert.match(r.thread.name, /^Handoff · desktop · tech · /);
-  assert.equal(filed.length, 1);
-  assert.deepEqual(filed[0].body.labels.slice(0, 2), ['vector', 'desktop']);
+  assert.equal(filed.length, 0);
 });
 
 test('a phone app crash opens an app Handoff and files an app issue', async () => {
@@ -394,8 +391,7 @@ test('a phone app crash opens an app Handoff and files an app issue', async () =
   assert.equal(r.modelCalled, true);
   assert.ok(r.thread);
   assert.match(r.thread.name, /^Handoff · app · tech · /);
-  assert.equal(filed.length, 1);
-  assert.deepEqual(filed[0].body.labels.slice(0, 2), ['vector', 'app']);
+  assert.equal(filed.length, 0);
 });
 
 test('two quick copies of one report from a customer open one Handoff and file one issue', async () => {
@@ -414,7 +410,7 @@ test('two quick copies of one report from a customer open one Handoff and file o
   });
   await Promise.all([handleMessage(first), handleMessage(second)]);
   assert.equal(first.threads.length + second.threads.length, 1);
-  assert.equal(posts().filter((c) => /\/issues$/.test(c.url)).length, 1);
+  assert.equal(posts().filter((c) => /\/issues$/.test(c.url)).length, 0);
 });
 
 test('a different report from the same customer after the dedupe window opens its own Handoff', async (t) => {
@@ -437,7 +433,7 @@ test('a different report from the same customer after the dedupe window opens it
   await handleMessage(second);
   assert.equal(second.threads.length, 1);
   assert.match(first.threads[0].name, /stopped working/);
-  assert.equal(posts().filter((c) => /\/issues$/.test(c.url)).length, 2);
+  assert.equal(posts().filter((c) => /\/issues$/.test(c.url)).length, 0);
 });
 
 test('two customers asking at once in one channel both get an answer', async () => {
@@ -539,16 +535,11 @@ test('an open issue found by the duplicate search is linked on the Handoff and n
   assert.deepEqual(github.threadsForIssue(777), [r.thread.id]);
 });
 
-test('a filed issue quotes the customer and carries the Handoff thread marker', async () => {
+test('a tech ticket does not file a public issue until staff press File', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('The iPhone app crashes every time I open a memory.');
   assert.ok(r.thread);
-  assert.equal(posts().length, 1);
-  assert.match(posts()[0].body.body, /crashes every time I open a memory/);
-  assert.ok(posts()[0].body.body.includes(`<!-- vector-thread:${r.thread.id} -->`));
-  assert.deepEqual(posts()[0].body.labels.slice(0, 2), ['vector', 'app']);
-  assert.match(textOf(r.thread.sent[1]), /issues\/901/);
-  assert.deepEqual(github.threadsForIssue(901), [r.thread.id]);
+  assert.equal(posts().length, 0);
 });
 
 test('without a GitHub token a tech ticket gets no issue search, no filing, and no File button', async () => {
@@ -581,8 +572,7 @@ test('when the model is down a phone app crash still opens a Handoff and files o
   assert.equal(r.modelCalled, true);
   assert.ok(r.thread);
   assert.match(r.thread.name, /^Handoff · app · /);
-  assert.equal(filed.length, 1);
-  assert.deepEqual(filed[0].body.labels.slice(0, 2), ['vector', 'app']);
+  assert.equal(filed.length, 0);
   assert.equal(/model unavailable|opencode|deepseek/i.test(r.reply), false);
 });
 
@@ -870,7 +860,7 @@ test('a help-forum post tagged Known issue gets the known-issue reply instead of
   assert.doesNotMatch(r.reply, /every memory/);
 });
 
-test('a later customer lead is added to the filed issue', async () => {
+test('a later customer message is not copied onto the public GitHub issue', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const post = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'not charging' });
   github.linkIssueThread(18537, post.id);
@@ -884,9 +874,7 @@ test('a later customer lead is added to the filed issue', async () => {
   ]);
   await handleMessage(follow);
   const comment = githubCalls.slice(before).find((call) => call.method === 'POST' && /\/comments$/.test(call.url));
-  assert.ok(comment);
-  assert.match(comment.body.body, /light never comes on/);
-  assert.match(comment.body.body, /photo\.jpg/);
+  assert.equal(comment, undefined);
   process.env.GITHUB_TOKEN = '';
   github.resetGithubMemory();
 });

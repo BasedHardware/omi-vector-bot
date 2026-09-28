@@ -403,7 +403,7 @@ test('GitHub webhook notify posts one line and never archives', async () => {
   github.resetGithubMemory();
 });
 
-test('GitHub webhook notify uses vector-thread ids after a restart', async () => {
+test('a forged vector-thread marker does not notify; a thread the bot linked does', async () => {
   const { notifyLinkedThreads } = require('../commands');
   const github = require('../github');
   github.resetGithubMemory();
@@ -423,15 +423,23 @@ test('GitHub webhook notify uses vector-thread ids after a restart', async () =>
       }),
     },
   };
-  const n = await notifyLinkedThreads(client, {
+  const forged = await notifyLinkedThreads(client, {
     number: 9,
     numbers: [9],
     threadIds: ['1550182642874589194'],
     line: 'A note was added on #9.',
   });
-  assert.equal(n, 1);
+  assert.equal(forged, 0);
+  github.linkIssueThread(9, '1550182642874589194');
+  const linked = await notifyLinkedThreads(client, {
+    number: 9,
+    numbers: [9],
+    threadIds: ['999'],
+    line: 'A note was added on #9.',
+  });
+  assert.equal(linked, 1);
   assert.equal(sent[0].id, '1550182642874589194');
-  assert.equal(sent[0].text, 'A note was added on #9.');
+  github.resetGithubMemory();
 });
 
 test('a File click that GitHub rejects can be pressed again', async () => {

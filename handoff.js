@@ -908,7 +908,7 @@ function isHandoffThread(channel) {
 
 function canSaveFaq(userId, allowList) {
   const users = allowList !== undefined ? allowList : staffMentionIds().users;
-  if (!users.length) return true;
+  if (!users.length) return false;
   return users.includes(String(userId || ''));
 }
 

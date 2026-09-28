@@ -301,7 +301,7 @@ async function handleInteraction(interaction) {
 
 async function notifyLinkedThreads(client, event) {
   const nums = event?.numbers || (event?.number ? [event.number] : []);
-  const ids = new Set((event?.threadIds || []).map(String).filter(Boolean));
+  const ids = new Set();
   for (const num of nums) {
     for (const id of github.threadsForIssue(num)) ids.add(id);
   }

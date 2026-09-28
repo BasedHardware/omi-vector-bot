@@ -57,7 +57,7 @@ test('addSnippet stores searchable facts and rejects empty or staff-lie lines', 
 });
 
 test('only named staff can save when an allow list is set', () => {
-  assert.equal(canSaveFaq('111', []), true);
+  assert.equal(canSaveFaq('111', []), false);
   assert.equal(canSaveFaq('123456789012345678', ['123456789012345678', '999']), true);
   assert.equal(canSaveFaq('111', ['123456789012345678']), false);
 });

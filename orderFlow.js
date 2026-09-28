@@ -72,8 +72,16 @@ function codeModal() {
   return modal;
 }
 
-function orderLines(order) {
-  return shopify.formatUserReply(order);
+async function hold(interaction) {
+  if (interaction.deferred || interaction.replied) return;
+  if (typeof interaction.deferReply !== 'function') return;
+  await interaction.deferReply(ephemeral);
+}
+
+async function say(interaction, payload) {
+  const body = typeof payload === 'string' ? { content: payload } : payload;
+  if (interaction.deferred || interaction.replied) return interaction.editReply(body);
+  return interaction.reply({ ...body, ...ephemeral });
 }
 
 async function verifiedOrders(email) {
@@ -82,15 +90,17 @@ async function verifiedOrders(email) {
   return found.orders;
 }
 
+function orderLines(order) {
+  return shopify.formatUserReply(order);
+}
+
 async function replyBoundOrder(interaction, requested) {
+  await hold(interaction);
   const binding = await shopifyBind.get(interaction.user.id);
   if (!binding) return false;
   const orders = await verifiedOrders(binding.email);
   if (!orders.length) {
-    await interaction.reply({
-      content: 'No recent orders were found for your verified email.',
-      ...ephemeral,
-    });
+    await say(interaction, 'No recent orders were found for your verified email.');
     return true;
   }
   const want = String(requested || '')
@@ -100,13 +110,10 @@ async function replyBoundOrder(interaction, requested) {
     ? orders.find((item) => String(item.name || '').replace(/^#/, '') === want)
     : orders[0];
   if (!order) {
-    await interaction.reply({
-      content: `I could not find order #${want} among your recent orders.`,
-      ...ephemeral,
-    });
+    await say(interaction, `I could not find order #${want} among your recent orders.`);
     return true;
   }
-  await interaction.reply({ content: orderLines(order), ...ephemeral });
+  await say(interaction, orderLines(order));
   return true;
 }
 
@@ -135,19 +142,17 @@ async function handleOrderInteraction(interaction) {
         await replyBoundOrder(interaction, interaction.options?.getString?.('number'));
         return true;
       }
+      await hold(interaction);
       const orders = await verifiedOrders(binding.email);
       if (!orders.length) {
-        await interaction.reply({
-          content: 'No recent orders were found for your verified email.',
-          ...ephemeral,
-        });
+        await say(interaction, 'No recent orders were found for your verified email.');
         return true;
       }
       const body = orders
         .slice(0, 5)
         .map((order) => orderLines(order))
         .join('\n\n');
-      await interaction.reply({ content: body, ...ephemeral });
+      await say(interaction, body);
       return true;
     }
 
@@ -163,9 +168,10 @@ async function handleOrderInteraction(interaction) {
       }
       const reservedAt = verification.reserveAttempt(interaction.user.id, email);
       if (!reservedAt) {
-        await interaction.reply({ content: 'Too many verification requests. Try again later.', ...ephemeral });
+        await say(interaction, 'Too many verification requests. Try again later.');
         return true;
       }
+      await hold(interaction);
       let exists;
       try {
         exists = await shopify.hasRecentOrderForEmail(email);
@@ -177,10 +183,7 @@ async function handleOrderInteraction(interaction) {
         const code = verification.create(interaction.user.id, email);
         const sent = await shopifyEmail.sendVerificationCode(email, code);
         if (!sent.ok) {
-          await interaction.reply({
-            content: 'Could not send a verification email. Email help@omi.me with your Order ID.',
-            ...ephemeral,
-          });
+          await say(interaction, 'Could not send a verification email. Email help@omi.me with your Order ID.');
           return true;
         }
       }
@@ -188,11 +191,10 @@ async function handleOrderInteraction(interaction) {
         .setCustomId('enter_verification_code')
         .setLabel('Enter verification code')
         .setStyle(ButtonStyle.Primary);
-      await interaction.reply({
+      await say(interaction, {
         content:
           'If that email matches a recent order, a verification code was sent. The code expires in 10 minutes.',
         components: [new ActionRowBuilder().addComponents(button)],
-        ...ephemeral,
       });
       return true;
     }
@@ -209,28 +211,20 @@ async function handleOrderInteraction(interaction) {
         return true;
       }
       await shopifyBind.set(interaction.user.id, result.email);
+      await hold(interaction);
       let orders;
       try {
         orders = await verifiedOrders(result.email);
       } catch (err) {
         console.error('[Bot] order command failed:', err.message);
-        await interaction.reply({
-          content: 'Verified. Order lookup failed. Try /order again in a moment.',
-          ...ephemeral,
-        });
+        await say(interaction, 'Verified. Order lookup failed. Try /order again in a moment.');
         return true;
       }
       if (!orders.length) {
-        await interaction.reply({
-          content: 'Verified. No recent orders are currently accessible.',
-          ...ephemeral,
-        });
+        await say(interaction, 'Verified. No recent orders are currently accessible.');
         return true;
       }
-      await interaction.reply({
-        content: `${orderLines(orders[0])}\n\nYour Discord account is linked. Use /order next time.`,
-        ...ephemeral,
-      });
+      await say(interaction, `${orderLines(orders[0])}\n\nYour Discord account is linked. Use /order next time.`);
       return true;
     }
   } catch (err) {
