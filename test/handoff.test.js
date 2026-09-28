@@ -49,7 +49,7 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
     true
   );
   const staff = ticket.discord.embeds[0].fields.find((f) => f.name === 'Staff');
-  assert.match(staff.value, /Reply in this thread/i);
+  assert.match(staff.value, /Reply here/i);
   assert.match(staff.value, /faq:/i);
   assert.match(staff.value, /\/done/);
   assert.equal(
@@ -339,6 +339,16 @@ test('notifyStaff posts a channel card and does not double-ping', async () => {
   assert.equal(second.duplicate, true);
   assert.equal(sent.length, 1);
 
+  const other = await notifyStaff({
+    client: null,
+    message: { ...message, author: { id: '100', username: 'other' } },
+    question: 'My order has not shipped',
+    reason: 'shipping',
+    draft: 'A different customer.',
+  });
+  assert.equal(other.duplicate, undefined);
+  assert.equal(sent.length, 2);
+
   const third = await notifyStaff({
     client: null,
     message,
@@ -349,7 +359,7 @@ test('notifyStaff posts a channel card and does not double-ping', async () => {
   });
   assert.equal(third.ok, true);
   assert.equal(Boolean(third.duplicate), false);
-  assert.equal(sent.length, 2);
+  assert.equal(sent.length, 3);
 
   if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
   else delete process.env.HANDOFF_THREADS;

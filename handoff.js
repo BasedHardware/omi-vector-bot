@@ -75,13 +75,17 @@ function canNotifyStaff({ discordReady = false } = {}) {
   return telegram.isReady();
 }
 
-function recentlyHandedOff(channelId) {
-  const prev = lastHandoff.get(String(channelId || ''));
+function handoffKey(channelId, userId) {
+  return `${String(channelId || '')}:${String(userId || '')}`;
+}
+
+function recentlyHandedOff(channelId, userId) {
+  const prev = lastHandoff.get(handoffKey(channelId, userId));
   return Boolean(prev && prev.ok && Date.now() - prev.at < DEDUPE_MS);
 }
 
-function markHandedOff(channelId, ok) {
-  lastHandoff.set(String(channelId || ''), { ok: Boolean(ok), at: Date.now() });
+function markHandedOff(channelId, userId, ok) {
+  lastHandoff.set(handoffKey(channelId, userId), { ok: Boolean(ok), at: Date.now() });
 }
 
 function resetHandoffMemory() {
@@ -670,7 +674,7 @@ function formatStaffTicket({
   embed.fields.push({
     name: 'Staff',
     value:
-      'Reply here. If this card is in the customer thread, they can read it.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
+      'Reply here. If this card is in the customer thread, they can read it.\nIf they did not name the device and the app version, ask for both.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
     inline: false,
   });
 
@@ -795,7 +799,8 @@ async function notifyStaff({
   labels,
 }) {
   const channelId = message?.channel?.id;
-  if (!skipDedupe && recentlyHandedOff(channelId)) {
+  const userId = message?.author?.id;
+  if (!skipDedupe && recentlyHandedOff(channelId, userId)) {
     return { ok: true, via: 'recent', duplicate: true };
   }
 
@@ -822,7 +827,7 @@ async function notifyStaff({
 
   try {
     if (await sendToStaffChannel(client, ticket.discord)) {
-      markHandedOff(channelId, true);
+      markHandedOff(channelId, userId, true);
       await telegram.sendEscalation(ticket.plain);
       return { ok: true, via: 'staff-channel' };
     }
@@ -840,7 +845,7 @@ async function notifyStaff({
         labels,
       });
       if (thread) {
-        markHandedOff(channelId, true);
+        markHandedOff(channelId, userId, true);
         await telegram.sendEscalation(ticket.plain);
         return { ok: true, via: 'thread', threadId: thread.id, thread };
       }
@@ -855,7 +860,7 @@ async function notifyStaff({
         ? publicHelpForumDiscord(ticket.discord)
         : ticket.discord;
       await message.channel.send(payload);
-      markHandedOff(channelId, true);
+      markHandedOff(channelId, userId, true);
       await telegram.sendEscalation(ticket.plain);
       return { ok: true, via: 'channel' };
     }
@@ -865,14 +870,14 @@ async function notifyStaff({
 
   try {
     if (await telegram.sendEscalation(ticket.plain)) {
-      markHandedOff(channelId, true);
+      markHandedOff(channelId, userId, true);
       return { ok: true, via: 'telegram' };
     }
   } catch (err) {
     errors.push(`telegram: ${err.message}`);
   }
 
-  markHandedOff(channelId, false);
+  markHandedOff(channelId, userId, false);
   return { ok: false, via: null, error: errors.join('; ') || 'no staff path' };
 }
 
