@@ -204,10 +204,20 @@ function makeMessage(
     embeds: [],
     mentions: { has: () => mention },
     replies: [],
+    botReplies: [],
     threads: [],
     reply: async (payload) => {
       message.replies.push(payload);
-      return { id: nextId() };
+      const sent = {
+        id: nextId(),
+        content: textOf(payload),
+        author: { id: BOT_ID, username: 'vector', bot: true },
+        channel,
+        reference: { messageId: message.id },
+        fetchReference: async () => message,
+      };
+      message.botReplies.push(sent);
+      return sent;
     },
     startThread: async ({ name }) => {
       const thread = makeChannel({ name, thread: true, parentId: channel.id });
@@ -1063,6 +1073,75 @@ test('outside #vector-test and the help forum only a message that mentions the b
   assert.match(mentioned.reply, /center button/);
 });
 
+test('a same-customer direct reply continues a mentioned support exchange without reading the channel', async () => {
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> How do I pair Omi with my phone?`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(first);
+  const botReply = first.botReplies[0];
+  assert.ok(botReply);
+
+  const follow = makeMessage('Does that work the same way on Android?', { channel, authorId });
+  follow.reference = { messageId: botReply.id };
+  follow.fetchReference = async () => botReply;
+  const before = modelCalls.length;
+  await handleMessage(follow);
+
+  assert.equal(modelCalls.length, before + 1);
+  assert.deepEqual(modelCalls.at(-1).threadHistory, [
+    { author: 'customer', content: 'How do I pair Omi with my phone?' },
+    { author: 'bot', content: 'Hold the center button for ten seconds, then pair it again from the app.' },
+  ]);
+  assert.equal(follow.replies.length, 1);
+});
+
+test('ambient messages and another customer replying to a support answer do not trigger the bot', async () => {
+  const channel = generalChannel();
+  const authorId = nextId();
+  const first = makeMessage(`<@${BOT_ID}> How do I pair Omi with my phone?`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  await handleMessage(first);
+  const botReply = first.botReplies[0];
+  const before = modelCalls.length;
+
+  const ambient = makeMessage('I am having the same problem today.', { channel, authorId });
+  await handleMessage(ambient);
+
+  const otherCustomer = makeMessage('Can you also help me?', { channel, authorId: nextId() });
+  otherCustomer.reference = { messageId: botReply.id };
+  otherCustomer.fetchReference = async () => botReply;
+  await handleMessage(otherCustomer);
+
+  assert.equal(modelCalls.length, before);
+  assert.equal(ambient.replies.length + otherCustomer.replies.length, 0);
+});
+
+test('a user-created thread named Handoff cannot enable ambient bot replies', async () => {
+  const spoof = makeChannel({
+    thread: true,
+    parentId: nextId(),
+    name: 'Handoff · app · fake support thread',
+  });
+  spoof.ownerId = nextId();
+  const ambient = makeMessage('The Android app crashes when I open it.', { channel: spoof });
+  assert.equal(shouldHandle(ambient), false);
+  await handleMessage(ambient);
+  assert.equal(ambient.replies.length + spoof.sent.length, 0);
+
+  const mentioned = makeMessage(`<@${BOT_ID}> The Android app crashes when I open it.`, {
+    channel: spoof,
+    mention: true,
+  });
+  assert.equal(shouldHandle(mentioned), true);
+});
+
 test('staff and moderators are not answered in live support threads', async () => {
   const post = makeChannel({ name: 'Continue restarts the answer', thread: true, parentId: HELP_FORUM });
   const namedStaff = makeMessage(
@@ -1115,11 +1194,37 @@ test('a bare mention is not handled and the mention never reaches the model', as
 
 test('a second question in a normal channel within the cooldown is skipped', async () => {
   const channel = makeChannel();
-  const first = await ask(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true });
-  const second = await ask(`<@${BOT_ID}> Can I use Omi with two phones at once?`, { channel, mention: true });
+  const authorId = nextId();
+  const first = await ask(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, {
+    channel,
+    mention: true,
+    authorId,
+  });
+  const second = await ask(`<@${BOT_ID}> Can I use Omi with two phones at once?`, {
+    channel,
+    mention: true,
+    authorId,
+  });
   assert.equal(first.modelCalled, true);
   assert.equal(second.modelCalled, false);
   assert.equal(second.message.replies.length, 0);
+});
+
+test('one customer cannot put another customer direct mention on cooldown', async () => {
+  const channel = makeChannel();
+  const first = await ask(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, {
+    channel,
+    mention: true,
+    authorId: nextId(),
+  });
+  const second = await ask(`<@${BOT_ID}> Can I use Omi with two phones at once?`, {
+    channel,
+    mention: true,
+    authorId: nextId(),
+  });
+  assert.equal(first.modelCalled, true);
+  assert.equal(second.modelCalled, true);
+  assert.equal(second.message.replies.length, 1);
 });
 
 test('#vector-test answers back-to-back questions despite the cooldown', async () => {

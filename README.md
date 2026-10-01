@@ -57,6 +57,7 @@ Without `--force`, each source is refreshed only when its freshness window has e
 - New posts in the configured help forum are answered; historical posts are not replayed.
 - Other bots, greetings, acknowledgements, and thanks are ignored.
 - Follow-ups inside the same thread keep their thread context.
+- Outside support threads, Omi Support answers only an explicit bot-user mention or a same-customer direct reply to that answer. It never reads surrounding channel conversation for context.
 - Sensitive order, email, address, phone, and privacy content is not repeated publicly.
 - `/done` closes a support thread and asks the original customer whether the answer helped.
 - `/order`, `/orders`, and `/unlink` are public customer commands. Responses are ephemeral, and order access requires a code sent to the email on the Shopify order; Discord staff status is never used as authorization.

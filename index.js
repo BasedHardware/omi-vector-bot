@@ -60,6 +60,9 @@ const PORT = process.env.PORT || 3000;
 const KNOWLEDGE_REFRESH_MS = 6 * 60 * 60 * 1000;
 const telegramReady = Boolean(process.env.TELEGRAM_TOKEN && process.env.TELEGRAM_CHAT_ID);
 const dbReady = Boolean(process.env.DATABASE_URL);
+const BOT_REPLY_MEMORY_MAX = 2000;
+const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
+const botReplyOwners = new Map();
 
 const client = new Client({
   intents: [
@@ -113,6 +116,19 @@ app.post('/github-webhook', express.raw({ type: 'application/json' }), async (re
   res.send('ok');
 });
 
+function rememberBotReply(sent, message) {
+  const replyId = String(sent?.id || '');
+  const customerId = String(message?.author?.id || '');
+  const channelId = String(message?.channel?.id || '');
+  if (!replyId || !customerId || !channelId) return;
+  const now = Date.now();
+  botReplyOwners.set(replyId, { customerId, channelId, at: now });
+  for (const [id, item] of botReplyOwners) {
+    if (botReplyOwners.size <= BOT_REPLY_MEMORY_MAX && now - item.at <= BOT_REPLY_MEMORY_MS) break;
+    botReplyOwners.delete(id);
+  }
+}
+
 async function replySafe(message, content, { pingAuthor = false } = {}) {
   let text = rewriteUserMentions(content, message);
   if (pingAuthor) text = attachAuthorMention(text, message);
@@ -121,16 +137,20 @@ async function replySafe(message, content, { pingAuthor = false } = {}) {
     allowedMentions: replyMentions(message, { pingAuthor, repliedUser: false }),
   };
   try {
-    await message.reply({
+    const sent = await message.reply({
       ...payload,
       allowedMentions: replyMentions(message, { pingAuthor, repliedUser: true }),
     });
+    rememberBotReply(sent, message);
+    return sent;
   } catch (err) {
     if (!isUnknownMessageRef(err) || typeof message.channel?.send !== 'function') {
       throw err;
     }
     console.error('[Bot] reply reference missing, sending in channel:', err.message);
-    await message.channel.send(payload);
+    const sent = await message.channel.send(payload);
+    rememberBotReply(sent, message);
+    return sent;
   }
 }
 
@@ -142,6 +162,13 @@ function isTestChannel(channel) {
   if (!VECTOR_TEST_CHANNEL_ID) return false;
   if (channel.id === VECTOR_TEST_CHANNEL_ID) return true;
   return channel.isThread() && channel.parentId === VECTOR_TEST_CHANNEL_ID;
+}
+
+function isTrustedHandoffThread(channel) {
+  if (!isHandoffThread(channel)) return false;
+  if (isTestChannel(channel)) return true;
+  const ownerId = String(channel?.ownerId || channel?.owner_id || '');
+  return Boolean(ownerId && ownerId === String(client.user?.id || ''));
 }
 
 function memberHasRole(member, roleIds) {
@@ -182,20 +209,29 @@ function messageCaption(content) {
     .trim();
 }
 
+function directlyMentionsBot(content) {
+  const id = String(client.user?.id || '');
+  if (!/^\d+$/.test(id)) return false;
+  return String(content || '').includes(`<@${id}>`) || String(content || '').includes(`<@!${id}>`);
+}
+
+function isActionableMessage(message) {
+  const caption = messageCaption(message.content);
+  if (/^\/[a-z][\w-]*(?:\s|$)/i.test(caption)) return false;
+  if (caption.length < 5 && !hasUsableAttachment(message) && !forumStarterPrefix(message)) return false;
+  if (/^(thanks|thank you|thx|ok|okay|got it|cool|lol|ty|hello|hi|hey)[.!\s]*$/i.test(caption)) return false;
+  return true;
+}
+
 function shouldHandle(message) {
   if (message.author.bot) return false;
   // Staff replies in live support threads are interventions, not new customer
   // questions. Keep #vector-test available for staff to exercise the bot.
-  if ((isHandoffThread(message.channel) || isHelpThread(message.channel)) && isStaffMessage(message)) {
+  if ((isTrustedHandoffThread(message.channel) || isHelpThread(message.channel)) && isStaffMessage(message)) {
     return false;
   }
-  const caption = messageCaption(message.content);
-  // Slash commands are handled by InteractionCreate. A typed command is not
-  // a support question, and answering it creates a reply loop around /order.
-  if (/^\/[a-z][\w-]*(?:\s|$)/i.test(caption)) return false;
-  if (caption.length < 5 && !hasUsableAttachment(message) && !forumStarterPrefix(message)) return false;
-  if (/^(thanks|thank you|thx|ok|okay|got it|cool|lol|ty|hello|hi|hey)[.!\s]*$/i.test(caption)) return false;
-  if (isHandoffThread(message.channel)) {
+  if (!isActionableMessage(message)) return false;
+  if (isTrustedHandoffThread(message.channel)) {
     if (isTestChannel(message.channel)) return true;
     const { users } = staffMentionIds();
     if (users.length && canSaveFaq(message.author.id)) return false;
@@ -203,8 +239,67 @@ function shouldHandle(message) {
   }
   if (isTestChannel(message.channel)) return true;
   if (isHelpThread(message.channel)) return true;
-  if (client.user && message.mentions.has(client.user, { ignoreEveryone: true })) return true;
+  if (directlyMentionsBot(message.content)) return true;
   return false;
+}
+
+async function fetchReferencedMessage(message) {
+  if (!message?.reference?.messageId && typeof message?.fetchReference !== 'function') return null;
+  try {
+    if (typeof message.fetchReference === 'function') return await message.fetchReference();
+  } catch {
+    return null;
+  }
+  const id = String(message.reference?.messageId || '');
+  if (!id) return null;
+  const cached = message.channel?.messages?.cache?.get?.(id);
+  if (cached) return cached;
+  try {
+    return await message.channel?.messages?.fetch?.(id);
+  } catch {
+    return null;
+  }
+}
+
+async function directContinuationHistory(message) {
+  if (!isActionableMessage(message) || directlyMentionsBot(message.content)) return [];
+  if (
+    isHelpThread(message.channel) ||
+    isTrustedHandoffThread(message.channel) ||
+    isTestChannel(message.channel)
+  ) {
+    return [];
+  }
+  const referenced = await fetchReferencedMessage(message);
+  if (String(referenced?.author?.id || '') !== String(client.user?.id || '')) return [];
+
+  const replyId = String(referenced.id || message.reference?.messageId || '');
+  const remembered = botReplyOwners.get(replyId);
+  let original = null;
+  if (remembered) {
+    if (
+      remembered.customerId !== String(message.author?.id || '') ||
+      remembered.channelId !== String(message.channel?.id || '') ||
+      Date.now() - remembered.at > BOT_REPLY_MEMORY_MS
+    ) {
+      return [];
+    }
+  } else {
+    original = await fetchReferencedMessage(referenced);
+    if (String(original?.author?.id || '') !== String(message.author?.id || '')) return [];
+  }
+  if (!original) {
+    original = await fetchReferencedMessage(referenced);
+  }
+
+  const entries = [];
+  const originalText = messageCaption(original?.content || '');
+  if (originalText) {
+    entries.push({ author: original?.author?.username || 'customer', content: originalText });
+  }
+  const botText = String(referenced.content || '').trim();
+  if (botText) entries.push({ author: 'bot', content: botText });
+  return clipThreadHistory(entries);
 }
 
 async function hasEarlierMessages(channel, messageId) {
@@ -221,7 +316,7 @@ async function getHistory(channel, excludeId) {
   // Parent #vector-test is a pile of unrelated tickets. Only follow-ups
   // inside an existing Handoff or help post may see prior messages.
   const samePost = channel.isThread?.() && (isHelpThread(channel) || isTestChannel(channel));
-  if (!isHandoffThread(channel) && !samePost) return [];
+  if (!isTrustedHandoffThread(channel) && !samePost) return [];
   const messages = await channel.messages.fetch({ limit: 12 });
   const entries = [...messages.values()]
     .reverse()
@@ -244,7 +339,7 @@ async function searchKnowledge(question) {
 
 async function handleFaqSave(message) {
   if (message.author?.bot) return false;
-  if (!isHandoffThread(message.channel)) return false;
+  if (!isTrustedHandoffThread(message.channel)) return false;
 
   const commanded = knowledge.parseFaqCommand(message.content);
   const snippet = commanded || (canSaveFaq(message.author.id) ? knowledge.learnFromStaff(message.content) : null);
@@ -339,15 +434,26 @@ function redactStaffQuestion(text) {
 }
 
 async function handleMessage(message) {
-  if (!shouldHandle(message)) return;
+  let directHistory = [];
+  if (!shouldHandle(message)) {
+    directHistory = await directContinuationHistory(message);
+    if (!directHistory.length) return;
+  }
   if (!claimMessage(message.id)) {
     console.log(`[Bot] already handling ${message.id}`);
     return;
   }
 
   const channel = message.channel;
-  // Test channel: do not silently drop a second question. Help-forum cooldown stays.
-  if (isOnCooldown(channel.id) && !isTestChannel(channel) && !channel.isThread?.()) {
+  const replyCooldownKey = `${channel.id}:${message.author.id}`;
+  // In ordinary channels, rate-limit each customer independently. A direct
+  // reply continuation may proceed immediately; it is already opt-in scoped.
+  if (
+    !directHistory.length &&
+    isOnCooldown(replyCooldownKey) &&
+    !isTestChannel(channel) &&
+    !channel.isThread?.()
+  ) {
     console.log(`[Bot] Cooldown active for ${channel.id}, skipping`);
     return;
   }
@@ -357,13 +463,13 @@ async function handleMessage(message) {
     return;
   }
   try {
-    await answerMessage(message);
+    await answerMessage(message, { directHistory });
   } finally {
     releaseAsker(asker);
   }
 }
 
-async function answerMessage(message) {
+async function answerMessage(message, { directHistory = [] } = {}) {
   const channel = message.channel;
   const caption = messageCaption(message.content);
   const files = await fetchTextAttachments(message.attachments);
@@ -403,9 +509,13 @@ async function answerMessage(message) {
   try {
     await channel.sendTyping();
 
-    const routeSource = [channel.isThread?.() ? channel.name : '', question].filter(Boolean).join('\n');
-    let prior = '';
-    if (channel.isThread?.() && (isHelpThread(channel) || isHandoffThread(channel))) {
+    const useThreadMetadata =
+      isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel);
+    const routeSource = [useThreadMetadata && channel.isThread?.() ? channel.name : '', question]
+      .filter(Boolean)
+      .join('\n');
+    let prior = directHistory.map((entry) => entry.content).join('\n');
+    if (channel.isThread?.() && (isHelpThread(channel) || isTrustedHandoffThread(channel))) {
       try {
         const history = await getHistory(channel, message.id);
         prior = history.map((entry) => entry.content).join('\n');
@@ -481,7 +591,7 @@ async function answerMessage(message) {
 
     if (!skipModel) {
       const [history, knowledgeSnippets] = await Promise.all([
-        getHistory(channel, message.id),
+        directHistory.length ? Promise.resolve(directHistory) : getHistory(channel, message.id),
         searchKnowledge(asked || question),
       ]);
       threadHistory = history;
@@ -664,7 +774,7 @@ async function answerMessage(message) {
       topic: holdPublicCopy ? redactStaffQuestion(triaged.topic) : triaged.topic,
       labels: triaged.labels,
     };
-    const inHandoff = isHandoffThread(channel);
+    const inHandoff = isTrustedHandoffThread(channel);
     const continuingPost = await hasEarlierMessages(channel, message.id);
     const stayInPost = inHandoff || continuingPost;
     const handoffFollowup = continuingPost && supportFollowup;
@@ -809,7 +919,7 @@ async function answerMessage(message) {
     }
 
     if (stayInPost) await noteCustomerLead(channel, message);
-    markReplied(channel.id);
+    markReplied(`${channel.id}:${message.author.id}`);
     if (dbReady) {
       await db.upsertThread(channel.id, message.id);
     }
@@ -828,7 +938,7 @@ async function answerMessage(message) {
 
 client.on(Events.ThreadCreate, async (thread) => {
   if (client.user && thread.ownerId === client.user.id) return;
-  if (isHandoffThread(thread)) return;
+  if (isTrustedHandoffThread(thread)) return;
   if (!isHelpThread(thread) && !isTestChannel(thread)) return;
   try {
     const starter = await thread.fetchStarterMessage();
