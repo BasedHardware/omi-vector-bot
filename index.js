@@ -222,6 +222,13 @@ function isActionableMessage(message) {
   if (/^\/[a-z][\w-]*(?:\s|$)/i.test(caption)) return false;
   if (caption.length < 5 && !hasUsableAttachment(message) && !forumStarterPrefix(message)) return false;
   if (/^(thanks|thank you|thx|ok|okay|got it|cool|lol|ty|hello|hi|hey)[.!\s]*$/i.test(caption)) return false;
+  if (
+    /^(?:(?:sweet|great|awesome|perfect|nice|cool|okay|ok|got it)[,!.\s]+)*(?:thanks(?:\s+(?:a lot|so much))?|thank you(?:\s+so much)?|thx|ty)[.!\s]*$/i.test(
+      caption
+    )
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -261,6 +268,15 @@ async function fetchReferencedMessage(message) {
   } catch {
     return null;
   }
+}
+
+async function repliesToDifferentHuman(message) {
+  if (!message?.reference?.messageId && typeof message?.fetchReference !== 'function') return false;
+  const referenced = await fetchReferencedMessage(message);
+  if (!referenced || referenced.author?.bot) return false;
+  const targetId = String(referenced.author?.id || '');
+  const authorId = String(message.author?.id || '');
+  return Boolean(targetId && authorId && targetId !== authorId);
 }
 
 async function directContinuationHistory(message) {
@@ -436,6 +452,13 @@ function redactStaffQuestion(text) {
 }
 
 async function handleMessage(message) {
+  if (
+    !directlyMentionsBot(message.content) &&
+    (isHelpThread(message.channel) || isTrustedHandoffThread(message.channel)) &&
+    (await repliesToDifferentHuman(message))
+  ) {
+    return;
+  }
   let directHistory = [];
   if (!shouldHandle(message)) {
     directHistory = await directContinuationHistory(message);

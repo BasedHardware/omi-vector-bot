@@ -1293,6 +1293,59 @@ test('staff and moderators are not answered in live support threads', async () =
   assert.equal(shouldHandle(staffTest), true);
 });
 
+test('a customer reply aimed at staff stays between the customer and staff', async () => {
+  const post = makeChannel({ name: 'Keeps stopping and starting audio', thread: true, parentId: HELP_FORUM });
+  const staff = {
+    id: nextId(),
+    content: 'The fix is included in version 0.12.413 and newer.',
+    author: { id: nextId(), username: 'staff', bot: false },
+    channel: post,
+  };
+  const customer = makeMessage('It is still happening for me on the latest stable build.', {
+    channel: post,
+  });
+  customer.reference = { messageId: staff.id };
+  customer.fetchReference = async () => staff;
+  const before = modelCalls.length;
+
+  await handleMessage(customer);
+
+  assert.equal(modelCalls.length, before);
+  assert.equal(customer.replies.length + post.sent.length, 0);
+});
+
+test('an explicit bot mention can opt back in while replying to staff', async () => {
+  const post = makeChannel({ name: 'Keeps stopping and starting audio', thread: true, parentId: HELP_FORUM });
+  const staff = {
+    id: nextId(),
+    content: 'The fix is included in version 0.12.413 and newer.',
+    author: { id: nextId(), username: 'staff', bot: false },
+    channel: post,
+  };
+  const customer = makeMessage(`<@${BOT_ID}> Is that newer than version 0.12.402?`, {
+    channel: post,
+    mention: true,
+  });
+  customer.reference = { messageId: staff.id };
+  customer.fetchReference = async () => staff;
+  const before = modelCalls.length;
+
+  await handleMessage(customer);
+
+  assert.equal(modelCalls.length, before + 1);
+  assert.equal(customer.replies.length, 1);
+});
+
+test('short gratitude such as Sweet thanks does not trigger support', async () => {
+  const post = makeChannel({ name: 'Keeps stopping and starting audio', thread: true, parentId: HELP_FORUM });
+  const customer = makeMessage('Sweet thanks!', { channel: post });
+  assert.equal(shouldHandle(customer), false);
+  const before = modelCalls.length;
+  await handleMessage(customer);
+  assert.equal(modelCalls.length, before);
+  assert.equal(customer.replies.length + post.sent.length, 0);
+});
+
 test('a bare mention is not handled and the mention never reaches the model', async () => {
   const channel = makeChannel();
   assert.equal(shouldHandle(makeMessage(`<@${BOT_ID}> hi`, { channel, mention: true })), false);
