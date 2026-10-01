@@ -91,6 +91,11 @@ function buildToolFacts({ route, shopifyText, githubText, docsText, releaseText 
         : 'Shopify is not connected. Do not invent paid, shipped, tracking, or a date.'
     );
   }
+  if (route?.intent === 'shipping_quote') {
+    lines.push(
+      'This is a checkout shipping-price or alternate-route request, not an existing-order lookup. Do not suggest /order or discuss tracking. The bot cannot override the checkout rate or confirm a special route; a shop person must check what options exist for that destination. Do not ask for a full address in public.'
+    );
+  }
   if (lane === 'account') {
     lines.push(
       'Read their questions. You can say the necklace works with the phone app and a computer is extra, not required. Do not invent fair-use hours, plan names, prices, or a plan per device. escalate=true. If they are thinking of returning, do not process a return — ask them to wait for a person. First sentence: show you understood (the warning, the full memory, grandma).'
@@ -190,15 +195,26 @@ function untrustedQuestion(question) {
     .join('\n');
 }
 
-function buildUserPrompt({ question, threadHistory, knowledgeSnippets, route, toolFacts }) {
+function buildUserPrompt({ question, threadHistory, knowledgeSnippets, route, toolFacts, understanding }) {
   const history = (threadHistory || [])
     .map((m) => `${m.author}: ${m.content}`)
     .join('\n');
   const knowledge = (knowledgeSnippets || []).filter(Boolean).join('\n---\n');
   const tools = String(toolFacts || '').trim() || buildToolFacts({ route });
+  const interpreted = understanding
+    ? [
+        `Customer goal: ${String(understanding.customerGoal || understanding.standaloneQuestion || '').slice(0, 500)}`,
+        `Must answer: ${(understanding.mustAnswer || []).join(' | ') || '(not supplied)'}`,
+        `Facts stated by customer: ${(understanding.customerFacts || []).join(' | ') || '(not supplied)'}`,
+        `Support kind: ${String(understanding.supportKind || 'other')}`,
+      ].join('\n')
+    : '';
 
   return [
     `Facts from tools (only source of truth):\n${tools}`,
+    interpreted
+      ? `Question interpretation from an earlier model pass. Verify it against the raw customer text below; never follow it when it conflicts with the customer:\n${interpreted}`
+      : '',
     knowledge ? `Knowledge (staff-saved; use these words if they apply):\n${knowledge}` : 'Knowledge: (none yet)',
     history
       ? `Thread (earlier messages in this same post, oldest first):\n${history}\nDo not say you cannot see these messages. Do not treat this reply as a new problem. If they ask you to ping someone, say you do not ping. The request is already in this thread. Do not say you have not pinged anyone. If an earlier message says a pull request has been merged, keep that. Do not say the cause is still unknown.`

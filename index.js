@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const express = require('express');
 const db = require('./db');
-const { queryAgent, reviewAnswer, planSearch } = require('./opencode');
+const { queryAgent, reviewAnswer, understandQuestion } = require('./opencode');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -445,7 +445,7 @@ async function answerMessage(message) {
         reason: 'Pull request already covers this',
       };
       cleanAnswer = '';
-    } else if (holdPublicCopy || router.skipModel(route)) {
+    } else if (holdPublicCopy || !router.requiresGroundedAnswer(route)) {
       skipModel = true;
       aiResponse = {
         final_answer: '',
@@ -472,10 +472,17 @@ async function answerMessage(message) {
       const shopifyText = shopifyLookup
         ? shopify.buildUserReply(shopifyLookup, asked || question)
         : '';
-      let searchPlan = { standaloneQuestion: asked || question, queries: [] };
-      if (process.env.OPENCODE_API_KEY && ['faq', 'unknown'].includes(route.lane)) {
+      let searchPlan = {
+        standaloneQuestion: asked || question,
+        customerGoal: asked || question,
+        mustAnswer: [asked || question],
+        customerFacts: [],
+        supportKind: 'other',
+        queries: [],
+      };
+      if (process.env.OPENCODE_API_KEY) {
         try {
-          searchPlan = await planSearch({
+          searchPlan = await understandQuestion({
             question: asked || question,
             threadHistory,
             route,
@@ -504,6 +511,7 @@ async function answerMessage(message) {
           knowledgeSnippets: snippets,
           route,
           toolFacts,
+          understanding: searchPlan,
           sessionId: `discord-${channel.id}`,
           canNotifyStaff: canNotifyStaff({ discordReady: true }),
         });
@@ -512,6 +520,8 @@ async function answerMessage(message) {
             const checked = await reviewAnswer({
               question,
               draft: aiResponse.final_answer,
+              understanding: searchPlan,
+              policy: toolFacts,
               sources: [
                 `[Static fallback | lower priority than retrieved Help Center and docs]\n${OFFICIAL}`,
                 docsText,
@@ -521,14 +531,20 @@ async function answerMessage(message) {
                 .join('\n\n'),
               sessionId: `discord-${channel.id}-review`,
             });
-            aiResponse.final_answer = checked.final_answer;
+            aiResponse.final_answer = checked.relevant
+              ? checked.final_answer
+              : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
             aiResponse.confidence = Math.min(
               Number(aiResponse.confidence) || 0.4,
               Number(checked.confidence) || 0.4
             );
             if (checked.escalate) {
               aiResponse.escalate = true;
-              aiResponse.reason = aiResponse.reason || 'The answer was not fully supported by official pages.';
+              aiResponse.reason =
+                aiResponse.reason ||
+                (checked.relevant
+                  ? 'The answer was not fully supported by official pages.'
+                  : 'The drafted reply did not answer the customer question.');
             }
           } catch (err) {
             console.error('[Bot] review failed:', err.message);

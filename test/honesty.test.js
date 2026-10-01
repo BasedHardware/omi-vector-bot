@@ -109,6 +109,14 @@ test('strips invented checkout-email lookup from order replies', () => {
   assert.equal(/email address you used/i.test(out), false);
 });
 
+test('keeps a legitimate checkout shipping-rate explanation', () => {
+  const out = sanitizeReply(
+    "I can't override the €145 checkout shipping rate or confirm another route from chat."
+  );
+  assert.match(out, /checkout shipping rate/i);
+  assert.match(out, /another route/i);
+});
+
 test('strips repeating-the-question lecture from order replies', () => {
   const out = sanitizeReply(
     "I can't see orders, tracking, or shipping from here, so I won't guess at a status or a delivery date — and repeating the question won't change what I have access to."

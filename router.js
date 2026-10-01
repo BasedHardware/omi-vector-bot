@@ -163,6 +163,7 @@ function looksLikePii(text) {
 function isPublicForumSafe(text) {
   const route = classify(text);
   if (looksLikePii(text)) return false;
+  if (route?.responseMode === 'grounded') return true;
   if (['shop', 'privacy'].includes(route.area)) return false;
   if (route.lane === 'money') return false;
   return true;
@@ -258,7 +259,14 @@ function classifyRoute(text) {
     return { area: 'shop', lane: 'money', escalate: true, wantHuman };
   }
   if (looksLikeShippingQuote(s)) {
-    return { area: 'shop', lane: 'shop', intent: 'shipping_quote', escalate: true, wantHuman };
+    return {
+      area: 'shop',
+      lane: 'shop',
+      intent: 'shipping_quote',
+      responseMode: 'grounded',
+      escalate: true,
+      wantHuman,
+    };
   }
   if (any(s, STRONG_SHOP)) {
     return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
@@ -322,6 +330,10 @@ function shouldPingOwner(route) {
 
 function skipModel(route) {
   return route?.lane === 'money' || route?.lane === 'privacy' || route?.lane === 'shop';
+}
+
+function requiresGroundedAnswer(route) {
+  return route?.responseMode === 'grounded' || !skipModel(route);
 }
 
 function looksLikeTax(text) {
@@ -596,6 +608,7 @@ module.exports = {
   shouldPingOwner,
   specialistNames,
   skipModel,
+  requiresGroundedAnswer,
   looksLikeTax,
   looksLikeShippingQuote,
   looksLikePlan,

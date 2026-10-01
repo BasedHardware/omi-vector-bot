@@ -46,7 +46,10 @@ test('a checkout shipping quote is not treated as order status', () => {
   assert.equal(route.area, 'shop');
   assert.equal(route.lane, 'shop');
   assert.equal(route.intent, 'shipping_quote');
+  assert.equal(route.responseMode, 'grounded');
   assert.equal(route.escalate, true);
+  assert.equal(router.requiresGroundedAnswer(route), true);
+  assert.equal(router.isPublicForumSafe(q), true);
 
   const reply = router.cannedReply(route, q);
   assert.match(reply, /checkout shipping quote/i);

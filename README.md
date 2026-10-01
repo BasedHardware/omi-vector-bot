@@ -4,11 +4,11 @@ Discord support agent for Omi. Customers see it as **Omi Support**. It answers p
 
 ## Answer pipeline
 
-1. A deterministic router protects money, orders, privacy, app failures, and device failures before model output can change the lane.
-2. The model rewrites a customer message or follow-up into a standalone question and several short search queries. Non-English questions are translated for retrieval while device names, versions, and error codes are preserved.
+1. A deterministic router protects private orders, money, privacy, app failures, and device failures before model output can change the lane. Informational exceptions still use the grounded answer pipeline.
+2. An interpretation pass identifies the customer’s actual goal, facts they supplied, and every point the response must answer. It then rewrites follow-ups into a standalone question and several short search queries. Non-English questions are translated for retrieval while names, places, prices, device names, versions, and error codes are preserved.
 3. PostgreSQL full-text search retrieves small, overlapping passages instead of whole truncated pages. Results from multiple queries are combined and labeled by source trust.
 4. The answer model receives only the most relevant evidence, the same-thread history, and any staff-approved `faq:` facts.
-5. A separate review model checks each instruction and factual claim against the retrieved evidence. An answer that cannot be verified fails closed and goes to a person.
+5. A separate review model checks the interpretation against the raw message, confirms that the evidence actually applies, verifies every factual claim, and rejects generic replies that do not answer the customer’s goal. An irrelevant or unverified answer fails closed and goes to a person.
 6. Deterministic honesty filters remove invented pings, diagnoses, shipped-fix claims, and unsupported steps before Discord receives the reply.
 
 Source priority:

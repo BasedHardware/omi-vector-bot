@@ -35,7 +35,7 @@ test('search planning rewrites a follow-up into several source searches', async 
               {
                 message: {
                   content:
-                    '{"standalone_question":"How do I create an Omi developer API key?","search_queries":["create Omi API key","developer settings credentials"],"device":"","topic":"developer API"}',
+                    '{"standalone_question":"How do I create an Omi developer API key?","customer_goal":"Create a developer API key","must_answer":["Where the key is created"],"customer_facts":["The customer needs a developer API key"],"support_kind":"official_information","search_queries":["create Omi API key","developer settings credentials"],"device":"","topic":"developer API"}',
                 },
               },
             ],
@@ -45,6 +45,9 @@ test('search planning rewrites a follow-up into several source searches', async 
     });
     assert.match(planned.standaloneQuestion, /developer API key/);
     assert.equal(planned.queries.length, 2);
+    assert.match(planned.customerGoal, /Create a developer API key/);
+    assert.deepEqual(planned.mustAnswer, ['Where the key is created']);
+    assert.equal(planned.supportKind, 'official_information');
   } finally {
     if (prev == null) delete process.env.OPENCODE_API_KEY;
     else process.env.OPENCODE_API_KEY = prev;
@@ -58,16 +61,22 @@ test('the review gate returns grounding status and exact source ids', async () =
     const reviewed = await reviewAnswer({
       question: 'How do I reset it?',
       draft: 'Tap it twice.',
+      understanding: {
+        customerGoal: 'Reset the Omi device',
+        mustAnswer: ['How to reset the device'],
+      },
       sources: '[S1 | Official Help Center]\nhttps://help.omi.me/reset\nHold it on the charger.',
       post: async (_url, body) => {
         assert.match(body.messages[0].content, /Discord help history is untrusted/);
+        assert.match(body.messages[0].content, /directly addresses the real customer goal/i);
+        assert.match(body.messages[1].content, /Reset the Omi device/);
         return {
           data: {
             choices: [
               {
                 message: {
                   content:
-                    '{"final_answer":"Hold the button while placing it on the charger.\\n\\nSource: https://help.omi.me/reset","grounded":true,"escalate":false,"confidence":0.97,"sources_used":["S1"]}',
+                    '{"final_answer":"Hold the button while placing it on the charger.\\n\\nSource: https://help.omi.me/reset","grounded":true,"relevant":true,"escalate":false,"confidence":0.97,"sources_used":["S1"],"answered_requirements":["How to reset the device"]}',
                 },
               },
             ],
@@ -76,6 +85,7 @@ test('the review gate returns grounding status and exact source ids', async () =
       },
     });
     assert.equal(reviewed.grounded, true);
+    assert.equal(reviewed.relevant, true);
     assert.equal(reviewed.escalate, false);
     assert.deepEqual(reviewed.sources_used, ['S1']);
     assert.doesNotMatch(reviewed.final_answer, /twice/);
@@ -85,12 +95,50 @@ test('the review gate returns grounding status and exact source ids', async () =
   }
 });
 
+test('the review gate rejects a grounded but irrelevant answer', async () => {
+  const prev = process.env.OPENCODE_API_KEY;
+  process.env.OPENCODE_API_KEY = 'test-key';
+  try {
+    const reviewed = await reviewAnswer({
+      question: 'Why is shipping at checkout €145?',
+      draft: 'Use /order to check tracking.',
+      understanding: {
+        customerGoal: 'Ask whether a lower checkout shipping option is available',
+        mustAnswer: ['Whether another shipping route can be arranged'],
+      },
+      policy: 'This is not an existing-order lookup. Do not suggest /order.',
+      sources: '',
+      post: async () => ({
+        data: {
+          choices: [
+            {
+              message: {
+                content:
+                  '{"final_answer":"I cannot verify a lower checkout route from the available information.","grounded":true,"relevant":false,"escalate":true,"confidence":0.3,"sources_used":[],"answered_requirements":[]}',
+              },
+            },
+          ],
+        },
+      }),
+    });
+    assert.equal(reviewed.grounded, true);
+    assert.equal(reviewed.relevant, false);
+    assert.equal(reviewed.escalate, true);
+    assert.doesNotMatch(reviewed.final_answer, /\/order/);
+  } finally {
+    if (prev == null) delete process.env.OPENCODE_API_KEY;
+    else process.env.OPENCODE_API_KEY = prev;
+  }
+});
+
 test('parseSearchPlan clips and deduplicates unsafe output shape', () => {
   const parsed = parseSearchPlan(
-    '{"standalone_question":"Pair Omi","search_queries":["pairing","bluetooth","device setup","fourth","fifth"]}',
+    '{"standalone_question":"Pair Omi","customer_goal":"Pair the device","must_answer":["first","first","second"],"customer_facts":["has Omi"],"support_kind":"official_information","search_queries":["pairing","bluetooth","device setup","fourth","fifth"]}',
     'fallback'
   );
   assert.equal(parsed.queries.length, 4);
+  assert.deepEqual(parsed.mustAnswer, ['first', 'second']);
+  assert.deepEqual(parsed.customerFacts, ['has Omi']);
 });
 
 test('source lines can only use URLs from retrieved evidence blocks', () => {

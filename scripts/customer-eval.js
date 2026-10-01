@@ -120,7 +120,7 @@ function judge(scene, route, answer) {
 let modelBlocked = process.env.EVAL_NO_MODEL === '1';
 
 async function replyFor(scene, route) {
-  if (modelBlocked || router.skipModel(route)) {
+  if (modelBlocked || !router.requiresGroundedAnswer(route)) {
     const down = router.whenModelDown(route, scene.ask);
     return {
       answer: router.cannedReply(route, scene.ask) || down.reply,
@@ -128,8 +128,15 @@ async function replyFor(scene, route) {
       from: 'rules',
     };
   }
-  let searchPlan = { standaloneQuestion: scene.ask, queries: [] };
-  if (route.lane === 'faq' || route.lane === 'unknown') {
+  let searchPlan = {
+    standaloneQuestion: scene.ask,
+    customerGoal: scene.ask,
+    mustAnswer: [scene.ask],
+    customerFacts: [],
+    supportKind: 'other',
+    queries: [],
+  };
+  if (router.requiresGroundedAnswer(route)) {
     try {
       searchPlan = await planSearch({
         question: scene.ask,
@@ -140,7 +147,7 @@ async function replyFor(scene, route) {
       if (/429|usage limit|wallet/i.test(err.message)) modelBlocked = true;
     }
   }
-  const docsText = route.lane === 'faq' || router.looksLikeProductQuestion(scene.ask)
+  const docsText = router.requiresGroundedAnswer(route)
     ? await relevantDocs(searchPlan.standaloneQuestion || scene.ask, { queries: searchPlan.queries })
     : '';
   const toolFacts = buildToolFacts({ route, docsText });
@@ -149,11 +156,14 @@ async function replyFor(scene, route) {
       question: scene.ask,
       route,
       toolFacts,
+      understanding: searchPlan,
       sessionId: `eval-${scene.id}`,
     });
     const checked = await reviewAnswer({
       question: scene.ask,
       draft: agent.final_answer,
+      understanding: searchPlan,
+      policy: toolFacts,
       sources: [
         `[Static fallback | lower priority]\n${OFFICIAL}`,
         docsText,
@@ -162,7 +172,9 @@ async function replyFor(scene, route) {
         .join('\n\n'),
       sessionId: `eval-${scene.id}-review`,
     });
-    agent.final_answer = checked.final_answer;
+    agent.final_answer = checked.relevant
+      ? checked.final_answer
+      : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
     agent.escalate = Boolean(agent.escalate || checked.escalate);
     agent.confidence = Math.min(Number(agent.confidence) || 0.4, Number(checked.confidence) || 0.4);
     const merged = triage.merge(route, agent, scene.ask);

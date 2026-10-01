@@ -13,7 +13,6 @@ const LIE_PATTERNS = [
 ];
 
 const DROP_SENTENCE = [
-  /\bcheckout\b/i,
   /confirmation email/i,
   /email address you used/i,
   /email you used/i,

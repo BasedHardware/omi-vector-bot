@@ -54,6 +54,14 @@ opencode.queryAgent = async (args) => {
     ...modelReply,
   };
 };
+opencode.understandQuestion = async ({ question }) => ({
+  standaloneQuestion: question,
+  customerGoal: question,
+  mustAnswer: [question],
+  customerFacts: [],
+  supportKind: 'other',
+  queries: [],
+});
 
 const githubCalls = [];
 const files = new Map();
@@ -350,10 +358,22 @@ test('an order status question points to email while /order is off, skips the mo
 test('a high checkout shipping quote reaches shop staff without suggesting order lookup', async () => {
   const q =
     'I live on Reunion island and shipping at cashout is 145 euros. Can someone arrange normal-cost shipping from Europe or Asia?';
+  modelReply = {
+    final_answer:
+      "I can't override the €145 checkout shipping rate or confirm another route from chat.",
+    topic: 'checkout shipping quote',
+    labels: ['shop', 'shipping'],
+    area: 'shop',
+    lane: 'shop',
+    escalate: true,
+  };
   const r = await ask(q);
-  assert.equal(r.modelCalled, false);
-  assert.match(r.reply, /checkout shipping quote/i);
-  assert.match(r.reply, /another shipping option/i);
+  assert.equal(r.modelCalled, true);
+  assert.match(modelCalls.at(-1).understanding.customerGoal, /Reunion island/i);
+  assert.match(modelCalls.at(-1).toolFacts, /not an existing-order lookup/i);
+  assert.match(modelCalls.at(-1).toolFacts, /Do not suggest \/order/i);
+  assert.match(r.reply, /checkout shipping (quote|rate)/i);
+  assert.match(r.reply, /another route/i);
   assert.equal(/order status from here|where that order is|\/order\b/i.test(r.reply), false);
   assert.ok(r.thread);
   assert.match(r.thread.name, /^Handoff · shop · /);

@@ -132,6 +132,22 @@ test('a follow-up keeps a merged pull request already in the thread', () => {
   assert.match(prompt, /If an earlier message says a pull request has been merged, keep that/);
 });
 
+test('the draft prompt carries the interpreted goal and answer requirements', () => {
+  const prompt = buildUserPrompt({
+    question: 'Shipping at checkout is €145. Is there another route?',
+    route: { lane: 'shop', area: 'shop', intent: 'shipping_quote' },
+    understanding: {
+      customerGoal: 'Find out whether a lower checkout shipping option exists',
+      mustAnswer: ['Whether another shipping route can be arranged'],
+      customerFacts: ['Checkout shows €145'],
+      supportKind: 'exception_request',
+    },
+  });
+  assert.match(prompt, /Find out whether a lower checkout shipping option exists/);
+  assert.match(prompt, /Whether another shipping route can be arranged/);
+  assert.match(prompt, /Verify it against the raw customer text/i);
+});
+
 test('a claim still blocks a redelivery after the five-minute prune', () => {
   const id = 'claim-prune-msg';
   const start = 1_700_000_000_000;
