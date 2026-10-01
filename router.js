@@ -342,6 +342,7 @@ function looksLikeProductQuestion(text) {
   if (looksLikeHardFailure(s)) return false;
   if (any(s, STRONG_MONEY) || any(s, STRONG_SHOP) || any(s, PRIVACY) || any(s, ACCOUNT)) return false;
   if (looksLikeRecordingHow(s)) return true;
+  if (looksLikeDeviceReset(s)) return true;
   return /\b(how (do|does|can|should)|is it (meant|supposed)|supposed to|any clue|like \w+ does|can (it|omi|the device)|does (it|omi|the device)|what does|why (does|is|can)|i'?d like)\b/i.test(s);
 }
 
@@ -352,6 +353,19 @@ function looksLikeRecordingHow(text) {
   const day = /\b24\s*hours?\b/i.test(s) && /\brecord/i.test(s);
   const alone = /\b(not app|without the app|by itself)\b/i.test(s) && /\brecord/i.test(s);
   return plaud || day || alone;
+}
+
+function looksLikeDeviceReset(text) {
+  const s = String(text || '');
+  if (looksLikeHardFailure(s)) return false;
+  if (/\bcrash(ed|es|ing)?\b/i.test(s)) return false;
+  if (/\b(delete|wipe|erase)\b/i.test(s) && /\b(account|data|conversation|memory)\b/i.test(s)) return false;
+  if (/\b(already reset|after (a |the )?reset|reset it and)\b/i.test(s)) return false;
+  return /\breset\b/i.test(s) && /\b(how|can i|want to|omi|device|necklace|pendant)\b/i.test(s);
+}
+
+function deviceResetReply() {
+  return 'On the necklace, hold the button for about 3 seconds to turn it off, then press once to turn it on. That restarts it. The consumer necklace does not have a separate reset button. DevKit 2 does: the button is inside the case, labeled RST, and a double-tap is only for flashing firmware.';
 }
 
 function recordingHowReply() {
@@ -427,6 +441,7 @@ function cannedReply(route, question) {
     return shopStatusReply();
   }
   if (looksLikeRecordingHow(question)) return recordingHowReply();
+  if (looksLikeDeviceReset(question)) return deviceResetReply();
   if (lane === 'firmware') {
     return "This looks like a problem with the Omi device itself. I can't see your device from here, so I won't guess what's wrong.";
   }
@@ -539,6 +554,7 @@ module.exports = {
   looksLikePlan,
   looksLikeDocs,
   looksLikeRecordingHow,
+  looksLikeDeviceReset,
   looksLikeProductQuestion,
   looksLikeOtherLanguage,
   cannedReply,

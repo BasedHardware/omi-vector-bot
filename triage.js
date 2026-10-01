@@ -1,4 +1,4 @@
-const { classify, looksLikeCaptureFailure, looksLikeTranscription, looksLikeDocs, looksLikeRecordingHow } = require('./router');
+const { classify, looksLikeCaptureFailure, looksLikeTranscription, looksLikeDocs, looksLikeRecordingHow, looksLikeDeviceReset } = require('./router');
 const { clipForDiscord } = require('./utils');
 
 const AREAS = ['shop', 'app', 'desktop', 'firmware', 'privacy'];
@@ -49,7 +49,9 @@ function fallbackTopic(question, route) {
 function merge(route, agent, question) {
   const classified = route || classify(question);
   const moneyLock = classified.lane === 'money' || classified.lane === 'privacy';
-  const docsLock = classified.lane === 'faq' && (looksLikeDocs(question) || looksLikeRecordingHow(question));
+  const docsLock =
+    classified.lane === 'faq' &&
+    (looksLikeDocs(question) || looksLikeRecordingHow(question) || looksLikeDeviceReset(question));
   const bothCaptureAndTranscript =
     looksLikeCaptureFailure(question) && looksLikeTranscription(question);
 

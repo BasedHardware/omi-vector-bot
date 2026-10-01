@@ -515,6 +515,9 @@ async function answerMessage(message) {
         cleanAnswer = "I can't share account or order details in this public post.";
       }
     }
+    if (router.looksLikeDeviceReset(asked || question)) {
+      cleanAnswer = router.cannedReply(route, asked || question);
+    }
     if (threadHistory.length) cleanAnswer = github.keepMergedPull(threadHistory, cleanAnswer);
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
@@ -531,7 +534,9 @@ async function answerMessage(message) {
     const pingAuthor = wantsAuthorPing(caption);
     const docsQuiet =
       route.lane === 'faq' &&
-      (router.looksLikeDocs(asked || question) || router.looksLikeRecordingHow(asked || question)) &&
+      (router.looksLikeDocs(asked || question) ||
+        router.looksLikeRecordingHow(asked || question) ||
+        router.looksLikeDeviceReset(asked || question)) &&
       !route.wantHuman;
     const escalate =
       holdPublicCopy ||

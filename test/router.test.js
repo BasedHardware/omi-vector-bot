@@ -383,3 +383,16 @@ test('a refund written in another language still reaches a person', () => {
   assert.equal(route.lane, 'money');
   assert.equal(route.escalate, true);
 });
+
+test('how to reset the device is a restart, not an account wipe or a staff ticket', () => {
+  const q = 'How to reset an Omi device';
+  const route = router.classify(q);
+  assert.equal(route.lane, 'faq');
+  assert.equal(route.escalate, false);
+  const reply = router.cannedReply(route, q);
+  assert.match(reply, /3 seconds/);
+  assert.match(reply, /press once/);
+  assert.equal(/which one|not sure|delete everything/i.test(reply), false);
+  const crash = router.classify('I reset my Omi and the app still crashes');
+  assert.equal(crash.lane, 'tech');
+});
