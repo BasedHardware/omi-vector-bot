@@ -39,6 +39,7 @@ const opencode = require('../opencode');
 const modelCalls = [];
 let modelReply = {};
 let modelDown = false;
+let searchPlanQueries = [];
 opencode.queryAgent = async (args) => {
   modelCalls.push(args);
   if (modelDown) throw new Error('model unavailable');
@@ -60,13 +61,15 @@ opencode.understandQuestion = async ({ question }) => ({
   mustAnswer: [question],
   customerFacts: [],
   supportKind: 'other',
-  queries: [],
+  queries: searchPlanQueries,
 });
 
 const githubCalls = [];
 const files = new Map();
 let pulls = [];
 let issues = [];
+let codeItems = [];
+const codeContents = new Map();
 let pullState = { state: 'open', merged: false };
 globalThis.fetch = async (url, opts = {}) => {
   const u = String(url);
@@ -80,6 +83,19 @@ globalThis.fetch = async (url, opts = {}) => {
   githubCalls.push({ method, url: u, body: opts.body ? JSON.parse(opts.body) : null });
   if (u.includes('/search/issues')) {
     return { ok: true, status: 200, json: async () => ({ items: u.includes('is%3Apr') ? pulls : issues }) };
+  }
+  if (u.includes('/search/code')) {
+    return { ok: true, status: 200, json: async () => ({ items: codeItems }) };
+  }
+  if (codeContents.has(u)) {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        encoding: 'base64',
+        content: Buffer.from(codeContents.get(u)).toString('base64'),
+      }),
+    };
   }
   if (method === 'POST' && /\/issues\/\d+\/comments$/.test(u)) {
     return { ok: true, status: 201, json: async () => ({ id: 1 }) };
@@ -282,8 +298,11 @@ test.beforeEach(() => {
   modelCalls.length = 0;
   modelReply = {};
   modelDown = false;
+  searchPlanQueries = [];
   pulls = [];
   issues = [];
+  codeItems = [];
+  codeContents.clear();
   pullState = { state: 'open', merged: false };
   githubCalls.length = 0;
   files.clear();
@@ -481,6 +500,97 @@ test('a phone app crash opens an app Handoff and files an app issue', async () =
   assert.ok(r.thread);
   assert.match(r.thread.name, /^Handoff · app · tech · /);
   assert.equal(filed.length, 0);
+});
+
+test('a successful tech Handoff removes a duplicate help email redirect', async () => {
+  modelReply = {
+    final_answer:
+      "I can't see why the iPhone app is crashing. Please contact help@omi.me so the team can investigate.",
+    escalate: true,
+  };
+  const r = await ask('The iPhone app crashes every time I open a memory.');
+  assert.ok(r.thread);
+  assert.match(r.reply, /can['’]?t see why the iPhone app is crashing/i);
+  assert.doesNotMatch(r.reply, /help@omi\.me/i);
+  assert.match(r.reply, /written in this thread|person on the team has this now/i);
+});
+
+test('a transcribed device-button question searches official app source before the model answers', async () => {
+  const q = [
+    'I received my Omi yesterday. I press it, get the vibration, ask my question, and press again.',
+    'I see the transcription of my question in the app, but I never get any answers.',
+    'Disconnecting and reconnecting changed nothing, and I even deleted my account.',
+    'iPhone 15 Pro, iOS 27, Omi CV1 fw 3.0.21, app 1.0.552 (1246).',
+  ].join(' ');
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  searchPlanQueries = ['device button voice question response', 'transcription AI response Chat'];
+  const path = 'app/lib/providers/message_provider.dart';
+  const apiUrl = `https://api.github.com/repos/BasedHardware/omi/contents/${path}`;
+  codeItems = [
+    {
+      path,
+      url: apiUrl,
+      html_url: `https://github.com/BasedHardware/omi/blob/main/${path}`,
+    },
+  ];
+  codeContents.set(
+    apiUrl,
+    '// Device-button voice questions add an AI response message to Chat. Reply audio plays when voiceResponseEnabled is true.'
+  );
+  modelReply = {
+    final_answer:
+      'The transcript means Omi captured your question; the missing part is the AI reply. The answer should appear as an AI message in Chat, and Voice Responses can also play it aloud.',
+    escalate: true,
+  };
+  const r = await ask(q);
+  assert.equal(r.modelCalled, true);
+  assert.match(modelCalls.at(-1).toolFacts, /Official GitHub \| authoritative/);
+  assert.match(modelCalls.at(-1).toolFacts, /AI response message to Chat/i);
+  assert.match(r.reply, /transcript means Omi captured your question/i);
+  assert.match(r.reply, /AI message in Chat/i);
+  assert.match(r.reply, /Voice Responses/i);
+  assert.doesNotMatch(r.reply, /help@omi\.me|check.*notifications? permission/i);
+  assert.ok(r.thread);
+  assert.match(r.thread.name, /^Handoff · app · tech · /);
+});
+
+test('a later no-chat follow-up does not repeat notification advice or restart the diagnosis', async () => {
+  modelReply = {
+    final_answer:
+      'That rules out this being only a notification-permission problem. The transcription arrives, but no AI message appears in Chat, so the reply stage still needs the app team.',
+    escalate: true,
+  };
+  const post = makeChannel({
+    thread: true,
+    parentId: HELP_FORUM,
+    name: "Push to ask doesn't work",
+  });
+  const follow = makeMessage(
+    'Notification is enabled, but I see nothing in the chat or in the notification.',
+    { channel: post }
+  );
+  post.messages.fetch = async () =>
+    new Map([
+      [follow.id, follow],
+      [
+        '1',
+        {
+          id: '1',
+          author: { bot: false, username: 'customer' },
+          content:
+            'I press the Omi button, ask a question, see the transcription in the app, but never get an answer.',
+        },
+      ],
+    ]);
+
+  const models = modelCalls.length;
+  await handleMessage(follow);
+  const reply = replyText(follow);
+  assert.equal(modelCalls.length, models + 1);
+  assert.match(reply, /rules out.*notification-permission/i);
+  assert.match(reply, /no AI message appears in Chat/i);
+  assert.doesNotMatch(reply, /check.*notifications?|help@omi\.me|try.*reconnect/i);
+  assert.equal(follow.threads.length, 0);
 });
 
 test('two quick copies of one report from a customer open one Handoff and file one issue', async () => {

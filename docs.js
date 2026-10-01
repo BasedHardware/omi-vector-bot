@@ -7,7 +7,7 @@ const {
   mergeRanked,
   queryTerms,
   rankLocalChunks,
-  uniqueQueries,
+  supportQueries,
 } = require('./retrieval');
 let indexCache = { at: 0, text: '' };
 
@@ -62,7 +62,7 @@ async function rememberPages(store, pages) {
 async function storedDocs(question, store, plannedQueries = []) {
   if (!store?.searchDocPages) return '';
   try {
-    const queries = uniqueQueries(question, plannedQueries);
+    const queries = supportQueries(question, plannedQueries);
     const resultSets = await Promise.all(queries.map((query) => store.searchDocPages(query, 12)));
     const rows = mergeRanked(resultSets, 8);
     return formatEvidence(rows);
@@ -75,7 +75,7 @@ async function storedDocs(question, store, plannedQueries = []) {
 async function relevantDocs(question, { fetchImpl, store, queries: plannedQueries = [] } = {}) {
   const fetchFn = fetchImpl || fetch;
   const saved = activeStore(store);
-  const queries = uniqueQueries(question, plannedQueries);
+  const queries = supportQueries(question, plannedQueries);
   const stored = await storedDocs(question, saved, plannedQueries);
   if (stored) return stored;
   try {

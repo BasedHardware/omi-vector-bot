@@ -108,8 +108,8 @@ function sourceLabel(kind) {
 function sourceAuthority(kind) {
   if (kind === 'help') return 5;
   if (kind === 'docs') return 4;
+  if (kind === 'github') return 4;
   if (kind === 'website') return 3;
-  if (kind === 'github') return 3;
   if (kind === 'discord') return 1;
   return 2;
 }
@@ -201,6 +201,36 @@ function uniqueQueries(question, planned = []) {
   return out;
 }
 
+function supportQueries(question, planned = []) {
+  const text = [question, ...(planned || [])].filter(Boolean).join(' ');
+  const variants = [];
+  const hasVoiceInput = /\b(?:transcri\w*|voice|spoken|ask(?:ed|ing)?|question)\b/i.test(text);
+  const hasMissingOutput = /\b(?:answer\w*|response\w*|repl(?:y|ies|ied)|respond\w*|silent|nothing)\b/i.test(text);
+  if (hasVoiceInput && hasMissingOutput) {
+    variants.push('voice question chat answer AI message response visible foreground background');
+  }
+  return uniqueQueries(question, [...variants, ...(planned || [])]);
+}
+
+function diverseTop(rows, limit, maxPerPage = 2) {
+  const selected = [];
+  const selectedRows = new Set();
+  const perPage = new Map();
+  for (let pass = 0; pass < maxPerPage; pass += 1) {
+    for (const row of rows || []) {
+      if (selectedRows.has(row)) continue;
+      const key = String(row.url || row.title || '');
+      const count = perPage.get(key) || 0;
+      if (count !== pass) continue;
+      selected.push(row);
+      selectedRows.add(row);
+      perPage.set(key, count + 1);
+      if (selected.length >= limit) return selected;
+    }
+  }
+  return selected;
+}
+
 function mergeRanked(resultSets, limit = 8) {
   const merged = new Map();
   for (const rows of resultSets || []) {
@@ -213,14 +243,14 @@ function mergeRanked(resultSets, limit = 8) {
       else merged.set(key, { ...row, authority, fusedScore: score });
     });
   }
-  return [...merged.values()]
-    .sort((a, b) => b.fusedScore - a.fusedScore || b.authority - a.authority)
-    .slice(0, limit);
+  const ranked = [...merged.values()]
+    .sort((a, b) => b.fusedScore - a.fusedScore || b.authority - a.authority);
+  return diverseTop(ranked, limit);
 }
 
 function rankLocalChunks(queries, rows, limit = 8) {
   const wanted = (queries || []).map((query) => new Set(queryTerms(query, 20)));
-  return (rows || [])
+  const ranked = (rows || [])
     .map((row) => {
       const title = String(row.title || '').toLowerCase();
       const body = String(row.body || '').toLowerCase();
@@ -241,8 +271,8 @@ function rankLocalChunks(queries, rows, limit = 8) {
       return { ...row, authority: sourceAuthority(row.source || sourceKind(row.url)), rank: score };
     })
     .filter((row) => row.rank > 0)
-    .sort((a, b) => b.rank - a.rank || b.authority - a.authority)
-    .slice(0, limit);
+    .sort((a, b) => b.rank - a.rank || b.authority - a.authority);
+  return diverseTop(ranked, limit);
 }
 
 function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2 } = {}) {
@@ -268,6 +298,16 @@ function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2 } = {}) {
   return blocks.join('\n\n');
 }
 
+function combineEvidence(...values) {
+  let next = 0;
+  return values
+    .flat()
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .map((value) => value.replace(/\[S\d+\s*\|/g, () => `[S${++next} |`))
+    .join('\n\n');
+}
+
 module.exports = {
   MAX_DOCUMENT,
   CHUNK_SIZE,
@@ -279,7 +319,9 @@ module.exports = {
   chunkDocument,
   queryTerms,
   uniqueQueries,
+  supportQueries,
   mergeRanked,
   rankLocalChunks,
   formatEvidence,
+  combineEvidence,
 };

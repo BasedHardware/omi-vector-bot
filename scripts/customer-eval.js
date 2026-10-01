@@ -6,6 +6,15 @@ const { planSearch, queryAgent, reviewAnswer } = require('../opencode');
 const triage = require('../triage');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('../honesty');
 const { stripFalseCertainty } = require('../utils');
+const github = require('../github');
+const { loadOfficialSource } = require('../sourcecode');
+const {
+  chunkDocument,
+  combineEvidence,
+  formatEvidence,
+  rankLocalChunks,
+  supportQueries,
+} = require('../retrieval');
 
 const scenarios = [
   {
@@ -71,6 +80,19 @@ const scenarios = [
 ];
 
 const liveScenarios = [
+  {
+    id: 'voice-question-no-answer',
+    first: 'person',
+    ask: [
+      'I press my Omi, feel the vibration, ask a question, and press again.',
+      'The question transcription appears in the app, but I never get an answer.',
+      'I already reconnected it and deleted my account.',
+      'iPhone 15 Pro, iOS 27, CV1 fw 3.0.21, app 1.0.552.',
+    ].join(' '),
+    lane: 'tech',
+    must: [/transcri/i, /AI reply|AI message|Chat|response/i],
+    mustNot: [/check.*notification permission/i, /voiceReplyStep|aiResponse|ServerMessage/],
+  },
   {
     id: 'developer-key',
     first: 'answer',
@@ -147,9 +169,26 @@ async function replyFor(scene, route) {
       if (/429|usage limit|wallet/i.test(err.message)) modelBlocked = true;
     }
   }
-  const docsText = router.requiresGroundedAnswer(route)
-    ? await relevantDocs(searchPlan.standaloneQuestion || scene.ask, { queries: searchPlan.queries })
-    : '';
+  let docsText = '';
+  if (router.requiresGroundedAnswer(route)) {
+    const sourceQuestion = searchPlan.standaloneQuestion || scene.ask;
+    const usePublicSource = process.env.EVAL_PUBLIC_SOURCE === '1';
+    const [pages, code, publicSource] = await Promise.all([
+      usePublicSource ? '' : relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
+      github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
+      usePublicSource
+        ? (async () => {
+            const sourcePages = [];
+            await loadOfficialSource(fetch, { saveDocPage: async (page) => sourcePages.push(page) });
+            const chunks = sourcePages.flatMap((page) => chunkDocument(page));
+            return formatEvidence(
+              rankLocalChunks(supportQueries(sourceQuestion, searchPlan.queries), chunks, 8)
+            );
+          })()
+        : '',
+    ]);
+    docsText = combineEvidence(pages, code, publicSource);
+  }
   const toolFacts = buildToolFacts({ route, docsText });
   try {
     const agent = await queryAgent({
@@ -202,7 +241,10 @@ async function main() {
   console.log(`model ${key && !modelBlocked ? 'on' : 'off'}`);
   let failed = 0;
   let ran = 0;
-  const selected = modelBlocked ? scenarios : [...scenarios, ...liveScenarios];
+  const requested = String(process.env.EVAL_SCENARIO || '').trim();
+  const selected = (modelBlocked ? scenarios : [...scenarios, ...liveScenarios]).filter(
+    (scene) => !requested || scene.id === requested
+  );
   for (const scene of selected) {
     if (liveScenarios.includes(scene) && modelBlocked) continue;
     ran += 1;

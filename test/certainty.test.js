@@ -108,6 +108,9 @@ test('tech and firmware prompts forbid cause, recordings place, account access, 
     assert.match(tools, /Do not mention account access/);
     assert.match(tools, /Do not say you know the cause/);
     assert.match(tools, /step that changes the device/);
+    assert.match(prompt, /intended behavior/i);
+    assert.match(tools, /intended flow/i);
+    assert.match(tools, /only repeats the symptom/i);
     assert.equal(/tell them a likely cause/i.test(prompt), false);
     assert.equal(/tell them a likely cause/i.test(tools), false);
   }

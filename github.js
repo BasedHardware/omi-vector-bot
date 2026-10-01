@@ -1,11 +1,19 @@
 const crypto = require('crypto');
 const { clipForDiscord } = require('./utils');
+const {
+  chunkDocument,
+  formatEvidence,
+  queryTerms,
+  rankLocalChunks,
+} = require('./retrieval');
 
 const DEFAULT_REPO = 'BasedHardware/omi';
 const TIMEOUT_MS = 8000;
 const drafts = new Map();
 const issueThreads = new Map();
 const threadToIssue = new Map();
+const officialCodeCache = new Map();
+const OFFICIAL_CODE_CACHE_MS = 10 * 60 * 1000;
 
 function repo() {
   return String(process.env.GITHUB_REPO || DEFAULT_REPO).replace(/^https?:\/\/github.com\//i, '').replace(/\.git$/, '');
@@ -304,6 +312,7 @@ function resetGithubMemory() {
   drafts.clear();
   issueThreads.clear();
   threadToIssue.clear();
+  officialCodeCache.clear();
   installationCache = { token: '', exp: 0 };
 }
 
@@ -350,6 +359,96 @@ async function searchIssues(question, { fetchImpl } = {}) {
   } catch (err) {
     console.error('[GitHub] search failed:', err.message);
     return { ok: false, reason: 'error' };
+  }
+}
+
+function officialCodeQueries(question, planned = []) {
+  const raw = String(question || '');
+  const seen = new Set();
+  const out = [];
+  for (const value of [...(planned || []), raw]) {
+    const terms = queryTerms(value, 5);
+    if (!terms.length) continue;
+    const query = terms.join(' ');
+    const key = query.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(query);
+    if (out.length >= 2) break;
+  }
+  return out;
+}
+
+function usefulOfficialPath(path) {
+  const value = String(path || '');
+  if (/\b(?:node_modules|vendor|generated|build|coverage)\b/i.test(value)) return false;
+  if (/\.(?:lock|sum|min\.js|map)$/i.test(value)) return false;
+  return (
+    /^(?:README|CONTRIBUTING|docs\/)/i.test(value) ||
+    /^(?:app\/lib|backend|firmware)\//i.test(value)
+  );
+}
+
+function decodeGithubContent(data) {
+  if (String(data?.encoding || '').toLowerCase() !== 'base64') return '';
+  try {
+    return Buffer.from(String(data.content || '').replace(/\s+/g, ''), 'base64').toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
+async function searchOfficialCode(question, { queries: planned = [], fetchImpl, maxFiles = 6 } = {}) {
+  if (!isConfigured()) return '';
+  const searches = officialCodeQueries(question, planned);
+  if (!searches.length) return '';
+  const cacheKey = searches.join('\n').toLowerCase();
+  const cached = officialCodeCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < OFFICIAL_CODE_CACHE_MS) return cached.text;
+  const found = new Map();
+
+  try {
+    for (const query of searches) {
+      const url = new URL('https://api.github.com/search/code');
+      url.searchParams.set('q', `repo:${repo()} ${query}`);
+      url.searchParams.set('per_page', '10');
+      const res = await githubFetch(url, { fetchImpl });
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (const item of Array.isArray(data?.items) ? data.items : []) {
+        if (!item?.url || !usefulOfficialPath(item.path)) continue;
+        const key = String(item.path || item.url);
+        if (!found.has(key)) found.set(key, item);
+        if (found.size >= maxFiles) break;
+      }
+      if (found.size >= maxFiles) break;
+    }
+
+    const pages = [];
+    for (const item of found.values()) {
+      const res = await githubFetch(item.url, { fetchImpl });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const body = decodeGithubContent(data);
+      if (!body.trim()) continue;
+      pages.push({
+        url: item.html_url || `https://github.com/${repo()}/blob/main/${item.path}`,
+        title: item.path || data.name || 'Official Omi source',
+        body,
+      });
+    }
+
+    const rankingQueries = [question, ...planned, ...searches].filter(Boolean);
+    const chunks = pages.flatMap((page) => chunkDocument(page));
+    const text = formatEvidence(rankLocalChunks(rankingQueries, chunks, 8));
+    officialCodeCache.set(cacheKey, { at: Date.now(), text });
+    while (officialCodeCache.size > 200) {
+      officialCodeCache.delete(officialCodeCache.keys().next().value);
+    }
+    return text;
+  } catch (err) {
+    console.error('[GitHub] official source search failed:', err.message);
+    return '';
   }
 }
 
@@ -977,6 +1076,8 @@ module.exports = {
   threadsForIssue,
   resetGithubMemory,
   searchIssues,
+  officialCodeQueries,
+  searchOfficialCode,
   existingWork,
   relatedPulls,
   linkedChanges,

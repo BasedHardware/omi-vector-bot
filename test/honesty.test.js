@@ -1,6 +1,6 @@
 const { looksLikeStaffLie, stripStaffLies } = require('../honesty');
 const { parseAgentJson } = require('../opencode');
-const { shouldEscalate, clipForDiscord, clipThreadHistory, escalateReply, sanitizeReply, formatDiscordReply, needsHumanAccess, PINGED_FOOTER, DUPLICATE_FOOTER } = require('../utils');
+const { shouldEscalate, clipForDiscord, clipThreadHistory, escalateReply, sanitizeReply, stripSupportRedirect, formatDiscordReply, needsHumanAccess, PINGED_FOOTER, DUPLICATE_FOOTER } = require('../utils');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
@@ -370,6 +370,23 @@ test('sanitizeReply keeps paragraph breaks', () => {
   assert.equal(out.includes('\n\n'), true);
   assert.match(out, /First point/);
   assert.match(out, /Second point/);
+});
+
+test('sanitizeReply keeps AI message as a product-output description', () => {
+  assert.equal(
+    sanitizeReply('The answer should appear as an AI message in Chat.'),
+    'The answer should appear as an AI message in Chat.'
+  );
+  assert.equal(sanitizeReply('As an AI, I cannot do that.'), 'I cannot do that.');
+});
+
+test('a successful Discord handoff can remove only the duplicate email redirect', () => {
+  assert.equal(
+    stripSupportRedirect(
+      "I can't see the phone from here. Please contact help@omi.me so the team can investigate. Keep the exact error ready."
+    ),
+    "I can't see the phone from here. Keep the exact error ready."
+  );
 });
 
 test('clipThreadHistory drops empty lines and caps length', () => {

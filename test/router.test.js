@@ -153,6 +153,22 @@ test('app crash and macOS are tech; pairing how-to is faq', () => {
   assert.equal(withStaffTranscription.area, 'desktop');
 });
 
+test('a device-button question that is transcribed but never answered uses the grounded app pipeline', () => {
+  const q = [
+    'I received my Omi yesterday. When the device is working I press it and get the vibration,',
+    'ask my question, press again, and see the transcription of my question in the app,',
+    'but I never get any answers. I disconnected and reconnected it and even deleted my account.',
+    'iPhone 15 Pro, iOS 27, Omi CV1 fw 3.0.21, app 1.0.552 (1246).',
+  ].join(' ');
+  const route = router.classify(q);
+  assert.equal(route.area, 'app');
+  assert.equal(route.lane, 'tech');
+  assert.equal(route.escalate, true);
+  assert.equal(router.skipModel(route), false);
+  assert.equal(router.requiresGroundedAnswer(route), true);
+  assert.match(router.cannedReply(route, q), /phone app/i);
+});
+
 test('firmware death escalates; talk to a human always does', () => {
   assert.equal(router.classify('it powers off by itself at 100% battery').area, 'firmware');
   assert.equal(router.classify('I need a real person').escalate, true);

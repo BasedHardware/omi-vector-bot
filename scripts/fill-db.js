@@ -1,4 +1,5 @@
 const { pagesFromIndex, clipPage } = require('../docs');
+const { PAGE_ROOT, loadOfficialSource } = require('../sourcecode');
 
 const INDEX_URL = 'https://docs.omi.me/llms.txt';
 const RELEASES_URL = 'https://api.github.com/repos/BasedHardware/omi/releases';
@@ -108,6 +109,15 @@ async function fillIfEmpty({ fetchImpl, store, force = false, maxAgeMs = 24 * 60
     await noteSync(db, 'releases', releases);
   }
   if (docs || releases) console.log(`[DB] filled docs=${docs} releases=${releases}`);
+  let source = 0;
+  if (typeof db.countPagesLike === 'function') {
+    const sourceHasRows = (await db.countPagesLike(PAGE_ROOT)) > 0;
+    if (await shouldSync(db, 'github-source', sourceHasRows, { force, maxAgeMs })) {
+      source = await loadOfficialSource(fetchImpl, db);
+      await noteSync(db, 'github-source', source);
+    }
+    if (source) console.log(`[DB] filled official-source=${source}`);
+  }
   let help = 0;
   let discord = 0;
   let website = 0;
@@ -133,10 +143,10 @@ async function fillIfEmpty({ fetchImpl, store, force = false, maxAgeMs = 24 * 60
       console.log(`[DB] filled help=${help} website=${website} discord=${discord}`);
     }
   }
-  return { docs, releases, help, website, discord };
+  return { docs, releases, source, help, website, discord };
 }
 
-module.exports = { fillIfEmpty, loadDocs, loadReleases };
+module.exports = { fillIfEmpty, loadDocs, loadOfficialSource, loadReleases };
 
 if (require.main === module) {
   const db = require('../db');

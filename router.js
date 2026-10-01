@@ -235,7 +235,7 @@ function looksLikeCaptureFailure(text) {
 }
 
 function looksLikeTranscription(text) {
-  return /\btranscription\b/i.test(String(text || ''));
+  return /\btranscri(?:b\w*|pt\w*)\b/i.test(String(text || ''));
 }
 
 function reasonNamesCause(text) {
@@ -340,7 +340,11 @@ function shouldPingOwner(route) {
 }
 
 function skipModel(route) {
-  return route?.lane === 'money' || route?.lane === 'privacy' || route?.lane === 'shop';
+  return (
+    route?.lane === 'money' ||
+    route?.lane === 'privacy' ||
+    route?.lane === 'shop'
+  );
 }
 
 function requiresGroundedAnswer(route) {

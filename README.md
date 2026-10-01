@@ -15,11 +15,12 @@ Source priority:
 
 1. `help.omi.me` — official customer-support instructions
 2. `docs.omi.me` — official product and developer documentation
-3. `omi.me` — official product and policy pages
-4. BasedHardware/Omi releases — version and release-note questions
-5. Discord help history — discovery and corroboration only; never sufficient for a factual claim
+3. Current official BasedHardware/Omi repository source — product behavior not yet covered by customer docs
+4. `omi.me` — official product and policy pages
+5. BasedHardware/Omi releases — version and release-note questions
+6. Discord help history — discovery and corroboration only; never sufficient for a factual claim
 
-The source catalog refreshes in the background. GitHub issues and pull requests are used to identify existing engineering work, not as product documentation.
+The source catalog refreshes in the background, including the support-relevant providers and services in the public Omi app source. A live repository search is used as an optional supplement when its GitHub credentials permit it. GitHub issues and pull requests are used only to identify existing engineering work; unlike repository source, they are not product documentation.
 
 ## Local setup
 

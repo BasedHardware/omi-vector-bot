@@ -112,13 +112,34 @@ function typingDelay() {
 
 function sanitizeReply(text) {
   const cleaned = String(text || '')
-    .replace(/\bas an ai\b/gi, '')
+    .replace(/\bas an ai\b(?!\s+(?:message|response|reply))\s*,?\s*/gi, '')
     .split('\n')
     .map((line) => line.replace(/[^\S\n]{2,}/g, ' ').trimEnd())
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   return stripInventedLookup(stripStaffLies(cleaned));
+}
+
+function stripSupportRedirect(text) {
+  return String(text || '')
+    .split('\n')
+    .map((line) =>
+      line
+        .split(/(?<=[.!?])\s+/)
+        .filter(
+          (sentence) =>
+            !/\b(?:email|e-mail|contact|reach out to|write to)\b[^.!?]{0,80}\bhelp@omi\.me\b/i.test(
+              sentence
+            )
+        )
+        .join(' ')
+        .trim()
+    )
+    .filter(Boolean)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function expandPipeLists(text) {
@@ -418,6 +439,7 @@ module.exports = {
   shouldEscalate,
   typingDelay,
   sanitizeReply,
+  stripSupportRedirect,
   formatDiscordReply,
   clipForDiscord,
   SAFE_REPLY_MENTIONS,

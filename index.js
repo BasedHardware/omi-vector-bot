@@ -14,6 +14,7 @@ const {
   shouldEscalate,
   typingDelay,
   sanitizeReply,
+  stripSupportRedirect,
   formatDiscordReply,
   clipForDiscord,
   clipThreadHistory,
@@ -50,6 +51,7 @@ const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts, OFFICIAL } = require('./prompt');
 const { relevantDocs } = require('./docs');
+const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
 const triage = require('./triage');
@@ -622,15 +624,18 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           console.error('[Bot] search planning failed:', err.message);
         }
       }
-      const docsText = await relevantDocs(searchPlan.standaloneQuestion || asked || question, {
-        queries: searchPlan.queries,
-      });
-      const releaseText = await matchingRelease(asked || question);
+      const sourceQuestion = searchPlan.standaloneQuestion || asked || question;
+      const [docsText, officialCodeText, releaseText] = await Promise.all([
+        relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
+        github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
+        matchingRelease(asked || question),
+      ]);
+      const officialEvidence = combineEvidence(docsText, officialCodeText);
       const toolFacts = buildToolFacts({
         route,
         shopifyText,
         githubText: githubHit?.duplicate?.url || '',
-        docsText,
+        docsText: officialEvidence,
         releaseText,
       });
 
@@ -654,7 +659,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               policy: toolFacts,
               sources: [
                 `[Static fallback | lower priority than retrieved Help Center and docs]\n${OFFICIAL}`,
-                docsText,
+                officialEvidence,
                 releaseText ? `[Official release note]\n${releaseText}` : '',
               ]
                 .filter(Boolean)
@@ -896,7 +901,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       ) {
         await postShopTicketCard(handoffThread, triaged);
       }
-      let parentReply = escalateReply(cleanAnswer, {
+      const handoffAnswer =
+        pinged && router.isTechLane({ lane: triaged.lane, area: triaged.area })
+          ? stripSupportRedirect(cleanAnswer)
+          : cleanAnswer;
+      let parentReply = escalateReply(handoffAnswer, {
         pinged,
         duplicate,
         conversation: stayInPost && !handoffFollowup,

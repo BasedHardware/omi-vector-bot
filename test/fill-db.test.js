@@ -68,3 +68,34 @@ test('a store that already has rows is left alone', async () => {
   assert.equal(result.docs, 0);
   assert.equal(result.releases, 0);
 });
+
+test('the daily fill indexes official public source independently of code-search permission', async () => {
+  const store = memoryStore();
+  store.docs.push({ url: 'https://docs.omi.me/already' });
+  store.releases.push({ tag: 'v0' });
+  store.countPagesLike = async () => 0;
+  store.sourceNeedsSync = async (key) => key === 'github-source';
+  store.markSourceSynced = async (key, count) => {
+    store.synced = { key, count };
+  };
+
+  const result = await fillIfEmpty({
+    store,
+    fetchImpl: async (url) => {
+      const target = String(url);
+      if (target.includes('/git/trees/')) {
+        return {
+          ok: true,
+          json: async () => ({
+            tree: [{ type: 'blob', path: 'app/lib/providers/message_provider.dart', size: 100 }],
+          }),
+        };
+      }
+      return { ok: true, text: async () => 'AI responses are added to chat messages.' };
+    },
+  });
+
+  assert.equal(result.source, 1);
+  assert.deepEqual(store.synced, { key: 'github-source', count: 1 });
+  assert.equal(store.docs.at(-1).title, 'app/lib/providers/message_provider.dart');
+});

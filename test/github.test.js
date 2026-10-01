@@ -126,6 +126,52 @@ test('searchIssues returns the first open hit', async () => {
   else process.env.GITHUB_TOKEN = prev;
 });
 
+test('official source search retrieves and labels current app behavior', async () => {
+  const prev = process.env.GITHUB_TOKEN;
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  const searched = [];
+  const path = 'app/lib/providers/message_provider.dart';
+  const apiUrl = `https://api.github.com/repos/BasedHardware/omi/contents/${path}`;
+  const htmlUrl = `https://github.com/BasedHardware/omi/blob/main/${path}`;
+  const body = [
+    '// Device-button voice questions add an AI response message to Chat.',
+    '// The reply audio is played when voiceResponseEnabled is true.',
+    'Future<void> sendVoiceMessageStreamToServer() async {}',
+  ].join('\n');
+  try {
+    const evidence = await github.searchOfficialCode(
+      'I press the Omi button and see my question transcription, but no answer or response appears.',
+      {
+        queries: ['voice question button', 'transcription AI response'],
+        fetchImpl: async (url) => {
+          const target = String(url);
+          if (target.includes('/search/code')) {
+            searched.push(new URL(target).searchParams.get('q'));
+            return {
+              ok: true,
+              json: async () => ({ items: [{ path, url: apiUrl, html_url: htmlUrl }] }),
+            };
+          }
+          assert.equal(target, apiUrl);
+          return {
+            ok: true,
+            json: async () => ({ encoding: 'base64', content: Buffer.from(body).toString('base64') }),
+          };
+        },
+      }
+    );
+    assert.ok(searched.some((query) => /voice question button/i.test(query)));
+    assert.ok(searched.some((query) => /transcription ai response/i.test(query)));
+    assert.match(evidence, /Official GitHub \| authoritative/);
+    assert.match(evidence, /AI response message to Chat/i);
+    assert.match(evidence, /voiceResponseEnabled/i);
+    assert.match(evidence, /message_provider\.dart/);
+  } finally {
+    if (prev === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = prev;
+  }
+});
+
 test('createIssue posts to the repo', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   let posted;
