@@ -59,7 +59,7 @@ Without `--force`, each source is refreshed only when its freshness window has e
 - Follow-ups inside the same thread keep their thread context.
 - Sensitive order, email, address, phone, and privacy content is not repeated publicly.
 - `/done` closes a support thread and asks the original customer whether the answer helped.
-- `/order` is ephemeral and verifies ownership through an emailed code before showing a customer's own orders.
+- `/order`, `/orders`, and `/unlink` are public customer commands. Responses are ephemeral, and order access requires a code sent to the email on the Shopify order; Discord staff status is never used as authorization.
 
 ## Human handoff
 

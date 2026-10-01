@@ -44,6 +44,12 @@ test('/order stays dark until Shopify, bind key, and Resend are all set', () => 
   assert.equal(orderFlow.isLive(), false);
 });
 
+test('/order, /orders, and /unlink are public commands', () => {
+  assert.equal(orderFlow.orderCommand.default_member_permissions, null);
+  assert.equal(orderFlow.ordersCommand.default_member_permissions, null);
+  assert.equal(orderFlow.unlinkCommand.default_member_permissions, null);
+});
+
 test('hasRecentOrderForEmail is false without a matching order', async () => {
   process.env.SHOPIFY_STORE = 'omi-test';
   process.env.SHOPIFY_ACCESS_TOKEN = 'shpua_test';
@@ -173,6 +179,17 @@ test('bound /order and /orders say the lookup failed when Shopify errors, not th
     assert.equal(shop.errors.length, 2);
     assert.match(shop.errors.join('\n'), /Shopify lookup failed: auth[\s\S]*Shopify lookup failed: error/);
     assert.doesNotMatch(shop.errors.join('\n'), /owner@example\.com/);
+  });
+});
+
+test('an ordinary unbound customer can start /order email verification', async () => {
+  await withLiveShop(async () => {
+    const interaction = slash('order');
+    interaction.showModal = async (modal) => interaction.sent.push(modal.toJSON());
+    assert.equal(await orderFlow.handleOrderInteraction(interaction), true);
+    assert.equal(interaction.sent.length, 1);
+    assert.equal(interaction.sent[0].custom_id, 'link_email');
+    assert.match(interaction.sent[0].components[0].components[0].label, /Email used on the Shopify order/i);
   });
 });
 

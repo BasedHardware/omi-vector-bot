@@ -58,6 +58,20 @@ test('a checkout shipping quote is not treated as order status', () => {
   assert.match(router.staffReason(route, q), /checkout shipping quote/i);
 });
 
+test('an order customer asking for a human gets a handoff answer, not another /order instruction', () => {
+  const q = 'Please help me get in touch with the human who is responsible for shipping.';
+  const route = router.classify(`Where is my order?\n${q}`);
+  assert.equal(route.wantHuman, true);
+  const reply = router.cannedReply(route, q);
+  assert.match(reply, /person from the shop team/i);
+  assert.doesNotMatch(reply, /\/order\b|order status from here/i);
+});
+
+test('a customer nudge is recognized without treating arbitrary questions as nudges', () => {
+  assert.equal(router.looksLikeSupportNudge("anyone? even a bot's answer will be appreciated."), true);
+  assert.equal(router.looksLikeSupportNudge('Can anyone explain how pairing works?'), false);
+});
+
 test('paid plan / redemption is money, not shipping, even if they mention Order IDs', () => {
   const q = [
     'Hi Omi team - reporting an app/billing bug and hoping someone can fix my account.',

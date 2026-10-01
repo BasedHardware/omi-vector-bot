@@ -133,6 +133,17 @@ const WANT_HUMAN = [
   /\bspeak to (a )?(human|person)\b/i,
   /\bneed (a )?(human|person|someone)\b/i,
   /\breal person\b/i,
+  /\b(?:help me )?(?:get|put) (?:me )?in touch with (?:a |the )?(?:human|person|team|staff)\b/i,
+  /\bcontact (?:a |the )?(?:human|person|support|shop|shipping)(?: team)?\b/i,
+];
+
+const SUPPORT_NUDGE = [
+  /^any(?:one|body)\??[.!\s]*(?:even a bot.*)?$/i,
+  /\bany(?:one|body) (?:there|available|responding)\b/i,
+  /\b(?:still|been) waiting\b/i,
+  /\bno (?:reply|response|answer)\b/i,
+  /\bplease (?:reply|respond|answer)\b/i,
+  /\beven a bot(?:'s)? answer\b/i,
 ];
 
 function any(text, patterns) {
@@ -351,6 +362,10 @@ function looksLikeShippingQuote(text) {
   );
 }
 
+function looksLikeSupportNudge(text) {
+  return any(text, SUPPORT_NUDGE);
+}
+
 function looksLikePlan(text) {
   return /\b(subscription|redemption code|unlimited yearly|plus plan|no active plan|stuck on free|downgraded to free|billing bug)\b/i.test(
     String(text || '')
@@ -449,7 +464,14 @@ function orderLookupLive() {
   }
 }
 
-function shopStatusReply() {
+function shopStatusReply(route, question) {
+  if (route?.wantHuman || looksLikeSupportNudge(question)) {
+    return [
+      "You're asking for a person from the shop team to check this shipment.",
+      "I can't provide the tracking or expected delivery date myself.",
+      "Please don't post your address or payment details here.",
+    ].join(' ');
+  }
   const head =
     "I can't see order status from here, so I can't tell you where that order is or when it will arrive. That needs someone with access to the order system, and I'm not going to guess a date.";
   if (orderLookupLive()) {
@@ -493,7 +515,7 @@ function cannedReply(route, question) {
     if (route?.intent === 'shipping_quote' || looksLikeShippingQuote(question)) {
       return shippingQuoteReply();
     }
-    return shopStatusReply();
+    return shopStatusReply(route, question);
   }
   if (looksLikeRecordingHow(question)) return recordingHowReply();
   if (looksLikeDeviceReset(question)) return deviceResetReply();
@@ -611,6 +633,7 @@ module.exports = {
   requiresGroundedAnswer,
   looksLikeTax,
   looksLikeShippingQuote,
+  looksLikeSupportNudge,
   looksLikePlan,
   looksLikeDocs,
   looksLikeRecordingHow,

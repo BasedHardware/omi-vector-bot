@@ -317,6 +317,50 @@ test('bot messages and empty captions are not handled', () => {
   assert.equal(shouldHandle(makeMessage('How do I pair my Omi?')), true);
 });
 
+test('typed slash commands and bare role mentions are not treated as support questions', async () => {
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Order shipping delay' });
+  const command = makeMessage('/order', { channel: post });
+  const supportMention = makeMessage('<@&900000000000000001>', { channel: post });
+  assert.equal(shouldHandle(command), false);
+  assert.equal(shouldHandle(supportMention), false);
+  await handleMessage(command);
+  await handleMessage(supportMention);
+  assert.equal(command.replies.length + supportMention.replies.length + post.sent.length, 0);
+});
+
+test('an order follow-up asking for a human alerts staff and does not repeat /order', async () => {
+  const parent = makeChannel({ id: HELP_FORUM, name: 'Help' });
+  const post = makeChannel({
+    thread: true,
+    parentId: HELP_FORUM,
+    parent,
+    name: 'Omi Glass order has not shipped',
+  });
+  const authorId = nextId();
+  const follow = makeMessage(
+    'Then please help me get in touch with the Human who is responsible for shipping?',
+    { channel: post, authorId }
+  );
+  post.messages.fetch = async () =>
+    new Map([
+      [follow.id, follow],
+      ['2', { id: '2', author: { bot: true, username: 'omi' }, content: 'Use /order to check your own orders.' }],
+      ['1', {
+        id: '1',
+        author: { bot: false, username: 'customer' },
+        content: 'Order #22777 has not shipped and I have no tracking notice.',
+      }],
+    ]);
+
+  await handleMessage(follow);
+
+  const reply = follow.replies.map(textOf).join('\n');
+  assert.match(reply, /person from the shop team/i);
+  assert.match(reply, /person on the team has this now|written in this thread/i);
+  assert.doesNotMatch(reply, /Use \/order|order status from here/i);
+  assert.match(post.sent.map(textOf).join('\n'), /Needs a human/i);
+});
+
 test('an @here announcement is not a question for Vector, while a direct mention still is', async () => {
   const content = '@here Omi firmware 2.1 is rolling out today, your device will update overnight';
   const announcement = makeMessage(content, { channel: generalChannel() });

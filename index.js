@@ -175,6 +175,13 @@ function isStaffMessage(message) {
   );
 }
 
+function messageCaption(content) {
+  return String(content || '')
+    .replace(/<@!?\d+>|<@&\d+>|<#\d+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function shouldHandle(message) {
   if (message.author.bot) return false;
   // Staff replies in live support threads are interventions, not new customer
@@ -182,7 +189,10 @@ function shouldHandle(message) {
   if ((isHandoffThread(message.channel) || isHelpThread(message.channel)) && isStaffMessage(message)) {
     return false;
   }
-  const caption = message.content.replace(/<@!?\d+>/g, '').trim();
+  const caption = messageCaption(message.content);
+  // Slash commands are handled by InteractionCreate. A typed command is not
+  // a support question, and answering it creates a reply loop around /order.
+  if (/^\/[a-z][\w-]*(?:\s|$)/i.test(caption)) return false;
   if (caption.length < 5 && !hasUsableAttachment(message) && !forumStarterPrefix(message)) return false;
   if (/^(thanks|thank you|thx|ok|okay|got it|cool|lol|ty|hello|hi|hey)[.!\s]*$/i.test(caption)) return false;
   if (isHandoffThread(message.channel)) {
@@ -355,7 +365,7 @@ async function handleMessage(message) {
 
 async function answerMessage(message) {
   const channel = message.channel;
-  const caption = message.content.replace(/<@!?\d+>/g, '').trim();
+  const caption = messageCaption(message.content);
   const files = await fetchTextAttachments(message.attachments);
   const read = { image: false, video: false };
   if (process.env.VECTOR_OCR === '1') {
@@ -404,7 +414,17 @@ async function answerMessage(message) {
       }
     }
     const routeText = [routeSource, prior].filter(Boolean).join('\n');
-    const route = router.classify(routeText);
+    const currentRoute = router.classify(asked || question);
+    const contextRoute = router.classify(routeText);
+    // History preserves the ticket topic, but only the newest customer message
+    // decides whether they are currently asking for a human.
+    const route = {
+      ...contextRoute,
+      wantHuman: Boolean(currentRoute.wantHuman),
+      escalate: Boolean(contextRoute.escalate || currentRoute.escalate),
+    };
+    const supportFollowup =
+      Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
     const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
     if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
@@ -453,7 +473,7 @@ async function answerMessage(message) {
         escalate: true,
         reason: router.staffReason(route, asked || question),
       };
-      cleanAnswer = clipForDiscord(router.cannedReply(route, routeText) || '');
+      cleanAnswer = clipForDiscord(router.cannedReply(route, asked || question) || '');
       if (shopifyLookup?.reason) {
         aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
       }
@@ -621,7 +641,7 @@ async function answerMessage(message) {
 
     if (holdPublicCopy) {
       cleanAnswer = clipForDiscord(
-        router.cannedReply(route, routeText) ||
+        router.cannedReply(route, asked || question) ||
           "I can't share account or order details in this public post."
       );
       const publicText = String(cleanAnswer || '').replace(/help@omi\.me/gi, '');
@@ -647,6 +667,7 @@ async function answerMessage(message) {
     const inHandoff = isHandoffThread(channel);
     const continuingPost = await hasEarlierMessages(channel, message.id);
     const stayInPost = inHandoff || continuingPost;
+    const handoffFollowup = continuingPost && supportFollowup;
     const pingAuthor = wantsAuthorPing(caption);
     const docsQuiet =
       route.lane === 'faq' &&
@@ -709,7 +730,7 @@ async function answerMessage(message) {
           }
         }
       }
-      if (!reused && !stayInPost) {
+      if (!reused && (!stayInPost || handoffFollowup)) {
         try {
           const handoff = await notifyStaff({
             client,
@@ -768,7 +789,7 @@ async function answerMessage(message) {
       let parentReply = escalateReply(cleanAnswer, {
         pinged,
         duplicate,
-        conversation: stayInPost,
+        conversation: stayInPost && !handoffFollowup,
         issue:
           (triaged.fileIssue || triage.wantsShopTicket(triaged)) &&
           !inHandoff &&
@@ -779,7 +800,6 @@ async function answerMessage(message) {
       if (reused && handoffThread?.id && !inHandoff) {
         parentReply = `${parentReply}\n\n<#${handoffThread.id}>`;
       }
-      if (holdPublicCopy) parentReply = cleanAnswer;
       await replySafe(message, parentReply, { pingAuthor });
       if (dbReady) {
         await db.createEscalation(channel.id);

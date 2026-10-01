@@ -19,6 +19,7 @@ const ephemeral = { flags: MessageFlags.Ephemeral };
 const orderCommand = new SlashCommandBuilder()
   .setName('order')
   .setDescription('Check your Shopify order. Verifies the email on the order first.')
+  .setDefaultMemberPermissions(null)
   .addStringOption((option) =>
     option.setName('number').setDescription('Optional order number, e.g. #1234').setRequired(false)
   )
@@ -27,11 +28,13 @@ const orderCommand = new SlashCommandBuilder()
 const ordersCommand = new SlashCommandBuilder()
   .setName('orders')
   .setDescription('List recent Shopify orders for your verified email.')
+  .setDefaultMemberPermissions(null)
   .toJSON();
 
 const unlinkCommand = new SlashCommandBuilder()
   .setName('unlink')
   .setDescription('Forget your verified Shopify order email.')
+  .setDefaultMemberPermissions(null)
   .toJSON();
 
 function isLive() {
