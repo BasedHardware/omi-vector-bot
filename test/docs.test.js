@@ -82,3 +82,41 @@ test('planned searches retrieve source-labeled Help Center evidence', async () =
   assert.match(text, /Official documentation \| authoritative/);
   assert.match(text, /Settings, Developer, Create Key/);
 });
+
+test('stored retrieval recalls official source even when generic docs have more keyword hits', async () => {
+  const filters = [];
+  const text = await relevantDocs('My voice question transcribes but has no answer', {
+    fetchImpl: async () => {
+      throw new Error('stored evidence should win');
+    },
+    store: {
+      searchDocPages: async (_query, _limit, sources = []) => {
+        filters.push(sources);
+        if (sources.includes('github')) {
+          return [
+            {
+              title: 'app/lib/services/notifications/chat_answer_notification_handler.dart',
+              url: 'https://github.com/BasedHardware/omi/blob/main/app/lib/services/notifications/chat_answer_notification_handler.dart',
+              body: 'Foreground chat answers are consumed in the app; background answers use a notification.',
+              source: 'github',
+              chunk_index: 0,
+              rank: 0.4,
+            },
+          ];
+        }
+        if (sources.includes('help')) return [];
+        return Array.from({ length: 12 }, (_, index) => ({
+          title: `Generic developer chat page ${index}`,
+          url: `https://docs.omi.me/generic-${index}`,
+          body: 'Generic developer chat answer documentation.',
+          source: 'docs',
+          chunk_index: 0,
+          rank: 1,
+        }));
+      },
+    },
+  });
+  assert.ok(filters.some((sources) => sources.includes('github')));
+  assert.match(text, /Foreground chat answers are consumed in the app/);
+  assert.match(text, /Official GitHub \| authoritative/);
+});

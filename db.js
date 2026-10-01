@@ -244,21 +244,23 @@ async function saveDocPage({ url, title, body }) {
   }
 }
 
-async function searchDocPages(question, limit = 8) {
+async function searchDocPages(question, limit = 8, sources = []) {
   const words = queryWords(question);
   if (!words.length) return [];
   const search = words.join(' OR ');
+  const wantedSources = Array.isArray(sources) ? sources.map(String).filter(Boolean) : [];
   const { rows } = await pool.query(
     `WITH query AS (SELECT websearch_to_tsquery('english', $1) AS value)
      SELECT title, url, section, source, authority, body, chunk_index,
             ts_rank_cd(search_vector, query.value, 32) AS rank
      FROM doc_chunks, query
      WHERE search_vector @@ query.value
+       AND (cardinality($3::text[]) = 0 OR source = ANY($3::text[]))
      ORDER BY (ts_rank_cd(search_vector, query.value, 32) * (1 + authority * 0.06)) DESC,
               authority DESC,
               chunk_index ASC
      LIMIT $2`,
-    [search, limit]
+    [search, limit, wantedSources]
   );
   return rows;
 }

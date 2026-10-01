@@ -63,8 +63,29 @@ async function storedDocs(question, store, plannedQueries = []) {
   if (!store?.searchDocPages) return '';
   try {
     const queries = supportQueries(question, plannedQueries);
-    const resultSets = await Promise.all(queries.map((query) => store.searchDocPages(query, 12)));
-    const rows = mergeRanked(resultSets, 8);
+    const batches = await Promise.all(
+      queries.map((query) =>
+        Promise.all([
+          store.searchDocPages(query, 12),
+          store.searchDocPages(query, 5, ['help']),
+          store.searchDocPages(query, 5, ['github']),
+        ])
+      )
+    );
+    const allSets = batches.map((batch) => batch[0]);
+    const helpSets = batches.map((batch) => batch[1]);
+    const githubSets = batches.map((batch) => batch[2]);
+    const ranked = mergeRanked([...allSets, ...helpSets, ...githubSets], 12);
+    const required = [mergeRanked(helpSets, 1)[0], mergeRanked(githubSets, 1)[0]].filter(Boolean);
+    const rows = [];
+    const seen = new Set();
+    for (const row of [...ranked.slice(0, 3), ...required, ...ranked.slice(3)]) {
+      const key = `${row.url || ''}#${row.chunk_index ?? row.chunkIndex ?? 0}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(row);
+      if (rows.length >= 8) break;
+    }
     return formatEvidence(rows);
   } catch (err) {
     console.error('[Docs] stored lookup failed:', err.message);
