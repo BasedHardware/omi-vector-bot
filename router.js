@@ -365,7 +365,12 @@ function looksLikeDeviceReset(text) {
 }
 
 function deviceResetReply() {
-  return 'On the necklace, hold the button for about 3 seconds to turn it off, then press once to turn it on. That restarts it. The consumer necklace does not have a separate reset button. DevKit 2 does: the button is inside the case, labeled RST, and a double-tap is only for flashing firmware.';
+  return [
+    'To reset the necklace, press and hold the button, and while still holding, place it on the charger. It may take a few tries.',
+    'If that does not reset it, let it discharge until it powers off, then charge it again.',
+    'If there is no light at all, use that same reset. If it still stays off, leave it on the charger for 6–8 hours. If it gets slightly warm, keep charging for 12–14 hours.',
+    'If none of that works, email help@omi.me. These steps are from the Omi troubleshooting guide: https://help.omi.me/en/articles/12847359-omi-device-troubleshooting-guide',
+  ].join('\n\n');
 }
 
 function recordingHowReply() {
@@ -420,6 +425,12 @@ function shopStatusReply() {
   return `${head}\n\nEmail help@omi.me with the order number. Order lookup in chat is not live yet. Keep your order number handy.`;
 }
 
+function orderNote(question) {
+  const order = String(question || '').match(/\border\s*#\s*([A-Z0-9-]{4,})/i);
+  if (!order) return ' Include the order number.';
+  return ` Include order #${order[1]}.`;
+}
+
 function cannedReply(route, question) {
   const lane = route?.lane;
   if (lane === 'money') {
@@ -429,7 +440,7 @@ function cannedReply(route, question) {
     if (looksLikePlan(question)) {
       return "This is about a paid plan or a redemption code. I can't change your account from chat.";
     }
-    return "This is about money — a refund, a charge, or a shipping address. I can't change those from chat.";
+    return `I can't issue a refund, cancel an order, or change a payment from chat. Email help@omi.me and ask for the refund to the original payment method.${orderNote(question)} I can't promise the refund or a date.`;
   }
   if (lane === 'privacy') {
     return "This is about deleting your account or what Omi saved. I can't do that from chat.";

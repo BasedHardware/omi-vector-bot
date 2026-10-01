@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const express = require('express');
 const db = require('./db');
-const { queryAgent } = require('./opencode');
+const { queryAgent, reviewAnswer } = require('./opencode');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -48,7 +48,7 @@ const shopifyBind = require('./shopifyBind');
 const router = require('./router');
 const github = require('./github');
 const commands = require('./commands');
-const { buildToolFacts } = require('./prompt');
+const { buildToolFacts, OFFICIAL } = require('./prompt');
 const { relevantDocs } = require('./docs');
 const { matchingRelease } = require('./releases');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
@@ -70,6 +70,19 @@ const client = new Client({
 
 const app = express();
 app.get('/health', (_req, res) => res.send('OK'));
+app.get('/ratings', async (_req, res) => {
+  const { ratingCounts } = require('./ratings');
+  const counts = await ratingCounts();
+  res.type('html').send(`<!doctype html>
+<meta charset="utf-8">
+<title>Omi Support ratings</title>
+<body style="font-family: Georgia, serif; background:#111; color:#f4f1ea; margin:48px;">
+<h1>Did this help?</h1>
+<p>Answers from the customer who opened the post.</p>
+<p style="font-size:32px;">Helpful: ${counts.yes}</p>
+<p style="font-size:32px;">Still need help: ${counts.no}</p>
+</body>`);
+});
 
 app.post('/github-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
@@ -343,7 +356,18 @@ async function answerMessage(message) {
   try {
     await channel.sendTyping();
 
-    const route = router.classify(question);
+    const routeSource = [channel.isThread?.() ? channel.name : '', question].filter(Boolean).join('\n');
+    let prior = '';
+    if (channel.isThread?.() && (isHelpThread(channel) || isHandoffThread(channel))) {
+      try {
+        const history = await getHistory(channel, message.id);
+        prior = history.map((entry) => entry.content).join('\n');
+      } catch (err) {
+        console.error('[Bot] thread context failed:', err.message);
+      }
+    }
+    const routeText = [routeSource, prior].filter(Boolean).join('\n');
+    const route = router.classify(routeText);
     const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
     if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
@@ -392,7 +416,7 @@ async function answerMessage(message) {
         escalate: true,
         reason: router.staffReason(route, asked || question),
       };
-      cleanAnswer = clipForDiscord(router.cannedReply(route, asked || question) || '');
+      cleanAnswer = clipForDiscord(router.cannedReply(route, routeText) || '');
       if (shopifyLookup?.reason) {
         aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
       }
@@ -411,13 +435,7 @@ async function answerMessage(message) {
       const shopifyText = shopifyLookup
         ? shopify.buildUserReply(shopifyLookup, asked || question)
         : '';
-      const docsText =
-        route.lane === 'faq' ||
-        route.lane === 'tech' ||
-        route.lane === 'firmware' ||
-        router.looksLikeProductQuestion(asked || question)
-          ? await relevantDocs(asked || question)
-          : '';
+      const docsText = await relevantDocs(routeText || asked || question);
       const releaseText = await matchingRelease(asked || question);
       const toolFacts = buildToolFacts({
         route,
@@ -437,6 +455,19 @@ async function answerMessage(message) {
           sessionId: `discord-${channel.id}`,
           canNotifyStaff: canNotifyStaff({ discordReady: true }),
         });
+        if (aiResponse?.final_answer && (docsText || releaseText)) {
+          try {
+            const checked = await reviewAnswer({
+              question,
+              draft: aiResponse.final_answer,
+              sources: [OFFICIAL, docsText, releaseText].filter(Boolean).join('\n\n'),
+              sessionId: `discord-${channel.id}-review`,
+            });
+            if (checked) aiResponse.final_answer = checked;
+          } catch (err) {
+            console.error('[Bot] review failed:', err.message);
+          }
+        }
 
         if (useShopify && shopifyLookup) {
           aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
@@ -503,20 +534,18 @@ async function answerMessage(message) {
 
     if (holdPublicCopy) {
       cleanAnswer = clipForDiscord(
-        router.cannedReply(route, asked || question) ||
+        router.cannedReply(route, routeText) ||
           "I can't share account or order details in this public post."
       );
+      const publicText = String(cleanAnswer || '').replace(/help@omi\.me/gi, '');
       if (
-        /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(cleanAnswer) ||
+        /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(publicText) ||
         /\b\d{1,5}\s+(?:(?:[A-Za-z][A-Za-z.'-]*|\d{1,3}(?:st|nd|rd|th))\s+){0,4}(?:street|st|avenue|ave|road|rd|blvd)\b/i.test(
           cleanAnswer
         )
       ) {
         cleanAnswer = "I can't share account or order details in this public post.";
       }
-    }
-    if (router.looksLikeDeviceReset(asked || question)) {
-      cleanAnswer = router.cannedReply(route, asked || question);
     }
     if (threadHistory.length) cleanAnswer = github.keepMergedPull(threadHistory, cleanAnswer);
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;

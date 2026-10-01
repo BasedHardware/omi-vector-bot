@@ -63,7 +63,7 @@ async function rememberPages(store, pages) {
 async function storedDocs(question, store) {
   if (!store?.searchDocPages) return '';
   try {
-    const rows = await store.searchDocPages(question);
+    const rows = await store.searchDocPages(question, 4);
     return (rows || [])
       .map((row) => `${row.title}\n${row.url}\n${clipPage(row.body)}`)
       .filter((block) => block.trim())
@@ -97,7 +97,10 @@ async function relevantDocs(question, { fetchImpl, store } = {}) {
       pages.push({ url: page.url, title: page.title, body: excerpt });
     }
     await rememberPages(saved, pages);
-    if (blocks.length) return blocks.join('\n\n');
+    if (blocks.length) {
+      const stored = await storedDocs(question, saved);
+      return [blocks.join('\n\n'), stored].filter(Boolean).join('\n\n');
+    }
     return storedDocs(question, saved);
   } catch (err) {
     console.error('[Docs] lookup failed:', err.message);

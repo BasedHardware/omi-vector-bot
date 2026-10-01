@@ -75,6 +75,7 @@ function closeNotice(user) {
   return [
     "If this is still happening, open a new post in Help. We won't see replies here.",
     `Closed by ${who}.`,
+    'Did this help? Only the person who opened this post can answer.',
   ].join('\n\n');
 }
 
@@ -104,12 +105,27 @@ function closePayload(user) {
 async function handleRating(interaction) {
   const helped = interaction.customId === 'rate:yes';
   const threadId = String(interaction.channelId || interaction.channel?.id || '');
+  const customerId = String(interaction.channel?.ownerId || '');
+  const clicker = String(interaction.user?.id || interaction.member?.user?.id || '');
+  if (!customerId || clicker !== customerId) {
+    await interaction.reply({
+      content: 'Only the customer who opened this post can answer that.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  let counts = { yes: 0, no: 0 };
+  try {
+    counts = await require('./ratings').recordRating(threadId, clicker, helped);
+  } catch (err) {
+    console.error('[Bot] rating save failed:', err.message);
+  }
   const where = threadId ? ` <#${threadId}>` : '';
   try {
     await sendToStaffChannel(interaction.client, {
       content: helped
-        ? `Customer said the closed thread helped.${where}`
-        : `Customer still needs help after the thread was closed.${where}`,
+        ? `A customer said this helped.${where} Helpful: ${counts.yes}. Still need help: ${counts.no}.`
+        : `A customer still needs help.${where} Helpful: ${counts.yes}. Still need help: ${counts.no}.`,
       allowedMentions: { parse: [] },
     });
   } catch (err) {

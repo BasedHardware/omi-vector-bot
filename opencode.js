@@ -129,4 +129,44 @@ async function queryAgent({
   throw new Error('OpenCode response empty');
 }
 
-module.exports = { queryAgent, parseAgentJson };
+const REVIEW_MODEL = process.env.OPENCODE_REVIEW_MODEL || 'deepseek/deepseek-v4-pro';
+
+async function reviewAnswer({ question, draft, sources, sessionId, post }) {
+  const key = process.env.OPENCODE_API_KEY;
+  if (!key || !draft) return draft;
+  const send = post || axios.post.bind(axios);
+  const session = sessionId || crypto.randomUUID();
+  const { data } = await send(
+    OPENCODE_URL,
+    {
+      model: REVIEW_MODEL,
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You check a support reply against the source pages. Reply with JSON only: {"final_answer":"string","escalate":false,"confidence":0.8}. Keep a step only when the pages state it. Delete any step, time, or button the pages do not state. If the pages do not cover the question, say you are not sure and give help@omi.me. Do not add a second topic. Do not claim you pinged or emailed anyone. Everyday words.',
+        },
+        {
+          role: 'user',
+          content: `Question:\n${question}\n\nDraft reply:\n${draft}\n\nSource pages:\n${String(sources || '').slice(0, 14000)}`,
+        },
+      ],
+    },
+    {
+      timeout: TIMEOUT_MS,
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'omi-vector-bot/1.0',
+        'x-opencode-session': session,
+      },
+    }
+  );
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) return draft;
+  const parsed = parseAgentJson(content);
+  return parsed.final_answer || draft;
+}
+
+module.exports = { queryAgent, reviewAnswer, parseAgentJson };

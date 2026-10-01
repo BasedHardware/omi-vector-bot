@@ -722,6 +722,10 @@ test('a File click keeps the draft when Discord rejects the defer', async () => 
 
 test('a rating button tells staff without pinging anyone', async () => {
   const { handleInteraction } = require('../commands');
+  const { resetRatings } = require('../ratings');
+  resetRatings();
+  const prevDb = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
   const prev = process.env.STAFF_ALERT_CHANNEL_ID;
   process.env.STAFF_ALERT_CHANNEL_ID = '1554155306504814633';
   const sent = [];
@@ -731,6 +735,8 @@ test('a rating button tells staff without pinging anyone', async () => {
       isButton: () => true,
       isChatInputCommand: () => false,
       channelId: '700000000000000369',
+      user: { id: 'customer-1' },
+      channel: { ownerId: 'customer-1' },
       client: {
         channels: {
           fetch: async () => ({
@@ -748,10 +754,31 @@ test('a rating button tells staff without pinging anyone', async () => {
     });
     const staff = sent.find((item) => /still needs help/i.test(String(item.content || '')));
     assert.ok(staff);
+    assert.match(staff.content, /Helpful: 0/);
+    assert.match(staff.content, /Still need help: 1/);
     assert.deepEqual(staff.allowedMentions, { parse: [] });
     assert.equal(JSON.stringify(staff).includes('@'), false);
   } finally {
     if (prev == null) delete process.env.STAFF_ALERT_CHANNEL_ID;
     else process.env.STAFF_ALERT_CHANNEL_ID = prev;
+    if (prevDb == null) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = prevDb;
   }
+});
+
+test('staff cannot answer the helpful question', async () => {
+  const { handleInteraction } = require('../commands');
+  const replies = [];
+  await handleInteraction({
+    customId: 'rate:yes',
+    isButton: () => true,
+    isChatInputCommand: () => false,
+    channelId: '700000000000000369',
+    user: { id: 'staff-1' },
+    channel: { ownerId: 'customer-1' },
+    reply: async (payload) => {
+      replies.push(payload);
+    },
+  });
+  assert.match(replies[0].content, /Only the customer/i);
 });

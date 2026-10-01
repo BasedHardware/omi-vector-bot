@@ -88,6 +88,16 @@ async function fillIfEmpty({ fetchImpl, store, force = false } = {}) {
   if (!docsHaveRows) docs = await loadDocs(fetchImpl, db);
   if (!releasesHaveRows) releases = await loadReleases(fetchImpl, db);
   if (docs || releases) console.log(`[DB] filled docs=${docs} releases=${releases}`);
+  if (db.pool) {
+    const { loadHelpCenter, loadDiscordHelp } = require('../helpcenter');
+    const helpHaveRows = !force && (await db.countPagesLike('https://help.omi.me/')) > 0;
+    const discordHaveRows = !force && (await db.countPagesLike('https://discord.com/channels/')) > 0;
+    let help = 0;
+    let discord = 0;
+    if (!helpHaveRows) help = await loadHelpCenter(fetchImpl, db);
+    if (!discordHaveRows) discord = await loadDiscordHelp(fetchImpl, db);
+    if (help || discord) console.log(`[DB] filled help=${help} discord=${discord}`);
+  }
   return { docs, releases };
 }
 

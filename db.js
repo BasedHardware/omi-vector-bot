@@ -63,6 +63,13 @@ async function initSchema() {
         thread_id TEXT NOT NULL,
         PRIMARY KEY (issue_number, thread_id)
       );
+
+      CREATE TABLE IF NOT EXISTS ratings (
+        thread_id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        helped BOOLEAN NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `);
     console.log('[DB] Schema initialized');
   } finally {
@@ -165,7 +172,7 @@ async function saveDocPage({ url, title, body }) {
     `INSERT INTO doc_pages (url, title, body, fetched_at)
      VALUES ($1, $2, $3, NOW())
      ON CONFLICT (url) DO UPDATE SET title = $2, body = $3, fetched_at = NOW()`,
-    [url, String(title || ''), String(body || '').slice(0, 4000)]
+    [url, String(title || ''), String(body || '').slice(0, 8000)]
   );
 }
 
@@ -175,14 +182,42 @@ async function searchDocPages(question, limit = 2) {
   const clauses = words.map((_, i) => `(title || ' ' || body) ILIKE $${i + 1}`);
   const params = words.map((word) => `%${word}%`);
   params.push(limit);
+  const score = words
+    .map((_, i) => `CASE WHEN (title || ' ' || body) ILIKE $${i + 1} THEN 1 ELSE 0 END`)
+    .join(' + ');
   const { rows } = await pool.query(
     `SELECT title, url, body FROM doc_pages
      WHERE ${clauses.join(' OR ')}
-     ORDER BY fetched_at DESC
+     ORDER BY (${score}) DESC, fetched_at DESC
      LIMIT $${params.length}`,
     params
   );
   return rows;
+}
+
+async function saveRating(threadId, userId, helped) {
+  if (!threadId || !userId) return;
+  await pool.query(
+    `INSERT INTO ratings (thread_id, user_id, helped)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (thread_id) DO UPDATE SET user_id = $2, helped = $3, created_at = NOW()`,
+    [String(threadId), String(userId), Boolean(helped)]
+  );
+}
+
+async function ratingCounts() {
+  const { rows } = await pool.query(
+    `SELECT
+       count(*) FILTER (WHERE helped)::int AS yes,
+       count(*) FILTER (WHERE NOT helped)::int AS no
+     FROM ratings`
+  );
+  return { yes: rows[0]?.yes || 0, no: rows[0]?.no || 0 };
+}
+
+async function countPagesLike(prefix) {
+  const { rows } = await pool.query(`SELECT count(*)::int AS n FROM doc_pages WHERE url LIKE $1`, [`${prefix}%`]);
+  return rows[0].n;
 }
 
 async function saveRelease({ tag, name, body, publishedAt }) {
@@ -246,6 +281,9 @@ module.exports = {
   searchKnowledge,
   saveDocPage,
   searchDocPages,
+  countPagesLike,
+  saveRating,
+  ratingCounts,
   saveRelease,
   searchReleases,
   saveIssueThread,
