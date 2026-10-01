@@ -144,8 +144,44 @@ function isTestChannel(channel) {
   return channel.isThread() && channel.parentId === VECTOR_TEST_CHANNEL_ID;
 }
 
+function memberHasRole(member, roleIds) {
+  const roles = member?.roles?.cache;
+  if (!roles || !roleIds.length) return false;
+  if (typeof roles.has === 'function') return roleIds.some((id) => roles.has(id));
+  if (typeof roles.includes === 'function') return roleIds.some((id) => roles.includes(id));
+  return false;
+}
+
+function memberCanModerate(member) {
+  const permissions = member?.permissions;
+  if (!permissions || typeof permissions.has !== 'function') return false;
+  try {
+    return (
+      permissions.has('ManageThreads', true) ||
+      permissions.has('ManageMessages', true) ||
+      permissions.has('Administrator', true)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isStaffMessage(message) {
+  const { users, roles } = staffMentionIds();
+  return (
+    users.includes(String(message.author?.id || '')) ||
+    memberHasRole(message.member, roles) ||
+    memberCanModerate(message.member)
+  );
+}
+
 function shouldHandle(message) {
   if (message.author.bot) return false;
+  // Staff replies in live support threads are interventions, not new customer
+  // questions. Keep #vector-test available for staff to exercise the bot.
+  if ((isHandoffThread(message.channel) || isHelpThread(message.channel)) && isStaffMessage(message)) {
+    return false;
+  }
   const caption = message.content.replace(/<@!?\d+>/g, '').trim();
   if (caption.length < 5 && !hasUsableAttachment(message) && !forumStarterPrefix(message)) return false;
   if (/^(thanks|thank you|thx|ok|okay|got it|cool|lol|ty|hello|hi|hey)[.!\s]*$/i.test(caption)) return false;

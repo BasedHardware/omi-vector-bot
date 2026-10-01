@@ -184,13 +184,14 @@ async function doneWithArchiveRefused(thread, channel, authorId) {
 
 function makeMessage(
   content,
-  { channel = testChannel(), attachments = [], mention = false, bot = false, authorId = nextId() } = {}
+  { channel = testChannel(), attachments = [], mention = false, bot = false, authorId = nextId(), member = null } = {}
 ) {
   const message = {
     id: nextId(),
     content,
     channel,
     author: { id: authorId, username: 'customer', bot },
+    member,
     attachments: new Map(attachments.map((a, i) => [String(i), a])),
     embeds: [],
     mentions: { has: () => mention },
@@ -982,6 +983,47 @@ test('outside #vector-test and the help forum only a message that mentions the b
   assert.equal(quiet.reply, '');
   assert.equal(mentioned.modelCalled, true);
   assert.match(mentioned.reply, /center button/);
+});
+
+test('staff and moderators are not answered in live support threads', async () => {
+  const post = makeChannel({ name: 'Continue restarts the answer', thread: true, parentId: HELP_FORUM });
+  const namedStaff = makeMessage(
+    'We confirmed the history is preserved and opened a fix. We will verify it in production.',
+    { channel: post }
+  );
+  process.env.STAFF_USER_IDS = namedStaff.author.id;
+  assert.equal(shouldHandle(namedStaff), false);
+  const models = modelCalls.length;
+  await emit(Events.MessageCreate, namedStaff);
+
+  const moderator = makeMessage('Can you share the conversation ID so I can check this?', {
+    channel: post,
+    member: { permissions: { has: (flag) => flag === 'ManageThreads' } },
+  });
+  process.env.STAFF_USER_IDS = '';
+  assert.equal(shouldHandle(moderator), false);
+
+  const handoff = makeChannel({ name: 'Handoff · tech · Continue repeats', thread: true, parentId: TEST_CHANNEL });
+  const handoffModerator = makeMessage('PR #20139 is open for this.', {
+    channel: handoff,
+    member: { permissions: { has: (flag) => flag === 'ManageMessages' } },
+  });
+  assert.equal(shouldHandle(handoffModerator), false);
+
+  await emit(Events.MessageCreate, moderator);
+  await emit(Events.MessageCreate, handoffModerator);
+  assert.equal(modelCalls.length, models);
+  assert.equal(namedStaff.replies.length + moderator.replies.length + handoffModerator.replies.length, 0);
+
+  const customer = makeMessage('Does Continue preserve the unfinished answer?', { channel: post });
+  assert.equal(shouldHandle(customer), true);
+
+  process.env.STAFF_USER_IDS = namedStaff.author.id;
+  const staffTest = makeMessage('How do I pair my Omi?', {
+    channel: testChannel(),
+    authorId: namedStaff.author.id,
+  });
+  assert.equal(shouldHandle(staffTest), true);
 });
 
 test('a bare mention is not handled and the mention never reaches the model', async () => {
