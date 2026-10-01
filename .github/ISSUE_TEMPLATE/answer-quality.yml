@@ -1,0 +1,51 @@
+name: Answer quality problem
+description: Report an incorrect, unsupported, incomplete, or poorly sourced support answer.
+title: "Answer quality: "
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Customer question
+      description: Remove emails, order numbers, phone numbers, addresses, and other personal data.
+    validations:
+      required: true
+  - type: textarea
+    id: answer
+    attributes:
+      label: Bot answer
+      description: Paste only the public answer, with personal data removed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Explain what should have happened, including whether a human handoff was needed.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Authoritative Omi source
+      description: Link the relevant help.omi.me, docs.omi.me, omi.me, or official release page when known.
+  - type: dropdown
+    id: failure
+    attributes:
+      label: Failure type
+      options:
+        - Wrong source retrieved
+        - Correct source, wrong answer
+        - Unsupported claim or invented step
+        - Incomplete answer
+        - Wrong handoff decision
+        - Privacy or sensitive-data problem
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed customer personal data and secrets.
+          required: true

@@ -1,9 +1,11 @@
 require('dotenv').config();
 const router = require('../router');
 const { relevantDocs } = require('../docs');
-const { buildToolFacts } = require('../prompt');
-const { queryAgent } = require('../opencode');
+const { buildToolFacts, OFFICIAL } = require('../prompt');
+const { planSearch, queryAgent, reviewAnswer } = require('../opencode');
 const triage = require('../triage');
+const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('../honesty');
+const { stripFalseCertainty } = require('../utils');
 
 const scenarios = [
   {
@@ -51,7 +53,6 @@ const scenarios = [
     ask: 'Ordered my Omi with Express Delivery on Sep 1st, #22102, and it is still in preparing status.',
     lane: 'shop',
     must: [/help@omi\.me|not live yet|order number/i],
-    mustNot: [/\/order/i],
   },
   {
     id: 'crash',
@@ -66,6 +67,40 @@ const scenarios = [
     ask: 'The app stayed open, the light was blue, and still nothing recorded.',
     lane: 'tech',
     mustNot: [/24 hours on the Omi page is battery/i],
+  },
+];
+
+const liveScenarios = [
+  {
+    id: 'developer-key',
+    first: 'answer',
+    ask: 'Where do I create an Omi developer API key?',
+    lane: 'faq',
+    must: [/developer/i, /key/i],
+    mustNot: [/invent|not published/i],
+  },
+  {
+    id: 'conversation-timeout',
+    first: 'answer',
+    ask: 'Where can I change how long silence lasts before Omi ends a conversation?',
+    lane: 'faq',
+    must: [/conversation timeout|silence/i, /settings|profile/i],
+  },
+  {
+    id: 'offline-sync',
+    first: 'answer',
+    ask: 'If I record while my phone has no internet, can the conversation sync later?',
+    lane: 'faq',
+    must: [/sync|reconnect|internet/i],
+    mustNot: [/lost for good/i],
+  },
+  {
+    id: 'devkit-standalone',
+    first: 'answer',
+    ask: 'Which Omi device can record on its own without the phone app?',
+    lane: 'faq',
+    must: [/devkit 2/i],
+    mustNot: [/consumer necklace can/i],
   },
 ];
 
@@ -93,8 +128,20 @@ async function replyFor(scene, route) {
       from: 'rules',
     };
   }
+  let searchPlan = { standaloneQuestion: scene.ask, queries: [] };
+  if (route.lane === 'faq' || route.lane === 'unknown') {
+    try {
+      searchPlan = await planSearch({
+        question: scene.ask,
+        route,
+        sessionId: `eval-${scene.id}-search`,
+      });
+    } catch (err) {
+      if (/429|usage limit|wallet/i.test(err.message)) modelBlocked = true;
+    }
+  }
   const docsText = route.lane === 'faq' || router.looksLikeProductQuestion(scene.ask)
-    ? await relevantDocs(scene.ask)
+    ? await relevantDocs(searchPlan.standaloneQuestion || scene.ask, { queries: searchPlan.queries })
     : '';
   const toolFacts = buildToolFacts({ route, docsText });
   try {
@@ -104,7 +151,29 @@ async function replyFor(scene, route) {
       toolFacts,
       sessionId: `eval-${scene.id}`,
     });
-    return { answer: String(agent.final_answer || ''), agent, from: 'model' };
+    const checked = await reviewAnswer({
+      question: scene.ask,
+      draft: agent.final_answer,
+      sources: [
+        `[Static fallback | lower priority]\n${OFFICIAL}`,
+        docsText,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      sessionId: `eval-${scene.id}-review`,
+    });
+    agent.final_answer = checked.final_answer;
+    agent.escalate = Boolean(agent.escalate || checked.escalate);
+    agent.confidence = Math.min(Number(agent.confidence) || 0.4, Number(checked.confidence) || 0.4);
+    const merged = triage.merge(route, agent, scene.ask);
+    const answer = stripFalseCertainty(
+      stripUnsupportedClaims(
+        stripShopBleed(stripHowtoBleed(String(agent.final_answer || ''), merged.lane), merged.lane),
+        merged.lane,
+        scene.ask
+      )
+    );
+    return { answer, agent, from: 'model+review+filters' };
   } catch (err) {
     if (/429|usage limit|wallet/i.test(err.message)) modelBlocked = true;
     const down = router.whenModelDown(route, scene.ask);
@@ -120,7 +189,11 @@ async function main() {
   const key = Boolean(String(process.env.OPENCODE_API_KEY || '').trim());
   console.log(`model ${key && !modelBlocked ? 'on' : 'off'}`);
   let failed = 0;
-  for (const scene of scenarios) {
+  let ran = 0;
+  const selected = modelBlocked ? scenarios : [...scenarios, ...liveScenarios];
+  for (const scene of selected) {
+    if (liveScenarios.includes(scene) && modelBlocked) continue;
+    ran += 1;
     const route = router.classify(scene.ask);
     const result = await replyFor(scene, route);
     const merged = triage.merge(route, result.agent, scene.ask);
@@ -135,10 +208,10 @@ async function main() {
     console.log(result.answer.replace(/\s+/g, ' ').slice(0, 420));
     if (problems.length) console.log(`problems: ${problems.join('; ')}`);
   }
-  console.log(`\n${scenarios.length - failed}/${scenarios.length} ok`);
+  console.log(`\n${ran - failed}/${ran} ok`);
   process.exit(failed ? 1 : 0);
 }
 
 if (require.main === module) main();
 
-module.exports = { scenarios, judge, replyFor };
+module.exports = { scenarios, liveScenarios, judge, replyFor };

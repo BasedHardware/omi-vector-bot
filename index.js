@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const express = require('express');
 const db = require('./db');
-const { queryAgent, reviewAnswer } = require('./opencode');
+const { queryAgent, reviewAnswer, planSearch } = require('./opencode');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -57,6 +57,7 @@ const triage = require('./triage');
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
 const PORT = process.env.PORT || 3000;
+const KNOWLEDGE_REFRESH_MS = 6 * 60 * 60 * 1000;
 const telegramReady = Boolean(process.env.TELEGRAM_TOKEN && process.env.TELEGRAM_CHAT_ID);
 const dbReady = Boolean(process.env.DATABASE_URL);
 
@@ -435,7 +436,22 @@ async function answerMessage(message) {
       const shopifyText = shopifyLookup
         ? shopify.buildUserReply(shopifyLookup, asked || question)
         : '';
-      const docsText = await relevantDocs(routeText || asked || question);
+      let searchPlan = { standaloneQuestion: asked || question, queries: [] };
+      if (process.env.OPENCODE_API_KEY && ['faq', 'unknown'].includes(route.lane)) {
+        try {
+          searchPlan = await planSearch({
+            question: asked || question,
+            threadHistory,
+            route,
+            sessionId: `discord-${channel.id}-search`,
+          });
+        } catch (err) {
+          console.error('[Bot] search planning failed:', err.message);
+        }
+      }
+      const docsText = await relevantDocs(searchPlan.standaloneQuestion || asked || question, {
+        queries: searchPlan.queries,
+      });
       const releaseText = await matchingRelease(asked || question);
       const toolFacts = buildToolFacts({
         route,
@@ -455,17 +471,36 @@ async function answerMessage(message) {
           sessionId: `discord-${channel.id}`,
           canNotifyStaff: canNotifyStaff({ discordReady: true }),
         });
-        if (aiResponse?.final_answer && (docsText || releaseText)) {
+        if (aiResponse?.final_answer) {
           try {
             const checked = await reviewAnswer({
               question,
               draft: aiResponse.final_answer,
-              sources: [OFFICIAL, docsText, releaseText].filter(Boolean).join('\n\n'),
+              sources: [
+                `[Static fallback | lower priority than retrieved Help Center and docs]\n${OFFICIAL}`,
+                docsText,
+                releaseText ? `[Official release note]\n${releaseText}` : '',
+              ]
+                .filter(Boolean)
+                .join('\n\n'),
               sessionId: `discord-${channel.id}-review`,
             });
-            if (checked) aiResponse.final_answer = checked;
+            aiResponse.final_answer = checked.final_answer;
+            aiResponse.confidence = Math.min(
+              Number(aiResponse.confidence) || 0.4,
+              Number(checked.confidence) || 0.4
+            );
+            if (checked.escalate) {
+              aiResponse.escalate = true;
+              aiResponse.reason = aiResponse.reason || 'The answer was not fully supported by official pages.';
+            }
           } catch (err) {
             console.error('[Bot] review failed:', err.message);
+            aiResponse.final_answer =
+              "I found information for this, but I couldn't verify the answer against the official pages just now. Email help@omi.me so I don't give you a guessed step.";
+            aiResponse.confidence = 0.2;
+            aiResponse.escalate = true;
+            aiResponse.reason = 'Official-source review was unavailable.';
           }
         }
 
@@ -566,7 +601,8 @@ async function answerMessage(message) {
       (router.looksLikeDocs(asked || question) ||
         router.looksLikeRecordingHow(asked || question) ||
         router.looksLikeDeviceReset(asked || question)) &&
-      !route.wantHuman;
+      !route.wantHuman &&
+      !aiResponse.escalate;
     const escalate =
       holdPublicCopy ||
       (!docsQuiet &&
@@ -812,6 +848,10 @@ async function start() {
       await github.hydrateIssueThreads();
       const { fillIfEmpty } = require('./scripts/fill-db');
       fillIfEmpty().catch((err) => console.error('[DB] fill failed:', err.message));
+      const refresh = setInterval(() => {
+        fillIfEmpty().catch((err) => console.error('[DB] refresh failed:', err.message));
+      }, KNOWLEDGE_REFRESH_MS);
+      refresh.unref();
     } catch (err) {
       console.error('[DB] schema failed:', err.message);
     }

@@ -1,5 +1,6 @@
 const SITEMAP = 'https://help.omi.me/sitemap.xml';
 const HELP_FORUM = () => String(process.env.HELP_FORUM_CHANNEL_ID || '').trim();
+const { cleanDocument } = require('./retrieval');
 
 function articleUrls(xml) {
   return [...String(xml || '').matchAll(/<loc>(https:\/\/help\.omi\.me\/en\/articles\/[^<]+)<\/loc>/g)].map(
@@ -10,18 +11,7 @@ function articleUrls(xml) {
 function htmlToText(html) {
   const article = String(html || '').match(/<article[\s\S]*?<\/article>/i);
   const chunk = article ? article[0] : String(html || '');
-  return chunk
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&#\d+;/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 8000);
+  return cleanDocument(chunk);
 }
 
 function redactPublic(text) {

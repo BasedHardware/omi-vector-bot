@@ -1,53 +1,86 @@
-# omi-vector-bot
+# Omi Support bot
 
-Discord support helper for Omi. Customers see it as **Omi Support**. Answers from a small FAQ. When it cannot see the data (orders, refunds, the phone or computer app), it hands the thread to a person and only then says that it did.
+Discord support agent for Omi. Customers see it as **Omi Support**. It answers product questions from retrieved Omi sources, verifies model-written answers against those sources, and hands account or device-specific work to a person without inventing a status or a ping.
 
-## Setup
+## Answer pipeline
 
-```
+1. A deterministic router protects money, orders, privacy, app failures, and device failures before model output can change the lane.
+2. The model rewrites a customer message or follow-up into a standalone question and several short search queries. Non-English questions are translated for retrieval while device names, versions, and error codes are preserved.
+3. PostgreSQL full-text search retrieves small, overlapping passages instead of whole truncated pages. Results from multiple queries are combined and labeled by source trust.
+4. The answer model receives only the most relevant evidence, the same-thread history, and any staff-approved `faq:` facts.
+5. A separate review model checks each instruction and factual claim against the retrieved evidence. An answer that cannot be verified fails closed and goes to a person.
+6. Deterministic honesty filters remove invented pings, diagnoses, shipped-fix claims, and unsupported steps before Discord receives the reply.
+
+Source priority:
+
+1. `help.omi.me` — official customer-support instructions
+2. `docs.omi.me` — official product and developer documentation
+3. `omi.me` — official product and policy pages
+4. BasedHardware/Omi releases — version and release-note questions
+5. Discord help history — discovery and corroboration only; never sufficient for a factual claim
+
+The source catalog refreshes in the background. GitHub issues and pull requests are used to identify existing engineering work, not as product documentation.
+
+## Local setup
+
+Requires Node.js 20 or newer.
+
+```sh
 cp .env.example .env
 npm install
 npm test
 npm run ask -- "How do I pair my Omi?"
-npm run ask -- "Where is my order?"
 ```
 
-Never commit `.env`. Order and refund questions should print `ESCALATE` unless Shopify read-only env is set.
+Never commit `.env` or the local `railway.toml`. Do not run a local Discord process while the hosted process is active, or two bots may answer the same message.
 
-If `SHOPIFY_STORE` and `SHOPIFY_ACCESS_TOKEN` are set (Railway only, not GitHub), Vector still does not look up an order from a number or email typed in chat. `/order` verifies the email on the order with a one-time code, binds that email to the Discord user, then looks up only that user's orders (ephemeral). Until Shopify + Resend + `DATA_ENCRYPTION_KEY` are set, `/order` tells them to email help@omi.me. Replies never include street, phone, name, or email. Refunds, cancels, and address changes still go to a person.
+## Quality checks
 
-## Discord
-
-Private test channel first. Leave `HELP_FORUM_CHANNEL_ID` empty until you want Vector to answer public help posts. Staff can still `/done` a forum post without that flag.
-
-```
-npm run invite
-npm start
+```sh
+npm test
+EVAL_NO_MODEL=1 node scripts/customer-eval.js
+node scripts/customer-eval.js
 ```
 
-Needs `DISCORD_TOKEN`, `OPENCODE_API_KEY`, and `VECTOR_TEST_CHANNEL_ID`. Host with `npm start` and health check `/health`. Stop any local process once the host is up, or two bots will answer the same message.
+The final command uses the configured model key and should only be run when a live-model check is intentional. Customer-facing behavior changes need a focused regression test. A green rules suite alone does not prove answer quality; retrieved evidence and the final answer must both be evaluated.
 
-## Handoff
+To rebuild the stored source catalog:
 
-1. `STAFF_ALERT_CHANNEL_ID` — private staff channel.
-2. Else a `Handoff · app · Daily reports…` thread on the user message (area + short title; needs Create Public Threads).
-3. Else a **Needs a human** card in the same channel.
-4. Optional Telegram: `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID`.
-
-The user reply only claims a ping if one of those sends succeeded. The staff card names a specialist in plain text and does not ping anyone. Shop and app: Mohsin. Desktop: Aryan. Firmware: TuEmb. Privacy: David. Anything else: Aryan, David, undivisible. A how-to stays with the bot.
-
-The card shows **Labels** and **Area** (`shop` / `app` / `desktop` / `firmware` / `privacy`). Tax, duties, customs, refunds, and orders stay off GitHub. They get a Discord shop ticket card; updates stay in that Handoff. Chat never looks up Shopify from a guessed order number. `/order` after email OTP is the lookup path. Refunds, cancels, and address changes still need a person.
-
-App, desktop, and firmware bugs get a Discord issue card. GitHub filing uses a **GitHub App** installation token when `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_APP_PRIVATE_KEY` are set, so issues show as the app, not a person. A personal `GITHUB_TOKEN` still works as a fallback and should not be used. If the app is set, Vector files that card on GitHub (or links a duplicate) and stamps the Handoff id in the issue body. The File button remains as a staff fallback. Tax and shop tickets are never filed.
-
-In a Handoff thread or a public help-forum post, `/done` posts a closed-ticket card with the Omi logo, applies the forum **Resolved** tag when that tag exists, then archives it. Named staff (`STAFF_USER_IDS` / `STAFF_ROLE_ID`) or anyone with Manage Threads. The bot also needs **Manage Threads** to archive and to set moderated tags. In `#vector-test`, anyone can `/done` if that list is empty. Vector never auto-closes from GitHub, from a community reply, or in bulk. Set `HELP_FORUM_CHANNEL_ID` only when you want Vector to answer in that forum. Order, email, and privacy still go to a private Handoff.
-
-If `GITHUB_WEBHOOK_SECRET` is set, point GitHub at `POST /github-webhook`. Vector posts one line in the linked Handoff when the issue is opened, closed, reopened, commented on, or a closing PR is merged. It does not paste GitHub comment text and it does not run `/done`.
-
-In the Handoff thread, reply as a person (Vector stays quiet). To save a fact for later questions:
-
+```sh
+node scripts/fill-db.js --force
 ```
+
+Without `--force`, each source is refreshed only when its freshness window has elapsed.
+
+## Discord behavior
+
+- New posts in the configured help forum are answered; historical posts are not replayed.
+- Other bots, greetings, acknowledgements, and thanks are ignored.
+- Follow-ups inside the same thread keep their thread context.
+- Sensitive order, email, address, phone, and privacy content is not repeated publicly.
+- `/done` closes a support thread and asks the original customer whether the answer helped.
+- `/order` is ephemeral and verifies ownership through an emailed code before showing a customer's own orders.
+
+## Human handoff
+
+Money, orders, privacy, account deletion, app crashes, and device faults require a person. A successful handoff creates or reuses a customer-specific Discord thread. The bot only says that someone was notified when Discord actually accepted the handoff.
+
+Staff may save a durable support fact inside a Handoff thread:
+
+```text
 faq: Teal LED means charging and connected.
 ```
 
-Saved facts live in memory on the host (and Postgres if `DATABASE_URL` is set). On boot, Vector also reloads `faq:` lines already sitting in Handoff threads in the test channel, so a Railway redeploy does not wipe them.
+Only configured staff can save facts. Customer messages and empty staff lists never become facts automatically.
+
+## GitHub workflow
+
+Technical handoffs can show a proposed issue card. The bot searches existing issues and pull requests first, but it does not open a public issue by itself. Staff must press **File**. Only threads linked by the bot receive signed GitHub webhook updates, and later customer messages are not copied to the issue.
+
+Repository contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). CI is intentionally deferred until the scored answer-quality set is a release gate.
+
+## HTTP endpoints
+
+- `GET /health` — process health
+- `GET /ratings` — aggregate helpful / still-needs-help counts
+- `POST /github-webhook` — signed GitHub events for bot-linked support threads

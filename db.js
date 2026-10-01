@@ -1,5 +1,6 @@
 const fs = require('fs');
 const { Pool } = require('pg');
+const { chunkDocument, cleanDocument, queryTerms, sourceAuthority } = require('./retrieval');
 
 function sslFor(connectionString) {
   const value = String(connectionString || '');
@@ -51,6 +52,31 @@ async function initSchema() {
         fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS doc_chunks (
+        url TEXT NOT NULL REFERENCES doc_pages(url) ON DELETE CASCADE,
+        chunk_index INTEGER NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        section TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'other',
+        authority INTEGER NOT NULL DEFAULT 2,
+        body TEXT NOT NULL DEFAULT '',
+        search_vector TSVECTOR GENERATED ALWAYS AS (
+          setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+          setweight(to_tsvector('english', coalesce(section, '')), 'A') ||
+          setweight(to_tsvector('english', coalesce(body, '')), 'B')
+        ) STORED,
+        PRIMARY KEY (url, chunk_index)
+      );
+
+      CREATE INDEX IF NOT EXISTS doc_chunks_search_idx ON doc_chunks USING GIN (search_vector);
+      CREATE INDEX IF NOT EXISTS doc_chunks_source_idx ON doc_chunks (source, authority DESC);
+
+      CREATE TABLE IF NOT EXISTS source_sync (
+        source_key TEXT PRIMARY KEY,
+        synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        item_count INTEGER NOT NULL DEFAULT 0
+      );
+
       CREATE TABLE IF NOT EXISTS releases (
         tag TEXT PRIMARY KEY,
         name TEXT NOT NULL DEFAULT '',
@@ -71,6 +97,15 @@ async function initSchema() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+    const chunks = await client.query(`SELECT count(*)::int AS n FROM doc_chunks`);
+    const pages = await client.query(`SELECT count(*)::int AS n FROM doc_pages`);
+    if ((chunks.rows[0]?.n || 0) === 0 && (pages.rows[0]?.n || 0) > 0) {
+      const existing = await client.query(`SELECT url, title, body FROM doc_pages`);
+      for (const page of existing.rows) {
+        await replaceDocChunks(client, page);
+      }
+      console.log(`[DB] indexed ${existing.rows.length} existing page(s)`);
+    }
     console.log('[DB] Schema initialized');
   } finally {
     client.release();
@@ -158,41 +193,94 @@ async function searchKnowledge(query, limit = 3) {
 }
 
 function queryWords(text) {
-  return String(text || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter((word) => word.length >= 3)
-    .slice(0, 5);
+  return queryTerms(text, 12);
+}
+
+async function replaceDocChunks(client, page) {
+  const chunks = chunkDocument(page);
+  await client.query(`DELETE FROM doc_chunks WHERE url = $1`, [page.url]);
+  for (const chunk of chunks) {
+    await client.query(
+      `INSERT INTO doc_chunks
+       (url, chunk_index, title, section, source, authority, body)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        chunk.url,
+        chunk.chunkIndex,
+        chunk.title,
+        chunk.section,
+        chunk.source,
+        sourceAuthority(chunk.source),
+        chunk.body,
+      ]
+    );
+  }
+  return chunks.length;
 }
 
 async function saveDocPage({ url, title, body }) {
   if (!url) return;
+  const page = {
+    url: String(url),
+    title: String(title || ''),
+    body: cleanDocument(body),
+  };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO doc_pages (url, title, body, fetched_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (url) DO UPDATE SET title = $2, body = $3, fetched_at = NOW()`,
+      [page.url, page.title, page.body]
+    );
+    await replaceDocChunks(client, page);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function searchDocPages(question, limit = 8) {
+  const words = queryWords(question);
+  if (!words.length) return [];
+  const search = words.join(' OR ');
+  const { rows } = await pool.query(
+    `WITH query AS (SELECT websearch_to_tsquery('english', $1) AS value)
+     SELECT title, url, section, source, authority, body, chunk_index,
+            ts_rank_cd(search_vector, query.value, 32) AS rank
+     FROM doc_chunks, query
+     WHERE search_vector @@ query.value
+     ORDER BY (ts_rank_cd(search_vector, query.value, 32) * (1 + authority * 0.06)) DESC,
+              authority DESC,
+              chunk_index ASC
+     LIMIT $2`,
+    [search, limit]
+  );
+  return rows;
+}
+
+async function markSourceSynced(sourceKey, itemCount) {
+  if (!sourceKey) return;
   await pool.query(
-    `INSERT INTO doc_pages (url, title, body, fetched_at)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (url) DO UPDATE SET title = $2, body = $3, fetched_at = NOW()`,
-    [url, String(title || ''), String(body || '').slice(0, 8000)]
+    `INSERT INTO source_sync (source_key, synced_at, item_count)
+     VALUES ($1, NOW(), $2)
+     ON CONFLICT (source_key)
+     DO UPDATE SET synced_at = NOW(), item_count = $2`,
+    [String(sourceKey), Number(itemCount) || 0]
   );
 }
 
-async function searchDocPages(question, limit = 2) {
-  const words = queryWords(question);
-  if (!words.length) return [];
-  const clauses = words.map((_, i) => `(title || ' ' || body) ILIKE $${i + 1}`);
-  const params = words.map((word) => `%${word}%`);
-  params.push(limit);
-  const score = words
-    .map((_, i) => `CASE WHEN (title || ' ' || body) ILIKE $${i + 1} THEN 1 ELSE 0 END`)
-    .join(' + ');
+async function sourceNeedsSync(sourceKey, maxAgeMs = 24 * 60 * 60 * 1000) {
   const { rows } = await pool.query(
-    `SELECT title, url, body FROM doc_pages
-     WHERE ${clauses.join(' OR ')}
-     ORDER BY (${score}) DESC, fetched_at DESC
-     LIMIT $${params.length}`,
-    params
+    `SELECT synced_at FROM source_sync WHERE source_key = $1`,
+    [String(sourceKey)]
   );
-  return rows;
+  const at = rows[0]?.synced_at ? new Date(rows[0].synced_at).getTime() : 0;
+  return !at || Date.now() - at >= maxAgeMs;
 }
 
 async function saveRating(threadId, userId, helped) {
@@ -281,6 +369,8 @@ module.exports = {
   searchKnowledge,
   saveDocPage,
   searchDocPages,
+  markSourceSynced,
+  sourceNeedsSync,
   countPagesLike,
   saveRating,
   ratingCounts,

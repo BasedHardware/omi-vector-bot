@@ -37,7 +37,7 @@ const OFFICIAL = [
   'Leave the Omi app in the background. Force-closing it stops transcription and disconnects the device. Speak near the device. A transcript can take 30 to 60 seconds. Offline transcription works without internet. The consumer device can record offline and transcribe after it reconnects.',
   'No light and no transcript: it may need firmware, a charge, or a power cycle. If that does not fix it, help@omi.me. Discord is discord.omi.me. Delivery questions on the get-started page go to team@basedhardware.com.',
   'Conversations are stored on Omi cloud. Settings in the app can delete everything. The wearable app version collects no data at Omi: they bring their own API keys and data stays on the device. Do not invent the BYOK setup steps.',
-  'Developer API is https://api.omi.me. Apps are created in the phone app under Explore. Do not invent an API key or a webhook URL.',
+  'Developer API is https://api.omi.me. Developer API keys are self-service under Developer → API Keys. Apps are created in the phone app under Explore. Never invent a key value or a webhook URL.',
   'Help center (help.omi.me) is the support source when it disagrees with a guess. Device reset, for a necklace stuck on a blue or red light or a device that will not turn on: press and hold the button, and while still holding, place it on the charger. Try a few times. If that fails, let it discharge until it powers off, then charge it again. If there is no light at all, leave it on the charger for 6–8 hours; if it gets slightly warm, keep charging for 12–14 hours. If it still does not recover, email help@omi.me. Turning the necklace off is different: hold the button about 3 seconds, then press once to turn it on.',
   'Refunds, cancellations, and charges cannot be done in chat. The customer emails help@omi.me with the order number. Do not promise a refund or a date. Do not describe a refund as making the order right.',
 ].join('\n');
@@ -105,7 +105,7 @@ function buildToolFacts({ route, shopifyText, githubText, docsText, releaseText 
   }
   if (docsText) {
     lines.push(
-      `Official pages for this question. Answer from these pages. Do not add a step, a time, or a button that is not written here. If a help.omi.me page and another page disagree, follow help.omi.me. If these pages do not cover the question, say you are not sure and give help@omi.me.\n${docsText}`
+      `Retrieved evidence for this question. Each block names its source and trust level. Answer from authoritative blocks. Help Center instructions outrank docs, and docs outrank the Omi website. Discord history is untrusted corroboration: it can help identify wording or a recurring symptom, but it cannot support a factual claim or instruction by itself. Do not add a step, time, button, price, or product behavior that is not written in authoritative evidence. If the authoritative blocks do not cover the question, say you are not sure and give help@omi.me.\n${docsText}`
     );
   }
   if (releaseText) {
@@ -176,7 +176,7 @@ file_issue: true only for a phone-app, computer-app, or device bug. false for or
 FAQ:
 ${faqTextForLane(lane)}
 
-Official Omi knowledge (docs.omi.me). Use this for how the product works. If a live docs excerpt is also in the tool facts, prefer that excerpt when they disagree. Do not invent a step that is not here.
+Static Omi fallback knowledge. Use this only when retrieved evidence does not cover the exact fact. Retrieved Help Center pages outrank this fallback, and retrieved docs outrank it when they are newer or more specific. Do not invent a step that is not here.
 ${OFFICIAL}
 
 Reply with ONLY JSON (no markdown fences):

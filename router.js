@@ -340,10 +340,17 @@ function looksLikeHardFailure(text) {
 function looksLikeProductQuestion(text) {
   const s = String(text || '');
   if (looksLikeHardFailure(s)) return false;
-  if (any(s, STRONG_MONEY) || any(s, STRONG_SHOP) || any(s, PRIVACY) || any(s, ACCOUNT)) return false;
+  if (
+    any(s, STRONG_MONEY) ||
+    any(s, WEAK_MONEY) ||
+    any(s, STRONG_SHOP) ||
+    any(s, WEAK_SHOP) ||
+    any(s, PRIVACY) ||
+    any(s, ACCOUNT)
+  ) return false;
   if (looksLikeRecordingHow(s)) return true;
   if (looksLikeDeviceReset(s)) return true;
-  return /\b(how (do|does|can|should)|is it (meant|supposed)|supposed to|any clue|like \w+ does|can (it|omi|the device)|does (it|omi|the device)|what does|why (does|is|can)|i'?d like)\b/i.test(s);
+  return /\b(how (do|does|can|should)|where (do|does|can|is|are)|which (omi )?(device|app|setting|option)|if i .{0,60}\b(can|will|does)|is it (meant|supposed)|supposed to|any clue|like \w+ does|can (it|omi|the device)|does (it|omi|the device)|what does|why (does|is|can)|i'?d like)\b/i.test(s);
 }
 
 function looksLikeRecordingHow(text) {

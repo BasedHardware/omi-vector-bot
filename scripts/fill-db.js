@@ -32,6 +32,20 @@ async function tableCount(db, table) {
   return rows[0].n;
 }
 
+async function shouldSync(db, key, legacyHasRows, { force, maxAgeMs }) {
+  if (force) return true;
+  if (typeof db.sourceNeedsSync === 'function') {
+    return db.sourceNeedsSync(key, maxAgeMs);
+  }
+  return !legacyHasRows;
+}
+
+async function noteSync(db, key, count) {
+  if (count > 0 && typeof db.markSourceSynced === 'function') {
+    await db.markSourceSynced(key, count);
+  }
+}
+
 async function loadDocs(fetchImpl, db) {
   const fetchFn = fetchImpl || fetch;
   const indexRes = await fetchFn(INDEX_URL);
@@ -79,33 +93,56 @@ async function loadReleases(fetchImpl, db) {
   return saved;
 }
 
-async function fillIfEmpty({ fetchImpl, store, force = false } = {}) {
+async function fillIfEmpty({ fetchImpl, store, force = false, maxAgeMs = 24 * 60 * 60 * 1000 } = {}) {
   const db = store || require('../db');
-  const docsHaveRows = !force && (await tableCount(db, 'doc_pages')) > 0;
-  const releasesHaveRows = !force && (await tableCount(db, 'releases')) > 0;
+  const docsHaveRows = (await tableCount(db, 'doc_pages')) > 0;
+  const releasesHaveRows = (await tableCount(db, 'releases')) > 0;
   let docs = 0;
   let releases = 0;
-  if (!docsHaveRows) docs = await loadDocs(fetchImpl, db);
-  if (!releasesHaveRows) releases = await loadReleases(fetchImpl, db);
+  if (await shouldSync(db, 'docs', docsHaveRows, { force, maxAgeMs })) {
+    docs = await loadDocs(fetchImpl, db);
+    await noteSync(db, 'docs', docs);
+  }
+  if (await shouldSync(db, 'releases', releasesHaveRows, { force, maxAgeMs })) {
+    releases = await loadReleases(fetchImpl, db);
+    await noteSync(db, 'releases', releases);
+  }
   if (docs || releases) console.log(`[DB] filled docs=${docs} releases=${releases}`);
+  let help = 0;
+  let discord = 0;
+  let website = 0;
   if (db.pool) {
     const { loadHelpCenter, loadDiscordHelp } = require('../helpcenter');
-    const helpHaveRows = !force && (await db.countPagesLike('https://help.omi.me/')) > 0;
-    const discordHaveRows = !force && (await db.countPagesLike('https://discord.com/channels/')) > 0;
-    let help = 0;
-    let discord = 0;
-    if (!helpHaveRows) help = await loadHelpCenter(fetchImpl, db);
-    if (!discordHaveRows) discord = await loadDiscordHelp(fetchImpl, db);
-    if (help || discord) console.log(`[DB] filled help=${help} discord=${discord}`);
+    const { loadOfficialWebsite } = require('../website');
+    const helpHaveRows = (await db.countPagesLike('https://help.omi.me/')) > 0;
+    const discordHaveRows = (await db.countPagesLike('https://discord.com/channels/')) > 0;
+    const websiteHaveRows = (await db.countPagesLike('https://www.omi.me/')) > 0;
+    if (await shouldSync(db, 'help', helpHaveRows, { force, maxAgeMs })) {
+      help = await loadHelpCenter(fetchImpl, db);
+      await noteSync(db, 'help', help);
+    }
+    if (await shouldSync(db, 'website', websiteHaveRows, { force, maxAgeMs })) {
+      website = await loadOfficialWebsite(fetchImpl, db);
+      await noteSync(db, 'website', website);
+    }
+    if (await shouldSync(db, 'discord', discordHaveRows, { force, maxAgeMs })) {
+      discord = await loadDiscordHelp(fetchImpl, db);
+      await noteSync(db, 'discord', discord);
+    }
+    if (help || website || discord) {
+      console.log(`[DB] filled help=${help} website=${website} discord=${discord}`);
+    }
   }
-  return { docs, releases };
+  return { docs, releases, help, website, discord };
 }
 
 module.exports = { fillIfEmpty, loadDocs, loadReleases };
 
 if (require.main === module) {
-  fillIfEmpty({ force: process.argv.includes('--force') })
-    .then(() => require('../db').shutdown())
+  const db = require('../db');
+  db.initSchema()
+    .then(() => fillIfEmpty({ store: db, force: process.argv.includes('--force') }))
+    .then(() => db.shutdown())
     .catch((err) => {
       console.error('[DB] fill failed:', err.message);
       process.exit(1);

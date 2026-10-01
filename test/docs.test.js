@@ -53,3 +53,32 @@ test('a docs lookup uses the saved page when the site is down', async () => {
   assert.match(text, /24 hours/);
   assert.match(text, /docs\.omi\.me\/doc\/battery\.md/);
 });
+
+test('planned searches retrieve source-labeled Help Center evidence', async () => {
+  const searches = [];
+  const text = await relevantDocs('How do I make one?', {
+    queries: ['create Omi developer API key', 'developer credentials settings'],
+    fetchImpl: async () => {
+      throw new Error('stored evidence should win');
+    },
+    store: {
+      searchDocPages: async (query) => {
+        searches.push(query);
+        if (!/developer|credentials/i.test(query)) return [];
+        return [
+          {
+            title: 'Create API key',
+            url: 'https://docs.omi.me/api-reference/api-keys/create-api-key',
+            body: 'Get a developer API key from Settings, Developer, Create Key.',
+            source: 'docs',
+            chunk_index: 0,
+            rank: 1,
+          },
+        ];
+      },
+    },
+  });
+  assert.ok(searches.length >= 2);
+  assert.match(text, /Official documentation \| authoritative/);
+  assert.match(text, /Settings, Developer, Create Key/);
+});

@@ -70,6 +70,19 @@ test('a Plaud 24-hour recording question is a product answer, not an app bug', (
   assert.equal(router.classify('The Android app crashes every time I open it.').lane, 'tech');
 });
 
+test('where, which, and offline product questions reach documentation retrieval', () => {
+  for (const question of [
+    'Where do I create an Omi developer API key?',
+    'Where can I change how long silence lasts before Omi ends a conversation?',
+    'Which Omi device can record on its own without the phone app?',
+    'If I record while my phone has no internet, can the conversation sync later?',
+  ]) {
+    const route = router.classify(question);
+    assert.equal(route.lane, 'faq', question);
+    assert.equal(route.escalate, false, question);
+  }
+});
+
 test('app crash and macOS are tech; pairing how-to is faq', () => {
   assert.equal(router.classify('the app crashed on iPhone').area, 'app');
   assert.equal(router.classify('the app crashed on iPhone').lane, 'tech');
