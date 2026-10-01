@@ -39,6 +39,22 @@ test('order and tracking are shop', () => {
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
 });
 
+test('a checkout shipping quote is not treated as order status', () => {
+  const q =
+    'I live on Reunion island and the shipping cost at cashout is 145 euros. Can someone arrange normal-cost shipping from Europe or Asia?';
+  const route = router.classify(q);
+  assert.equal(route.area, 'shop');
+  assert.equal(route.lane, 'shop');
+  assert.equal(route.intent, 'shipping_quote');
+  assert.equal(route.escalate, true);
+
+  const reply = router.cannedReply(route, q);
+  assert.match(reply, /checkout shipping quote/i);
+  assert.match(reply, /another shipping option/i);
+  assert.equal(/order status from here|where that order is|\/order\b/i.test(reply), false);
+  assert.match(router.staffReason(route, q), /checkout shipping quote/i);
+});
+
 test('paid plan / redemption is money, not shipping, even if they mention Order IDs', () => {
   const q = [
     'Hi Omi team - reporting an app/billing bug and hoping someone can fix my account.',

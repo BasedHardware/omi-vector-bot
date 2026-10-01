@@ -257,6 +257,9 @@ function classifyRoute(text) {
   if (any(s, STRONG_MONEY)) {
     return { area: 'shop', lane: 'money', escalate: true, wantHuman };
   }
+  if (looksLikeShippingQuote(s)) {
+    return { area: 'shop', lane: 'shop', intent: 'shipping_quote', escalate: true, wantHuman };
+  }
   if (any(s, STRONG_SHOP)) {
     return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
   }
@@ -323,6 +326,17 @@ function skipModel(route) {
 
 function looksLikeTax(text) {
   return /\b((import\s+)?tax(es)?|duties|customs)\b/i.test(String(text || ''));
+}
+
+function looksLikeShippingQuote(text) {
+  const s = String(text || '');
+  return (
+    /\b(shipping|delivery)\s+(costs?|fees?|prices?|quotes?|rates?)\b/i.test(s) ||
+    /\b(costs?|prices?|quotes?|rates?)\s+(?:for|of)\s+(shipping|delivery)\b/i.test(s) ||
+    /\b(checkout|cashout)\b.{0,40}\b(shipping|delivery)\b/i.test(s) ||
+    /\b(shipping|delivery)\b.{0,40}\b(checkout|cashout)\b/i.test(s) ||
+    /\b(arrange|arranging|alternative|different|cheaper|special)\b.{0,32}\b(shipping|delivery)\b/i.test(s)
+  );
 }
 
 function looksLikePlan(text) {
@@ -432,6 +446,14 @@ function shopStatusReply() {
   return `${head}\n\nEmail help@omi.me with the order number. Order lookup in chat is not live yet. Keep your order number handy.`;
 }
 
+function shippingQuoteReply() {
+  return [
+    'That is a checkout shipping quote, not an order-status question.',
+    "I can't override the rate or confirm a special shipping route from chat. The shop team needs to check whether another shipping option is available for your destination.",
+    "Keep a screenshot of the checkout quote ready, but don't post your full address here.",
+  ].join(' ');
+}
+
 function orderNote(question) {
   const order = String(question || '').match(/\border\s*#\s*([A-Z0-9-]{4,})/i);
   if (!order) return ' Include the order number.';
@@ -455,6 +477,9 @@ function cannedReply(route, question) {
   if (lane === 'shop') {
     if (looksLikeTax(question)) {
       return "This is about tax or duties on an order. I can't change that from chat.";
+    }
+    if (route?.intent === 'shipping_quote' || looksLikeShippingQuote(question)) {
+      return shippingQuoteReply();
     }
     return shopStatusReply();
   }
@@ -483,6 +508,9 @@ function cannedReply(route, question) {
 
 function staffReason(route, question) {
   const lane = route?.lane;
+  if (route?.intent === 'shipping_quote' || looksLikeShippingQuote(question)) {
+    return 'Checkout shipping quote or alternate shipping route';
+  }
   if (looksLikeTax(question) && (lane === 'money' || lane === 'shop' || route?.area === 'shop')) {
     return 'Tax, duties, or customs';
   }
@@ -569,6 +597,7 @@ module.exports = {
   specialistNames,
   skipModel,
   looksLikeTax,
+  looksLikeShippingQuote,
   looksLikePlan,
   looksLikeDocs,
   looksLikeRecordingHow,

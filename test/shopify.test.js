@@ -58,6 +58,16 @@ test('order questions match; pairing in order to does not', () => {
   assert.equal(shopify.isOrderQuestion('in order to pair, I press the button'), false);
 });
 
+test('a checkout shipping quote never performs an order lookup', async () => {
+  await withShopifyEnv(async () => {
+    const route = { area: 'shop', lane: 'shop', intent: 'shipping_quote' };
+    assert.equal(
+      shopify.shouldLookup(route, 'Shipping at checkout is €145', { verifiedEmail: 'hidden@example.com' }),
+      false
+    );
+  });
+});
+
 test('money tickets with an order key still look up Shopify', async () => {
   const money = { lane: 'money', area: 'shop' };
   const taxQ = 'import tax on order #20716';

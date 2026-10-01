@@ -125,6 +125,7 @@ function normalizeEmail(raw) {
 function shouldLookup(route, text, { verifiedEmail } = {}) {
   if (!isConfigured()) return false;
   if (!normalizeEmail(verifiedEmail)) return false;
+  if (route?.intent === 'shipping_quote') return false;
   if (route?.lane === 'shop') return true;
   if (route?.lane === 'money' && hasLookupKey(text)) return true;
   return false;

@@ -1,6 +1,13 @@
 const telegram = require('./telegram');
 const { clipForDiscord, stripPingNarration } = require('./utils');
-const { classify, pickStaffReason, looksLikeCaptureFailure, looksLikeTranscription, specialistNames } = require('./router');
+const {
+  classify,
+  pickStaffReason,
+  looksLikeCaptureFailure,
+  looksLikeTranscription,
+  looksLikeShippingQuote,
+  specialistNames,
+} = require('./router');
 
 const DEDUPE_MS = 15 * 60_000;
 const lastHandoff = new Map();
@@ -416,6 +423,9 @@ function threadTopic(question, route = {}) {
   const raw = String(question || '');
   if (looksLikeCaptureFailure(raw) && looksLikeTranscription(raw)) {
     return 'Transcription unavailable, device not capturing';
+  }
+  if (looksLikeShippingQuote(raw)) {
+    return 'checkout shipping quote';
   }
   const numbered = raw.match(/\border\s*#\s*(\d{3,})\b/i) || raw.match(/#\s*(\d{3,})\b/);
   if (/\b((import\s+)?tax(es)?|duties)\b/i.test(raw)) {

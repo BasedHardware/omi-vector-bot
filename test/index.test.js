@@ -347,6 +347,20 @@ test('an order status question points to email while /order is off, skips the mo
   assert.equal(r.github.length, 0);
 });
 
+test('a high checkout shipping quote reaches shop staff without suggesting order lookup', async () => {
+  const q =
+    'I live on Reunion island and shipping at cashout is 145 euros. Can someone arrange normal-cost shipping from Europe or Asia?';
+  const r = await ask(q);
+  assert.equal(r.modelCalled, false);
+  assert.match(r.reply, /checkout shipping quote/i);
+  assert.match(r.reply, /another shipping option/i);
+  assert.equal(/order status from here|where that order is|\/order\b/i.test(r.reply), false);
+  assert.ok(r.thread);
+  assert.match(r.thread.name, /^Handoff · shop · /);
+  assert.match(r.thread.name, /checkout shipping quote/i);
+  assert.equal(r.github.length, 0);
+});
+
 test('an import tax question gets the tax reply and a money Handoff without the model', async () => {
   const q = 'Will I have to pay import tax or duties when the Omi arrives in Germany?';
   const r = await ask(q);
