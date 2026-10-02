@@ -77,6 +77,21 @@ test('same-problem follow-ups are support nudges in an existing case', () => {
   assert.equal(router.looksLikeSupportNudge('I like the same color too'), false);
 });
 
+test('model-down battery fallback uses the case history and does not repeat support work', () => {
+  const context = [
+    'The battery went from 9% to 3%, then 73%, then 19% after unplugging.',
+    'It flashes blue and green while charging.',
+    'I opened ticket #138637367 and sent diagnostics and screenshots.',
+    "I'm having the same problem too.",
+  ].join('\n');
+  const result = router.whenModelDown({ lane: 'firmware', area: 'firmware' }, context);
+  assert.match(result.reply, /green and blue means it is charging while connected/i);
+  assert.match(result.reply, /percentage changes/i);
+  assert.match(result.reply, /already opened a support ticket/i);
+  assert.match(result.reply, /sent diagnostics or screenshots/i);
+  assert.doesNotMatch(result.reply, /email help@omi\.me|open (?:a|another) ticket/i);
+});
+
 test('paid plan / redemption is money, not shipping, even if they mention Order IDs', () => {
   const q = [
     'Hi Omi team - reporting an app/billing bug and hoping someone can fix my account.',

@@ -763,7 +763,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       } catch (err) {
         console.error('[Bot] model failed:', err.message);
         skipModel = true;
-        const down = router.whenModelDown(route, asked || question);
+        const down = router.whenModelDown(route, caseQuestion);
         aiResponse = down.agent;
         cleanAnswer = clipForDiscord(down.reply);
       }

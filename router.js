@@ -438,6 +438,43 @@ function recordingHowReply() {
   return "The 24 hours on the Omi page is battery life, about a day to a few days depending on the device. It is not a full day of recording with the phone app closed. The necklace needs the Omi app. You can leave the app in the background. If you swipe it away, it stops writing down what was said and the device disconnects. Turn it on with one press. Blue means it is connected to the phone. Red means it is on but not connected. Speak near it. The words can take up to a minute to show in the app. DevKit 2 is the one whose docs say it can record on its own. If the app stayed open, the light was blue, and still nothing showed up, say so here.";
 }
 
+function batteryReadingReply(question) {
+  const text = String(question || '');
+  const percentages = text.match(/\b\d{1,3}\s*%/g) || [];
+  const unstable =
+    /\b(?:jump(?:s|ed|ing)?|drop(?:s|ped|ping)?|fluctuat(?:e|es|ed|ing)|unreliable|inaccurate|wrong|random|stuck)\b/i.test(
+      text
+    ) || percentages.length >= 2;
+  if (!/\bbatter(?:y|ies)\b/i.test(text) || !unstable) return '';
+
+  const lines = [];
+  if (/\b(?:green.{0,20}blue|blue.{0,20}green)\b/i.test(text)) {
+    lines.push(
+      'For the consumer Omi necklace, blinking green and blue means it is charging while connected to the phone; that colour pattern itself is expected.'
+    );
+  }
+  lines.push(
+    'The sharp battery-percentage changes after plugging in, restarting, or unplugging are the unresolved problem—not the green/blue charging indication.'
+  );
+  const hasTicket = /\b(?:ticket|case|request)\b.{0,20}\b(?:#?\d+|open(?:ed)?|made|submitted)\b/i.test(text);
+  const sentDiagnostics = /\b(?:sent|send|emailed|uploaded|provided|shared)\b.{0,40}\b(?:diagnostics?|logs?|screenshots?)\b/i.test(
+    text
+  );
+  if (hasTicket || sentDiagnostics) {
+    lines.push(
+      `You already ${hasTicket ? 'opened a support ticket' : 'contacted support'}${
+        sentDiagnostics ? ' and sent diagnostics or screenshots' : ''
+      }, so I won't ask you to repeat those steps. I can't see the support queue or the device data from here; the existing case needs a person to review it.`
+    );
+  } else {
+    lines.push(
+      "I can't verify the cause or the real battery level from chat, so I won't guess a reset or charging step. This needs a person to review as a device fault."
+    );
+  }
+  lines.push('Source: https://github.com/BasedHardware/omi/issues/5653');
+  return lines.join('\n\n');
+}
+
 function looksLikeDocs(text) {
   return /\b(instructions|documentation|how (it|this|does it) works?|how it'?s different)\b/i.test(
     String(text || '')
@@ -532,6 +569,8 @@ function cannedReply(route, question) {
   }
   if (looksLikeRecordingHow(question)) return recordingHowReply();
   if (looksLikeDeviceReset(question)) return deviceResetReply();
+  const batteryReply = batteryReadingReply(question);
+  if (batteryReply) return batteryReply;
   if (lane === 'firmware') {
     return "This looks like a problem with the Omi device itself. I can't see your device from here, so I won't guess what's wrong.";
   }
