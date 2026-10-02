@@ -18,9 +18,10 @@ Source priority:
 3. Current official BasedHardware/Omi repository source — product behavior not yet covered by customer docs
 4. `omi.me` — official product and policy pages
 5. BasedHardware/Omi releases — version and release-note questions
-6. Discord help history — discovery and corroboration only; never sufficient for a factual claim
+6. `feedback.omi.me` — public issue/request status and customer-reported symptoms only; never product instructions
+7. Discord help history — discovery and corroboration only; never sufficient for a factual claim
 
-The source catalog refreshes in the background, including the support-relevant providers and services in the public Omi app source. A live repository search is used as an optional supplement when its GitHub credentials permit it. GitHub issues and pull requests are used only to identify existing engineering work; unlike repository source, they are not product documentation.
+The source catalog refreshes in the background, including the support-relevant providers and services in the public Omi app source. Relevant public Featurebase posts are fetched on demand from the Feedback sitemap; only the post and portal metadata are retained, not authors, emails, comments, or old bot replies. A live repository search is used as an optional supplement when its GitHub credentials permit it. GitHub issues and pull requests are used only to identify existing engineering work; unlike repository source, they are not product documentation.
 
 ## Local setup
 

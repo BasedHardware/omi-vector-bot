@@ -7,7 +7,7 @@ This bot speaks publicly in Omi's Discord, so correctness and restraint matter m
 - Trace the full customer path: routing, retrieval, model prompt, review, honesty filters, Discord reply, and handoff.
 - Prefer improving retrieval or a general policy over adding a regex for one customer sentence.
 - Keep money, privacy, account deletion, app crashes, and device faults on the human-handoff path.
-- Never make Discord history authoritative. Product instructions must be supported by an official Omi page.
+- Never make Discord history or customer-submitted Feedback posts authoritative. Product instructions must be supported by an official Omi page or current repository source.
 - Never log or commit tokens, customer emails, order data, verification codes, or private keys.
 
 ## Pull requests
@@ -26,9 +26,11 @@ Support facts are ranked in this order:
 
 1. Omi Help Center
 2. Omi documentation
-3. Official Omi website
-4. Official release notes
-5. Discord help history, for corroboration only
+3. Current official Omi repository source
+4. Official Omi website
+5. Official release notes
+6. Omi Feedback portal metadata and customer reports, for issue/status signals only
+7. Discord help history, for corroboration only
 
 If authoritative sources disagree, the Help Center controls customer-support instructions. If no authoritative page answers the question, say so and route the customer to `help@omi.me` rather than guessing.
 

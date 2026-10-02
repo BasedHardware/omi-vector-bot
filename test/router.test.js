@@ -72,6 +72,11 @@ test('a customer nudge is recognized without treating arbitrary questions as nud
   assert.equal(router.looksLikeSupportNudge('Can anyone explain how pairing works?'), false);
 });
 
+test('same-problem follow-ups are support nudges in an existing case', () => {
+  assert.equal(router.looksLikeSupportNudge("I'm having the same problem too"), true);
+  assert.equal(router.looksLikeSupportNudge('I like the same color too'), false);
+});
+
 test('paid plan / redemption is money, not shipping, even if they mention Order IDs', () => {
   const q = [
     'Hi Omi team - reporting an app/billing bug and hoping someone can fix my account.',
@@ -151,6 +156,15 @@ test('app crash and macOS are tech; pairing how-to is faq', () => {
     ].join('\n')
   );
   assert.equal(withStaffTranscription.area, 'desktop');
+});
+
+test('blocked calendar extensions and failed integrations are app tickets', () => {
+  const blocked = router.classify(
+    'I use a personal Google account. Google Calendar says this app is blocked, there is no Advanced option, and the Omi integration only gets my main calendar. How can I fix both?'
+  );
+  assert.equal(blocked.area, 'app');
+  assert.equal(blocked.lane, 'tech');
+  assert.equal(blocked.escalate, true);
 });
 
 test('a device-button question that is transcribed but never answered uses the grounded app pipeline', () => {

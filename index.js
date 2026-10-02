@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const express = require('express');
 const db = require('./db');
-const { queryAgent, reviewAnswer, understandQuestion } = require('./opencode');
+const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion } = require('./opencode');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -51,6 +51,7 @@ const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts, OFFICIAL } = require('./prompt');
 const { relevantDocs } = require('./docs');
+const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
@@ -229,7 +230,36 @@ function isActionableMessage(message) {
   ) {
     return false;
   }
+  const hasAttachment = Number(message.attachments?.size || 0) > 0;
+  if (!hasAttachment && (isIdentifierOnlyUpdate(caption) || isDeliveryAcknowledgment(caption))) {
+    return false;
+  }
   return true;
+}
+
+function isIdentifierOnlyUpdate(text) {
+  const value = String(text || '').trim();
+  if (!value || !/\d/.test(value)) return false;
+  const remainder = value
+    .replace(/\b(?:ticket|case|request|order)\b/gi, ' ')
+    .replace(/\b(?:number|no\.?|id)\b/gi, ' ')
+    .replace(/[#,:;()[\]]/g, ' ')
+    .trim();
+  const tokens = remainder.match(/[A-Za-z0-9-]+/g) || [];
+  return Boolean(tokens.length) && tokens.every((token) => /\d/.test(token));
+}
+
+function isDeliveryAcknowledgment(text) {
+  const value = String(text || '').trim();
+  if (!value || /[?]/.test(value)) return false;
+  const sending =
+    /\b(?:i(?:['’]ll|\s+will|['’]m|\s+am)\s+(?:send|email|attach|upload|provide|share)|i(?:['’]ve|\s+have)\s+(?:sent|emailed|attached|uploaded|provided|shared))\b/i.test(
+      value
+    );
+  if (!sending) return false;
+  return !/\b(?:still|waiting|no (?:reply|response|answer)|problem|issue|error|fail(?:ed|ing)?|crash(?:ed|ing)?|not working|doesn['’]?t|cannot|can['’]?t|won['’]?t|help)\b/i.test(
+    value
+  );
 }
 
 function shouldHandle(message) {
@@ -335,7 +365,7 @@ async function getHistory(channel, excludeId) {
   // inside an existing Handoff or help post may see prior messages.
   const samePost = channel.isThread?.() && (isHelpThread(channel) || isTestChannel(channel));
   if (!isTrustedHandoffThread(channel) && !samePost) return [];
-  const messages = await channel.messages.fetch({ limit: 12 });
+  const messages = await channel.messages.fetch({ limit: 50 });
   const entries = [...messages.values()]
     .reverse()
     .filter((m) => m.id !== excludeId)
@@ -539,15 +569,20 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const routeSource = [useThreadMetadata && channel.isThread?.() ? channel.name : '', question]
       .filter(Boolean)
       .join('\n');
-    let prior = directHistory.map((entry) => entry.content).join('\n');
-    if (channel.isThread?.() && (isHelpThread(channel) || isTrustedHandoffThread(channel))) {
+    let contextHistory = directHistory;
+    let prior = contextHistory.map((entry) => entry.content).join('\n');
+    if (
+      channel.isThread?.() &&
+      (isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel))
+    ) {
       try {
-        const history = await getHistory(channel, message.id);
-        prior = history.map((entry) => entry.content).join('\n');
+        contextHistory = await getHistory(channel, message.id);
+        prior = contextHistory.map((entry) => entry.content).join('\n');
       } catch (err) {
         console.error('[Bot] thread context failed:', err.message);
       }
     }
+    const caseQuestion = contextualQuestion(question, contextHistory);
     const routeText = [routeSource, prior].filter(Boolean).join('\n');
     const currentRoute = router.classify(asked || question);
     const contextRoute = router.classify(routeText);
@@ -566,7 +601,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
     let botCanAnswer = false;
     if (!holdPublicCopy && router.isTechLane(route) && !changes.length) {
-      const found = await github.searchPulls(question);
+      const found = await github.searchPulls(caseQuestion);
       if (found) changes.push(found);
     }
     if (router.isTechLane(route) && changes.length) botCanAnswer = true;
@@ -588,7 +623,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       console.log(`[Shopify] lookup key=${shopifyLookup.reason === 'no-key' ? 'none' : 'set'} status=${shopifyLookup.reason || 'hit'}`);
     }
     if (!holdPublicCopy && github.isConfigured() && router.isTechLane(route)) {
-      githubHit = await github.searchIssues(asked || question);
+      githubHit = await github.searchIssues(caseQuestion);
     }
 
     if (botCanAnswer) {
@@ -615,11 +650,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (!skipModel) {
-      const [history, knowledgeSnippets] = await Promise.all([
-        directHistory.length ? Promise.resolve(directHistory) : getHistory(channel, message.id),
-        searchKnowledge(asked || question),
-      ]);
-      threadHistory = history;
+      const knowledgeSnippets = await searchKnowledge(caseQuestion);
+      threadHistory = contextHistory;
       snippets = knowledge.filterSnippetsForLane(
         shopify.filterKnowledge(knowledgeSnippets),
         route.lane
@@ -628,7 +660,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         ? shopify.buildUserReply(shopifyLookup, asked || question)
         : '';
       let searchPlan = {
-        standaloneQuestion: asked || question,
+        standaloneQuestion: caseQuestion,
         customerGoal: asked || question,
         mustAnswer: [asked || question],
         customerFacts: [],
@@ -647,18 +679,24 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           console.error('[Bot] search planning failed:', err.message);
         }
       }
-      const sourceQuestion = searchPlan.standaloneQuestion || asked || question;
-      const [docsText, officialCodeText, releaseText] = await Promise.all([
+      const sourceQuestion = contextualQuestion(
+        searchPlan.standaloneQuestion || asked || question,
+        threadHistory
+      );
+      const [docsText, officialCodeText, feedbackText, releaseText] = await Promise.all([
         relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
         github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
-        matchingRelease(asked || question),
+        router.isTechLane(route) || route.lane === 'unknown'
+          ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })
+          : '',
+        matchingRelease(sourceQuestion),
       ]);
-      const officialEvidence = combineEvidence(docsText, officialCodeText);
+      const retrievedEvidence = combineEvidence(docsText, feedbackText, officialCodeText);
       const toolFacts = buildToolFacts({
         route,
         shopifyText,
         githubText: githubHit?.duplicate?.url || '',
-        docsText: officialEvidence,
+        docsText: retrievedEvidence,
         releaseText,
       });
 
@@ -677,12 +715,13 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           try {
             const checked = await reviewAnswer({
               question,
+              threadHistory,
               draft: aiResponse.final_answer,
               understanding: searchPlan,
               policy: toolFacts,
               sources: [
                 `[Static fallback | lower priority than retrieved Help Center and docs]\n${OFFICIAL}`,
-                officialEvidence,
+                retrievedEvidence,
                 releaseText ? `[Official release note]\n${releaseText}` : '',
               ]
                 .filter(Boolean)
@@ -707,7 +746,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           } catch (err) {
             console.error('[Bot] review failed:', err.message);
             aiResponse.final_answer =
-              "I found information for this, but I couldn't verify the answer against the official pages just now. Email help@omi.me so I don't give you a guessed step.";
+              "I found relevant information, but I couldn't verify a safe answer from the official Omi sources just now. I won't guess or ask you to repeat steps already in this thread; a person needs to check this.";
             aiResponse.confidence = 0.2;
             aiResponse.escalate = true;
             aiResponse.reason = 'Official-source review was unavailable.';

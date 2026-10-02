@@ -90,6 +90,7 @@ function sourceKind(url) {
   const value = String(url || '').toLowerCase();
   if (value.startsWith('https://help.omi.me/')) return 'help';
   if (value.startsWith('https://docs.omi.me/')) return 'docs';
+  if (value.startsWith('https://feedback.omi.me/')) return 'feedback';
   if (/^https:\/\/(?:www\.)?omi\.me\//.test(value)) return 'website';
   if (value.startsWith('https://discord.com/channels/')) return 'discord';
   if (value.startsWith('https://github.com/basedhardware/')) return 'github';
@@ -101,6 +102,7 @@ function sourceLabel(kind) {
   if (kind === 'docs') return 'Official documentation';
   if (kind === 'website') return 'Official Omi website';
   if (kind === 'github') return 'Official GitHub';
+  if (kind === 'feedback') return 'Omi Feedback portal';
   if (kind === 'discord') return 'Discord help history';
   return 'Retrieved page';
 }
@@ -110,6 +112,7 @@ function sourceAuthority(kind) {
   if (kind === 'docs') return 4;
   if (kind === 'github') return 4;
   if (kind === 'website') return 3;
+  if (kind === 'feedback') return 2;
   if (kind === 'discord') return 1;
   return 2;
 }
@@ -284,7 +287,12 @@ function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2 } = {}) {
     const count = perPage.get(url) || 0;
     if (count >= maxPerPage) continue;
     const kind = row.source || sourceKind(url);
-    const trust = kind === 'discord' ? 'corroboration only; not an official fact' : 'authoritative';
+    const trust =
+      kind === 'discord'
+        ? 'corroboration only; not an official fact'
+        : kind === 'feedback'
+          ? 'issue/status signal only; customer report is not product documentation'
+          : 'authoritative';
     const id = `S${blocks.length + 1}`;
     const section = row.section ? ` — ${row.section}` : '';
     const body = cleanDocument(row.body, 1_700);

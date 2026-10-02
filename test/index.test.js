@@ -70,6 +70,7 @@ let pulls = [];
 let issues = [];
 let codeItems = [];
 const codeContents = new Map();
+const feedbackPages = new Map();
 let pullState = { state: 'open', merged: false };
 globalThis.fetch = async (url, opts = {}) => {
   const u = String(url);
@@ -78,6 +79,17 @@ globalThis.fetch = async (url, opts = {}) => {
   }
   if (files.has(u)) {
     return { ok: true, status: 200, arrayBuffer: async () => Buffer.from(files.get(u)) };
+  }
+  if (u === 'https://feedback.omi.me/sitemap.xml') {
+    return {
+      ok: feedbackPages.size > 0,
+      status: feedbackPages.size > 0 ? 200 : 404,
+      text: async () =>
+        [...feedbackPages.keys()].map((pageUrl) => `<loc>${pageUrl}</loc>`).join(''),
+    };
+  }
+  if (feedbackPages.has(u)) {
+    return { ok: true, status: 200, text: async () => feedbackPages.get(u) };
   }
   const method = opts.method || 'GET';
   githubCalls.push({ method, url: u, body: opts.body ? JSON.parse(opts.body) : null });
@@ -114,6 +126,7 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 
 const knowledge = require('../knowledge');
+const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
 const { client, handleMessage, shouldHandle } = require('../index');
@@ -303,6 +316,8 @@ test.beforeEach(() => {
   issues = [];
   codeItems = [];
   codeContents.clear();
+  feedbackPages.clear();
+  feedback.resetFeedbackCache();
   pullState = { state: 'open', merged: false };
   githubCalls.length = 0;
   files.clear();
@@ -552,6 +567,50 @@ test('a transcribed device-button question searches official app source before t
   assert.doesNotMatch(r.reply, /help@omi\.me|check.*notifications? permission/i);
   assert.ok(r.thread);
   assert.match(r.thread.name, /^Handoff · app · tech · /);
+});
+
+test('a blocked Google Calendar integration receives the matching Feedback status as a non-authoritative signal', async () => {
+  const url = 'https://feedback.omi.me/p/google-calender';
+  const payload = {
+    props: {
+      pageProps: {
+        fallback: {
+          'rq:single:/v1/submission': {
+            data: {
+              results: [
+                {
+                  title: 'Google calender',
+                  content:
+                    '<p>The extension says this app is blocked and the built-in integration only gets the main calendar.</p>',
+                  postStatus: { name: 'In Progress' },
+                  postCategory: { name: { en: 'Bugs & Errors' } },
+                  upvotes: 8,
+                  comments: [{ content: 'Use Advanced and continue anyway.' }],
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  };
+  feedbackPages.set(
+    url,
+    `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify(payload)}</script>`
+  );
+  modelReply = {
+    final_answer:
+      'The public Omi Feedback post for this report is In Progress. I cannot verify a customer-side bypass from that report.',
+    escalate: true,
+  };
+
+  const r = await ask(
+    'Google Calendar says this app is blocked, and the Omi integration only gets my main calendar.'
+  );
+  assert.equal(r.modelCalled, true);
+  assert.match(modelCalls.at(-1).toolFacts, /Omi Feedback portal \| issue\/status signal only/);
+  assert.match(modelCalls.at(-1).toolFacts, /Portal status: In Progress/);
+  assert.doesNotMatch(modelCalls.at(-1).toolFacts, /Advanced and continue/);
 });
 
 test('a later no-chat follow-up does not repeat notification advice or restart the diagnosis', async () => {
@@ -1344,6 +1403,85 @@ test('short gratitude such as Sweet thanks does not trigger support', async () =
   await handleMessage(customer);
   assert.equal(modelCalls.length, before);
   assert.equal(customer.replies.length + post.sent.length, 0);
+});
+
+test('delivery acknowledgments and identifier-only updates stay silent in a help thread', async () => {
+  const post = makeChannel({ name: 'Battery percentage jumps', thread: true, parentId: HELP_FORUM });
+  const screenshots = makeMessage(
+    "I'll send them screenshots of the device; the device sent diagnostics too.",
+    { channel: post }
+  );
+  const identifiers = makeMessage('#138637367 ticket number Order #18063', { channel: post });
+  assert.equal(shouldHandle(screenshots), false);
+  assert.equal(shouldHandle(identifiers), false);
+  const before = modelCalls.length;
+  await handleMessage(screenshots);
+  await handleMessage(identifiers);
+  assert.equal(modelCalls.length, before);
+  assert.equal(screenshots.replies.length + identifiers.replies.length + post.sent.length, 0);
+});
+
+test('same-problem follow-up retrieves from the full thread and keeps completed actions', async () => {
+  const url = 'https://feedback.omi.me/p/battery-charging-percentage-jumps';
+  const payload = {
+    props: {
+      pageProps: {
+        fallback: {
+          'rq:single:/v1/submission': {
+            data: {
+              results: [
+                {
+                  title: 'Battery charging percentage jumps',
+                  content:
+                    '<p>Customers report battery readings changing sharply while charging and after unplugging.</p>',
+                  postStatus: { name: 'In Progress' },
+                  postCategory: { name: { en: 'Bugs & Errors' } },
+                  upvotes: 3,
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  };
+  feedbackPages.set(
+    url,
+    `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify(payload)}</script>`
+  );
+  modelReply = {
+    final_answer:
+      'You are seeing the same sharp battery-percentage changes while charging. Flashing green and blue means the consumer necklace is charging while connected. The diagnostics you already sent are part of the existing case.',
+    escalate: true,
+  };
+  const post = makeChannel({ name: 'Charging and battery readings', thread: true, parentId: HELP_FORUM });
+  const earlier = {
+    id: nextId(),
+    author: { id: nextId(), username: 'Jack', bot: false },
+    content:
+      'The battery jumped from 9% to 73%, then fell to 19% after unplugging. It flashes blue and green while charging.',
+  };
+  const diagnostics = {
+    id: nextId(),
+    author: { id: nextId(), username: 'Ryder', bot: false },
+    content: 'I already emailed support and sent diagnostics.',
+  };
+  const follow = makeMessage("I'm having the same problem too.", { channel: post });
+  post.messages.fetch = async () =>
+    new Map([
+      [follow.id, follow],
+      [diagnostics.id, diagnostics],
+      [earlier.id, earlier],
+    ]);
+
+  await handleMessage(follow);
+
+  assert.match(modelCalls.at(-1).toolFacts, /Omi Feedback portal \| issue\/status signal only/);
+  assert.match(modelCalls.at(-1).toolFacts, /Portal status: In Progress/);
+  assert.ok(modelCalls.at(-1).threadHistory.some((item) => /battery jumped/i.test(item.content)));
+  assert.ok(modelCalls.at(-1).threadHistory.some((item) => /sent diagnostics/i.test(item.content)));
+  assert.match(replyText(follow), /same sharp battery-percentage changes/i);
+  assert.doesNotMatch(replyText(follow), /send them again/i);
 });
 
 test('a bare mention is not handled and the mention never reaches the model', async () => {

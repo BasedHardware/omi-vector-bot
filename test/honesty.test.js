@@ -404,6 +404,21 @@ test('clipThreadHistory drops empty lines and caps length', () => {
   assert.equal(out[1].content, 'Where is my order?');
 });
 
+test('clipThreadHistory keeps the opening report and the latest replies in a long case', () => {
+  const out = clipThreadHistory(
+    Array.from({ length: 8 }, (_, index) => ({
+      author: index % 2 ? 'bot' : 'customer',
+      content: `message ${index + 1}`,
+    })),
+    40,
+    4
+  );
+  assert.deepEqual(
+    out.map((item) => item.content),
+    ['message 1', 'message 2', 'message 7', 'message 8']
+  );
+});
+
 test('tech replies lose a cause and a recordings location', () => {
   const { stripUnsupportedClaims } = require('../honesty');
   const out = stripUnsupportedClaims(

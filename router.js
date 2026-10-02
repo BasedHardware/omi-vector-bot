@@ -85,9 +85,15 @@ const DESKTOP = [
   /\bcome to the front\b/i,
 ];
 
+const INTEGRATION_FAILURE = [
+  /\b(?:app|extension|integration).{0,40}\bblocked\b/i,
+  /\b(?:google|gmail|calendar|integration|extension).{0,70}\b(?:blocked|error|fail(?:ed|s|ing)?|cannot connect|won'?t connect|not connect|only (?:shows|gets|syncs))\b/i,
+];
+
 const APP = [
   /\b(android|iphone|ios)\b/i,
   /\bapple watch\b/i,
+  ...INTEGRATION_FAILURE,
   /\b(the )?app (crash|crashed|force.?clos)/i,
   /\bcrash(ed|es|ing)?\b/i,
   /\blisten socket\b/i,
@@ -138,6 +144,8 @@ const WANT_HUMAN = [
 ];
 
 const SUPPORT_NUDGE = [
+  /\b(?:same|similar) (?:problem|issue)(?:\s+(?:here|too|for me))?\b/i,
+  /\b(?:i(?:'m| am)|we(?:'re| are)) (?:having|seeing|experiencing) the same\b/i,
   /^any(?:one|body)\??[.!\s]*(?:even a bot.*)?$/i,
   /\bany(?:one|body) (?:there|available|responding)\b/i,
   /\b(?:still|been) waiting\b/i,
@@ -378,6 +386,7 @@ function looksLikePlan(text) {
 
 function looksLikeHardFailure(text) {
   const s = String(text || '');
+  if (any(s, INTEGRATION_FAILURE)) return true;
   if (/\b(crash|crashed|1011|exception|error code|won'?t charge|not charging|turns? itself off)\b/i.test(s)) return true;
   return /\b(app (was|stayed) open|kept the app (open|running)|blue light)\b/i.test(s) && /\b(nothing|still)\b/i.test(s);
 }

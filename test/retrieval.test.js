@@ -25,13 +25,19 @@ test('long official pages are chunked without dropping the answer near the end',
   assert.equal(chunks[0].source, 'help');
 });
 
-test('retrieval labels official sources and marks Discord as corroboration only', () => {
+test('retrieval labels official sources and separates Feedback from Discord history', () => {
   const text = formatEvidence([
     {
       url: 'https://help.omi.me/en/articles/reset',
       title: 'Reset Omi',
       body: 'Hold the button while placing it on the charger.',
       source: 'help',
+    },
+    {
+      url: 'https://feedback.omi.me/p/google-calender',
+      title: 'Google Calendar report',
+      body: 'Portal status: In Progress. Customer reports a blocked app.',
+      source: 'feedback',
     },
     {
       url: 'https://discord.com/channels/1/2',
@@ -41,6 +47,10 @@ test('retrieval labels official sources and marks Discord as corroboration only'
     },
   ]);
   assert.match(text, /Official Help Center \| authoritative/);
+  assert.match(
+    text,
+    /Omi Feedback portal \| issue\/status signal only; customer report is not product documentation/
+  );
   assert.match(text, /Discord help history \| corroboration only; not an official fact/);
 });
 
@@ -121,6 +131,9 @@ test('local fallback ranks the chunk containing the specific answer', () => {
 
 test('source hierarchy keeps community history below official material', () => {
   assert.equal(sourceKind('https://www.omi.me/products/omi'), 'website');
+  assert.equal(sourceKind('https://feedback.omi.me/p/google-calender'), 'feedback');
   assert.ok(sourceAuthority('help') > sourceAuthority('docs'));
+  assert.ok(sourceAuthority('website') > sourceAuthority('feedback'));
+  assert.ok(sourceAuthority('feedback') > sourceAuthority('discord'));
   assert.ok(sourceAuthority('docs') > sourceAuthority('discord'));
 });

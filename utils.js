@@ -243,15 +243,17 @@ function attachAuthorMention(text, message) {
   return `<@${id}> ${out}`.trim();
 }
 
-function clipThreadHistory(entries, maxEach = 400, maxItems = 8) {
-  return (entries || [])
+function clipThreadHistory(entries, maxEach = 800, maxItems = 24) {
+  const clipped = (entries || [])
     .map((m) => {
       const content = clipForDiscord(String(m.content || '').trim(), maxEach);
       if (!content) return null;
       return { author: m.author, content };
     })
-    .filter(Boolean)
-    .slice(-maxItems);
+    .filter(Boolean);
+  if (clipped.length <= maxItems) return clipped;
+  const openingCount = Math.min(2, Math.max(1, maxItems - 1));
+  return [...clipped.slice(0, openingCount), ...clipped.slice(-(maxItems - openingCount))];
 }
 
 function clipForDiscord(text, max = DISCORD_REPLY_MAX) {

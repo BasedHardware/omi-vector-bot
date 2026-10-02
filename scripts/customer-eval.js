@@ -1,6 +1,7 @@
 require('dotenv').config();
 const router = require('../router');
 const { relevantDocs } = require('../docs');
+const { relevantFeedback } = require('../feedback');
 const { buildToolFacts, OFFICIAL } = require('../prompt');
 const { planSearch, queryAgent, reviewAnswer } = require('../opencode');
 const triage = require('../triage');
@@ -80,6 +81,18 @@ const scenarios = [
 ];
 
 const liveScenarios = [
+  {
+    id: 'google-calendar-integration',
+    first: 'person',
+    ask: [
+      'I use a personal Google account. The Google Calendar extension says “This app is blocked”',
+      'and there is no Advanced option. The built-in Omi integration only gets my main calendar.',
+      'How can I fix both and use multiple calendars?',
+    ].join(' '),
+    lane: 'tech',
+    must: [/in progress|reported|known/i, /primary|main calendar/i],
+    mustNot: [/advanced.{0,30}unsafe/i, /workspace admin console/i, /change.{0,30}google account settings/i],
+  },
   {
     id: 'voice-question-no-answer',
     first: 'person',
@@ -173,9 +186,12 @@ async function replyFor(scene, route) {
   if (router.requiresGroundedAnswer(route)) {
     const sourceQuestion = searchPlan.standaloneQuestion || scene.ask;
     const usePublicSource = process.env.EVAL_PUBLIC_SOURCE === '1';
-    const [pages, code, publicSource] = await Promise.all([
+    const [pages, code, feedback, publicSource] = await Promise.all([
       usePublicSource ? '' : relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
       github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
+      router.isTechLane(route) || route.lane === 'unknown'
+        ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })
+        : '',
       usePublicSource
         ? (async () => {
             const sourcePages = [];
@@ -187,7 +203,7 @@ async function replyFor(scene, route) {
           })()
         : '',
     ]);
-    docsText = combineEvidence(pages, code, publicSource);
+    docsText = combineEvidence(pages, feedback, code, publicSource);
   }
   const toolFacts = buildToolFacts({ route, docsText });
   try {
