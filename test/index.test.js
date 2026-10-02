@@ -1484,6 +1484,44 @@ test('same-problem follow-up retrieves from the full thread and keeps completed 
   assert.doesNotMatch(replyText(follow), /send them again/i);
 });
 
+test('a model-down storage follow-up answers app versus phone versus device from the thread', async () => {
+  modelDown = true;
+  const post = makeChannel({
+    name: 'Remove stored conversations and recordings',
+    thread: true,
+    parentId: HELP_FORUM,
+  });
+  const opening = {
+    id: nextId(),
+    author: { id: nextId(), username: 'ARVL', bot: false },
+    content: 'I want to remove past conversations from the app and the stored recording copies.',
+  };
+  const priorBot = {
+    id: nextId(),
+    author: { id: BOT_ID, username: 'vector', bot: true },
+    content:
+      'Pull request #20172 has been merged. https://github.com/BasedHardware/omi/pull/20172',
+  };
+  const follow = makeMessage('Does that remove from APP, PHONE, or DEVICE?', { channel: post });
+  post.messages.fetch = async () =>
+    new Map([
+      [follow.id, follow],
+      [priorBot.id, priorBot],
+      [opening.id, opening],
+    ]);
+
+  await handleMessage(follow);
+
+  const reply = replyText(follow);
+  assert.match(reply, /Delete conversation/i);
+  assert.match(reply, /Offline Sync/i);
+  assert.match(reply, /phone storage/i);
+  assert.match(reply, /does not erase the pendant\/device storage/i);
+  assert.equal((reply.match(/github\.com\/BasedHardware\/omi\/pull\/20172/g) || []).length, 1);
+  assert.equal(follow.threads.length, 0);
+  assert.equal(post.sent.length, 0);
+});
+
 test('a bare mention is not handled and the mention never reaches the model', async () => {
   const channel = makeChannel();
   assert.equal(shouldHandle(makeMessage(`<@${BOT_ID}> hi`, { channel, mention: true })), false);

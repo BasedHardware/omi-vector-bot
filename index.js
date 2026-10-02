@@ -783,7 +783,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         stripUnsupportedClaims(
           stripShopBleed(stripHowtoBleed(cleanAnswer || '', triaged.lane), triaged.lane),
           triaged.lane,
-          asked || question
+          caseQuestion
         )
       )
     );
@@ -811,7 +811,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         title: changes[0].title,
       });
       cleanAnswer = github.stripShippedClaims(cleanAnswer);
-      if (changeSentence && !String(cleanAnswer || '').includes(changes[0].url)) {
+      const changeWasAlreadyShared = contextHistory.some((item) =>
+        String(item?.content || '').includes(changes[0].url)
+      );
+      if (
+        changeSentence &&
+        !changeWasAlreadyShared &&
+        !String(cleanAnswer || '').includes(changes[0].url)
+      ) {
         cleanAnswer = [cleanAnswer, changeSentence].filter(Boolean).join('\n\n');
       }
     }

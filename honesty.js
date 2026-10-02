@@ -156,7 +156,12 @@ function askedWhereRecordingsWent(question) {
   return (
     /\b(recordings?|clips?).{0,60}\b(gone|deleted|lost|missing|disappeared)\b/i.test(s) ||
     /\b(where|what happened to).{0,40}\b(recordings?|clips?)\b/i.test(s) ||
-    /\b(delete|deleted|gone|lost).{0,40}\b(recordings?|clips?)\b/i.test(s)
+    /\b(delete|deleted|remove|removed|clear|cleared|erase|erased|gone|lost).{0,40}\b(recordings?|clips?)\b/i.test(
+      s
+    ) ||
+    (/\b(?:delete|remove|clear|erase)\w*\b/i.test(s) &&
+      /\b(?:phone|local|device)\b/i.test(s) &&
+      /\b(?:conversation|transcript|recording|clip)s?\b/i.test(s))
   );
 }
 

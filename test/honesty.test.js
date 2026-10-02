@@ -447,6 +447,14 @@ test('a recordings location stays when they asked if recordings were deleted', (
   assert.match(out, /watch or phone/i);
 });
 
+test('asking to remove phone recordings permits a phone-storage answer', () => {
+  const { askedWhereRecordingsWent } = require('../honesty');
+  assert.equal(
+    askedWhereRecordingsWent('I want to remove stored recording copies from my phone.'),
+    true
+  );
+});
+
 test('a blue-light fact that mentions an app bug is kept', () => {
   const { stripUnsupportedClaims } = require('../honesty');
   const out = stripUnsupportedClaims(

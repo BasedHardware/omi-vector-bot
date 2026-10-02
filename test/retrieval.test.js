@@ -82,6 +82,15 @@ test('voice input without an answer adds the intended chat-delivery vocabulary',
   assert.match(queries[1], /chat answer AI message response visible/);
 });
 
+test('conversation deletion searches both synced data and phone-local copies', () => {
+  const queries = supportQueries(
+    'How do I remove past conversations from the app and phone?',
+    []
+  );
+  assert.match(queries.join('\n'), /Offline Sync Manage Storage/);
+  assert.match(queries.join('\n'), /phone local synced recording copies/);
+});
+
 test('rank fusion rewards results recalled by more than one search', () => {
   const shared = { url: 'https://docs.omi.me/api.md', chunk_index: 0, source: 'docs', body: 'API keys' };
   const rows = mergeRanked([

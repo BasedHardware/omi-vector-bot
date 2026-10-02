@@ -296,6 +296,9 @@ function classifyRoute(text) {
   if (looksLikeProductQuestion(s)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
+  if (conversationPhoneDeleteReply(s)) {
+    return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
+  }
   if (any(s, FIRMWARE)) {
     return { area: 'firmware', lane: 'firmware', escalate: true, wantHuman };
   }
@@ -475,6 +478,29 @@ function batteryReadingReply(question) {
   return lines.join('\n\n');
 }
 
+function conversationPhoneDeleteReply(question) {
+  const text = String(question || '');
+  if (
+    /\b(?:cannot|can['’]?t|unable|won['’]?t|doesn['’]?t|didn['’]?t|failed?|error|resurfac\w*|reappear\w*|not working)\b/i.test(
+      text
+    )
+  ) {
+    return '';
+  }
+  const removing = /\b(?:delete|remove|clear|erase)\w*\b/i.test(text);
+  const conversation = /\b(?:conversation|transcript|past conversation)s?\b/i.test(text);
+  const surface = /\b(?:app|phone|local|device|recording cop(?:y|ies)|stored recording)s?\b/i.test(text);
+  if (!removing || !conversation || !surface) return '';
+
+  return [
+    'To remove a past conversation from Omi and also remove its phone-local recording copy, treat those as two separate deletions:',
+    '1. Open the conversation in the Omi app, open the ⋯ menu, and choose **Delete conversation**. That removes the conversation/transcript from your synced Omi data.',
+    '2. To clear recording files stored on the phone, open **Settings → Device → Offline Sync**, tap **⋯ → Manage Storage**, then clear **Synced** copies. Clearing synced copies frees phone storage but keeps any conversations that you did not delete in step 1.',
+    'Do not clear **Pending** or **All** unless you also intend to discard unsynced recordings. PR #20172 applies only to synced copies on the phone; it does not erase the pendant/device storage.',
+    'Source: https://github.com/BasedHardware/omi/pull/20172 https://help.omi.me/en/articles/13162549-omi-privacy-policy',
+  ].join('\n\n');
+}
+
 function looksLikeDocs(text) {
   return /\b(instructions|documentation|how (it|this|does it) works?|how it'?s different)\b/i.test(
     String(text || '')
@@ -569,6 +595,8 @@ function cannedReply(route, question) {
   }
   if (looksLikeRecordingHow(question)) return recordingHowReply();
   if (looksLikeDeviceReset(question)) return deviceResetReply();
+  const deletionReply = conversationPhoneDeleteReply(question);
+  if (deletionReply) return deletionReply;
   const batteryReply = batteryReadingReply(question);
   if (batteryReply) return batteryReply;
   if (lane === 'firmware') {

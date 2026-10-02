@@ -92,6 +92,18 @@ test('model-down battery fallback uses the case history and does not repeat supp
   assert.doesNotMatch(result.reply, /email help@omi\.me|open (?:a|another) ticket/i);
 });
 
+test('conversation deletion distinguishes cloud data, phone copies, and device storage', () => {
+  const question =
+    'I want to remove stored past conversations from the Omi app and phone. Does that remove them from the device?';
+  const result = router.whenModelDown({ lane: 'faq', area: 'unknown' }, question);
+  assert.match(result.reply, /Delete conversation/i);
+  assert.match(result.reply, /Settings → Device → Offline Sync/i);
+  assert.match(result.reply, /clear \*\*Synced\*\* copies/i);
+  assert.match(result.reply, /does not erase the pendant\/device storage/i);
+  assert.match(result.reply, /Pending.*All.*unsynced/is);
+  assert.doesNotMatch(result.reply, /delete account|email help@omi\.me/i);
+});
+
 test('paid plan / redemption is money, not shipping, even if they mention Order IDs', () => {
   const q = [
     'Hi Omi team - reporting an app/billing bug and hoping someone can fix my account.',

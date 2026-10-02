@@ -212,6 +212,15 @@ function supportQueries(question, planned = []) {
   if (hasVoiceInput && hasMissingOutput) {
     variants.push('voice question chat answer AI message response visible foreground background');
   }
+  if (
+    /\b(?:delete|remove|clear|erase)\w*\b/i.test(text) &&
+    /\b(?:conversation|transcript)s?\b/i.test(text) &&
+    /\b(?:app|phone|local|device|recording)s?\b/i.test(text)
+  ) {
+    variants.push(
+      'delete conversation transcript cloud phone local synced recording copies Offline Sync Manage Storage'
+    );
+  }
   return uniqueQueries(question, [...variants, ...(planned || [])]);
 }
 
