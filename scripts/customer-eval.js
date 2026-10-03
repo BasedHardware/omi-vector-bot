@@ -38,8 +38,9 @@ const scenarios = [
     first: 'answer',
     ask: 'How do I turn the Omi necklace off?',
     lane: 'faq',
-    must: [/3 second/i],
-    mustNot: [/press once to turn (it |the device )?off/i],
+    // The official Help Center documents power-on and reset, not a three-second power-off hold.
+    must: [/power.off|turn.*off/i, /not document|can.t verify|couldn.t find|not sure/i],
+    mustNot: [/3 second/i, /press once to turn (it |the device )?off/i],
   },
   {
     id: 'delete',

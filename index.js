@@ -809,7 +809,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     if (plannedPersonKind) {
       aiResponse.escalate = true;
       aiResponse.reason = plannerPolicy.personReason(plannedPersonKind);
-      aiResponse.final_answer = plannerPolicy.personReply(plannedPersonKind);
+      aiResponse.final_answer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
     }
 
     const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
@@ -820,7 +820,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         prepareDraftForReview(cleanAnswer || '', triaged.lane, caseQuestion)
       );
     }
-    if (plannedPersonKind) cleanAnswer = plannerPolicy.personReply(plannedPersonKind);
+    if (plannedPersonKind) cleanAnswer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
     if (!plannedPersonKind && threadHasKnownIssueTag(channel)) {
       cleanAnswer = router.knownIssueReply();
       aiResponse.reason = 'Already tagged Known issue.';
@@ -859,7 +859,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
 
     if (holdPublicCopy) {
       cleanAnswer = clipForDiscord(
-        router.cannedReply(route, asked || question) ||
+        (plannedPersonKind ? plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan) : router.cannedReply(route, asked || question)) ||
           "I can't share account or order details in this public post."
       );
       const publicText = String(cleanAnswer || '').replace(/help@omi\.me/gi, '');
@@ -888,7 +888,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const stayInPost = inHandoff || continuingPost;
     const handoffFollowup = continuingPost && supportFollowup;
     const pingAuthor = wantsAuthorPing(caption);
-    const docsQuiet =
+    const docsQuiet = plannerPolicy.isGroundedHowTo(route, asked || question, cleanAnswer) ||
       route.lane === 'faq' &&
       (router.looksLikeDocs(asked || question) ||
         router.looksLikeRecordingHow(asked || question) ||
