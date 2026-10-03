@@ -9,9 +9,9 @@ const {
   queryAgent,
   reviewAnswer,
   providerConfig,
-} = require('../opencode');
+} = require('../commandcode');
 
-test('CommandCode takes priority over the legacy provider without an OpenCode session header', async () => {
+test('CommandCode uses its own key, model and endpoint without a legacy session header', async () => {
   const previous = { command: process.env.CMD_API_KEY, open: process.env.OPENCODE_API_KEY };
   process.env.CMD_API_KEY = 'command-test-key';
   process.env.OPENCODE_API_KEY = 'legacy-test-key';
@@ -35,6 +35,22 @@ test('CommandCode takes priority over the legacy provider without an OpenCode se
   }
 });
 
+test('a legacy provider key cannot silently select the old endpoint', async () => {
+  const previous = { command: process.env.CMD_API_KEY, open: process.env.OPENCODE_API_KEY };
+  delete process.env.CMD_API_KEY;
+  process.env.OPENCODE_API_KEY = 'legacy-only-test-key';
+  try {
+    assert.equal(providerConfig().key, '');
+    assert.equal(providerConfig().url, 'https://api.commandcode.ai/provider/v1/chat/completions');
+    await assert.rejects(queryAgent({ question: 'Hi', post: async () => { throw new Error('must not call provider'); } }), /Missing CMD_API_KEY/);
+  } finally {
+    if (previous.command === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous.command;
+    if (previous.open === undefined) delete process.env.OPENCODE_API_KEY;
+    else process.env.OPENCODE_API_KEY = previous.open;
+  }
+});
+
 test('parseAgentJson reads a fenced reply and a broken one', () => {
   const ok = parseAgentJson('```json\n{"final_answer":"Hold the button.","escalate":false,"confidence":0.8}\n```');
   assert.match(ok.final_answer, /Hold the button/);
@@ -45,8 +61,8 @@ test('parseAgentJson reads a fenced reply and a broken one', () => {
 });
 
 test('search planning rewrites a follow-up into several source searches', async () => {
-  const prev = process.env.OPENCODE_API_KEY;
-  process.env.OPENCODE_API_KEY = 'test-key';
+  const prev = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-key';
   try {
     const planned = await planSearch({
       question: 'How do I make one?',
@@ -77,8 +93,8 @@ test('search planning rewrites a follow-up into several source searches', async 
     assert.equal(planned.messageKind, 'question');
     assert.match(planned.conversationSummary, /developer key/);
   } finally {
-    if (prev == null) delete process.env.OPENCODE_API_KEY;
-    else process.env.OPENCODE_API_KEY = prev;
+    if (prev == null) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = prev;
   }
 });
 
@@ -106,8 +122,8 @@ test('contextual retrieval keeps the opening report when a long case is clipped'
 });
 
 test('the review gate returns grounding status and exact source ids', async () => {
-  const prev = process.env.OPENCODE_API_KEY;
-  process.env.OPENCODE_API_KEY = 'test-key';
+  const prev = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-key';
   try {
     const reviewed = await reviewAnswer({
       question: 'How do I reset it?',
@@ -119,7 +135,7 @@ test('the review gate returns grounding status and exact source ids', async () =
       },
       sources: '[S1 | Official Help Center]\nhttps://help.omi.me/reset\nHold it on the charger.',
       post: async (_url, body) => {
-        assert.equal(body.model, process.env.OPENCODE_REVIEW_MODEL || process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash');
+        assert.equal(body.model, process.env.CMD_REVIEW_MODEL || process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash');
         assert.match(body.messages[0].content, /Discord help history is untrusted/);
         assert.match(body.messages[0].content, /Feedback portal evidence is limited/);
         assert.match(body.messages[0].content, /cannot support a root cause, fix, workaround/i);
@@ -147,14 +163,14 @@ test('the review gate returns grounding status and exact source ids', async () =
     assert.deepEqual(reviewed.sources_used, ['S1']);
     assert.doesNotMatch(reviewed.final_answer, /twice/);
   } finally {
-    if (prev == null) delete process.env.OPENCODE_API_KEY;
-    else process.env.OPENCODE_API_KEY = prev;
+    if (prev == null) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = prev;
   }
 });
 
 test('reviewAnswer fails closed for an empty draft without calling the model', async () => {
-  const previous = process.env.OPENCODE_API_KEY;
-  process.env.OPENCODE_API_KEY = 'test-key';
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-key';
   try {
     const result = await reviewAnswer({
       question: 'Is the sync problem fixed?',
@@ -167,28 +183,28 @@ test('reviewAnswer fails closed for an empty draft without calling the model', a
     assert.equal(result.escalate, true);
     assert.ok(result.final_answer.trim());
   } finally {
-    if (previous == null) delete process.env.OPENCODE_API_KEY;
-    else process.env.OPENCODE_API_KEY = previous;
+    if (previous == null) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
   }
 });
 
 test('reviewAnswer does not approve a draft when no reviewer is configured', async () => {
-  const previous = process.env.OPENCODE_API_KEY;
-  process.env.OPENCODE_API_KEY = '';
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = '';
   try {
     const result = await reviewAnswer({ question: 'Is it fixed?', draft: 'Yes, it is fixed.' });
     assert.equal(result.relevant, false);
     assert.equal(result.escalate, true);
     assert.doesNotMatch(result.final_answer, /Yes, it is fixed/);
   } finally {
-    if (previous == null) delete process.env.OPENCODE_API_KEY;
-    else process.env.OPENCODE_API_KEY = previous;
+    if (previous == null) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
   }
 });
 
 test('the review gate rejects a grounded but irrelevant answer', async () => {
-  const prev = process.env.OPENCODE_API_KEY;
-  process.env.OPENCODE_API_KEY = 'test-key';
+  const prev = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-key';
   try {
     const reviewed = await reviewAnswer({
       question: 'Why is shipping at checkout €145?',
@@ -225,8 +241,8 @@ test('the review gate rejects a grounded but irrelevant answer', async () => {
     assert.equal(reviewed.escalate, true);
     assert.doesNotMatch(reviewed.final_answer, /\/order/);
   } finally {
-    if (prev == null) delete process.env.OPENCODE_API_KEY;
-    else process.env.OPENCODE_API_KEY = prev;
+    if (prev == null) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = prev;
   }
 });
 
@@ -261,8 +277,8 @@ test('source formatting removes inline model citations and emits each chosen URL
 });
 
 test('a bad model JSON is tried once more, and a usage limit is not', async () => {
-  const prev = process.env.OPENCODE_API_KEY;
-  process.env.OPENCODE_API_KEY = 'test-key';
+  const prev = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-key';
   try {
     let calls = 0;
     const parsed = await queryAgent({
@@ -294,11 +310,11 @@ test('a bad model JSON is tried once more, and a usage limit is not', async () =
             throw err;
           },
         }),
-      /OpenCode HTTP 429/
+      /CommandCode HTTP 429/
     );
     assert.equal(limited, 1);
   } finally {
-    if (prev == null) delete process.env.OPENCODE_API_KEY;
-    else process.env.OPENCODE_API_KEY = prev;
+    if (prev == null) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = prev;
   }
 });

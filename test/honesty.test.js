@@ -1,5 +1,5 @@
 const { looksLikeStaffLie, stripStaffLies } = require('../honesty');
-const { parseAgentJson } = require('../opencode');
+const { parseAgentJson } = require('../commandcode');
 const { shouldEscalate, clipForDiscord, clipThreadHistory, escalateReply, sanitizeReply, stripSupportRedirect, formatDiscordReply, needsHumanAccess, PINGED_FOOTER, DUPLICATE_FOOTER } = require('../utils');
 const assert = require('node:assert/strict');
 const test = require('node:test');

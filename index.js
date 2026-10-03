@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const express = require('express');
 const db = require('./db');
-const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion } = require('./opencode');
+const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion } = require('./commandcode');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -660,7 +660,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         supportKind: 'other',
         queries: [],
       };
-      if (process.env.CMD_API_KEY || process.env.OPENCODE_API_KEY) {
+      if (process.env.CMD_API_KEY) {
         try {
           searchPlan = await understandQuestion({
             question: asked || question,
@@ -1093,7 +1093,7 @@ client.once(Events.ClientReady, async () => {
 
 async function start() {
   const required = ['DISCORD_TOKEN'];
-  if (!process.env.CMD_API_KEY && !process.env.OPENCODE_API_KEY) required.push('CMD_API_KEY');
+  if (!process.env.CMD_API_KEY) required.push('CMD_API_KEY');
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length) {
     console.error(`[Boot] Missing env variables: ${missing.join(', ')}`);

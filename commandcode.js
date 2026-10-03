@@ -1,4 +1,3 @@
-const crypto = require('node:crypto');
 const axios = require('axios');
 const { buildSystemPrompt, buildUserPrompt } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
@@ -6,7 +5,7 @@ const { EMPTY_ANSWER_FALLBACK } = require('./answerPipeline');
 
 function providerConfig() {
   const key = String(process.env.CMD_API_KEY || '').trim();
-  if (key) return {
+  return {
     key,
     url: process.env.CMD_API_URL || 'https://api.commandcode.ai/provider/v1/chat/completions',
     model: process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash',
@@ -14,22 +13,13 @@ function providerConfig() {
     timeout: Number(process.env.CMD_TIMEOUT_MS || 60_000),
     name: 'CommandCode',
   };
-  return {
-    key: String(process.env.OPENCODE_API_KEY || '').trim(),
-    url: process.env.OPENCODE_URL || 'https://opencode.ai/zen/go/v1/chat/completions',
-    model: process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash',
-    reviewModel: process.env.OPENCODE_REVIEW_MODEL || process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash',
-    timeout: Number(process.env.OPENCODE_TIMEOUT_MS || 60_000),
-    name: 'OpenCode',
-  };
 }
 
-function providerHeaders(provider, session) {
+function providerHeaders(provider) {
   return {
     Authorization: `Bearer ${provider.key}`,
     'Content-Type': 'application/json',
     'User-Agent': 'omi-vector-bot/1.0',
-    ...(provider.name === 'OpenCode' ? { 'x-opencode-session': session } : {}),
   };
 }
 
@@ -40,7 +30,7 @@ function jsonObject(raw) {
     .trim();
   const start = trimmed.indexOf('{');
   const end = trimmed.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('OpenCode reply was not JSON');
+  if (start === -1 || end === -1) throw new Error('CommandCode reply was not JSON');
   return JSON.parse(trimmed.slice(start, end + 1));
 }
 
@@ -53,7 +43,7 @@ function parseAgentJson(raw) {
   try {
     data = jsonObject(trimmed);
   } catch (err) {
-    console.error('[OpenCode] json parse failed:', err.message);
+    console.error('[CommandCode] json parse failed:', err.message);
     return {
       final_answer: 'I am not sure. A person on the team needs to take this.',
       confidence: 0.2,
@@ -67,7 +57,7 @@ function parseAgentJson(raw) {
     };
   }
   if (typeof data.final_answer !== 'string' || !data.final_answer.trim()) {
-    throw new Error('OpenCode JSON missing final_answer');
+    throw new Error('CommandCode JSON missing final_answer');
   }
   const confidence = Number(data.confidence);
   const labels = Array.isArray(data.labels) ? data.labels.map((x) => String(x)) : [];
@@ -186,11 +176,10 @@ function groundedSourceLine(answer, sources, sourceIds) {
   return chosen.length ? `${body}\n\nSource: ${chosen.join(' ')}` : body;
 }
 
-async function understandQuestion({ question, threadHistory = [], route, sessionId, post }) {
+async function understandQuestion({ question, threadHistory = [], route, post }) {
   const provider = providerConfig();
-  if (!provider.key) throw new Error('Missing CMD_API_KEY or OPENCODE_API_KEY');
+  if (!provider.key) throw new Error('Missing CMD_API_KEY');
   const send = post || axios.post.bind(axios);
-  const session = sessionId || crypto.randomUUID();
   const history = modelThread(threadHistory)
     .map((item) => `${item.author}: ${item.content}`)
     .join('\n')
@@ -214,11 +203,11 @@ async function understandQuestion({ question, threadHistory = [], route, session
     },
     {
       timeout: provider.timeout,
-      headers: providerHeaders(provider, session),
+      headers: providerHeaders(provider),
     }
   );
   const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('OpenCode search plan was empty');
+  if (!content) throw new Error('CommandCode search plan was empty');
   return parseSearchPlan(content, question);
 }
 
@@ -231,15 +220,12 @@ async function queryAgent({
   route,
   toolFacts,
   understanding,
-  sessionId,
   post,
 }) {
   const provider = providerConfig();
   if (!provider.key) {
-    throw new Error('Missing CMD_API_KEY or OPENCODE_API_KEY');
+    throw new Error('Missing CMD_API_KEY');
   }
-
-  const session = sessionId || process.env.OPENCODE_SESSION || crypto.randomUUID();
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -266,12 +252,12 @@ async function queryAgent({
         },
         {
           timeout: provider.timeout,
-          headers: providerHeaders(provider, session),
+          headers: providerHeaders(provider),
         }
       );
 
       const content = data?.choices?.[0]?.message?.content;
-      if (!content) throw new Error('OpenCode response empty');
+      if (!content) throw new Error('CommandCode response empty');
       const parsed = parseAgentJson(content);
       if (parsed.reason === 'model json failed' && attempt === 0) continue;
       return parsed;
@@ -283,23 +269,18 @@ async function queryAgent({
           `${provider.name} quota or balance is unavailable; retry after the provider account is restored.`
         );
       }
-      if (provider.name === 'OpenCode' && kind === 'MissingSessionID') {
-        throw new Error(
-          'OpenCode Go needs x-opencode-session. This is a bot bug — retry after a fix.'
-        );
-      }
       if (err.response?.status) {
         throw new Error(`${provider.name} HTTP ${err.response.status}: ${apiErr?.message || err.message}`);
       }
       if (attempt === 1) throw err;
     }
   }
-  throw new Error('OpenCode response empty');
+  throw new Error('CommandCode response empty');
 }
 
 // The answer model is already configured and known to work at this endpoint.
 // An explicitly configured reviewer may use a different supported model.
-async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, sessionId, post }) {
+async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, post }) {
   const provider = providerConfig();
   if (!String(draft || '').trim() || (!provider.key && !post)) {
     return {
@@ -313,7 +294,6 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     };
   }
   const send = post || axios.post.bind(axios);
-  const session = sessionId || crypto.randomUUID();
   const { data } = await send(
     provider.url,
     {
@@ -340,11 +320,11 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     },
     {
       timeout: provider.timeout,
-      headers: providerHeaders(provider, session),
+      headers: providerHeaders(provider),
     }
   );
   const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('OpenCode review was empty');
+  if (!content) throw new Error('CommandCode review was empty');
   const parsed = jsonObject(content);
   const sourceIds = Array.isArray(parsed.sources_used)
     ? parsed.sources_used.map((value) => String(value)).slice(0, 4)
@@ -354,7 +334,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     sources,
     sourceIds
   );
-  if (!answer) throw new Error('OpenCode review JSON missing final_answer');
+  if (!answer) throw new Error('CommandCode review JSON missing final_answer');
   return {
     final_answer: answer,
     grounded: parsed.grounded === true,

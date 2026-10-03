@@ -36,7 +36,7 @@ npm run ask -- "How do I pair my Omi?"
 
 Set `CMD_API_KEY` in ignored `.env` for the CommandCode Provider API. `CMD_MODEL`,
 `CMD_REVIEW_MODEL`, `CMD_API_URL`, and `CMD_TIMEOUT_MS` are optional overrides.
-The `OPENCODE_*` settings are a legacy fallback only when `CMD_API_KEY` is absent.
+The bot requires `CMD_API_KEY`; an old provider key cannot be used as a fallback.
 Never commit or log a real key.
 
 For human handoffs, production must have either `STAFF_ALERT_CHANNEL_ID` pointing
