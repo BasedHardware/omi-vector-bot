@@ -970,6 +970,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         pinged && router.isTechLane({ lane: triaged.lane, area: triaged.area })
           ? stripSupportRedirect(cleanAnswer)
           : cleanAnswer;
+      const movedToThread = !inHandoff && Boolean(handoffThread?.id);
       let parentReply = escalateReply(handoffAnswer, {
         pinged,
         duplicate,
@@ -978,12 +979,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           (triaged.fileIssue || triage.wantsShopTicket(triaged)) &&
           !inHandoff &&
           !reused &&
+          !movedToThread &&
           (Boolean(handoffThread) || cardHere),
         pingAuthor,
         deliveryFailed,
       });
-      if (reused && handoffThread?.id && !inHandoff) {
-        parentReply = `${parentReply}\n\n<#${handoffThread.id}>`;
+      if (movedToThread) {
+        const threadLink = `<#${handoffThread.id}>`;
+        parentReply = `${clipForDiscord(parentReply, 1900 - threadLink.length - 2)}\n\n${threadLink}`;
       }
       await replySafe(message, parentReply, { pingAuthor });
       if (dbReady) {
