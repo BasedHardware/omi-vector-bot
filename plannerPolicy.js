@@ -47,4 +47,10 @@ function personReply(kind) {
   return "I can't approve or promise an exception from chat. A person needs to review this request.";
 }
 
-module.exports = { personKind, routeWithUnderstanding, suppressAcknowledgment, personReply };
+function personReason(kind) {
+  if (kind === 'order_lookup') return 'Order lookup requires a verified staff check';
+  if (kind === 'account_action') return 'Account or data action requires staff access';
+  return 'Exception request requires staff review';
+}
+
+module.exports = { personKind, routeWithUnderstanding, suppressAcknowledgment, personReply, personReason };

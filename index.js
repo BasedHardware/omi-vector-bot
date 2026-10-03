@@ -809,7 +809,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
 
     if (plannedPersonKind) {
       aiResponse.escalate = true;
-      aiResponse.reason = aiResponse.reason || router.staffReason(route, asked || question);
+      aiResponse.reason = plannerPolicy.personReason(plannedPersonKind);
       aiResponse.final_answer = plannerPolicy.personReply(plannedPersonKind);
     }
 
