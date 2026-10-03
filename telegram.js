@@ -1,4 +1,5 @@
 const axios = require('axios');
+const knowledge = require('./knowledge');
 
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -122,6 +123,7 @@ async function handleUpdate(update) {
   }
 
   const answer = answerMatch[1].trim();
+  if (!answer) return;
   const kbMatch = text.match(/^KB:\s*(.+)/ms);
   const kbSnippet = kbMatch ? kbMatch[1].trim() : null;
 
@@ -142,11 +144,12 @@ async function handleUpdate(update) {
     }
   }
 
-  // Save KB snippet if provided (needs DATABASE_URL)
-  if (kbSnippet && process.env.DATABASE_URL) {
-    const db = require('./db');
-    await db.addKnowledge(kbSnippet);
-    console.log('[Telegram] Saved knowledge snippet');
+  // Use the same reviewed, in-memory staff-note path as Discord `faq:`.
+  // Legacy database notes have no provenance and are not read by the bot.
+  if (kbSnippet) {
+    const saved = knowledge.addSnippet(kbSnippet);
+    if (saved.ok) console.log('[Telegram] Saved in-memory knowledge snippet');
+    else console.log(`[Telegram] Rejected knowledge snippet (${saved.reason})`);
   }
 
   // Resolve escalation

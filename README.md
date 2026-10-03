@@ -76,6 +76,8 @@ faq: Teal LED means charging and connected.
 
 Only configured staff user IDs can save notes. Ordinary staff replies are not learned automatically. On restart, the bot reloads `faq:` lines only from named staff in test-channel Handoff threads. Legacy database notes are ignored because they lack author provenance. Notes are not a substitute for official-source verification.
 
+An authenticated Telegram escalation reply may also include `KB: short support note` after its `A:` answer. The note enters the same in-memory pool as Discord `faq:` and is subject to the same official-source review before a customer sees an answer. Telegram notes are not written to the legacy database and do not survive a restart.
+
 ## GitHub workflow
 
 Technical handoffs can show a proposed issue card. The bot searches existing issues and pull requests first, but it does not open a public issue by itself. Staff must press **File**. Only threads linked by the bot receive signed GitHub webhook updates, and later customer messages are not copied to the issue.
