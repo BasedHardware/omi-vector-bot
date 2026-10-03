@@ -297,6 +297,12 @@ test('model-down fallback still escalates a phone-app ticket without naming the 
   assert.match(taxDown.reply, /tax or duties/i);
 });
 
+test('an unknown-area technical fallback does not invent a phone-app diagnosis', () => {
+  const reply = router.cannedReply({ area: 'unknown', lane: 'tech', escalate: true }, 'Omi keeps disconnecting');
+  assert.match(reply, /technical problem/i);
+  assert.doesNotMatch(reply, /phone app/i);
+});
+
 test('money, privacy, and shop skip the model; crash, firmware, and pairing do not', () => {
   const refund = router.classify('I want a refund');
   assert.equal(router.skipModel(refund), true);

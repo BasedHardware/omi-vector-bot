@@ -42,6 +42,9 @@ let modelReply = {};
 let modelDown = false;
 let searchPlanQueries = [];
 const plannerCalls = [];
+let plannerSupportKind = 'other';
+let plannerMessageKind = 'question';
+let plannerStandaloneQuestion = '';
 let reviewerResponse = null;
 const reviewCalls = [];
 commandcode.queryAgent = async (args) => {
@@ -62,11 +65,12 @@ commandcode.queryAgent = async (args) => {
 commandcode.understandQuestion = async ({ question }) => {
   plannerCalls.push(question);
   return {
-    standaloneQuestion: question,
+    standaloneQuestion: plannerStandaloneQuestion || question,
     customerGoal: question,
     mustAnswer: [question],
     customerFacts: [],
-    supportKind: 'other',
+    supportKind: plannerSupportKind,
+    messageKind: plannerMessageKind,
     queries: searchPlanQueries,
   };
 };
@@ -332,6 +336,9 @@ test.beforeEach(() => {
   modelDown = false;
   searchPlanQueries = [];
   plannerCalls.length = 0;
+  plannerSupportKind = 'other';
+  plannerMessageKind = 'question';
+  plannerStandaloneQuestion = '';
   reviewerResponse = null;
   reviewCalls.length = 0;
   pulls = [];
@@ -392,6 +399,69 @@ test('the planner runs for a short first customer question', async () => {
   try {
     await ask('How do I pair Omi?');
     assert.deepEqual(plannerCalls, ['How do I pair Omi?']);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('planner-classified order, account and exception requests reach a person in any language', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  const cases = [
+    ['Onde está meu pedido? Comprei há um mês', 'order_lookup', 'Where is my order? I bought it a month ago.'],
+    ['Quiero un reembolso, el dispositivo no funciona', 'exception_request', 'I want a refund; the device does not work.'],
+    ['Comment supprimer mes données ?', 'account_action', 'How do I delete my data?'],
+    ['我的订单什么时候发货？', 'order_lookup', 'When will my order ship?'],
+    ["is there any way to get my money back if I don't like it?", 'exception_request', 'I want to know whether a refund is possible.'],
+    ['warranty claim, the button fell off', 'exception_request', 'The button fell off and I need a warranty claim.'],
+    ['my device arrived broken, need a replacement', 'exception_request', 'My device arrived broken and I need a replacement.'],
+  ];
+  try {
+    for (const [question, kind, standalone] of cases) {
+      plannerSupportKind = kind;
+      plannerStandaloneQuestion = standalone;
+      const result = await ask(question);
+      assert.ok(result.thread, question);
+      assert.doesNotMatch(result.reply, /Hold the center button|will arrive|refund approved|replacement approved|has shipped/i, question);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('planner acknowledgment stays silent, but a new symptom after thanks is answered', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  try {
+    plannerMessageKind = 'acknowledgment';
+    for (const question of ['Gracias, ya funciona', 'fixed it thanks']) {
+      const result = await ask(question);
+      assert.equal(result.message.replies.length, 0, question);
+      assert.equal(result.thread, null, question);
+    }
+    plannerMessageKind = 'new_symptom';
+    plannerSupportKind = 'technical_problem';
+    plannerStandaloneQuestion = 'Battery drains fast after the earlier issue was fixed.';
+    const followup = await ask('thanks that fixed it but now the battery drains fast');
+    assert.ok(followup.message.replies.length > 0);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('an unknown route with technical planner classification gets the tech answer path', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  plannerSupportKind = 'technical_problem';
+  plannerStandaloneQuestion = 'Omi keeps disconnecting from my phone every few minutes.';
+  try {
+    const result = await ask('omi keeps disconnecting from my phone every few minutes');
+    assert.equal(modelCalls.at(-1)?.route?.lane, 'tech');
+    assert.equal(reviewCalls.at(-1)?.lane, 'tech');
+    assert.ok(result.thread);
   } finally {
     if (previous === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previous;

@@ -43,6 +43,7 @@ const knowledge = require('./knowledge');
 const shopify = require('./shopify');
 const shopifyBind = require('./shopifyBind');
 const router = require('./router');
+const plannerPolicy = require('./plannerPolicy');
 const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts, OFFICIAL } = require('./prompt');
@@ -583,14 +584,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const contextRoute = router.classify(routeText);
     // History preserves the ticket topic, but only the newest customer message
     // decides whether they are currently asking for a human.
-    const route = {
+    let route = {
       ...contextRoute,
       wantHuman: Boolean(currentRoute.wantHuman),
       escalate: Boolean(contextRoute.escalate || currentRoute.escalate),
     };
     const supportFollowup =
       Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
-    const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
+    let holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
     if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
@@ -612,6 +613,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     let cleanAnswer;
     let skipModel = false;
     let snippets = [];
+    let plannedPersonKind = '';
 
     if (useShopify) {
       shopifyLookup = await shopify.lookupOrder(asked || question, { verifiedEmail });
@@ -677,6 +679,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           stageMs.planner += Math.round(performance.now() - stageStart);
         }
       }
+      if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
+      plannedPersonKind = plannerPolicy.personKind(searchPlan);
+      route = plannerPolicy.routeWithUnderstanding(route, searchPlan);
+      if (plannedPersonKind && isHelpThread(channel)) holdPublicCopy = true;
       const sourceQuestion = contextualQuestion(
         searchPlan.standaloneQuestion || asked || question,
         threadHistory
@@ -801,6 +807,12 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
     }
 
+    if (plannedPersonKind) {
+      aiResponse.escalate = true;
+      aiResponse.reason = aiResponse.reason || router.staffReason(route, asked || question);
+      aiResponse.final_answer = plannerPolicy.personReply(plannedPersonKind);
+    }
+
     const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
     if (!skipModel) {
       cleanAnswer = presentReviewedAnswer(aiResponse.final_answer);
@@ -809,7 +821,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         prepareDraftForReview(cleanAnswer || '', triaged.lane, caseQuestion)
       );
     }
-    if (threadHasKnownIssueTag(channel)) {
+    if (plannedPersonKind) cleanAnswer = plannerPolicy.personReply(plannedPersonKind);
+    if (!plannedPersonKind && threadHasKnownIssueTag(channel)) {
       cleanAnswer = router.knownIssueReply();
       aiResponse.reason = 'Already tagged Known issue.';
     } else {
@@ -826,7 +839,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
     }
     let changeSentence = '';
-    if (changes[0]) {
+    if (changes[0] && !plannedPersonKind) {
       const lookup = await github.lookupChange(changes[0]);
       changeSentence = github.customerChangeSentence(changes[0], lookup, {
         question,
@@ -860,7 +873,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         cleanAnswer = "I can't share account or order details in this public post.";
       }
     }
-    if (threadHistory.length) cleanAnswer = github.keepMergedPull(threadHistory, cleanAnswer);
+    if (threadHistory.length && !plannedPersonKind) cleanAnswer = github.keepMergedPull(threadHistory, cleanAnswer);
     cleanAnswer = ensureNonEmptyAnswer(addUnsyncedDataWarning(cleanAnswer, caseQuestion));
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 

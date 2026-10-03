@@ -605,6 +605,9 @@ function cannedReply(route, question) {
   if (lane === 'tech' && route?.area === 'desktop') {
     return "You wrote about the computer app. I can't open that app from here, so I won't guess a fix.";
   }
+  if (lane === 'tech' && route?.area === 'unknown') {
+    return "This looks like a technical problem. I can't inspect your app or device from here, so I won't guess a fix.";
+  }
   if (lane === 'tech') {
     return "You wrote about the phone app. I can't open that app from here, so I won't guess a fix.";
   }
