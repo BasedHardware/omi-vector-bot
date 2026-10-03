@@ -452,6 +452,21 @@ test('planner acknowledgment stays silent, but a new symptom after thanks is ans
   }
 });
 
+test('an acknowledgment in an existing order case stays silent before the shop shortcut', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  plannerMessageKind = 'acknowledgment';
+  try {
+    const result = await ask('Order #12345 is resolved, merci');
+    assert.equal(result.message.replies.length, 0);
+    assert.equal(result.thread, null);
+    assert.equal(plannerCalls.length, 1);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
 test('an unknown route with technical planner classification gets the tech answer path', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';

@@ -589,9 +589,36 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       wantHuman: Boolean(currentRoute.wantHuman),
       escalate: Boolean(contextRoute.escalate || currentRoute.escalate),
     };
+    let searchPlan = {
+      standaloneQuestion: caseQuestion,
+      customerGoal: asked || question,
+      mustAnswer: [asked || question],
+      customerFacts: [],
+      supportKind: 'other',
+      queries: [],
+    };
+    if (process.env.CMD_API_KEY) {
+      const stageStart = performance.now();
+      try {
+        searchPlan = await understandQuestion({
+          question: asked || question,
+          threadHistory: contextHistory,
+          route,
+          sessionId: `discord-${channel.id}-search`,
+        });
+      } catch (err) {
+        console.error('[Bot] search planning failed:', err.message);
+      } finally {
+        stageMs.planner += Math.round(performance.now() - stageStart);
+      }
+    }
+    if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
+    const plannedPersonKind = plannerPolicy.personKind(searchPlan);
+    route = plannerPolicy.routeWithUnderstanding(route, searchPlan);
     const supportFollowup =
       Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
-    let holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
+    const holdPublicCopy = isHelpThread(channel) &&
+      (Boolean(plannedPersonKind) || !router.isPublicForumSafe(asked || question));
     if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
@@ -613,7 +640,6 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     let cleanAnswer;
     let skipModel = false;
     let snippets = [];
-    let plannedPersonKind = '';
 
     if (useShopify) {
       shopifyLookup = await shopify.lookupOrder(asked || question, { verifiedEmail });
@@ -656,33 +682,6 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       const shopifyText = shopifyLookup
         ? shopify.buildUserReply(shopifyLookup, asked || question)
         : '';
-      let searchPlan = {
-        standaloneQuestion: caseQuestion,
-        customerGoal: asked || question,
-        mustAnswer: [asked || question],
-        customerFacts: [],
-        supportKind: 'other',
-        queries: [],
-      };
-      if (process.env.CMD_API_KEY) {
-        const stageStart = performance.now();
-        try {
-          searchPlan = await understandQuestion({
-            question: asked || question,
-            threadHistory,
-            route,
-            sessionId: `discord-${channel.id}-search`,
-          });
-        } catch (err) {
-          console.error('[Bot] search planning failed:', err.message);
-        } finally {
-          stageMs.planner += Math.round(performance.now() - stageStart);
-        }
-      }
-      if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
-      plannedPersonKind = plannerPolicy.personKind(searchPlan);
-      route = plannerPolicy.routeWithUnderstanding(route, searchPlan);
-      if (plannedPersonKind && isHelpThread(channel)) holdPublicCopy = true;
       const sourceQuestion = contextualQuestion(
         searchPlan.standaloneQuestion || asked || question,
         threadHistory
