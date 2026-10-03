@@ -60,13 +60,16 @@ test('technical safety checks instruction structure, not stray action words', ()
     "I'm not sure what's causing this. Please tell me your app version and phone model so a person can check.",
     'The app keeps this conversation open until it syncs. Your app version and phone model would help.',
     'Do not reinstall the app or log out while recordings are unsynced.',
-    'If that does not help, the team may suggest a reinstall later, so tell me your app version.',
   ];
   for (const reply of unchanged) {
     const checked = technicalReviewSafety(reply, 'tech', '', []);
     assert.equal(checked.answer, reply);
     assert.equal(checked.escalate, false);
   }
+  assert.equal(
+    technicalReviewSafety('If that does not help, the team may suggest a reinstall later, so tell me your app version.', 'tech', '', []).escalate,
+    true
+  );
   const battery = 'You can check Battery Optimization and Background App Refresh. Source: https://help.omi.me/en/articles/app-issues';
   assert.equal(technicalReviewSafety(battery, 'tech', help, ['S1']).answer, battery);
   const firmware = 'Update the firmware in the app. Source: https://docs.omi.me/onboarding/firmware';
@@ -89,6 +92,45 @@ test('technical safety removes only unsupported instructions and warns on unsync
   const onlyBad = technicalReviewSafety('Reinstall the app. Source: https://github.com/BasedHardware/omi/issues/123', 'tech', github, ['S1']);
   assert.equal(onlyBad.fallback, true);
   assert.doesNotMatch(onlyBad.answer, /Reinstall the app|github\.com/i);
+});
+
+test('unsafe actions are removed even in conditional or descriptive sentences', () => {
+  const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/sync\nKeep recordings safe.';
+  const unsafe = [
+    'If that does not work, reinstall the app.',
+    'Then log out and log back in.',
+    'Otherwise, clear Pending storage in Settings.',
+    'After that, do a factory reset from the app.',
+    'If it is still stuck, delete the app and install it again.',
+    'Your best bet is to reinstall the app.',
+    'Reinstalling the app usually fixes this.',
+    'When it keeps failing, flash the firmware again from the docs.',
+    'Uninstall the app and reinstall it.',
+  ];
+  for (const sentence of unsafe) {
+    const checked = technicalReviewSafety(sentence, 'tech', help, ['S1'], { question: 'sync is stuck at 40%' });
+    assert.equal(checked.escalate, true, sentence);
+    assert.equal(checked.fallback, true, sentence);
+    assert.doesNotMatch(checked.answer, new RegExp(sentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), sentence);
+    assert.match(checked.answer, /unsynced|not yet synced/i, sentence);
+  }
+  for (const sentence of [
+    'Do not reinstall the app or log out while recordings are unsynced.',
+    'Avoid reinstalling until a person checks.',
+  ]) {
+    const checked = technicalReviewSafety(sentence, 'tech', help, ['S1'], { question: 'sync is stuck at 40%' });
+    assert.equal(checked.answer, sentence);
+    assert.equal(checked.escalate, false);
+  }
+});
+
+test('dropping an unsafe sentence preserves other bullets and paragraph breaks', () => {
+  const answer = 'The recording is still on your phone.\n\n- Keep the app open.\n- If that fails, reinstall the app.\n- Tell a person the app version.\n\nPlease keep the device nearby.';
+  const sources = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/sync\nKeep the app open and device nearby.';
+  const checked = technicalReviewSafety(answer, 'tech', sources, ['S1'], { question: 'sync is stuck at 40%' });
+  assert.equal(checked.escalate, true);
+  assert.doesNotMatch(checked.answer, /If that fails, reinstall the app/i);
+  assert.match(checked.answer, /The recording is still on your phone\.\n\n- Keep the app open\.\n- Tell a person the app version\.\n\nPlease keep the device nearby\./);
 });
 
 test('reviewer timeout retries once with shorter evidence and never accepts the draft directly', async () => {

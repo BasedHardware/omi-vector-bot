@@ -287,9 +287,20 @@ async function queryAgent({
 
 // The answer model is already configured and known to work at this endpoint.
 // An explicitly configured reviewer may use a different supported model.
-const UNSAFE_TECH_STEP = /\b(?:re-?install(?:ing)?|log(?:ging)?\s*out|sign(?:ing)?\s*out|clear(?:ing)?\s+(?:pending|all|recordings?|local\s+data)|delet(?:e|ing)\s+(?:pending|all|recordings?|local\s+data)|flash(?:ing)?\s+(?:the\s+)?firmware|factory\s+reset)\b/i;
+const UNSAFE_TECH_STEP = /\b(?:re-?install(?:ing)?|uninstall(?:ing)?|log(?:ging)?\s*out|sign(?:ing)?\s*out|clear(?:ing)?\s+(?:pending|all|recordings?|local\s+data|storage)|delet(?:e|ing)\s+(?:pending|all|recordings?|local\s+data|(?:the\s+)?app)|flash(?:ing)?\s+(?:the\s+)?firmware|factory\s+reset)\b/gi;
 const OFFICIAL_STEP_URL = /^https:\/\/(?:help|docs)\.omi\.me\//i;
 const OFFICIAL_RELEASE_URL = /^https:\/\/github\.com\/BasedHardware\/omi\/releases\/tag\//i;
+
+function recommendsUnsafeAction(sentence) {
+  for (const match of String(sentence || '').matchAll(UNSAFE_TECH_STEP)) {
+    const before = String(sentence).slice(0, match.index);
+    const clausePrefix = before.split(/[,;:]|\bbut\b/i).at(-1).trim();
+    const directlyNegated = /\b(?:do\s+not|don['’]t|never|avoid|should\s+not|must\s+not|not\s+to)\s*(?:(?:ever|even|try\s+to|attempt\s+to|consider)\s*)?$/i.test(clausePrefix);
+    const sharedNegation = /^(?:please\s+)?(?:do\s+not|don['’]t|never|avoid)\b/i.test(clausePrefix) && /\bor\s*$/i.test(clausePrefix);
+    if (!directlyNegated && !sharedNegation) return true;
+  }
+  return false;
+}
 
 function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question = '' } = {}) {
   const original = String(answer || '').trim();
@@ -298,38 +309,46 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
   const published = [...new Set(sourceIds.map((id) => urls.get(String(id))).filter(Boolean))].slice(0, 2);
   const hasOfficialCitation = published.some((url) => OFFICIAL_STEP_URL.test(url));
   const hasReleaseCitation = published.some((url) => OFFICIAL_RELEASE_URL.test(url));
-  const sentences = original
-    .replace(/\bSources?:\s*https:\/\/[^\s\n]+(?:\s+https:\/\/[^\s\n]+)*/gi, '')
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
-  const kept = [];
+  const withoutSources = original.replace(/\bSources?:\s*https:\/\/[^\s\n]+(?:\s+https:\/\/[^\s\n]+)*/gi, '');
+  let kept = '';
+  let blankLines = 0;
   const dropped = [];
-  for (const sentence of sentences) {
-    if (!isInstructionSentence(sentence)) {
-      kept.push(sentence);
+  for (const line of withoutSources.split('\n')) {
+    if (!line.trim()) {
+      blankLines += 1;
       continue;
     }
-    const unsafe = UNSAFE_TECH_STEP.test(sentence);
-    const releaseUpdate = /^\s*(?:[-*]\s*)?update\b/i.test(sentence) && hasReleaseCitation;
-    if (unsafe || (!hasOfficialCitation && !releaseUpdate)) dropped.push(sentence);
-    else kept.push(sentence);
+    const surviving = [];
+    for (const sentence of line.split(/(?<=[.!?])\s+/).map((part) => part.trim()).filter(Boolean)) {
+      const unsafe = recommendsUnsafeAction(sentence);
+      const instruction = isInstructionSentence(sentence);
+      const releaseUpdate = /^\s*(?:[-*]\s*)?update\b/i.test(sentence) && hasReleaseCitation;
+      if (unsafe || (instruction && !hasOfficialCitation && !releaseUpdate)) dropped.push(sentence);
+      else surviving.push(sentence);
+    }
+    if (!surviving.length) continue;
+    let keptLine = surviving.join(' ');
+    const bullet = line.match(/^(\s*(?:[-*•]|\d+[.)])\s+)/);
+    if (bullet && !keptLine.startsWith(bullet[1])) keptLine = `${bullet[1]}${keptLine}`;
+    if (kept) kept += '\n'.repeat(blankLines + 1);
+    kept += keptLine;
+    blankLines = 0;
   }
   if (!dropped.length) return { safe: true, answer: original, escalate: false, reason: '' };
   const dataRisk = /\b(?:sync(?:ing)?\s+(?:is\s+)?(?:stuck|failed|failing)|stuck\s+sync|unsynced|not\s+synced|missing|lost|disappeared)\b/i.test(question) &&
     /\b(?:recordings?|conversations?|transcripts?|memories?|sync)\b/i.test(question);
-  if (dataRisk) kept.push(UNSYNCED_DATA_WARNING);
   const officialLinks = [...urls.values()].filter((url) => OFFICIAL_STEP_URL.test(url)).slice(0, 2);
-  const fallback = !kept.length;
-  const body = fallback
+  const fallback = !kept.trim();
+  let body = fallback
     ? "I couldn't verify a safe troubleshooting step from the official information. A person needs to check this."
-    : kept.join(' ');
+    : kept;
+  if (dataRisk && !body.includes(UNSYNCED_DATA_WARNING)) body = `${body}\n\n${UNSYNCED_DATA_WARNING}`;
   return {
     safe: false,
     answer: fallback && officialLinks.length ? `${body}\n\nSource: ${officialLinks.join(' ')}` : body,
     escalate: true,
     fallback,
-    reason: dropped.some((sentence) => UNSAFE_TECH_STEP.test(sentence))
+    reason: dropped.some(recommendsUnsafeAction)
       ? 'Unsafe data-loss or firmware step removed'
       : 'Troubleshooting step lacked a cited Help Center or docs page',
   };

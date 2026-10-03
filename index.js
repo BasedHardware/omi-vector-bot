@@ -662,8 +662,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         supportKind: 'other',
         queries: [],
       };
-      const needsPlan = threadHistory.length > 0 || String(asked || question).length > 140;
-      if (needsPlan && process.env.CMD_API_KEY) {
+      if (process.env.CMD_API_KEY) {
         const stageStart = performance.now();
         try {
           searchPlan = await understandQuestion({

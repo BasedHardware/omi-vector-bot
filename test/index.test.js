@@ -41,6 +41,7 @@ const modelCalls = [];
 let modelReply = {};
 let modelDown = false;
 let searchPlanQueries = [];
+const plannerCalls = [];
 let reviewerResponse = null;
 const reviewCalls = [];
 commandcode.queryAgent = async (args) => {
@@ -58,14 +59,17 @@ commandcode.queryAgent = async (args) => {
     ...modelReply,
   };
 };
-commandcode.understandQuestion = async ({ question }) => ({
-  standaloneQuestion: question,
-  customerGoal: question,
-  mustAnswer: [question],
-  customerFacts: [],
-  supportKind: 'other',
-  queries: searchPlanQueries,
-});
+commandcode.understandQuestion = async ({ question }) => {
+  plannerCalls.push(question);
+  return {
+    standaloneQuestion: question,
+    customerGoal: question,
+    mustAnswer: [question],
+    customerFacts: [],
+    supportKind: 'other',
+    queries: searchPlanQueries,
+  };
+};
 commandcode.reviewAnswer = async (args) => {
   reviewCalls.push(args);
   if (reviewerResponse) return reviewerResponse(args);
@@ -327,6 +331,7 @@ test.beforeEach(() => {
   modelReply = {};
   modelDown = false;
   searchPlanQueries = [];
+  plannerCalls.length = 0;
   reviewerResponse = null;
   reviewCalls.length = 0;
   pulls = [];
@@ -379,6 +384,18 @@ test('a how-to question in #vector-test gets the model answer and no Handoff', a
   assert.match(r.reply, /center button/);
   assert.equal(r.thread, null);
   assert.equal(r.github.length, 0);
+});
+
+test('the planner runs for a short first customer question', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  try {
+    await ask('How do I pair Omi?');
+    assert.deepEqual(plannerCalls, ['How do I pair Omi?']);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
 });
 
 test('a refund request skips the model and opens a money Handoff', async () => {

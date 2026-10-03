@@ -28,9 +28,12 @@ test('held-out JSONL must live outside the repository', () => {
 test('eval citation check shares the production instruction definition', () => {
   assert.equal(hasTroubleshootingStep('The app keeps the conversation open so a person can check.'), false);
   assert.equal(hasTroubleshootingStep('You can check Battery Optimization.'), true);
+  assert.equal(hasTroubleshootingStep('If the problem continues, restart the app.'), true);
+  assert.equal(hasTroubleshootingStep('When sync is stuck, do a factory reset.'), true);
   const scene = { id: 'step', first: 'answer', heldout: true };
   assert.deepEqual(judge(scene, 'The app keeps the conversation open so a person can check.', false, 'tech'), []);
   assert.match(judge(scene, 'You can check Battery Optimization.', false, 'tech').join(' '), /step without official/i);
+  assert.match(judge(scene, 'If the problem continues, restart the app.', false, 'tech').join(' '), /step without official/i);
 });
 
 test('three-run scoring accepts two passes and lists that case as flaky', () => {
