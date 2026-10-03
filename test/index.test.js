@@ -358,6 +358,21 @@ test('/health reports missing staff delivery without revealing IDs', () => {
   delete process.env.STAFF_ALERT_CHANNEL_ID;
 });
 
+test('answer path emits per-stage timing metrics without customer text', async () => {
+  let metric;
+  const onMetric = (value) => { metric = value; };
+  process.on('omiSupportTimings', onMetric);
+  try {
+    await ask('How do I pair my Omi?');
+    assert.ok(metric);
+    assert.deepEqual(Object.keys(metric.stages).sort(), ['answer', 'planner', 'retrieval', 'review', 'total']);
+    assert.ok(metric.stages.total >= 0);
+    assert.equal(JSON.stringify(metric).includes('How do I pair'), false);
+  } finally {
+    process.off('omiSupportTimings', onMetric);
+  }
+});
+
 test('a how-to question in #vector-test gets the model answer and no Handoff', async () => {
   const r = await ask('How do I pair my Omi with a new phone?');
   assert.equal(r.modelCalled, true);
@@ -905,6 +920,21 @@ test('an escalated how-to does not claim a person has it from a customer-visible
   assert.ok(r.thread);
   assert.match(r.reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.equal(r.reply.includes(utils.ESCALATE_FOOTER), false);
+});
+
+test('review may clear a grounded self-serve FAQ handoff but not a tech handoff', async () => {
+  modelReply = { escalate: true };
+  reviewerResponse = ({ draft }) => ({
+    final_answer: draft,
+    grounded: true,
+    relevant: true,
+    confidence: 0.95,
+    escalate: false,
+  });
+  const faq = await ask('Where is the documentation for pairing my Omi with a new phone?');
+  assert.equal(faq.thread, null);
+  const tech = await ask('The Android app crashes every time I open a conversation.');
+  assert.ok(tech.thread);
 });
 
 test('an escalated how-to whose Handoff cannot be posted says nobody was pinged', async () => {

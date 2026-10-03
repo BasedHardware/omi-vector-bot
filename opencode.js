@@ -2,7 +2,8 @@ const crypto = require('node:crypto');
 const axios = require('axios');
 const { buildSystemPrompt, buildUserPrompt } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
-const { EMPTY_ANSWER_FALLBACK } = require('./answerPipeline');
+const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING } = require('./answerPipeline');
+const { isInstructionSentence } = require('./supportSteps');
 
 function providerConfig() {
   const key = String(process.env.CMD_API_KEY || '').trim();
@@ -167,6 +168,12 @@ function evidenceUrls(sources) {
   return byId;
 }
 
+function officialHandoffLinks(sources) {
+  return [...new Set(evidenceUrls(sources).values())]
+    .filter((url) => /^https:\/\/(?:help|docs)\.omi\.me\//i.test(url))
+    .slice(0, 2);
+}
+
 function groundedSourceLine(answer, sources, sourceIds) {
   const urls = evidenceUrls(sources);
   const chosen = [
@@ -300,21 +307,51 @@ async function queryAgent({
 // The answer model is already configured and known to work at this endpoint.
 // An explicitly configured reviewer may use a different supported model.
 const UNSAFE_TECH_STEP = /\b(?:re-?install(?:ing)?|log(?:ging)?\s*out|sign(?:ing)?\s*out|clear(?:ing)?\s+(?:pending|all|recordings?|local\s+data)|delet(?:e|ing)\s+(?:pending|all|recordings?|local\s+data)|flash(?:ing)?\s+(?:the\s+)?firmware|factory\s+reset)\b/i;
-const TROUBLESHOOTING_STEP = /\b(?:try|check|make sure|enable|allow|restart|reboot|reset|reconnect|pair|unpair|charge|plug|unplug|update|open|close|keep|hold|press|tap|turn\s+on|turn\s+off|switch|go\s+to|settings\s*[>→]|permissions?)\b/i;
 const OFFICIAL_STEP_URL = /^https:\/\/(?:help|docs)\.omi\.me\//i;
+const OFFICIAL_RELEASE_URL = /^https:\/\/github\.com\/BasedHardware\/omi\/releases\/tag\//i;
 
-function technicalReviewSafety(answer, lane, sources, sourceIds) {
-  if (lane !== 'tech' && lane !== 'firmware') return { safe: true, reason: '' };
-  const body = String(answer || '').replace(/(?:^|\n)Sources?:[^\n]*/gi, '');
-  if (UNSAFE_TECH_STEP.test(body)) return { safe: false, reason: 'Unsafe data-loss or firmware step' };
-  if (!TROUBLESHOOTING_STEP.test(body)) return { safe: true, reason: '' };
+function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question = '' } = {}) {
+  const original = String(answer || '').trim();
+  if (lane !== 'tech' && lane !== 'firmware') return { safe: true, answer: original, escalate: false, reason: '' };
   const urls = evidenceUrls(sources);
-  // groundedSourceLine publishes only the first two distinct URLs.
   const published = [...new Set(sourceIds.map((id) => urls.get(String(id))).filter(Boolean))].slice(0, 2);
-  const approved = published.some((url) => OFFICIAL_STEP_URL.test(url));
-  return approved
-    ? { safe: true, reason: '' }
-    : { safe: false, reason: 'Troubleshooting step lacks a cited retrieved Help Center or docs page' };
+  const hasOfficialCitation = published.some((url) => OFFICIAL_STEP_URL.test(url));
+  const hasReleaseCitation = published.some((url) => OFFICIAL_RELEASE_URL.test(url));
+  const sentences = original
+    .replace(/\bSources?:\s*https:\/\/[^\s\n]+(?:\s+https:\/\/[^\s\n]+)*/gi, '')
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  const kept = [];
+  const dropped = [];
+  for (const sentence of sentences) {
+    if (!isInstructionSentence(sentence)) {
+      kept.push(sentence);
+      continue;
+    }
+    const unsafe = UNSAFE_TECH_STEP.test(sentence);
+    const releaseUpdate = /^\s*(?:[-*]\s*)?update\b/i.test(sentence) && hasReleaseCitation;
+    if (unsafe || (!hasOfficialCitation && !releaseUpdate)) dropped.push(sentence);
+    else kept.push(sentence);
+  }
+  if (!dropped.length) return { safe: true, answer: original, escalate: false, reason: '' };
+  const dataRisk = /\b(?:sync(?:ing)?\s+(?:is\s+)?(?:stuck|failed|failing)|stuck\s+sync|unsynced|not\s+synced|missing|lost|disappeared)\b/i.test(question) &&
+    /\b(?:recordings?|conversations?|transcripts?|memories?|sync)\b/i.test(question);
+  if (dataRisk) kept.push(UNSYNCED_DATA_WARNING);
+  const officialLinks = [...urls.values()].filter((url) => OFFICIAL_STEP_URL.test(url)).slice(0, 2);
+  const fallback = !kept.length;
+  const body = fallback
+    ? "I couldn't verify a safe troubleshooting step from the official information. A person needs to check this."
+    : kept.join(' ');
+  return {
+    safe: false,
+    answer: fallback && officialLinks.length ? `${body}\n\nSource: ${officialLinks.join(' ')}` : body,
+    escalate: true,
+    fallback,
+    reason: dropped.some((sentence) => UNSAFE_TECH_STEP.test(sentence))
+      ? 'Unsafe data-loss or firmware step removed'
+      : 'Troubleshooting step lacked a cited Help Center or docs page',
+  };
 }
 
 async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, sessionId, post }) {
@@ -332,7 +369,11 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   }
   const send = post || axios.post.bind(axios);
   const session = sessionId || crypto.randomUUID();
-  const { data } = await send(
+  let data;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const compact = attempt === 1;
+    try {
+      ({ data } = await send(
     provider.url,
     {
       model: provider.reviewModel,
@@ -345,14 +386,14 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
         },
         {
           role: 'user',
-          content: `Earlier thread:\n${modelThread(threadHistory)
+          content: `Earlier thread:\n${modelThread(compact ? threadHistory.slice(-3) : threadHistory)
             .map((item) => `${item.author}: ${item.content}`)
             .join('\n') || '(none)'}\n\nNewest customer message:\n${question}\n\nProposed understanding:\n${JSON.stringify(
             understanding || {}
           )}\n\nDraft reply:\n${draft}\n\nRemoved by safety filters. Restore a sentence only if a cited official source supports it exactly. Never restore pings, refund or replacement promises, dates, or root causes:\n${(removedBySafetyFilters || []).map((item) => String(item).trim()).filter(Boolean).join('\n') || '(none)'}\n\nSystem policy and tool capabilities:\n${String(policy || '').slice(
             0,
-            5000
-          )}\n\nSource pages:\n${String(sources || '').slice(0, 14000)}`,
+            compact ? 1800 : 3000
+          )}\n\nSource pages:\n${String(sources || '').slice(0, compact ? 6000 : 10000)}`,
         },
       ],
     },
@@ -360,42 +401,38 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
       timeout: provider.timeout,
       headers: providerHeaders(provider, session),
     }
-  );
+      ));
+      if (data?.choices?.[0]?.message?.content) break;
+      console.error(`[Provider] empty review response finish=${String(data?.choices?.[0]?.finish_reason || 'unknown')} output_tokens=${Number(data?.usage?.completion_tokens || 0)} reasoning_tokens=${Number(data?.usage?.completion_tokens_details?.reasoning_tokens || 0)}`);
+      if (compact) throw new Error('Provider review was empty after retry');
+    } catch (err) {
+      const timeout = err.code === 'ECONNABORTED' || /timeout|timed out/i.test(String(err.message || ''));
+      if (!timeout || compact) throw err;
+    }
+  }
   const content = data?.choices?.[0]?.message?.content;
   if (!content) throw new Error('OpenCode review was empty');
   const parsed = jsonObject(content);
   const sourceIds = Array.isArray(parsed.sources_used)
     ? parsed.sources_used.map((value) => String(value)).slice(0, 4)
     : [];
-  const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds);
-  if (!safety.safe) {
-    return {
-      final_answer: EMPTY_ANSWER_FALLBACK,
-      grounded: false,
-      relevant: false,
-      escalate: true,
-      confidence: 0,
-      sources_used: [],
-      answered_requirements: [],
-      reason: safety.reason,
-    };
-  }
-  const answer = groundedSourceLine(
-    stripStaffLies(String(parsed.final_answer || '').trim()),
-    sources,
-    sourceIds
-  );
+  const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, { question });
+  const answer = safety.fallback
+    ? safety.answer
+    : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds);
   if (!answer) throw new Error('OpenCode review JSON missing final_answer');
   return {
     final_answer: answer,
-    grounded: parsed.grounded === true,
-    relevant: parsed.relevant === true,
-    escalate: Boolean(parsed.escalate) || parsed.grounded !== true || parsed.relevant !== true,
+    grounded: !safety.fallback && parsed.grounded === true,
+    relevant: !safety.fallback && parsed.relevant === true,
+    escalate: safety.escalate || Boolean(parsed.escalate) || parsed.grounded !== true || parsed.relevant !== true,
     confidence: Number.isFinite(Number(parsed.confidence)) ? Number(parsed.confidence) : 0.4,
     sources_used: sourceIds,
     answered_requirements: Array.isArray(parsed.answered_requirements)
       ? parsed.answered_requirements.map((value) => String(value)).slice(0, 5)
       : [],
+    safeHandoff: Boolean(safety.fallback),
+    reason: safety.reason,
   };
 }
 
@@ -409,6 +446,7 @@ module.exports = {
   parseSearchPlan,
   contextualQuestion,
   evidenceUrls,
+  officialHandoffLinks,
   groundedSourceLine,
   technicalReviewSafety,
 };

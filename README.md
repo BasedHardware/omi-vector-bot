@@ -47,6 +47,25 @@ tells the customer to email `help@omi.me`; `/health` reports `staffHandoff:
 "missing"` without exposing any IDs. Check that staff can receive a test ticket
 before enabling public support.
 
+## Live answer evaluation
+
+`node scripts/live-eval.js --runs 3 --concurrency 2` evaluates the built-in
+support cases through the real answer path with Discord and staff delivery
+stubbed. It spends CommandCode quota but does not log in to Discord, send staff
+messages, look up private orders, or file GitHub issues. Use `--root
+/absolute/path/to/checkout` to evaluate a separate `main` checkout with the
+same key and model; `--cases id1,id2` selects a focused subset. `--cases-file
+/absolute/path/to/cases.jsonl` accepts a held-out JSONL file outside the repo
+with `{"id":"...","ask":"...","first":"answer|person|none"}` or `turns`
+instead of `ask`. Held-out cases receive structural checks only. Every reply
+and stage time is saved in ignored `eval/results/`; a case passes at 2 of 3
+runs, with inconsistent cases listed as flaky.
+
+The runner loads current official Help Center and Omi website pages and uses
+the production chunking/ranking functions in memory. It does not exercise
+production Postgres storage or the `scripts/fill-db.js` scheduler, so compare
+the scores with that limitation in mind. Do not merge on a single run.
+
 Never commit `.env` or the local `railway.toml`. Do not run a local Discord process while the hosted process is active, or two bots may answer the same message.
 
 ## Quality checks
