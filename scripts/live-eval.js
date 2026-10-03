@@ -12,15 +12,6 @@ process.env.NODE_PATH = [path.join(currentRoot, 'node_modules'), process.env.NOD
 Module._initPaths();
 require('dotenv').config({ path: path.join(currentRoot, '.env') });
 
-// origin/main still reads OPENCODE_*; route it through the same CommandCode
-// endpoint/model/key as the branch so the comparison changes only bot code.
-if (process.env.CMD_API_KEY) {
-  process.env.OPENCODE_API_KEY = process.env.CMD_API_KEY;
-  process.env.OPENCODE_URL = process.env.CMD_API_URL || 'https://api.commandcode.ai/provider/v1/chat/completions';
-  process.env.OPENCODE_MODEL = process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash';
-  process.env.OPENCODE_REVIEW_MODEL = process.env.CMD_REVIEW_MODEL || process.env.OPENCODE_MODEL;
-}
-
 const { scenarios: original, liveScenarios: priorLive } = require('./customer-eval');
 
 const added = [
@@ -191,7 +182,15 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   process.env.SHOPIFY_ACCESS_TOKEN = '';
   process.env.HANDOFF_THREADS = '0';
   process.env.VECTOR_OCR = '0';
-  if (!process.env.CMD_API_KEY && !process.env.OPENCODE_API_KEY) throw new Error('CMD_API_KEY is required for live evaluation');
+  if (!process.env.CMD_API_KEY) throw new Error('CMD_API_KEY is required for live evaluation');
+  // The checked-out main baseline still reads the old variable names. Adapt
+  // only that local baseline to the CommandCode endpoint for a fair comparison.
+  if (fs.existsSync(path.join(root, 'opencode.js')) && !fs.existsSync(path.join(root, 'commandcode.js'))) {
+    process.env.OPENCODE_API_KEY = process.env.CMD_API_KEY;
+    process.env.OPENCODE_URL = process.env.CMD_API_URL || 'https://api.commandcode.ai/provider/v1/chat/completions';
+    process.env.OPENCODE_MODEL = process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash';
+    process.env.OPENCODE_REVIEW_MODEL = process.env.CMD_REVIEW_MODEL || process.env.OPENCODE_MODEL;
+  }
 
   const inRoot = (name) => require(path.join(root, name));
   const retrieval = inRoot('retrieval.js');

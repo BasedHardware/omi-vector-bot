@@ -36,7 +36,7 @@ npm run ask -- "How do I pair my Omi?"
 
 Set `CMD_API_KEY` in ignored `.env` for the CommandCode Provider API. `CMD_MODEL`,
 `CMD_REVIEW_MODEL`, `CMD_API_URL`, and `CMD_TIMEOUT_MS` are optional overrides.
-The `OPENCODE_*` settings are a legacy fallback only when `CMD_API_KEY` is absent.
+The bot requires `CMD_API_KEY`; an old provider key cannot be used as a fallback.
 Never commit or log a real key.
 
 For human handoffs, production must have either `STAFF_ALERT_CHANNEL_ID` pointing
@@ -60,6 +60,9 @@ with `{"id":"...","ask":"...","first":"answer|person|none"}` or `turns`
 instead of `ask`. Held-out cases receive structural checks only. Every reply
 and stage time is saved in ignored `eval/results/`; a case passes at 2 of 3
 runs, with inconsistent cases listed as flaky.
+
+Only the local `main` comparison adapter maps its old variable names to the
+CommandCode endpoint. The current bot never falls back to OpenCode.
 
 The runner loads current official Help Center and Omi website pages and uses
 the production chunking/ranking functions in memory. It does not exercise

@@ -36,14 +36,14 @@ process.env.HELP_FORUM_CHANNEL_ID = HELP_FORUM;
 const utils = require('../utils');
 utils.typingDelay = async () => {};
 
-const opencode = require('../opencode');
+const commandcode = require('../commandcode');
 const modelCalls = [];
 let modelReply = {};
 let modelDown = false;
 let searchPlanQueries = [];
 let reviewerResponse = null;
 const reviewCalls = [];
-opencode.queryAgent = async (args) => {
+commandcode.queryAgent = async (args) => {
   modelCalls.push(args);
   if (modelDown) throw new Error('model unavailable');
   return {
@@ -58,7 +58,7 @@ opencode.queryAgent = async (args) => {
     ...modelReply,
   };
 };
-opencode.understandQuestion = async ({ question }) => ({
+commandcode.understandQuestion = async ({ question }) => ({
   standaloneQuestion: question,
   customerGoal: question,
   mustAnswer: [question],
@@ -66,7 +66,7 @@ opencode.understandQuestion = async ({ question }) => ({
   supportKind: 'other',
   queries: searchPlanQueries,
 });
-opencode.reviewAnswer = async (args) => {
+commandcode.reviewAnswer = async (args) => {
   reviewCalls.push(args);
   if (reviewerResponse) return reviewerResponse(args);
   const hasDraft = Boolean(String(args.draft || '').trim());

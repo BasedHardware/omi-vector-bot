@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { queryAgent } = require('./opencode');
+const { queryAgent } = require('./commandcode');
 const { shouldEscalate } = require('./utils');
 
 async function main() {
