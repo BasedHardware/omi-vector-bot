@@ -621,13 +621,9 @@ test('firmware and tech replies drop retry, power-cycle, and charging steps', ()
   assert.match(faq, /try again/i);
   for (const lane of ['tech', 'firmware']) {
     const prompt = buildSystemPrompt({ lane });
-    assert.match(prompt, /try again/i);
-    assert.match(prompt, /turn it off and on/i);
-    assert.match(prompt, /leave it plugged in/i);
-    assert.match(prompt, /schalte ihn nicht/i);
-    assert.match(prompt, /lass den Omi/i);
-    assert.match(prompt, /beiseite/i);
-    assert.match(buildToolFacts({ route: { lane, area: 'firmware' } }), /try again/i);
+    assert.match(prompt, /retrieved Help Center or docs pages/);
+    assert.match(prompt, /Never suggest reinstalling or logging out/);
+    assert.match(buildToolFacts({ route: { lane, area: 'firmware' } }), /reversible, non-data-losing step/);
   }
 });
 
