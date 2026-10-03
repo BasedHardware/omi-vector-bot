@@ -1,6 +1,11 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { prepareDraftForReview, presentReviewedAnswer } = require('../answerPipeline');
+const {
+  prepareDraftForReview,
+  prepareDraftForReviewWithAudit,
+  presentReviewedAnswer,
+  EMPTY_ANSWER_FALLBACK,
+} = require('../answerPipeline');
 
 test('presentation preserves a sourced troubleshooting step after draft filtering', () => {
   const question = 'Why does my Omi keep disconnecting?';
@@ -18,4 +23,16 @@ test('presentation preserves a sourced troubleshooting step after draft filterin
 test('the presentation step does not prepend a saved staff note', () => {
   const answer = 'I cannot confirm a shipping date for this order.';
   assert.equal(presentReviewedAnswer(answer), answer);
+});
+
+test('an erased fixed claim is available to the reviewer as removed text', () => {
+  const original = 'Yes, this has been fixed in the latest release.';
+  const prepared = prepareDraftForReviewWithAudit(
+    original,
+    'unknown',
+    'is the memories sync problem between phone and desktop fixed yet?'
+  );
+  assert.equal(prepared.draft, '');
+  assert.deepEqual(prepared.removed, [original]);
+  assert.equal(presentReviewedAnswer('  '), EMPTY_ANSWER_FALLBACK);
 });

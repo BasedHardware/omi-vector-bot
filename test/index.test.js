@@ -40,6 +40,8 @@ const modelCalls = [];
 let modelReply = {};
 let modelDown = false;
 let searchPlanQueries = [];
+let reviewerResponse = null;
+const reviewCalls = [];
 opencode.queryAgent = async (args) => {
   modelCalls.push(args);
   if (modelDown) throw new Error('model unavailable');
@@ -63,6 +65,18 @@ opencode.understandQuestion = async ({ question }) => ({
   supportKind: 'other',
   queries: searchPlanQueries,
 });
+opencode.reviewAnswer = async (args) => {
+  reviewCalls.push(args);
+  if (reviewerResponse) return reviewerResponse(args);
+  const hasDraft = Boolean(String(args.draft || '').trim());
+  return {
+    final_answer: args.draft,
+    grounded: hasDraft,
+    relevant: hasDraft,
+    confidence: hasDraft ? 0.9 : 0,
+    escalate: !hasDraft,
+  };
+};
 
 const githubCalls = [];
 const files = new Map();
@@ -312,6 +326,8 @@ test.beforeEach(() => {
   modelReply = {};
   modelDown = false;
   searchPlanQueries = [];
+  reviewerResponse = null;
+  reviewCalls.length = 0;
   pulls = [];
   issues = [];
   codeItems = [];
@@ -905,6 +921,22 @@ test('a saved staff note reaches the draft but is never pasted into the final an
   assert.match(related.reply, /overnight/);
   const unrelated = await ask('How do I pair my Omi with a new phone?');
   assert.equal(unrelated.reply.includes('magnetic'), false);
+});
+
+test('an erased fixed claim produces a nonempty reply and reaches the reviewer as removed text', async () => {
+  modelReply = { final_answer: 'Yes, this has been fixed in the latest release.' };
+  reviewerResponse = () => ({
+    final_answer: 'I cannot confirm a release that fixed phone-to-desktop memories sync.',
+    grounded: true,
+    relevant: true,
+    confidence: 0.8,
+    escalate: false,
+  });
+  const result = await ask('is the memories sync problem between phone and desktop fixed yet?');
+  assert.match(reviewCalls.at(-1).removedBySafetyFilters.join(' '), /fixed in the latest release/);
+  assert.match(result.reply, /cannot confirm a release/);
+  assert.doesNotMatch(result.reply, /Something broke/);
+  assert.ok(result.reply.trim());
 });
 
 test('model output with @everyone, a role, or another user cannot ping anyone', async () => {

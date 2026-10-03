@@ -7,23 +7,47 @@ const {
 } = require('./utils');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
 
-// Apply the legacy claim filters to the draft, so the source reviewer sees
-// exactly what they removed and can restore any supported, relevant details.
-// Never run these sentence-deleting filters on the reviewed final answer.
-function prepareDraftForReview(answer, lane, question) {
-  return stripFalseCertainty(
+const EMPTY_ANSWER_FALLBACK = 'I could not verify a safe answer here. A person needs to check this.';
+
+function ensureNonEmptyAnswer(answer) {
+  return String(answer || '').trim() || EMPTY_ANSWER_FALLBACK;
+}
+
+// Filter the draft, and separately show the reviewer the original sentences
+// removed by those filters. Only the reviewer may restore supported details.
+function prepareDraftForReviewWithAudit(answer, lane, question) {
+  const original = String(answer || '').trim();
+  const draft = stripFalseCertainty(
     stripUnsupportedClaims(
       stripShopBleed(stripHowtoBleed(sanitizeReply(answer), lane), lane),
       lane,
       question
     )
   );
+  const normalizedDraft = draft.replace(/\s+/g, ' ').toLowerCase();
+  const removed = original
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .filter((sentence) => !normalizedDraft.includes(sentence.replace(/\s+/g, ' ').toLowerCase()))
+    .slice(0, 12);
+  return { draft, removed };
+}
+
+function prepareDraftForReview(answer, lane, question) {
+  return prepareDraftForReviewWithAudit(answer, lane, question).draft;
 }
 
 function presentReviewedAnswer(answer) {
   // The reviewer has already checked the claims. Only enforce the hard
   // no-false-ping rule and Discord's format/length constraints here.
-  return clipForDiscord(formatDiscordReply(stripPingNarration(answer)));
+  return ensureNonEmptyAnswer(clipForDiscord(formatDiscordReply(stripPingNarration(answer))));
 }
 
-module.exports = { prepareDraftForReview, presentReviewedAnswer };
+module.exports = {
+  EMPTY_ANSWER_FALLBACK,
+  ensureNonEmptyAnswer,
+  prepareDraftForReview,
+  prepareDraftForReviewWithAudit,
+  presentReviewedAnswer,
+};
