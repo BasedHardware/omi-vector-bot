@@ -802,7 +802,7 @@ test('an open issue found by the duplicate search is linked on the Handoff and n
   const r = await ask('My Omi keeps turning itself off after 5 seconds.');
   assert.ok(r.thread);
   assert.match(r.thread.name, /firmware/);
-  assert.match(r.thread.sent[0].embeds[0].fields.find((f) => f.name === 'GitHub')?.value || '', /issues\/777/);
+  assert.equal(r.thread.sent[0].embeds[0].fields.some((f) => f.name === 'GitHub'), false);
   assert.equal(r.thread.sent[0].components, undefined);
   assert.match(textOf(r.thread.sent[1]), /issues\/777/);
   assert.equal(posts().length, 0);

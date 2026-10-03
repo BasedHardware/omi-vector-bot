@@ -56,7 +56,8 @@ test('draftFromQuestion never uses shop or privacy labels', () => {
     reason: 'Device stopped charging.',
     files: [{ name: 'photo.jpg', url: 'https://cdn.discordapp.com/attachments/1/2/photo.jpg', type: 'image/jpeg' }],
   });
-  assert.match(withPhoto, /!\[photo\.jpg\]\(https:\/\/cdn\.discordapp\.com\/attachments\/1\/2\/photo\.jpg\)/);
+  assert.match(withPhoto, /Attachments in Discord: 1/);
+  assert.doesNotMatch(withPhoto, /cdn\.discordapp\.com/);
   assert.equal(github.isImportantLead('thanks'), false);
   assert.equal(github.isImportantLead('what should I do?'), false);
   assert.equal(github.isImportantLead('It charged on Monday and the light never comes on now.'), true);
@@ -71,7 +72,8 @@ test('draftFromQuestion never uses shop or privacy labels', () => {
   assert.equal(openCharging.includes('still a problem after those changes'), false);
   assert.equal(/fixed|I think|probably/i.test(formatted), false);
   const card = github.formatIssueCard(named);
-  assert.match(card.title, /ERESOLVE/);
+  assert.equal(card.title, 'Issue tracking');
+  assert.doesNotMatch(JSON.stringify(card), /ERESOLVE|npm error/);
   const labelField = card.fields.find((f) => f.name === 'Labels').value;
   assert.match(labelField, /desktop/);
   assert.equal(/vector/i.test(labelField), false);
@@ -195,6 +197,34 @@ test('createIssue posts to the repo', async () => {
   delete process.env.GITHUB_TOKEN;
 });
 
+test('createIssue redacts every public write even if a draft was stored raw', async () => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  let posted;
+  try {
+    const created = await github.createIssue({
+      title: 'Order #22777 for @DorkKnight',
+      body: 'Email ada@example.com, call +91 98765 43210 at 12 Rue de Paris, 97400 Saint-Denis. sk-abcdefgh12345678 https://cdn.discordapp.com/attachments/1/2/photo.jpg',
+      files: [{ name: 'photo.jpg', url: 'https://cdn.discordapp.com/attachments/1/2/photo.jpg' }],
+      labels: ['vector'],
+      threadId: '1550182642874589194',
+    }, {
+      fetchImpl: async (_url, opts) => {
+        posted = JSON.parse(opts.body);
+        return { ok: true, status: 201, json: async () => ({ number: 43 }) };
+      },
+    });
+    assert.equal(created.ok, true);
+    const blob = JSON.stringify(posted);
+    for (const value of ['22777', 'DorkKnight', 'ada@example.com', '98765', 'Rue de Paris', 'Saint-Denis', 'abcdefgh12345678', 'photo.jpg']) {
+      assert.equal(blob.includes(value), false, value);
+    }
+    assert.match(blob, /Attachments in Discord: 1/);
+    assert.match(blob, /vector-thread:1550182642874589194/);
+  } finally {
+    delete process.env.GITHUB_TOKEN;
+  }
+});
+
 test('webhook signature and closed/merged lines; never implies /done', () => {
   const secret = 'whsec';
   const body = '{"ok":true}';
@@ -279,7 +309,7 @@ test('shop ticket card is not a GitHub issue', () => {
     title: 'import tax on order #20716',
     labels: ['shop', 'money'],
   });
-  assert.match(card.title, /import tax/i);
+  assert.equal(card.title, 'Shop ticket');
   assert.match(card.fields.find((f) => f.name === 'Labels').value, /shop/);
   assert.match(card.fields.find((f) => f.name === 'GitHub').value, /Not a GitHub issue/);
   const draft = github.draftFromQuestion('import tax on order #20716', 'shop', {
