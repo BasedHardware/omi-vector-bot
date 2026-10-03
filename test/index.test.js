@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { Events, MessageFlags, MessageMentions, User } = require('discord.js');
+const { ChannelType, Events, MessageFlags, MessageMentions, User } = require('discord.js');
 
 const TEST_CHANNEL = '100000000000000100';
 const HELP_FORUM = '100000000000000200';
@@ -1679,6 +1679,25 @@ test('a tech ticket with only a customer-visible Handoff is given the email fall
   const r = await ask('The Android app crashes every time I open a memory.');
   assert.ok(r.thread);
   assert.match(r.reply, /could not deliver this to the support team.*help@omi\.me/is);
+});
+
+test('a new private handoff thread is linked in the customer reply', async () => {
+  const channel = generalChannel();
+  let created;
+  channel.threads.create = async (options) => {
+    assert.equal(options.type, ChannelType.PrivateThread);
+    created = makeChannel({ thread: true, parentId: channel.id, name: options.name });
+    created.members = { add: async () => {} };
+    return created;
+  };
+  const message = makeMessage(`<@${BOT_ID}> The Android app crashes when I open a conversation.`, {
+    channel,
+    mention: true,
+  });
+  await handleMessage(message);
+  assert.ok(created);
+  assert.match(replyText(message), new RegExp(`<#${created.id}>`));
+  assert.doesNotMatch(replyText(message), /Keep talking here/i);
 });
 
 test('/test posts its ticket card in the channel and does not claim a thread', async () => {
