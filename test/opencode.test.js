@@ -9,6 +9,7 @@ const {
   queryAgent,
   reviewAnswer,
   providerConfig,
+  technicalReviewSafety,
 } = require('../opencode');
 
 test('CommandCode takes priority over the legacy provider without an OpenCode session header', async () => {
@@ -33,6 +34,17 @@ test('CommandCode takes priority over the legacy provider without an OpenCode se
     if (previous.open === undefined) delete process.env.OPENCODE_API_KEY;
     else process.env.OPENCODE_API_KEY = previous.open;
   }
+});
+
+test('technical reviewer allows only cited official, reversible checks', () => {
+  const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/13154278-omi-necklace-issues\nRestart the app and phone.';
+  const feedback = '[S2 | Omi Feedback portal]\nhttps://feedback.omi.me/p/example\nA customer suggested restarting.';
+  assert.equal(technicalReviewSafety('Restart the app.', 'tech', help, ['S1']).safe, true);
+  assert.equal(technicalReviewSafety('Restart the app.', 'tech', feedback, ['S2']).safe, false);
+  assert.equal(technicalReviewSafety('Restart the app.', 'tech', help, []).safe, false);
+  assert.equal(technicalReviewSafety('Reinstall the app, then try again.', 'tech', help, ['S1']).safe, false);
+  assert.equal(technicalReviewSafety('Clear Pending recordings.', 'firmware', help, ['S1']).safe, false);
+  assert.equal(technicalReviewSafety('Flash firmware.', 'firmware', help, ['S1']).safe, false);
 });
 
 test('parseAgentJson reads a fenced reply and a broken one', () => {

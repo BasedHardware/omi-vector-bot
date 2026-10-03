@@ -720,6 +720,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               removedBySafetyFilters: prepared.removed,
               understanding: searchPlan,
               policy: toolFacts,
+              lane: draftLane,
               sources: [
                 `[Static fallback | lower priority than retrieved Help Center and docs]\n${OFFICIAL}`,
                 retrievedEvidence,
