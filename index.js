@@ -50,7 +50,7 @@ const { relevantDocs } = require('./docs');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
-const { prepareDraftForReview, presentReviewedAnswer } = require('./answerPipeline');
+const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer } = require('./answerPipeline');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -129,7 +129,7 @@ function rememberBotReply(sent, message) {
 }
 
 async function replySafe(message, content, { pingAuthor = false } = {}) {
-  let text = rewriteUserMentions(content, message);
+  let text = ensureNonEmptyAnswer(rewriteUserMentions(ensureNonEmptyAnswer(content), message));
   if (pingAuthor) text = attachAuthorMention(text, message);
   const payload = {
     content: text,
@@ -703,16 +703,18 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         });
         if (aiResponse?.final_answer) {
           const draftLane = triage.merge(route, aiResponse, question).lane;
-          aiResponse.final_answer = prepareDraftForReview(
+          const prepared = prepareDraftForReviewWithAudit(
             aiResponse.final_answer,
             draftLane,
             caseQuestion
           );
+          aiResponse.final_answer = prepared.draft;
           try {
             const checked = await reviewAnswer({
               question,
               threadHistory,
               draft: aiResponse.final_answer,
+              removedBySafetyFilters: prepared.removed,
               understanding: searchPlan,
               policy: toolFacts,
               sources: [
@@ -724,14 +726,15 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 .join('\n\n'),
               sessionId: `discord-${channel.id}-review`,
             });
-            aiResponse.final_answer = checked.relevant
+            const approved = checked.relevant && checked.grounded && String(checked.final_answer || '').trim();
+            aiResponse.final_answer = approved
               ? checked.final_answer
               : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
             aiResponse.confidence = Math.min(
               Number(aiResponse.confidence) || 0.4,
               Number(checked.confidence) || 0.4
             );
-            if (checked.escalate) {
+            if (checked.escalate || !approved) {
               aiResponse.escalate = true;
               aiResponse.reason =
                 aiResponse.reason ||
@@ -825,6 +828,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
     }
     if (threadHistory.length) cleanAnswer = github.keepMergedPull(threadHistory, cleanAnswer);
+    cleanAnswer = ensureNonEmptyAnswer(cleanAnswer);
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
     const nameMeta = {

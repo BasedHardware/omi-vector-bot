@@ -87,6 +87,7 @@ test('the review gate returns grounding status and exact source ids', async () =
     const reviewed = await reviewAnswer({
       question: 'How do I reset it?',
       draft: 'Tap it twice.',
+      removedBySafetyFilters: ['The app is already fixed.'],
       understanding: {
         customerGoal: 'Reset the Omi device',
         mustAnswer: ['How to reset the device'],
@@ -99,6 +100,8 @@ test('the review gate returns grounding status and exact source ids', async () =
         assert.match(body.messages[0].content, /cannot support a root cause, fix, workaround/i);
         assert.match(body.messages[0].content, /directly addresses the real customer goal/i);
         assert.match(body.messages[1].content, /Reset the Omi device/);
+        assert.match(body.messages[1].content, /Removed by safety filters/);
+        assert.match(body.messages[1].content, /The app is already fixed/);
         return {
           data: {
             choices: [
@@ -121,6 +124,40 @@ test('the review gate returns grounding status and exact source ids', async () =
   } finally {
     if (prev == null) delete process.env.OPENCODE_API_KEY;
     else process.env.OPENCODE_API_KEY = prev;
+  }
+});
+
+test('reviewAnswer fails closed for an empty draft without calling the model', async () => {
+  const previous = process.env.OPENCODE_API_KEY;
+  process.env.OPENCODE_API_KEY = 'test-key';
+  try {
+    const result = await reviewAnswer({
+      question: 'Is the sync problem fixed?',
+      draft: ' \n ',
+      removedBySafetyFilters: ['Yes, it is fixed.'],
+      post: async () => { throw new Error('reviewer must not be called'); },
+    });
+    assert.equal(result.relevant, false);
+    assert.equal(result.grounded, false);
+    assert.equal(result.escalate, true);
+    assert.ok(result.final_answer.trim());
+  } finally {
+    if (previous == null) delete process.env.OPENCODE_API_KEY;
+    else process.env.OPENCODE_API_KEY = previous;
+  }
+});
+
+test('reviewAnswer does not approve a draft when no reviewer is configured', async () => {
+  const previous = process.env.OPENCODE_API_KEY;
+  process.env.OPENCODE_API_KEY = '';
+  try {
+    const result = await reviewAnswer({ question: 'Is it fixed?', draft: 'Yes, it is fixed.' });
+    assert.equal(result.relevant, false);
+    assert.equal(result.escalate, true);
+    assert.doesNotMatch(result.final_answer, /Yes, it is fixed/);
+  } finally {
+    if (previous == null) delete process.env.OPENCODE_API_KEY;
+    else process.env.OPENCODE_API_KEY = previous;
   }
 });
 
