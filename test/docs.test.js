@@ -54,6 +54,20 @@ test('a docs lookup uses the saved page when the site is down', async () => {
   assert.match(text, /docs\.omi\.me\/doc\/battery\.md/);
 });
 
+test('stored lookup rejects another pendant when the customer only named Omi', async () => {
+  const text = await relevantDocs('Omi disconnects from my phone', {
+    customerQuestion: 'Omi disconnects from my phone',
+    queries: ['Limitless pendant disconnecting'],
+    fetchImpl: async () => { throw new Error('stored evidence should win'); },
+    store: { searchDocPages: async () => [
+      { title: 'FAQ – Using Your Limitless Pendant with Omi', url: 'https://help.omi.me/en/articles/limitless', body: 'Keep Limitless nearby.', source: 'help', chunk_index: 0, rank: 1 },
+      { title: 'Omi necklace issues', url: 'https://help.omi.me/en/articles/necklace', body: 'Keep Omi connected.', source: 'help', chunk_index: 0, rank: 0.8 },
+    ] },
+  });
+  assert.match(text, /Omi necklace issues/);
+  assert.doesNotMatch(text, /Limitless Pendant/);
+});
+
 test('planned searches retrieve source-labeled Help Center evidence', async () => {
   const searches = [];
   const text = await relevantDocs('How do I make one?', {

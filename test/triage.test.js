@@ -86,6 +86,16 @@ test('a docs question stays faq when the model calls it shop', () => {
   assert.equal(merged.fileIssue, false);
 });
 
+test('a firmware update how-to stays faq even when the draft calls it a fault', () => {
+  const q = 'how do i update the firmware on my omi';
+  const merged = triage.merge(router.classify(q), {
+    area: 'firmware', lane: 'firmware', escalate: true, labels: ['firmware'],
+  }, q);
+  assert.equal(merged.lane, 'faq');
+  assert.equal(merged.area, 'unknown');
+  assert.equal(merged.escalate, false);
+});
+
 test('capture and transcription stays off shop when the model calls it an account', () => {
   const q = "in order to pair, device doesn't capture and transcription is unavailable";
   const merged = triage.merge(

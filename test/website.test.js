@@ -7,7 +7,7 @@ const {
   supportPageUrls,
 } = require('../website');
 
-test('the Omi sitemap keeps product and page sources, not blogs', () => {
+test('the Omi sitemap keeps product, page and curated news sources', () => {
   const root = `
     <loc>https://www.omi.me/sitemap_products_1.xml?from=1&amp;to=2</loc>
     <loc>https://www.omi.me/sitemap_pages_1.xml?from=1&amp;to=2</loc>
@@ -15,10 +15,11 @@ test('the Omi sitemap keeps product and page sources, not blogs', () => {
   assert.deepEqual(contentSitemaps(root), [
     'https://www.omi.me/sitemap_products_1.xml?from=1&to=2',
     'https://www.omi.me/sitemap_pages_1.xml?from=1&to=2',
+    'https://www.omi.me/sitemap_blogs_1.xml',
   ]);
   assert.deepEqual(
-    supportPageUrls('<loc>https://www.omi.me/products/omi</loc><loc>https://evil.example/pages/omi</loc>'),
-    ['https://www.omi.me/products/omi']
+    supportPageUrls('<loc>https://www.omi.me/products/omi</loc><loc>https://www.omi.me/blogs/news/new-features</loc><loc>https://www.omi.me/blogs/iot-devices-faq/other-device</loc><loc>https://evil.example/pages/omi</loc>'),
+    ['https://www.omi.me/products/omi', 'https://www.omi.me/blogs/news/new-features']
   );
 });
 

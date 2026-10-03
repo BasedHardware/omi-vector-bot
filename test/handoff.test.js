@@ -9,6 +9,62 @@ const {
   staffMentions,
 } = require('../handoff');
 const { formatEscalationText } = require('../telegram');
+const { ChannelType } = require('discord.js');
+
+test('private handoff invites the customer but never exposes the staff-only card', async () => {
+  const previous = {
+    threads: process.env.HANDOFF_THREADS,
+    staff: process.env.STAFF_ALERT_CHANNEL_ID,
+    users: process.env.STAFF_USER_IDS,
+  };
+  process.env.HANDOFF_THREADS = '1';
+  delete process.env.STAFF_ALERT_CHANNEL_ID;
+  process.env.STAFF_USER_IDS = '123456789012345678';
+  const invited = [];
+  const sent = [];
+  let createOptions;
+  const thread = {
+    id: 'private-handoff-1',
+    members: { add: async (id) => invited.push(id) },
+    send: async (payload) => sent.push(payload),
+  };
+  try {
+    const result = await notifyStaff({
+      client: null,
+      message: {
+        author: { id: '998877665544332211' },
+        channel: {
+          id: 'general-private-test',
+          isThread: () => false,
+          threads: { create: async (options) => { createOptions = options; return thread; } },
+          isTextBased: () => true,
+          send: async () => { throw new Error('must use private thread'); },
+        },
+        startThread: async () => { throw new Error('must not create public thread'); },
+      },
+      question: 'Order #22777 for ada@example.com',
+      reason: 'Needs shipping check',
+      shopify: 'SECRET_SHOPIFY_FACT',
+      area: 'shop',
+      route: { area: 'shop', lane: 'shop' },
+      skipDedupe: true,
+    });
+    assert.equal(result.via, 'thread');
+    assert.equal(createOptions.type, ChannelType.PrivateThread);
+    assert.deepEqual(invited, ['998877665544332211', '123456789012345678']);
+    assert.equal(sent.length, 1);
+    const blob = JSON.stringify(sent[0]);
+    assert.doesNotMatch(blob, /22777|ada@example\.com|SECRET_SHOPIFY_FACT|Needs shipping check/);
+    assert.match(blob, /does not repeat it/);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      const name = key === 'threads' ? 'HANDOFF_THREADS' : key === 'staff' ? 'STAFF_ALERT_CHANNEL_ID' : 'STAFF_USER_IDS';
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    resetHandoffMemory();
+  }
+});
 
 test('canNotifyStaff is true on Discord, false in CLI without Telegram', () => {
   assert.equal(canNotifyStaff({ discordReady: true }), true);
@@ -234,7 +290,8 @@ test('handoff threads are skipped by name', () => {
     area: 'shop',
     lane: 'shop',
   });
-  assert.match(brazil, /order #20716/i);
+  assert.match(brazil, /\[order number\]/i);
+  assert.doesNotMatch(brazil, /20716/);
   assert.match(brazil, /import tax/i);
   assert.equal(/AUGUST 11/i.test(brazil), false);
   assert.match(brazil, /shop/);
@@ -888,8 +945,8 @@ test('help forum card does not repeat the customer post', async () => {
     });
     assert.equal(vector.via, 'channel');
     assert.equal(vectorStarted, 0);
-    assert.match(vectorSent[0].embeds[0].description, /Where is my order #20716/);
-    assert.equal(vectorSent[0].embeds[0].description.includes(publicDescription), false);
+    assert.equal(vectorSent[0].embeds[0].description, publicDescription);
+    assert.equal(JSON.stringify(vectorSent[0]).includes('20716'), false);
 
     const normalSent = [];
     process.env.HANDOFF_THREADS = '0';
@@ -916,8 +973,8 @@ test('help forum card does not repeat the customer post', async () => {
       skipDedupe: true,
     });
     assert.equal(normal.via, 'channel');
-    assert.match(normalSent[0].embeds[0].description, /Where is my order #20716/);
-    assert.equal(normalSent[0].embeds[0].description.includes(publicDescription), false);
+    assert.equal(normalSent[0].embeds[0].description, publicDescription);
+    assert.equal(JSON.stringify(normalSent[0]).includes('20716'), false);
   } finally {
     telegram.sendEscalation = originalSend;
     if (prev.help === undefined) delete process.env.HELP_FORUM_CHANNEL_ID;

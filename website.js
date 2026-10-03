@@ -9,14 +9,15 @@ function sitemapUrls(xml) {
 }
 
 function contentSitemaps(xml) {
-  return sitemapUrls(xml).filter((url) => /\/sitemap_(?:products|pages)_\d+\.xml/i.test(url));
+  return sitemapUrls(xml).filter((url) => /\/sitemap_(?:products|pages|blogs)_\d+\.xml/i.test(url));
 }
 
 function supportPageUrls(xml) {
   return sitemapUrls(xml).filter((url) => {
     try {
       const parsed = new URL(url);
-      return /^(?:www\.)?omi\.me$/i.test(parsed.hostname) && /^\/(?:products|pages)\//i.test(parsed.pathname);
+      return /^(?:www\.)?omi\.me$/i.test(parsed.hostname) &&
+        /^\/(?:products|pages|blogs\/news)\//i.test(parsed.pathname);
     } catch {
       return false;
     }

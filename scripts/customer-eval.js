@@ -102,7 +102,7 @@ const liveScenarios = [
       'iPhone 15 Pro, iOS 27, CV1 fw 3.0.21, app 1.0.552.',
     ].join(' '),
     lane: 'tech',
-    must: [/transcri/i, /AI reply|AI message|Chat|response/i],
+    must: [/transcri/i, /AI reply|AI message|Chat|response|(?:reply|answer) (?:never|doesn.t|isn.t|not|missing)|no answer follows|what isn.t happening is an answer coming back/i],
     mustNot: [/check.*notification permission/i, /voiceReplyStep|aiResponse|ServerMessage/],
   },
   {

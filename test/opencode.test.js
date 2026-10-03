@@ -8,7 +8,60 @@ const {
   planSearch,
   queryAgent,
   reviewAnswer,
+  technicalReviewSafety,
+  providerConfig,
 } = require('../opencode');
+
+test('CommandCode key selects its official endpoint and model ahead of legacy settings', () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-commandcode-key';
+  try {
+    const config = providerConfig();
+    assert.equal(config.name, 'CommandCode');
+    assert.equal(config.url, 'https://api.commandcode.ai/provider/v1/chat/completions');
+    assert.equal(config.model, 'deepseek/deepseek-v4.1-flash');
+    assert.equal(config.reviewModel, config.model);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('CommandCode review uses its endpoint without an OpenCode session header', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-commandcode-key';
+  try {
+    const result = await reviewAnswer({
+      question: 'What does blue mean?',
+      draft: 'Blue means connected.',
+      lane: 'faq',
+      sources: '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/example\nBlue means connected.',
+      post: async (url, body, options) => {
+        assert.equal(url, 'https://api.commandcode.ai/provider/v1/chat/completions');
+        assert.equal(body.model, 'deepseek/deepseek-v4.1-flash');
+        assert.equal(options.headers['x-opencode-session'], undefined);
+        return { data: { choices: [{ message: { content: '{"final_answer":"Blue means connected.","grounded":true,"relevant":true,"escalate":false,"sources_used":["S1"]}' } }] } };
+      },
+    });
+    assert.equal(result.grounded, true);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('technical reviewer allows only cited official, reversible checks', () => {
+  const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/13154278-omi-necklace-issues\nRestart the app and phone.';
+  const feedback = '[S2 | Omi Feedback portal]\nhttps://feedback.omi.me/p/example\nA customer suggested restarting.';
+  assert.equal(technicalReviewSafety('Restart the app.', 'tech', help, ['S1']).safe, true);
+  assert.equal(technicalReviewSafety('Restart the app.', 'tech', feedback, ['S2']).safe, false);
+  assert.equal(technicalReviewSafety('Restart the app.', 'tech', help, []).safe, false);
+  assert.equal(technicalReviewSafety('Reinstall the app, then try again.', 'tech', help, ['S1']).safe, false);
+  assert.equal(technicalReviewSafety('Do not reinstall the app or log out while recordings are unsynced.', 'tech', help, ['S1']).safe, true);
+  assert.equal(technicalReviewSafety('Do not reinstall, then flash firmware.', 'tech', help, ['S1']).safe, false);
+  assert.equal(technicalReviewSafety('Clear Pending recordings.', 'firmware', help, ['S1']).safe, false);
+  assert.equal(technicalReviewSafety('Flash firmware.', 'firmware', help, ['S1']).safe, false);
+});
 
 test('parseAgentJson reads a fenced reply and a broken one', () => {
   const ok = parseAgentJson('```json\n{"final_answer":"Hold the button.","escalate":false,"confidence":0.8}\n```');
@@ -87,6 +140,7 @@ test('the review gate returns grounding status and exact source ids', async () =
     const reviewed = await reviewAnswer({
       question: 'How do I reset it?',
       draft: 'Tap it twice.',
+      removedBySafetyFilters: ['The app is already fixed.'],
       understanding: {
         customerGoal: 'Reset the Omi device',
         mustAnswer: ['How to reset the device'],
@@ -99,6 +153,8 @@ test('the review gate returns grounding status and exact source ids', async () =
         assert.match(body.messages[0].content, /cannot support a root cause, fix, workaround/i);
         assert.match(body.messages[0].content, /directly addresses the real customer goal/i);
         assert.match(body.messages[1].content, /Reset the Omi device/);
+        assert.match(body.messages[1].content, /Removed by safety filters/);
+        assert.match(body.messages[1].content, /The app is already fixed/);
         return {
           data: {
             choices: [
@@ -121,6 +177,40 @@ test('the review gate returns grounding status and exact source ids', async () =
   } finally {
     if (prev == null) delete process.env.OPENCODE_API_KEY;
     else process.env.OPENCODE_API_KEY = prev;
+  }
+});
+
+test('reviewAnswer fails closed for an empty draft without calling the model', async () => {
+  const previous = process.env.OPENCODE_API_KEY;
+  process.env.OPENCODE_API_KEY = 'test-key';
+  try {
+    const result = await reviewAnswer({
+      question: 'Is the sync problem fixed?',
+      draft: ' \n ',
+      removedBySafetyFilters: ['Yes, it is fixed.'],
+      post: async () => { throw new Error('reviewer must not be called'); },
+    });
+    assert.equal(result.relevant, false);
+    assert.equal(result.grounded, false);
+    assert.equal(result.escalate, true);
+    assert.ok(result.final_answer.trim());
+  } finally {
+    if (previous == null) delete process.env.OPENCODE_API_KEY;
+    else process.env.OPENCODE_API_KEY = previous;
+  }
+});
+
+test('reviewAnswer does not approve a draft when no reviewer is configured', async () => {
+  const previous = process.env.OPENCODE_API_KEY;
+  process.env.OPENCODE_API_KEY = '';
+  try {
+    const result = await reviewAnswer({ question: 'Is it fixed?', draft: 'Yes, it is fixed.' });
+    assert.equal(result.relevant, false);
+    assert.equal(result.escalate, true);
+    assert.doesNotMatch(result.final_answer, /Yes, it is fixed/);
+  } finally {
+    if (previous == null) delete process.env.OPENCODE_API_KEY;
+    else process.env.OPENCODE_API_KEY = previous;
   }
 });
 

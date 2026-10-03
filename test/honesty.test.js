@@ -621,14 +621,16 @@ test('firmware and tech replies drop retry, power-cycle, and charging steps', ()
   assert.match(faq, /try again/i);
   for (const lane of ['tech', 'firmware']) {
     const prompt = buildSystemPrompt({ lane });
-    assert.match(prompt, /try again/i);
-    assert.match(prompt, /turn it off and on/i);
-    assert.match(prompt, /leave it plugged in/i);
-    assert.match(prompt, /schalte ihn nicht/i);
-    assert.match(prompt, /lass den Omi/i);
-    assert.match(prompt, /beiseite/i);
-    assert.match(buildToolFacts({ route: { lane, area: 'firmware' } }), /try again/i);
+    assert.match(prompt, /retrieved Help Center or docs pages/);
+    assert.match(prompt, /Never suggest reinstalling or logging out/);
+    const facts = buildToolFacts({ route: { lane, area: 'firmware' } });
+    assert.match(facts, /reversible, non-data-losing step/);
+    assert.match(facts, /Do not apply a page for a named third-party pendant to the Omi necklace/);
   }
+  assert.match(
+    buildToolFacts({ route: { lane: 'tech', area: 'app' }, docsText: '[S1 | Omi Feedback portal] Portal status: In Progress' }),
+    /A public status such as In Progress does not mean a fix has shipped/
+  );
 });
 
 test('tech, firmware, and faq replies drop invented fixes the bot cannot see', () => {

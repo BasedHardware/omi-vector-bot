@@ -97,20 +97,20 @@ test('recordings place and firmware-bug cause stay with honesty', () => {
   assertSurroundingStays(asked);
 });
 
-test('tech and firmware prompts forbid cause, recordings place, account access, and device steps', () => {
+test('tech and firmware prompts forbid guesses and require cited safe steps', () => {
   for (const lane of ['tech', 'firmware']) {
     const prompt = buildSystemPrompt({ lane });
     const tools = buildToolFacts({ route: { lane, area: 'firmware' } });
-    assert.match(prompt, /Do not name a cause/);
+    assert.match(prompt, /Do not name a speculative cause/);
     assert.match(prompt, /place the recordings are/);
     assert.match(prompt, /Do not mention account access/);
-    assert.match(prompt, /step that changes the device/);
+    assert.match(prompt, /reversible checks/);
     assert.match(tools, /Do not mention account access/);
-    assert.match(tools, /Do not say you know the cause/);
-    assert.match(tools, /step that changes the device/);
+    assert.match(tools, /Do not claim to know the cause/);
+    assert.match(tools, /retrieved official Help Center or docs page/);
     assert.match(prompt, /intended behavior/i);
     assert.match(tools, /intended flow/i);
-    assert.match(tools, /only repeats the symptom/i);
+    assert.match(tools, /explain what should happen and which stage has succeeded/i);
     assert.equal(/tell them a likely cause/i.test(prompt), false);
     assert.equal(/tell them a likely cause/i.test(tools), false);
   }

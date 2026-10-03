@@ -36,6 +36,50 @@ test('fails closed when the bot id is unknown', () => {
   assert.equal(isBotEscalationReply(msg, null), false);
 });
 
+test('an authenticated Telegram KB line enters the in-memory staff-note pool without a database', async () => {
+  const axios = require('axios');
+  const knowledge = require('../knowledge');
+  const moduleId = require.resolve('../telegram');
+  const previousModule = require.cache[moduleId];
+  const previousGet = axios.get;
+  const previousToken = process.env.TELEGRAM_TOKEN;
+  const previousChat = process.env.TELEGRAM_CHAT_ID;
+  const previousDb = process.env.DATABASE_URL;
+  const sent = [];
+  knowledge.resetKnowledge();
+  process.env.TELEGRAM_TOKEN = 'test-token';
+  process.env.TELEGRAM_CHAT_ID = '12345';
+  delete process.env.DATABASE_URL;
+  delete require.cache[moduleId];
+  const telegram = require('../telegram');
+  axios.get = async () => ({ data: { ok: true, result: { id: BOT_ID } } });
+  telegram.setDiscordClient({
+    channels: { fetch: async () => ({ isTextBased: () => true, send: async (payload) => sent.push(payload) }) },
+  });
+  try {
+    await telegram.handleUpdate({
+      message: {
+        chat: { id: 12345 },
+        text: 'A: The app can run in the background.\nKB: Omi stays connected when the app runs in the background.',
+        reply_to_message: { from: { id: BOT_ID }, text: ESCALATION },
+      },
+    });
+    assert.match(knowledge.search('background')[0], /stays connected/);
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0].allowedMentions, { parse: [] });
+  } finally {
+    knowledge.resetKnowledge();
+    axios.get = previousGet;
+    if (previousToken === undefined) delete process.env.TELEGRAM_TOKEN;
+    else process.env.TELEGRAM_TOKEN = previousToken;
+    if (previousChat === undefined) delete process.env.TELEGRAM_CHAT_ID;
+    else process.env.TELEGRAM_CHAT_ID = previousChat;
+    if (previousDb === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDb;
+    require.cache[moduleId] = previousModule;
+  }
+});
+
 test('reply mention policy does not parse users or roles', () => {
   const { SAFE_REPLY_MENTIONS, replyMentions, rewriteUserMentions } = require('../utils');
   assert.deepEqual(SAFE_REPLY_MENTIONS.parse, []);

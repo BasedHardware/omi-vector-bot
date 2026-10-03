@@ -40,6 +40,8 @@ const modelCalls = [];
 let modelReply = {};
 let modelDown = false;
 let searchPlanQueries = [];
+let reviewerResponse = null;
+const reviewCalls = [];
 opencode.queryAgent = async (args) => {
   modelCalls.push(args);
   if (modelDown) throw new Error('model unavailable');
@@ -63,6 +65,18 @@ opencode.understandQuestion = async ({ question }) => ({
   supportKind: 'other',
   queries: searchPlanQueries,
 });
+opencode.reviewAnswer = async (args) => {
+  reviewCalls.push(args);
+  if (reviewerResponse) return reviewerResponse(args);
+  const hasDraft = Boolean(String(args.draft || '').trim());
+  return {
+    final_answer: args.draft,
+    grounded: hasDraft,
+    relevant: hasDraft,
+    confidence: hasDraft ? 0.9 : 0,
+    escalate: !hasDraft,
+  };
+};
 
 const githubCalls = [];
 const files = new Map();
@@ -312,6 +326,8 @@ test.beforeEach(() => {
   modelReply = {};
   modelDown = false;
   searchPlanQueries = [];
+  reviewerResponse = null;
+  reviewCalls.length = 0;
   pulls = [];
   issues = [];
   codeItems = [];
@@ -335,6 +351,23 @@ test('a how-to question in #vector-test gets the model answer and no Handoff', a
   assert.match(r.reply, /center button/);
   assert.equal(r.thread, null);
   assert.equal(r.github.length, 0);
+});
+
+test('officially reviewed firmware how-to clears a draft-model handoff', async () => {
+  modelReply = { final_answer: 'Update firmware through the Omi app.', escalate: true, lane: 'firmware', area: 'firmware' };
+  reviewerResponse = () => ({
+    final_answer: 'Open the Omi app, then Settings → Device Settings → Update Firmware.\n\nSource: https://help.omi.me/en/articles/13149698-omi',
+    grounded: true, relevant: true, confidence: 0.9, escalate: false,
+  });
+  const r = await ask('how do i update the firmware on my omi');
+  assert.match(r.reply, /Update Firmware/);
+  assert.equal(r.thread, null);
+});
+
+test('stalled offline recordings get a data-preservation warning even after review rejects the draft', async () => {
+  const r = await ask("I recorded offline all day and now it's stuck syncing at 12%");
+  assert.match(r.reply, /do not reinstall the app, log out, or clear Pending\/All storage/i);
+  assert.ok(r.thread);
 });
 
 test('a refund request skips the model and opens a money Handoff', async () => {
@@ -756,6 +789,42 @@ test('an open pull request that matches the report is cited as unshipped with no
   assert.equal(posts().length, 0);
 });
 
+test('a matching pull request does not bypass answers to two customer problems', async () => {
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  pulls = [{
+    number: 4322,
+    state: 'open',
+    title: 'Fix Google Calendar integration',
+    html_url: 'https://github.com/BasedHardware/omi/pull/4322',
+  }];
+  const r = await ask('The Google Calendar extension says app blocked, and the built-in integration only gets my main calendar. How can I fix both?');
+  assert.equal(r.modelCalled, true);
+  assert.ok(r.thread);
+  assert.doesNotMatch(r.reply, /omi\/pull\/4322/);
+});
+
+test('a matching public Feedback status is included without borrowing another Google request', async () => {
+  const html = (post) => `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+    props: { pageProps: { ptDehydratedState: { queries: [{
+      queryKey: ['/v1/submission', { slug: post.slug }], state: { data: { results: [post] } },
+    }] } } },
+  })}</script>`;
+  feedbackPages.set('https://feedback.omi.me/p/deeper-google-calendar-integration', html({
+    slug: 'deeper-google-calendar-integration', title: 'Deeper Google Calendar integration',
+    content: 'I want more calendar context.', postStatus: { name: 'Completed' },
+  }));
+  feedbackPages.set('https://feedback.omi.me/p/google-calender', html({
+    slug: 'google-calender', title: 'Google calender',
+    content: 'The extension says this app is blocked and the integration only shows my main agenda.',
+    postStatus: { name: 'In Progress' },
+  }));
+  modelReply = { final_answer: 'I cannot confirm a fix for the blocked extension or multiple calendars.', escalate: true };
+  const r = await ask('The Google Calendar extension says this app is blocked and the integration only shows my main calendar. How can I fix both?');
+  assert.match(r.reply, /marked In Progress/);
+  assert.match(r.reply, /feedback\.omi\.me\/p\/google-calender/);
+  assert.doesNotMatch(r.reply, /marked Completed/);
+});
+
 test('a merged pull request that matches the report is described as merged', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   pullState = { state: 'closed', merged: true };
@@ -786,7 +855,7 @@ test('an open issue found by the duplicate search is linked on the Handoff and n
   const r = await ask('My Omi keeps turning itself off after 5 seconds.');
   assert.ok(r.thread);
   assert.match(r.thread.name, /firmware/);
-  assert.match(r.thread.sent[0].embeds[0].fields.find((f) => f.name === 'GitHub')?.value || '', /issues\/777/);
+  assert.equal(r.thread.sent[0].embeds[0].fields.some((f) => f.name === 'GitHub'), false);
   assert.equal(r.thread.sent[0].components, undefined);
   assert.match(textOf(r.thread.sent[1]), /issues\/777/);
   assert.equal(posts().length, 0);
@@ -871,6 +940,7 @@ test('staff-lie wording in a model answer is stripped before the customer sees i
 
 test('an escalated how-to says a person has it once the Handoff opens', async () => {
   modelReply = { escalate: true };
+  reviewerResponse = (args) => ({ final_answer: args.draft, grounded: true, relevant: true, confidence: 0.9, escalate: true });
   const r = await ask('How do I pair my Omi with a new phone?');
   assert.ok(r.thread);
   assert.ok(r.reply.includes(utils.PINGED_FOOTER));
@@ -879,6 +949,7 @@ test('an escalated how-to says a person has it once the Handoff opens', async ()
 
 test('an escalated how-to whose Handoff cannot be posted says nobody was pinged', async () => {
   modelReply = { escalate: true };
+  reviewerResponse = (args) => ({ final_answer: args.draft, grounded: true, relevant: true, confidence: 0.9, escalate: true });
   const message = makeMessage('How do I pair my Omi with a new phone?');
   let tried = 0;
   message.startThread = async () => {
@@ -905,6 +976,22 @@ test('a saved staff note reaches the draft but is never pasted into the final an
   assert.match(related.reply, /overnight/);
   const unrelated = await ask('How do I pair my Omi with a new phone?');
   assert.equal(unrelated.reply.includes('magnetic'), false);
+});
+
+test('an erased fixed claim produces a nonempty reply and reaches the reviewer as removed text', async () => {
+  modelReply = { final_answer: 'Yes, this has been fixed in the latest release.' };
+  reviewerResponse = () => ({
+    final_answer: 'I cannot confirm a release that fixed phone-to-desktop memories sync.',
+    grounded: true,
+    relevant: true,
+    confidence: 0.8,
+    escalate: false,
+  });
+  const result = await ask('is the memories sync problem between phone and desktop fixed yet?');
+  assert.match(reviewCalls.at(-1).removedBySafetyFilters.join(' '), /fixed in the latest release/);
+  assert.match(result.reply, /cannot confirm a release/);
+  assert.doesNotMatch(result.reply, /Something broke/);
+  assert.ok(result.reply.trim());
 });
 
 test('model output with @everyone, a role, or another user cannot ping anyone', async () => {
@@ -1071,7 +1158,7 @@ test('a new help-forum post puts its title and tags in front of the model questi
     modelCalls.at(-1).question,
     'Post: Omi will not pair\nTags: Setup\nHow do I pair my Omi with a new phone?'
   );
-  assert.match(replyText(starter), /center button/);
+  assert.match(replyText(starter), /Needs a human/);
 });
 
 test('a new help-forum post with only a screenshot is answered from its title', async () => {
@@ -1398,6 +1485,16 @@ test('an explicit bot mention can opt back in while replying to staff', async ()
 test('short gratitude such as Sweet thanks does not trigger support', async () => {
   const post = makeChannel({ name: 'Keeps stopping and starting audio', thread: true, parentId: HELP_FORUM });
   const customer = makeMessage('Sweet thanks!', { channel: post });
+  assert.equal(shouldHandle(customer), false);
+  const before = modelCalls.length;
+  await handleMessage(customer);
+  assert.equal(modelCalls.length, before);
+  assert.equal(customer.replies.length + post.sent.length, 0);
+});
+
+test('gratitude confirming a fix does not trigger another bot reply', async () => {
+  const post = makeChannel({ name: 'Device troubleshooting', thread: true, parentId: HELP_FORUM });
+  const customer = makeMessage('thanks!! that fixed it', { channel: post });
   assert.equal(shouldHandle(customer), false);
   const before = modelCalls.length;
   await handleMessage(customer);

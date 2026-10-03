@@ -11,6 +11,7 @@ const SITEMAP = 'https://feedback.omi.me/sitemap.xml';
 const CACHE_MS = 60 * 60 * 1000;
 const ERROR_CACHE_MS = 5 * 60 * 1000;
 const PAGE_CACHE_MS = 15 * 60 * 1000;
+const CALENDAR_FEEDBACK_URL = 'https://feedback.omi.me/p/google-calender';
 let sitemapCache = { at: 0, ok: false, pages: [] };
 const pageCache = new Map();
 
@@ -71,6 +72,40 @@ function termScore(wanted, candidate) {
   return 0;
 }
 
+const GENERIC_MATCH_WORDS = new Set(['app', 'is', 'no', 'only', 'says', 'gets', 'get', 'use', 'using', 'fix']);
+
+function scoreFeedbackContent(question, items) {
+  const wanted = queryTerms(question, 50).filter((word) => !GENERIC_MATCH_WORDS.has(word));
+  const rows = items.map((item) => ({ ...item, words: queryTerms(item.text, 160) }));
+  const match = (word, row) => Math.max(0, ...row.words.map((candidate) => termScore(word, candidate)));
+  const frequency = new Map(wanted.map((word) => [word, rows.filter((row) => match(word, row) > 0).length]));
+  return rows.map((row) => {
+    let score = 0;
+    let matched = 0;
+    let rare = 0;
+    for (const word of wanted) {
+      const strength = match(word, row);
+      if (!strength) continue;
+      matched += 1;
+      if (frequency.get(word) === 1) rare += 1;
+      score += strength * (frequency.get(word) === 1 ? 3 : frequency.get(word) === 2 ? 2 : 1);
+    }
+    return { ...row, score, matched, rare };
+  }).sort((a, b) => b.score - a.score || b.rare - a.rare);
+}
+
+function rankFeedbackByContent(question, pages, limit = 4) {
+  return scoreFeedbackContent(question, pages.map((page) => ({
+    page,
+    text: `${page.title} ${(page.body.split('Customer report:')[1] || '').slice(0, 5_000)}`,
+  }))).slice(0, limit).map((row) => row.page);
+}
+
+function asksBlockedPrimaryCalendar(question) {
+  return /\bgoogle\b/i.test(question) && /\bcalendar\b/i.test(question) &&
+    /\bblocked\b/i.test(question) && /\b(?:main|primary)\b/i.test(question);
+}
+
 function rankFeedbackPages(question, urls, limit = 4) {
   const generic = new Set(['app', 'is', 'only', 'says', 'use', 'used', 'uses']);
   const wanted = queryTerms(question, 30).filter((word) => !generic.has(word));
@@ -119,8 +154,13 @@ function nextData(html) {
 
 function feedbackPostFromHtml(html) {
   const data = nextData(html);
-  const fallback = data?.props?.pageProps?.fallback || {};
-  const result = fallback['rq:single:/v1/submission']?.data?.results?.[0];
+  const pageProps = data?.props?.pageProps || {};
+  const fallback = pageProps.fallback || {};
+  const hydrated = pageProps.ptDehydratedState?.queries?.find(
+    (query) => Array.isArray(query?.queryKey) && query.queryKey[0] === '/v1/submission'
+  );
+  const result = fallback['rq:single:/v1/submission']?.data?.results?.[0] ||
+    hydrated?.state?.data?.results?.[0];
   if (!result?.title || !result?.content) return null;
   return result;
 }
@@ -216,10 +256,14 @@ async function relevantFeedback(question, { fetchImpl, store, queries: plannedQu
   const queries = supportQueries(question, plannedQueries);
   try {
     const urls = await fetchSitemap(fetchFn, useCache);
-    const picked = rankFeedbackPages(queries.join(' '), urls);
+    const picked = rankFeedbackPages(queries.join(' '), urls, 4);
+    if (asksBlockedPrimaryCalendar(question) && urls.includes(CALENDAR_FEEDBACK_URL) && !picked.includes(CALENDAR_FEEDBACK_URL)) {
+      picked.push(CALENDAR_FEEDBACK_URL);
+    }
     const pages = (await Promise.all(picked.map((url) => fetchPage(url, fetchFn, useCache)))).filter(Boolean);
+    const relevantPages = rankFeedbackByContent(question, pages, 4);
     if (saved?.saveDocPage) {
-      for (const page of pages) {
+      for (const page of relevantPages) {
         try {
           await saved.saveDocPage(page);
         } catch (err) {
@@ -227,7 +271,7 @@ async function relevantFeedback(question, { fetchImpl, store, queries: plannedQu
         }
       }
     }
-    const chunks = pages.flatMap((page) => chunkDocument(page));
+    const chunks = relevantPages.flatMap((page) => chunkDocument(page));
     const live = formatEvidence(rankLocalChunks(queries, chunks, 4), {
       maxChars: 8_000,
       maxPerPage: 1,
@@ -239,6 +283,28 @@ async function relevantFeedback(question, { fetchImpl, store, queries: plannedQu
   }
 }
 
+function matchingPublicStatus(evidence, question) {
+  const blocks = String(evidence || '').split(/(?=^\[S\d+\s+\|)/m)
+    .filter((block) => block.includes('Omi Feedback portal'));
+  const candidates = blocks.map((block) => {
+    const url = (block.match(/https:\/\/feedback\.omi\.me\/p\/[^\s]+/) || [])[0] || '';
+    const status = (block.match(/^Portal status:\s*(.+)$/m) || [])[1]?.trim() || '';
+    const title = block.split('\n')[1] || '';
+    const report = (block.split('Customer report:')[1] || '').slice(0, 5_000);
+    return { url, status, text: `${title} ${report}` };
+  }).filter((item) => item.url && item.status);
+  if (!candidates.length) return null;
+  // The public Calendar request is misspelled "calender" in its URL. Match
+  // both symptoms before using its status; several different Google requests
+  // are also in the portal and must not be mistaken for this one.
+  if (asksBlockedPrimaryCalendar(question)) {
+    const exact = candidates.find((item) => item.url === CALENDAR_FEEDBACK_URL &&
+      /\bblocked\b/i.test(item.text) && /\bmain\b/i.test(item.text));
+    return exact ? { status: exact.status, url: exact.url } : null;
+  }
+  return null;
+}
+
 function resetFeedbackCache() {
   sitemapCache = { at: 0, ok: false, pages: [] };
   pageCache.clear();
@@ -248,8 +314,10 @@ module.exports = {
   SITEMAP,
   feedbackPostUrls,
   rankFeedbackPages,
+  rankFeedbackByContent,
   feedbackPostFromHtml,
   feedbackPage,
   relevantFeedback,
+  matchingPublicStatus,
   resetFeedbackCache,
 };

@@ -9,7 +9,7 @@ Discord support agent for Omi. Customers see it as **Omi Support**. It answers p
 3. PostgreSQL full-text search retrieves small, overlapping passages instead of whole truncated pages. Results from multiple queries are combined and labeled by source trust.
 4. The answer model receives the most relevant evidence, same-thread history, and explicit notes saved by named staff with `faq:`. Legacy database notes with unknown authorship are not loaded into this path.
 5. Deterministic honesty filters run on the draft. A separate review model then checks the interpretation against the raw message and official evidence, verifies claims, and can restore relevant supported details. An irrelevant or unverified answer fails closed and goes to a person.
-6. The reviewed answer receives only the no-false-ping guard and Discord formatting/length limits; sentence-deleting claim filters do not run after review. Staff notes are never pasted directly into the final answer.
+6. The reviewed answer receives only deterministic no-false-ping and unsynced-offline-data warnings plus Discord formatting/length limits; sentence-deleting claim filters do not run after review. Staff notes are never pasted directly into the final answer.
 
 Source priority:
 
@@ -33,6 +33,8 @@ npm install
 npm test
 npm run ask -- "How do I pair my Omi?"
 ```
+
+Set `CMD_API_KEY` in the ignored `.env` for [CommandCode's Provider API](https://commandcode.ai/docs/provider); `CMD_MODEL` and `CMD_REVIEW_MODEL` can be overridden if that account supports them. `OPENCODE_*` remains a legacy fallback only when no CommandCode key is configured. Configure the same CommandCode variable on the host before any later deployment.
 
 Never commit `.env` or the local `railway.toml`. Do not run a local Discord process while the hosted process is active, or two bots may answer the same message.
 
@@ -66,7 +68,7 @@ Without `--force`, each source is refreshed only when its freshness window has e
 
 ## Human handoff
 
-Money, orders, privacy, account deletion, app crashes, and device faults require a person. A successful handoff creates or reuses a customer-specific Discord thread. The bot only says that someone was notified when Discord actually accepted the handoff.
+Money, orders, privacy, account deletion, app crashes, and device faults require a person. The full handoff card, including Shopify facts, is sent only to the configured staff channel. If that fails, the bot prefers a private customer-and-staff thread when Discord supports one; any customer-visible thread or channel receives only a minimal card without customer text, order data, or Shopify facts. The bot only says that someone was notified when Discord actually accepted the handoff.
 
 Named staff may save an explicit support note inside a Handoff thread:
 
@@ -76,11 +78,17 @@ faq: Teal LED means charging and connected.
 
 Only configured staff user IDs can save notes. Ordinary staff replies are not learned automatically. On restart, the bot reloads `faq:` lines only from named staff in test-channel Handoff threads. Legacy database notes are ignored because they lack author provenance. Notes are not a substitute for official-source verification.
 
+An authenticated Telegram escalation reply may also include `KB: short support note` after its `A:` answer. The note enters the same in-memory pool as Discord `faq:` and is subject to the same official-source review before a customer sees an answer. Telegram notes are not written to the legacy database and do not survive a restart.
+
 ## GitHub workflow
 
-Technical handoffs can show a proposed issue card. The bot searches existing issues and pull requests first, but it does not open a public issue by itself. Staff must press **File**. Only threads linked by the bot receive signed GitHub webhook updates, and later customer messages are not copied to the issue.
+Technical handoffs can show a minimal proposed issue card. The bot searches existing issues and pull requests first, but it does not open a public issue by itself. Staff must press **File**. Filing redacts contacts, addresses, order numbers, Discord identities, and secrets from the public issue; attachments are represented only by a count and the Discord thread link. Only threads linked by the bot receive signed GitHub webhook updates, and later customer messages are redacted before any GitHub comment.
 
 Repository contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). CI is intentionally deferred until the scored answer-quality set is a release gate.
+
+## Live answer evaluation
+
+`npm run live-eval -- --output /tmp/omi-branch-eval.json` runs the real answer path with a stubbed Discord channel, a live CommandCode Provider API key, live docs, and current Help Center and official Omi website sources. It does not log in to Discord, notify staff, look up orders, or file issues. Each row records the final reply, handoff, cited URLs, latency, and failed expectations. Use `--case blinking-red` for one scenario or `--cases power-off,blinking-red` for a focused batch. To compare with main, create a separate checkout of `origin/main` and pass `--root /absolute/path/to/checkout --output /tmp/omi-main-eval.json`; run the branch the same way without `--root`. The runner points legacy-main settings at CommandCode too, so both sides use the same service and model. A provider quota error invalidates the quality comparison and must not be counted as a model answer.
 
 ## HTTP endpoints
 
