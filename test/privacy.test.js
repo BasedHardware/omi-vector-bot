@@ -19,3 +19,15 @@ test('public issue redaction covers international contacts, addresses, identifie
   assert.match(out, /\[order number\]/);
   assert.match(out, /\[token\]/);
 });
+
+test('phone redaction preserves dates, times, versions and build identifiers', () => {
+  const input = '2026-10-03 12:30:45 build 2026100312 version 1.0.552 (1246)';
+  assert.equal(redactSensitive(input, { issue: true }), input);
+});
+
+test('phone redaction catches explicit phone context and common groupings', () => {
+  const input = 'Call +44 7700 900123; phone: 4155550199; WhatsApp 98765 43210; tel (415) 555-0199.';
+  const out = redactSensitive(input, { issue: true });
+  assert.doesNotMatch(out, /7700 900123|4155550199|98765 43210|555-0199/);
+  assert.equal((out.match(/\[phone\]/g) || []).length, 4);
+});

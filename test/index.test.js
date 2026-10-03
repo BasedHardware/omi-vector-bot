@@ -9,6 +9,7 @@ const BOT_ID = '100000000000000300';
 for (const key of [
   'DISCORD_TOKEN',
   'OPENCODE_API_KEY',
+  'CMD_API_KEY',
   'TELEGRAM_TOKEN',
   'TELEGRAM_CHAT_ID',
   'DATABASE_URL',
@@ -143,7 +144,7 @@ const knowledge = require('../knowledge');
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
-const { client, handleMessage, shouldHandle } = require('../index');
+const { app, client, handleMessage, shouldHandle } = require('../index');
 const router = require('../router');
 const { unreadMediaSentence } = require('../attachments');
 
@@ -345,6 +346,18 @@ test.beforeEach(() => {
   github.resetGithubMemory();
 });
 
+test('/health reports missing staff delivery without revealing IDs', () => {
+  const health = app._router.stack.find((layer) => layer.route?.path === '/health').route.stack[0].handle;
+  let body;
+  health({}, { json: (value) => { body = value; } });
+  assert.equal(body.staffHandoff, 'missing');
+  process.env.STAFF_ALERT_CHANNEL_ID = 'private-staff-room';
+  health({}, { json: (value) => { body = value; } });
+  assert.equal(body.staffHandoff, 'configured');
+  assert.equal(JSON.stringify(body).includes('private-staff-room'), false);
+  delete process.env.STAFF_ALERT_CHANNEL_ID;
+});
+
 test('a how-to question in #vector-test gets the model answer and no Handoff', async () => {
   const r = await ask('How do I pair my Omi with a new phone?');
   assert.equal(r.modelCalled, true);
@@ -416,7 +429,7 @@ test('an order follow-up asking for a human alerts staff and does not repeat /or
 
   const reply = follow.replies.map(textOf).join('\n');
   assert.match(reply, /person from the shop team/i);
-  assert.match(reply, /person on the team has this now|written in this thread/i);
+  assert.match(reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.doesNotMatch(reply, /Use \/order|order status from here/i);
   assert.match(post.sent.map(textOf).join('\n'), /Needs a human/i);
 });
@@ -533,7 +546,7 @@ test('a phone app crash opens an app Handoff and files an app issue', async () =
   assert.equal(filed.length, 0);
 });
 
-test('a successful tech Handoff removes a duplicate help email redirect', async () => {
+test('an undelivered tech Handoff gives one help email fallback', async () => {
   modelReply = {
     final_answer:
       "I can't see why the iPhone app is crashing. Please contact help@omi.me so the team can investigate.",
@@ -542,8 +555,8 @@ test('a successful tech Handoff removes a duplicate help email redirect', async 
   const r = await ask('The iPhone app crashes every time I open a memory.');
   assert.ok(r.thread);
   assert.match(r.reply, /can['’]?t see why the iPhone app is crashing/i);
-  assert.doesNotMatch(r.reply, /help@omi\.me/i);
-  assert.match(r.reply, /written in this thread|person on the team has this now/i);
+  assert.equal((r.reply.match(/help@omi\.me/gi) || []).length, 1);
+  assert.match(r.reply, /could not deliver this to the support team/i);
 });
 
 test('a transcribed device-button question searches official app source before the model answers', async () => {
@@ -580,7 +593,8 @@ test('a transcribed device-button question searches official app source before t
   assert.match(r.reply, /transcript means Omi captured your question/i);
   assert.match(r.reply, /AI message in Chat/i);
   assert.match(r.reply, /Voice Responses/i);
-  assert.doesNotMatch(r.reply, /help@omi\.me|check.*notifications? permission/i);
+  assert.doesNotMatch(r.reply, /check.*notifications? permission/i);
+  assert.match(r.reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.ok(r.thread);
   assert.match(r.thread.name, /^Handoff · app · tech · /);
 });
@@ -856,7 +870,7 @@ test('when the model is down a how-to question opens a Handoff instead of going 
   assert.equal(r.modelCalled, true);
   assert.ok(r.thread);
   assert.match(r.thread.name, /^Handoff · faq · /);
-  assert.ok(r.reply.includes(utils.PINGED_FOOTER));
+  assert.match(r.reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.equal(/model unavailable|opencode|deepseek/i.test(r.reply), false);
 });
 
@@ -885,11 +899,11 @@ test('staff-lie wording in a model answer is stripped before the customer sees i
   assert.equal(/follow up/i.test(r.reply), false);
 });
 
-test('an escalated how-to says a person has it once the Handoff opens', async () => {
+test('an escalated how-to does not claim a person has it from a customer-visible Handoff alone', async () => {
   modelReply = { escalate: true };
   const r = await ask('How do I pair my Omi with a new phone?');
   assert.ok(r.thread);
-  assert.ok(r.reply.includes(utils.PINGED_FOOTER));
+  assert.match(r.reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.equal(r.reply.includes(utils.ESCALATE_FOOTER), false);
 });
 
@@ -907,7 +921,7 @@ test('an escalated how-to whose Handoff cannot be posted says nobody was pinged'
   await handleMessage(message);
   const reply = replyText(message);
   assert.equal(tried, 1);
-  assert.ok(reply.includes(utils.ESCALATE_FOOTER));
+  assert.match(reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.equal(reply.includes(utils.PINGED_FOOTER), false);
 });
 
@@ -1625,40 +1639,39 @@ test('a ticket whose Handoff thread cannot be opened is told nobody was pinged y
   };
   await handleMessage(message);
   const reply = replyText(message);
-  assert.ok(reply.includes(utils.ESCALATE_FOOTER));
+  assert.match(reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.equal(reply.includes(utils.ISSUE_FOOTER), false);
   assert.equal(posts().length, 0);
 });
 
-test('a tech ticket with a Handoff thread is still told it is written in that thread', async () => {
+test('a tech ticket with only a customer-visible Handoff is given the email fallback', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('The Android app crashes every time I open a memory.');
   assert.ok(r.thread);
-  assert.ok(r.reply.includes(utils.ISSUE_FOOTER));
+  assert.match(r.reply, /could not deliver this to the support team.*help@omi\.me/is);
 });
 
 test('/test posts its ticket card in the channel and does not claim a thread', async () => {
   const interaction = slashTest('I want a refund for my Omi, it is not what I expected.');
   await commands.handleInteraction(interaction);
   const reply = interaction.channel.sent.map(textOf).join('\n');
-  assert.ok(reply.includes(utils.PINGED_FOOTER));
+  assert.match(reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.equal(reply.includes(utils.ISSUE_FOOTER), false);
 });
 
-test('a help-forum post whose card lands in the post is told it is written in this thread', async () => {
+test('a help-forum post does not count its public card as staff delivery', async () => {
   const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'App crash' });
   const r = await ask('The Android app crashes every time I open a memory.', { channel: post });
   assert.equal(r.thread, null);
   assert.ok(post.sent.length >= 1);
-  assert.ok(r.reply.includes(utils.ISSUE_FOOTER));
+  assert.match(r.reply, /could not deliver this to the support team.*help@omi\.me/is);
 });
 
-test('a later report from the same customer goes into their open Handoff', async (t) => {
+test('an undelivered Handoff is not reused as though staff had received it', async (t) => {
   const r = await reportAgain(t, 2 * 60 * 60 * 1000);
-  assert.equal(r.again.threads.length, 0);
-  assert.equal(r.thread.sent.length, r.sentBefore + 1);
-  assert.ok(r.reply.includes(utils.DUPLICATE_FOOTER));
-  assert.ok(r.reply.includes(`<#${r.thread.id}>`));
+  assert.equal(r.again.threads.length, 1);
+  assert.equal(r.thread.sent.length, r.sentBefore);
+  assert.match(r.reply, /could not deliver this to the support team.*help@omi\.me/is);
 });
 
 test('a later report opens a new Handoff when the old thread was deleted', async (t) => {

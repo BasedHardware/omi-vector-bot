@@ -10,9 +10,17 @@ function redactSensitive(text, { issue = false } = {}) {
     /\b(?:(?:flat|apt|apartment|unit)\s+[A-Za-z0-9-]+,?\s+)?\d{1,5}[A-Za-z]?\s+(?:[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ.'-]*\s+){0,5}(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|court|ct|place|pl|way|terrace|crescent|rue|chemin|route|strasse|straße|via|viale|calle|carrer|rua|ulica|ul\.|marg|nagar)\b\.?[^\n;]*/gi,
     '[address]'
   );
-  out = out.replace(/(?<![\w#])\+?(?:\(\d{1,4}\)|\d{1,4})(?:[\s().-]*(?:\(\d{1,4}\)|\d{1,4})){1,5}(?!\w)/g, (match) => {
+  out = out.replace(/(?<![\w#])\+?(?:\(\d{1,4}\)|\d{1,4})(?:[\s().-]*(?:\(\d{1,4}\)|\d{1,4})){1,5}(?!\w)/g, (match, offset, source) => {
     const digits = match.replace(/\D/g, '');
-    return digits.length >= 10 && digits.length <= 15 ? '[phone]' : match;
+    if (digits.length < 10 || digits.length > 15) return match;
+    const before = source.slice(Math.max(0, offset - 32), offset);
+    const hasPhoneContext = /(?:phone|tel(?:ephone)?|whatsapp|call)\s*(?:number|no\.?|me|at|on|:|=)?\s*$/i.test(before);
+    const groups = match.match(/\d+/g) || [];
+    const lengths = groups.map((group) => group.length).join('-');
+    const typicalGrouping = /^(?:3-3-4|5-5|2-4-4|1-3-3-4|2-5-5|2-4-6)$/.test(lengths);
+    return match.trimStart().startsWith('+') || hasPhoneContext || typicalGrouping
+      ? '[phone]'
+      : match;
   });
   if (!issue) return out;
   out = out.replace(/\b(?:postal|post|zip)\s*code\s*[:=]\s*[^\n,;]+/gi, '[postal code]');

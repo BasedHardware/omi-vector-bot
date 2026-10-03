@@ -72,7 +72,10 @@ const client = new Client({
 });
 
 const app = express();
-app.get('/health', (_req, res) => res.send('OK'));
+app.get('/health', (_req, res) => res.json({
+  status: 'ok',
+  staffHandoff: process.env.STAFF_ALERT_CHANNEL_ID || telegram.isReady() ? 'configured' : 'missing',
+}));
 app.get('/ratings', async (_req, res) => {
   const { ratingCounts } = require('./ratings');
   const counts = await ratingCounts();
@@ -657,7 +660,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         supportKind: 'other',
         queries: [],
       };
-      if (process.env.OPENCODE_API_KEY) {
+      if (process.env.CMD_API_KEY || process.env.OPENCODE_API_KEY) {
         try {
           searchPlan = await understandQuestion({
             question: asked || question,
@@ -879,6 +882,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       let reused = false;
       let reuseFailed = false;
       let cardHere = false;
+      let deliveryFailed = false;
       let handoffThread = inHandoff ? channel : null;
       if (!inHandoff && shouldReuseOpenHandoff(channel)) {
         const existing = await findOpenHandoff(channel, {
@@ -924,10 +928,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             labels: triaged.labels,
           });
           pinged = Boolean(handoff.ok);
+          deliveryFailed = !handoff.ok;
           cardHere = handoff.via === 'channel' && Boolean(channel.isThread?.());
           duplicate = Boolean(handoff.duplicate);
           handoffThread = handoff.thread || handoffThread;
-          if (handoff.thread) {
+          if (handoff.thread && handoff.ok) {
             rememberOpenHandoff(channel.id, message.author?.id, handoff.thread);
             await applyThreadName(handoff.thread, nameMeta);
           }
@@ -938,6 +943,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             `[Bot] Handoff ${channel.id} via=${handoff.via || 'none'} ok=${pinged}`
           );
         } catch (err) {
+          deliveryFailed = true;
           console.error('[Bot] Handoff failed:', err.message);
         }
       }
@@ -974,6 +980,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           !reused &&
           (Boolean(handoffThread) || cardHere),
         pingAuthor,
+        deliveryFailed,
       });
       if (reused && handoffThread?.id && !inHandoff) {
         parentReply = `${parentReply}\n\n<#${handoffThread.id}>`;
@@ -1085,11 +1092,15 @@ client.once(Events.ClientReady, async () => {
 });
 
 async function start() {
-  const required = ['DISCORD_TOKEN', 'OPENCODE_API_KEY'];
+  const required = ['DISCORD_TOKEN'];
+  if (!process.env.CMD_API_KEY && !process.env.OPENCODE_API_KEY) required.push('CMD_API_KEY');
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length) {
     console.error(`[Boot] Missing env variables: ${missing.join(', ')}`);
     process.exit(1);
+  }
+  if (!process.env.STAFF_ALERT_CHANNEL_ID && !telegram.isReady()) {
+    console.error('[Boot] No staff-only handoff destination configured; customer handoffs will use the email fallback.');
   }
 
   if (dbReady) {
@@ -1142,4 +1153,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { client, handleMessage, shouldHandle };
+module.exports = { app, client, handleMessage, shouldHandle };

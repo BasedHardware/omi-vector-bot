@@ -4,10 +4,34 @@ const { buildSystemPrompt, buildUserPrompt } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK } = require('./answerPipeline');
 
-const OPENCODE_URL =
-  process.env.OPENCODE_URL || 'https://opencode.ai/zen/go/v1/chat/completions';
-const OPENCODE_MODEL = process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash';
-const TIMEOUT_MS = Number(process.env.OPENCODE_TIMEOUT_MS || 60_000);
+function providerConfig() {
+  const key = String(process.env.CMD_API_KEY || '').trim();
+  if (key) return {
+    key,
+    url: process.env.CMD_API_URL || 'https://api.commandcode.ai/provider/v1/chat/completions',
+    model: process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash',
+    reviewModel: process.env.CMD_REVIEW_MODEL || process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash',
+    timeout: Number(process.env.CMD_TIMEOUT_MS || 60_000),
+    name: 'CommandCode',
+  };
+  return {
+    key: String(process.env.OPENCODE_API_KEY || '').trim(),
+    url: process.env.OPENCODE_URL || 'https://opencode.ai/zen/go/v1/chat/completions',
+    model: process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash',
+    reviewModel: process.env.OPENCODE_REVIEW_MODEL || process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash',
+    timeout: Number(process.env.OPENCODE_TIMEOUT_MS || 60_000),
+    name: 'OpenCode',
+  };
+}
+
+function providerHeaders(provider, session) {
+  return {
+    Authorization: `Bearer ${provider.key}`,
+    'Content-Type': 'application/json',
+    'User-Agent': 'omi-vector-bot/1.0',
+    ...(provider.name === 'OpenCode' ? { 'x-opencode-session': session } : {}),
+  };
+}
 
 function jsonObject(raw) {
   const trimmed = String(raw || '')
@@ -163,8 +187,8 @@ function groundedSourceLine(answer, sources, sourceIds) {
 }
 
 async function understandQuestion({ question, threadHistory = [], route, sessionId, post }) {
-  const key = process.env.OPENCODE_API_KEY;
-  if (!key) throw new Error('Missing OPENCODE_API_KEY');
+  const provider = providerConfig();
+  if (!provider.key) throw new Error('Missing CMD_API_KEY or OPENCODE_API_KEY');
   const send = post || axios.post.bind(axios);
   const session = sessionId || crypto.randomUUID();
   const history = modelThread(threadHistory)
@@ -172,9 +196,9 @@ async function understandQuestion({ question, threadHistory = [], route, session
     .join('\n')
     .slice(-8_000);
   const { data } = await send(
-    OPENCODE_URL,
+    provider.url,
     {
-      model: OPENCODE_MODEL,
+      model: provider.model,
       temperature: 0.1,
       messages: [
         {
@@ -189,13 +213,8 @@ async function understandQuestion({ question, threadHistory = [], route, session
       ],
     },
     {
-      timeout: TIMEOUT_MS,
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'omi-vector-bot/1.0',
-        'x-opencode-session': session,
-      },
+      timeout: provider.timeout,
+      headers: providerHeaders(provider, session),
     }
   );
   const content = data?.choices?.[0]?.message?.content;
@@ -215,9 +234,9 @@ async function queryAgent({
   sessionId,
   post,
 }) {
-  const key = process.env.OPENCODE_API_KEY;
-  if (!key) {
-    throw new Error('Missing OPENCODE_API_KEY');
+  const provider = providerConfig();
+  if (!provider.key) {
+    throw new Error('Missing CMD_API_KEY or OPENCODE_API_KEY');
   }
 
   const session = sessionId || process.env.OPENCODE_SESSION || crypto.randomUUID();
@@ -226,9 +245,9 @@ async function queryAgent({
     try {
       const send = post || axios.post.bind(axios);
       const { data } = await send(
-        OPENCODE_URL,
+        provider.url,
         {
-          model: OPENCODE_MODEL,
+          model: provider.model,
           temperature: 0.4,
           messages: [
             { role: 'system', content: buildSystemPrompt(route) },
@@ -246,13 +265,8 @@ async function queryAgent({
           ],
         },
         {
-          timeout: TIMEOUT_MS,
-          headers: {
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-            'User-Agent': 'omi-vector-bot/1.0',
-            'x-opencode-session': session,
-          },
+          timeout: provider.timeout,
+          headers: providerHeaders(provider, session),
         }
       );
 
@@ -266,16 +280,16 @@ async function queryAgent({
       const kind = apiErr?.type || '';
       if (kind === 'CreditsError' || /insufficient balance/i.test(apiErr?.message || '')) {
         throw new Error(
-          'OpenCode wallet is empty. Ask David to add credits on this test key, then retry npm run ask.'
+          `${provider.name} quota or balance is unavailable; retry after the provider account is restored.`
         );
       }
-      if (kind === 'MissingSessionID') {
+      if (provider.name === 'OpenCode' && kind === 'MissingSessionID') {
         throw new Error(
           'OpenCode Go needs x-opencode-session. This is a bot bug — retry after a fix.'
         );
       }
       if (err.response?.status) {
-        throw new Error(`OpenCode HTTP ${err.response.status}: ${apiErr?.message || err.message}`);
+        throw new Error(`${provider.name} HTTP ${err.response.status}: ${apiErr?.message || err.message}`);
       }
       if (attempt === 1) throw err;
     }
@@ -285,11 +299,9 @@ async function queryAgent({
 
 // The answer model is already configured and known to work at this endpoint.
 // An explicitly configured reviewer may use a different supported model.
-const REVIEW_MODEL = process.env.OPENCODE_REVIEW_MODEL || OPENCODE_MODEL;
-
 async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, sessionId, post }) {
-  const key = process.env.OPENCODE_API_KEY;
-  if (!String(draft || '').trim() || (!key && !post)) {
+  const provider = providerConfig();
+  if (!String(draft || '').trim() || (!provider.key && !post)) {
     return {
       final_answer: EMPTY_ANSWER_FALLBACK,
       grounded: false,
@@ -303,9 +315,9 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const send = post || axios.post.bind(axios);
   const session = sessionId || crypto.randomUUID();
   const { data } = await send(
-    OPENCODE_URL,
+    provider.url,
     {
-      model: REVIEW_MODEL,
+      model: provider.reviewModel,
       temperature: 0.2,
       messages: [
         {
@@ -327,13 +339,8 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
       ],
     },
     {
-      timeout: TIMEOUT_MS,
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'omi-vector-bot/1.0',
-        'x-opencode-session': session,
-      },
+      timeout: provider.timeout,
+      headers: providerHeaders(provider, session),
     }
   );
   const content = data?.choices?.[0]?.message?.content;
@@ -362,6 +369,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
 }
 
 module.exports = {
+  providerConfig,
   queryAgent,
   reviewAnswer,
   understandQuestion,

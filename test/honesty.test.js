@@ -300,6 +300,17 @@ test('escalate footer only claims a ping after a real handoff', () => {
   assert.match(failed, /have not pinged anyone yet/i);
 });
 
+test('failed handoff overrides issue and conversation copy with an honest email fallback', () => {
+  const out = escalateReply('A person on the team has this now.', {
+    issue: true,
+    conversation: true,
+    deliveryFailed: true,
+  });
+  assert.doesNotMatch(out, /has this now|do not need to ping anyone/i);
+  assert.match(out, /could not deliver/i);
+  assert.match(out, /help@omi\.me/);
+});
+
 test('reused tickets from the parent channel keep the duplicate footer', () => {
   const out = escalateReply('You wrote about the phone app.', {
     pinged: true,

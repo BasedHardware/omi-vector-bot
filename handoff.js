@@ -79,8 +79,7 @@ function canStaffAct(interaction) {
 }
 
 function canNotifyStaff({ discordReady = false } = {}) {
-  if (discordReady) return true;
-  if (process.env.STAFF_ALERT_CHANNEL_ID) return true;
+  if (discordReady && process.env.STAFF_ALERT_CHANNEL_ID) return true;
   return telegram.isReady();
 }
 
@@ -776,9 +775,10 @@ async function postHandoffThread(message, payload, meta = {}) {
   return thread;
 }
 
-async function sendToStaffChannel(client, payload) {
+async function sendToStaffChannel(client, payload, customerChannelId) {
   const staffId = process.env.STAFF_ALERT_CHANNEL_ID;
   if (!staffId || !client?.channels?.fetch) return false;
+  if (String(staffId) === String(customerChannelId || '')) return false;
   const ch = await client.channels.fetch(staffId);
   if (!ch?.isTextBased?.() || typeof ch.send !== 'function') return false;
   await ch.send(payload);
@@ -786,7 +786,7 @@ async function sendToStaffChannel(client, payload) {
 }
 
 const PUBLIC_HELP_CARD_DESCRIPTION =
-  "The customer's message is above. This card does not repeat it.";
+  'Details are in the original support message. This card does not repeat it.';
 
 function publicHandoffDiscord(discord) {
   const embed = discord?.embeds?.[0] || {};
@@ -861,9 +861,10 @@ async function notifyStaff({
     labels,
   });
   const errors = [];
+  let visibleCard = null;
 
   try {
-    if (await sendToStaffChannel(client, ticket.discord)) {
+    if (await sendToStaffChannel(client, ticket.discord, channelId)) {
       markHandedOff(channelId, userId, true);
       await telegram.sendEscalation(ticket.plain);
       return { ok: true, via: 'staff-channel' };
@@ -882,9 +883,7 @@ async function notifyStaff({
         labels,
       });
       if (thread) {
-        markHandedOff(channelId, userId, true);
-        await telegram.sendEscalation(ticket.plain);
-        return { ok: true, via: 'thread', threadId: thread.id, thread };
+        visibleCard = { via: 'thread', threadId: thread.id, thread };
       }
     } catch (err) {
       errors.push(`thread: ${err.message}`);
@@ -892,12 +891,10 @@ async function notifyStaff({
   }
 
   try {
-    if (message?.channel?.isTextBased?.() && typeof message.channel.send === 'function') {
+    if (!visibleCard && message?.channel?.isTextBased?.() && typeof message.channel.send === 'function') {
       const payload = publicHandoffDiscord(ticket.discord);
       await message.channel.send(payload);
-      markHandedOff(channelId, userId, true);
-      await telegram.sendEscalation(ticket.plain);
-      return { ok: true, via: 'channel' };
+      visibleCard = { via: 'channel' };
     }
   } catch (err) {
     errors.push(`channel: ${err.message}`);
@@ -906,14 +903,15 @@ async function notifyStaff({
   try {
     if (await telegram.sendEscalation(ticket.plain)) {
       markHandedOff(channelId, userId, true);
-      return { ok: true, via: 'telegram' };
+      return { ok: true, ...(visibleCard || { via: 'telegram' }), deliveredVia: 'telegram' };
     }
   } catch (err) {
     errors.push(`telegram: ${err.message}`);
   }
 
   markHandedOff(channelId, userId, false);
-  return { ok: false, via: null, error: errors.join('; ') || 'no staff path' };
+  console.error('[Handoff] Staff delivery failed; no staff-only destination accepted the ticket.');
+  return { ok: false, ...(visibleCard || { via: null }), error: errors.join('; ') || 'no staff path' };
 }
 
 function appliedTagNames(channel) {

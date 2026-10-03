@@ -264,6 +264,8 @@ function clipForDiscord(text, max = DISCORD_REPLY_MAX) {
 
 const ESCALATE_FOOTER =
   'A person on the team needs to take this. I have not pinged anyone yet.';
+const FAILED_HANDOFF_FOOTER =
+  'I could not deliver this to the support team from here. Please email help@omi.me with the details; do not post order or account information publicly.';
 
 const PINGED_FOOTER = 'A person on the team has this now.';
 
@@ -408,6 +410,11 @@ function escalateReply(answer, opts = {}) {
   const pinged = Boolean(opts.pinged);
   const duplicate = Boolean(opts.duplicate);
   let body = dropPingNarration(String(answer || '').trim());
+
+  if (opts.deliveryFailed) {
+    body = stripSupportRedirect(body);
+    return [body, FAILED_HANDOFF_FOOTER].filter(Boolean).join('\n\n');
+  }
 
   if (opts.conversation) {
     return body;

@@ -8,7 +8,32 @@ const {
   planSearch,
   queryAgent,
   reviewAnswer,
+  providerConfig,
 } = require('../opencode');
+
+test('CommandCode takes priority over the legacy provider without an OpenCode session header', async () => {
+  const previous = { command: process.env.CMD_API_KEY, open: process.env.OPENCODE_API_KEY };
+  process.env.CMD_API_KEY = 'command-test-key';
+  process.env.OPENCODE_API_KEY = 'legacy-test-key';
+  try {
+    assert.equal(providerConfig().name, 'CommandCode');
+    await queryAgent({
+      question: 'How do I pair Omi?',
+      post: async (url, body, options) => {
+        assert.equal(url, 'https://api.commandcode.ai/provider/v1/chat/completions');
+        assert.equal(body.model, process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash');
+        assert.equal(options.headers.Authorization, 'Bearer command-test-key');
+        assert.equal(options.headers['x-opencode-session'], undefined);
+        return { data: { choices: [{ message: { content: '{"final_answer":"Use the official pairing guide.","confidence":0.8,"escalate":false}' } }] } };
+      },
+    });
+  } finally {
+    if (previous.command === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous.command;
+    if (previous.open === undefined) delete process.env.OPENCODE_API_KEY;
+    else process.env.OPENCODE_API_KEY = previous.open;
+  }
+});
 
 test('parseAgentJson reads a fenced reply and a broken one', () => {
   const ok = parseAgentJson('```json\n{"final_answer":"Hold the button.","escalate":false,"confidence":0.8}\n```');

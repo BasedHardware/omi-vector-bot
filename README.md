@@ -34,6 +34,19 @@ npm test
 npm run ask -- "How do I pair my Omi?"
 ```
 
+Set `CMD_API_KEY` in ignored `.env` for the CommandCode Provider API. `CMD_MODEL`,
+`CMD_REVIEW_MODEL`, `CMD_API_URL`, and `CMD_TIMEOUT_MS` are optional overrides.
+The `OPENCODE_*` settings are a legacy fallback only when `CMD_API_KEY` is absent.
+Never commit or log a real key.
+
+For human handoffs, production must have either `STAFF_ALERT_CHANNEL_ID` pointing
+to a private staff-only Discord text channel, or both `TELEGRAM_TOKEN` and
+`TELEGRAM_CHAT_ID` pointing to the private staff chat. A customer-visible
+Handoff card does not count as delivery. If both staff routes fail, the bot
+tells the customer to email `help@omi.me`; `/health` reports `staffHandoff:
+"missing"` without exposing any IDs. Check that staff can receive a test ticket
+before enabling public support.
+
 Never commit `.env` or the local `railway.toml`. Do not run a local Discord process while the hosted process is active, or two bots may answer the same message.
 
 ## Quality checks
