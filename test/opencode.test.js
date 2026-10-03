@@ -9,7 +9,46 @@ const {
   queryAgent,
   reviewAnswer,
   technicalReviewSafety,
+  providerConfig,
 } = require('../opencode');
+
+test('CommandCode key selects its official endpoint and model ahead of legacy settings', () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-commandcode-key';
+  try {
+    const config = providerConfig();
+    assert.equal(config.name, 'CommandCode');
+    assert.equal(config.url, 'https://api.commandcode.ai/provider/v1/chat/completions');
+    assert.equal(config.model, 'deepseek/deepseek-v4.1-flash');
+    assert.equal(config.reviewModel, config.model);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('CommandCode review uses its endpoint without an OpenCode session header', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-commandcode-key';
+  try {
+    const result = await reviewAnswer({
+      question: 'What does blue mean?',
+      draft: 'Blue means connected.',
+      lane: 'faq',
+      sources: '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/example\nBlue means connected.',
+      post: async (url, body, options) => {
+        assert.equal(url, 'https://api.commandcode.ai/provider/v1/chat/completions');
+        assert.equal(body.model, 'deepseek/deepseek-v4.1-flash');
+        assert.equal(options.headers['x-opencode-session'], undefined);
+        return { data: { choices: [{ message: { content: '{"final_answer":"Blue means connected.","grounded":true,"relevant":true,"escalate":false,"sources_used":["S1"]}' } }] } };
+      },
+    });
+    assert.equal(result.grounded, true);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
 
 test('technical reviewer allows only cited official, reversible checks', () => {
   const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/13154278-omi-necklace-issues\nRestart the app and phone.';
@@ -18,6 +57,8 @@ test('technical reviewer allows only cited official, reversible checks', () => {
   assert.equal(technicalReviewSafety('Restart the app.', 'tech', feedback, ['S2']).safe, false);
   assert.equal(technicalReviewSafety('Restart the app.', 'tech', help, []).safe, false);
   assert.equal(technicalReviewSafety('Reinstall the app, then try again.', 'tech', help, ['S1']).safe, false);
+  assert.equal(technicalReviewSafety('Do not reinstall the app or log out while recordings are unsynced.', 'tech', help, ['S1']).safe, true);
+  assert.equal(technicalReviewSafety('Do not reinstall, then flash firmware.', 'tech', help, ['S1']).safe, false);
   assert.equal(technicalReviewSafety('Clear Pending recordings.', 'firmware', help, ['S1']).safe, false);
   assert.equal(technicalReviewSafety('Flash firmware.', 'firmware', help, ['S1']).safe, false);
 });

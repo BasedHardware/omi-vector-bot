@@ -47,10 +47,10 @@ const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts, OFFICIAL } = require('./prompt');
 const { relevantDocs } = require('./docs');
-const { relevantFeedback } = require('./feedback');
+const { relevantFeedback, matchingPublicStatus } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
-const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer } = require('./answerPipeline');
+const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning } = require('./answerPipeline');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -224,6 +224,9 @@ function isActionableMessage(message) {
       caption
     )
   ) {
+    return false;
+  }
+  if (/^(?:thanks|thank you|thx|ty)[,!\.\s]+(?:that|it)(?:'s| has)?\s+(?:fixed|worked|resolved)(?:\s+it)?[.!\s]*$/i.test(caption)) {
     return false;
   }
   const hasAttachment = Number(message.attachments?.size || 0) > 0;
@@ -590,11 +593,17 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
     let botCanAnswer = false;
-    if (!holdPublicCopy && router.isTechLane(route) && !changes.length) {
+    const multiPartQuestion = /\b(?:both|also|another)\b/i.test(caseQuestion);
+    if (!holdPublicCopy && router.isTechLane(route) && !changes.length && !multiPartQuestion) {
       const found = await github.searchPulls(caseQuestion);
       if (found) changes.push(found);
     }
-    if (router.isTechLane(route) && changes.length) botCanAnswer = true;
+    // A matching PR may cover one symptom, but it cannot answer a customer
+    // who asked about multiple distinct problems (for example a blocked
+    // Calendar extension *and* secondary calendars).
+    if (router.isTechLane(route) && changes.length && !multiPartQuestion) {
+      botCanAnswer = true;
+    }
 
     const binding = await shopifyBind.get(message.author.id);
     const verifiedEmail = binding?.email || '';
@@ -607,6 +616,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     let cleanAnswer;
     let skipModel = false;
     let snippets = [];
+    let publicStatus = null;
 
     if (useShopify) {
       shopifyLookup = await shopify.lookupOrder(asked || question, { verifiedEmail });
@@ -657,7 +667,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         supportKind: 'other',
         queries: [],
       };
-      if (process.env.OPENCODE_API_KEY) {
+      if (process.env.CMD_API_KEY || process.env.OPENCODE_API_KEY) {
         try {
           searchPlan = await understandQuestion({
             question: asked || question,
@@ -674,7 +684,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         threadHistory
       );
       const [docsText, officialCodeText, feedbackText, releaseText] = await Promise.all([
-        relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
+        relevantDocs(sourceQuestion, { queries: searchPlan.queries, customerQuestion: caseQuestion }),
         github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
         router.isTechLane(route) || route.lane === 'unknown'
           ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })
@@ -682,6 +692,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         matchingRelease(sourceQuestion),
       ]);
       const retrievedEvidence = combineEvidence(docsText, feedbackText, officialCodeText);
+      publicStatus = matchingPublicStatus(feedbackText, caseQuestion);
       const toolFacts = buildToolFacts({
         route,
         shopifyText,
@@ -742,6 +753,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 (checked.relevant
                   ? 'The answer was not fully supported by official pages.'
                   : 'The drafted reply did not answer the customer question.');
+            } else {
+              // A grounded, relevant final review can clear an unnecessary
+              // handoff requested by the draft model for a self-serve how-to.
+              aiResponse.escalate = false;
             }
           } catch (err) {
             console.error('[Bot] review failed:', err.message);
@@ -829,7 +844,13 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
     }
     if (threadHistory.length) cleanAnswer = github.keepMergedPull(threadHistory, cleanAnswer);
-    cleanAnswer = ensureNonEmptyAnswer(cleanAnswer);
+    if (publicStatus && !String(cleanAnswer || '').includes(publicStatus.url)) {
+      const statusNote = `Omi's public Feedback entry for this matching report is marked ${publicStatus.status}; that status does not confirm a fix has shipped. ${publicStatus.url}`;
+      if (String(cleanAnswer || '').length + statusNote.length + 2 <= 1_800) {
+        cleanAnswer = [cleanAnswer, statusNote].filter(Boolean).join('\n\n');
+      }
+    }
+    cleanAnswer = ensureNonEmptyAnswer(addUnsyncedDataWarning(cleanAnswer, caseQuestion));
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
     const nameMeta = {
@@ -848,7 +869,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       route.lane === 'faq' &&
       (router.looksLikeDocs(asked || question) ||
         router.looksLikeRecordingHow(asked || question) ||
-        router.looksLikeDeviceReset(asked || question)) &&
+        router.looksLikeDeviceReset(asked || question) ||
+        router.looksLikeProductQuestion(asked || question)) &&
       !route.wantHuman &&
       !aiResponse.escalate;
     const escalate =
@@ -1086,7 +1108,8 @@ client.once(Events.ClientReady, async () => {
 });
 
 async function start() {
-  const required = ['DISCORD_TOKEN', 'OPENCODE_API_KEY'];
+  const required = ['DISCORD_TOKEN'];
+  if (!process.env.CMD_API_KEY && !process.env.OPENCODE_API_KEY) required.push('CMD_API_KEY');
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length) {
     console.error(`[Boot] Missing env variables: ${missing.join(', ')}`);

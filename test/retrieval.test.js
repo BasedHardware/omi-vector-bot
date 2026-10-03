@@ -91,6 +91,29 @@ test('conversation deletion searches both synced data and phone-local copies', (
   assert.match(queries.join('\n'), /phone local synced recording copies/);
 });
 
+test('device how-to searches use the official DevKit and power-button terms', () => {
+  assert.match(
+    supportQueries('Which Omi can record on its own without the phone?').join('\n'),
+    /DevKit 2 standalone recording/
+  );
+  assert.match(
+    supportQueries('How do I turn the Omi necklace off?').join('\n'),
+    /Power button controls|power button controls/
+  );
+  assert.match(
+    supportQueries('Omi keeps disconnecting from my phone').join('\n'),
+    /Bluetooth connection dropping background app battery optimization/
+  );
+  assert.match(
+    supportQueries("My Omi won't pair and the app keeps searching forever").join('\n'),
+    /Omi is on but won’t connect to the app pair from inside/
+  );
+  assert.match(
+    supportQueries("I recorded offline all day and now it's stuck syncing").join('\n'),
+    /Local Sync offline recordings keep app open phone nearby/
+  );
+});
+
 test('rank fusion rewards results recalled by more than one search', () => {
   const shared = { url: 'https://docs.omi.me/api.md', chunk_index: 0, source: 'docs', body: 'API keys' };
   const rows = mergeRanked([
@@ -120,6 +143,29 @@ test('retrieval keeps one large file from crowding every other source out', () =
   assert.equal(rows.filter((row) => row.url.includes('notifications.dart')).length, 2);
   assert.equal(rows[1].url.includes('notifications.dart'), false);
   assert.equal(new Set(rows.map((row) => row.chunk_index)).size > 1, true);
+});
+
+test('Omi necklace questions do not borrow device-specific Limitless advice', () => {
+  const rows = [
+    { url: 'https://help.omi.me/en/articles/limitless', title: 'FAQ – Using Your Limitless Pendant with Omi', body: 'Omi keeps disconnecting from my phone. Keep it nearby.' },
+    { url: 'https://help.omi.me/en/articles/necklace', title: 'Omi necklace issues', body: 'Keep your phone nearby when Omi disconnects.' },
+  ];
+  assert.deepEqual(
+    rankLocalChunks(['Omi keeps disconnecting from my phone'], rows, 2).map((row) => row.url),
+    ['https://help.omi.me/en/articles/necklace']
+  );
+  assert.deepEqual(
+    rankLocalChunks(['Omi keeps disconnecting from my phone', 'Limitless pendant disconnecting'], rows, 2, { customerQuestion: 'Omi keeps disconnecting from my phone' }).map((row) => row.url),
+    ['https://help.omi.me/en/articles/necklace']
+  );
+  assert.ok(rankLocalChunks(['Limitless Pendant keeps disconnecting'], rows, 2).some((row) => row.url.includes('limitless')));
+  assert.deepEqual(
+    rankLocalChunks(['Omi keeps disconnecting from my phone'], [
+      { url: 'https://help.omi.me/en/articles/13068083-faq-using-your-limitless-pendant-with-omi', title: 'https://help.omi.me/en/articles/13068083-faq-using-your-limitless-pendant-with-omi', body: 'Omi disconnects. Keep the app open.' },
+      rows[1],
+    ], 2).map((row) => row.url),
+    ['https://help.omi.me/en/articles/necklace']
+  );
 });
 
 test('local fallback ranks the chunk containing the specific answer', () => {

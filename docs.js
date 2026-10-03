@@ -3,6 +3,7 @@ const CLIP = 60_000;
 const {
   cleanDocument,
   chunkDocument,
+  deviceMatchedRow,
   formatEvidence,
   mergeRanked,
   queryTerms,
@@ -59,7 +60,7 @@ async function rememberPages(store, pages) {
   }
 }
 
-async function storedDocs(question, store, plannedQueries = []) {
+async function storedDocs(question, store, plannedQueries = [], customerQuestion = question) {
   if (!store?.searchDocPages) return '';
   try {
     const queries = supportQueries(question, plannedQueries);
@@ -75,8 +76,9 @@ async function storedDocs(question, store, plannedQueries = []) {
     const allSets = batches.map((batch) => batch[0]);
     const helpSets = batches.map((batch) => batch[1]);
     const githubSets = batches.map((batch) => batch[2]);
-    const ranked = mergeRanked([...allSets, ...helpSets, ...githubSets], 12);
-    const required = [mergeRanked(helpSets, 1)[0], mergeRanked(githubSets, 1)[0]].filter(Boolean);
+    const compatible = (sets) => sets.map((rows) => rows.filter((row) => deviceMatchedRow(row, customerQuestion)));
+    const ranked = mergeRanked(compatible([...allSets, ...helpSets, ...githubSets]), 12);
+    const required = [mergeRanked(compatible(helpSets), 1)[0], mergeRanked(compatible(githubSets), 1)[0]].filter(Boolean);
     const rows = [];
     const seen = new Set();
     for (const row of [...ranked.slice(0, 3), ...required, ...ranked.slice(3)]) {
@@ -93,11 +95,11 @@ async function storedDocs(question, store, plannedQueries = []) {
   }
 }
 
-async function relevantDocs(question, { fetchImpl, store, queries: plannedQueries = [] } = {}) {
+async function relevantDocs(question, { fetchImpl, store, queries: plannedQueries = [], customerQuestion = question } = {}) {
   const fetchFn = fetchImpl || fetch;
   const saved = activeStore(store);
   const queries = supportQueries(question, plannedQueries);
-  const stored = await storedDocs(question, saved, plannedQueries);
+  const stored = await storedDocs(question, saved, plannedQueries, customerQuestion);
   if (stored) return stored;
   try {
     const now = Date.now();
@@ -130,7 +132,7 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
       chunks.push(...chunkDocument({ url: page.url, title: page.title, body: excerpt }));
     }
     await rememberPages(saved, pages);
-    return formatEvidence(rankLocalChunks(queries, chunks, 8));
+    return formatEvidence(rankLocalChunks(queries, chunks, 8, { customerQuestion }));
   } catch (err) {
     console.error('[Docs] lookup failed:', err.message);
     return '';

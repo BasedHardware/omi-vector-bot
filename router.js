@@ -35,6 +35,9 @@ const PRIVACY = [/\bprivacy\b/i, /\bgdpr\b/i, /\bdelete my (account|data)\b/i];
 // "got my order" / "received my order" is not a lookup.
 const STRONG_SHOP = [
   /\bwhere\s+is\s+my\s+order\b/i,
+  /\b(?:need|request|want|asking for|seeking)\s+(?:a\s+)?replacement\b/i,
+  /\b(?:arrived|delivered|received)\b.{0,50}\b(?:broken|damaged|defective)\b/i,
+  /\b(?:broken|damaged|defective)\b.{0,50}\b(?:on arrival|when (?:it )?arrived)\b/i,
   /\border\s*status\b/i,
   /\bstatus\s+of\s+(?:my\s+|the\s+)?order\b/i,
   /\btracking\b/i,
@@ -90,15 +93,27 @@ const INTEGRATION_FAILURE = [
   /\b(?:google|gmail|calendar|integration|extension).{0,70}\b(?:blocked|error|fail(?:ed|s|ing)?|cannot connect|won'?t connect|not connect|only (?:shows|gets|syncs))\b/i,
 ];
 
+const CONNECTION_FAILURE = [
+  /\b(?:won'?t|can'?t|cannot|doesn'?t|not)\s+pair\b/i,
+  /\b(?:keeps?|repeatedly)\s+disconnect(?:s|ing|ed)?\b/i,
+  /\bdisconnect(?:s|ing|ed)?\b.{0,35}\b(?:every few minutes|repeatedly|all the time)\b/i,
+];
+
 const APP = [
   /\b(android|iphone|ios)\b/i,
   /\bapple watch\b/i,
   ...INTEGRATION_FAILURE,
+  ...CONNECTION_FAILURE,
   /\b(the )?app (crash|crashed|force.?clos)/i,
   /\bcrash(ed|es|ing)?\b/i,
   /\blisten socket\b/i,
   /\b1011\b/,
   /\btranscription\b/i,
+  /\btranscripts?\b.{0,35}\bempty\b/i,
+  /\b(?:conversations?|transcripts?)\b.{0,45}\b(?:missing|gone|lost)\b.{0,60}\boffline\b/i,
+  /\boffline\b.{0,60}\b(?:conversations?|transcripts?)\b.{0,45}\b(?:missing|gone|lost)\b/i,
+  /\b(?:stuck|fail(?:ed|ing)?|won'?t|not)\s+sync(?:ing)?\b/i,
+  /\bsync(?:ing)?\s+(?:is\s+)?(?:stuck|fail(?:ed|ing)?|not working)\b/i,
   /\bwss:\/\/api\.omi/i,
   /\bdidn'?t sync\b/i,
   /\b(recordings?|clips?) (are )?(missing|gone)\b/i,
@@ -390,6 +405,8 @@ function looksLikePlan(text) {
 function looksLikeHardFailure(text) {
   const s = String(text || '');
   if (any(s, INTEGRATION_FAILURE)) return true;
+  if (any(s, CONNECTION_FAILURE)) return true;
+  if (/\btranscripts?\b.{0,35}\bempty\b|\b(?:conversations?|transcripts?)\b.{0,45}\b(?:missing|gone|lost)\b.{0,60}\boffline\b|\boffline\b.{0,60}\b(?:conversations?|transcripts?)\b.{0,45}\b(?:missing|gone|lost)\b|\b(?:stuck|fail(?:ed|ing)?|won'?t|not)\s+sync(?:ing)?\b|\bsync(?:ing)?\s+(?:is\s+)?(?:stuck|fail(?:ed|ing)?|not working)\b/i.test(s)) return true;
   if (/\b(crash|crashed|1011|exception|error code|won'?t charge|not charging|turns? itself off)\b/i.test(s)) return true;
   return /\b(app (was|stayed) open|kept the app (open|running)|blue light)\b/i.test(s) && /\b(nothing|still)\b/i.test(s);
 }

@@ -1,4 +1,4 @@
-const { classify, looksLikeCaptureFailure, looksLikeTranscription, looksLikeDocs, looksLikeRecordingHow, looksLikeDeviceReset } = require('./router');
+const { classify, looksLikeCaptureFailure, looksLikeTranscription, looksLikeDocs, looksLikeRecordingHow, looksLikeDeviceReset, looksLikeProductQuestion } = require('./router');
 const { clipForDiscord } = require('./utils');
 
 const AREAS = ['shop', 'app', 'desktop', 'firmware', 'privacy'];
@@ -51,7 +51,7 @@ function merge(route, agent, question) {
   const moneyLock = classified.lane === 'money' || classified.lane === 'privacy';
   const docsLock =
     classified.lane === 'faq' &&
-    (looksLikeDocs(question) || looksLikeRecordingHow(question) || looksLikeDeviceReset(question));
+    (looksLikeDocs(question) || looksLikeRecordingHow(question) || looksLikeDeviceReset(question) || looksLikeProductQuestion(question));
   const bothCaptureAndTranscript =
     looksLikeCaptureFailure(question) && looksLikeTranscription(question);
 

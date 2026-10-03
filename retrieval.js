@@ -221,6 +221,21 @@ function supportQueries(question, planned = []) {
       'delete conversation transcript cloud phone local synced recording copies Offline Sync Manage Storage'
     );
   }
+  if (/\b(?:record|recording)\w*\b/i.test(text) && /\b(?:standalone|without (?:the |a )?phone|on its own)\b/i.test(text)) {
+    variants.push('Omi DevKit 2 standalone recording onboard storage without phone app');
+  }
+  if (/\b(?:disconnect\w*|dropp?ing|drops)\b/i.test(text) && /\b(?:phone|bluetooth|device|omi)\b/i.test(text)) {
+    variants.push('Omi phone Bluetooth connection dropping background app battery optimization Bluetooth permission');
+  }
+  if (/\b(?:pair\w*|connect\w*)\b/i.test(text) && /\b(?:search\w*|forever|fail\w*|won.t|cannot|can.t)\b/i.test(text)) {
+    variants.push('Omi is on but won’t connect to the app pair from inside the Omi app Bluetooth restart retry');
+  }
+  if (/\boffline\b/i.test(text) && /\b(?:stuck|stall\w*|fail\w*|missing|lost)\b/i.test(text) && /\b(?:sync\w*|recording\w*|conversation\w*)\b/i.test(text)) {
+    variants.push('Omi Local Sync offline recordings keep app open phone nearby do not force close');
+  }
+  if (/\b(?:turn|power|switch)\s+(?:the\s+)?(?:omi\s+)?(?:necklace\s+)?off\b/i.test(text)) {
+    variants.push('Omi power button controls press and hold 3 seconds to power off');
+  }
   return uniqueQueries(question, [...variants, ...(planned || [])]);
 }
 
@@ -260,9 +275,17 @@ function mergeRanked(resultSets, limit = 8) {
   return diverseTop(ranked, limit);
 }
 
-function rankLocalChunks(queries, rows, limit = 8) {
+function deviceMatchedRow(row, customerQuestion) {
+  const asksThirdParty = /\b(?:limitless|plaud|friend pendant|third.party|fieldy|bee pendant)\b/i.test(String(customerQuestion || ''));
+  const label = `${row.title || ''} ${row.url || ''}`;
+  return asksThirdParty || !/\b(?:limitless[\s-]+pendant|third[\s-]+party[\s-]+device(?:s|[\s-]+issues)?)\b/i.test(label);
+}
+
+function rankLocalChunks(queries, rows, limit = 8, { customerQuestion } = {}) {
   const wanted = (queries || []).map((query) => new Set(queryTerms(query, 20)));
+  const deviceQuestion = customerQuestion === undefined ? (queries || [])[0] : customerQuestion;
   const ranked = (rows || [])
+    .filter((row) => deviceMatchedRow(row, deviceQuestion))
     .map((row) => {
       const title = String(row.title || '').toLowerCase();
       const body = String(row.body || '').toLowerCase();
@@ -339,6 +362,7 @@ module.exports = {
   supportQueries,
   mergeRanked,
   rankLocalChunks,
+  deviceMatchedRow,
   formatEvidence,
   combineEvidence,
 };

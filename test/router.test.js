@@ -2,6 +2,33 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const router = require('../router');
 
+test('offline sync failures and empty transcripts are technical handoffs, not generic FAQs', () => {
+  for (const question of [
+    "recorded offline all day, now it's stuck syncing at 12%",
+    'my transcripts are empty today',
+    'Why are my transcripts empty after recording offline?',
+    'My conversations are missing after offline recording',
+  ]) {
+    const route = router.classify(question);
+    assert.equal(route.lane, 'tech', question);
+    assert.equal(route.area, 'app', question);
+    assert.equal(route.escalate, true, question);
+  }
+});
+
+test('repeated disconnections and failed pairing are technical failures, not pairing how-tos', () => {
+  for (const question of [
+    'omi keeps disconnecting from my phone every few minutes',
+    "my omi won't pair, the app keeps searching forever",
+  ]) {
+    const route = router.classify(question);
+    assert.equal(route.lane, 'tech');
+    assert.equal(route.area, 'app');
+    assert.equal(route.escalate, true);
+  }
+  assert.equal(router.classify('How do I pair my Omi?').lane, 'faq');
+});
+
 test('tax, duties, and customs stay shop/money and never skip as tech', () => {
   const tax = router.classify('import tax on order #20716');
   assert.equal(tax.area, 'shop');
@@ -37,6 +64,19 @@ test('order and tracking are shop', () => {
   assert.match(canned, /not live yet/);
   assert.equal(/\/order/.test(canned), false);
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
+});
+
+test('broken-on-arrival replacement requests always go to the shop team', () => {
+  for (const question of [
+    'my device arrived broken, need a replacement',
+    'The Omi was delivered damaged.',
+    'I want a replacement because this unit is defective.',
+  ]) {
+    const route = router.classify(question);
+    assert.equal(route.area, 'shop', question);
+    assert.equal(route.lane, 'shop', question);
+    assert.equal(route.escalate, true, question);
+  }
 });
 
 test('a checkout shipping quote is not treated as order status', () => {

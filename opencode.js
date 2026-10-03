@@ -4,10 +4,38 @@ const { buildSystemPrompt, buildUserPrompt } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK } = require('./answerPipeline');
 
-const OPENCODE_URL =
-  process.env.OPENCODE_URL || 'https://opencode.ai/zen/go/v1/chat/completions';
-const OPENCODE_MODEL = process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash';
-const TIMEOUT_MS = Number(process.env.OPENCODE_TIMEOUT_MS || 60_000);
+const TIMEOUT_MS = Number(process.env.CMD_TIMEOUT_MS || process.env.OPENCODE_TIMEOUT_MS || 60_000);
+
+// CommandCode is the intended provider. Preserve the old configuration only
+// until a CommandCode API key is installed on the host.
+function providerConfig() {
+  const commandKey = String(process.env.CMD_API_KEY || '').trim();
+  if (commandKey) {
+    return {
+      key: commandKey,
+      url: process.env.CMD_API_URL || 'https://api.commandcode.ai/provider/v1/chat/completions',
+      model: process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash',
+      reviewModel: process.env.CMD_REVIEW_MODEL || process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash',
+      name: 'CommandCode',
+    };
+  }
+  return {
+    key: String(process.env.OPENCODE_API_KEY || '').trim(),
+    url: process.env.OPENCODE_URL || 'https://opencode.ai/zen/go/v1/chat/completions',
+    model: process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash',
+    reviewModel: process.env.OPENCODE_REVIEW_MODEL || process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash',
+    name: 'OpenCode',
+  };
+}
+
+function providerHeaders(key, session, name) {
+  return {
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+    'User-Agent': 'omi-vector-bot/1.0',
+    ...(name === 'OpenCode' ? { 'x-opencode-session': session } : {}),
+  };
+}
 
 function jsonObject(raw) {
   const trimmed = String(raw || '')
@@ -16,7 +44,7 @@ function jsonObject(raw) {
     .trim();
   const start = trimmed.indexOf('{');
   const end = trimmed.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('OpenCode reply was not JSON');
+  if (start === -1 || end === -1) throw new Error('Provider reply was not JSON');
   return JSON.parse(trimmed.slice(start, end + 1));
 }
 
@@ -29,7 +57,7 @@ function parseAgentJson(raw) {
   try {
     data = jsonObject(trimmed);
   } catch (err) {
-    console.error('[OpenCode] json parse failed:', err.message);
+    console.error('[Provider] json parse failed:', err.message);
     return {
       final_answer: 'I am not sure. A person on the team needs to take this.',
       confidence: 0.2,
@@ -43,7 +71,7 @@ function parseAgentJson(raw) {
     };
   }
   if (typeof data.final_answer !== 'string' || !data.final_answer.trim()) {
-    throw new Error('OpenCode JSON missing final_answer');
+    throw new Error('Provider JSON missing final_answer');
   }
   const confidence = Number(data.confidence);
   const labels = Array.isArray(data.labels) ? data.labels.map((x) => String(x)) : [];
@@ -163,8 +191,8 @@ function groundedSourceLine(answer, sources, sourceIds) {
 }
 
 async function understandQuestion({ question, threadHistory = [], route, sessionId, post }) {
-  const key = process.env.OPENCODE_API_KEY;
-  if (!key) throw new Error('Missing OPENCODE_API_KEY');
+  const { key, url, model, name } = providerConfig();
+  if (!key) throw new Error('Missing CMD_API_KEY or legacy OPENCODE_API_KEY');
   const send = post || axios.post.bind(axios);
   const session = sessionId || crypto.randomUUID();
   const history = modelThread(threadHistory)
@@ -172,9 +200,9 @@ async function understandQuestion({ question, threadHistory = [], route, session
     .join('\n')
     .slice(-8_000);
   const { data } = await send(
-    OPENCODE_URL,
+    url,
     {
-      model: OPENCODE_MODEL,
+      model,
       temperature: 0.1,
       messages: [
         {
@@ -190,16 +218,11 @@ async function understandQuestion({ question, threadHistory = [], route, session
     },
     {
       timeout: TIMEOUT_MS,
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'omi-vector-bot/1.0',
-        'x-opencode-session': session,
-      },
+      headers: providerHeaders(key, session, name),
     }
   );
   const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('OpenCode search plan was empty');
+  if (!content) throw new Error('Provider search plan was empty');
   return parseSearchPlan(content, question);
 }
 
@@ -215,9 +238,9 @@ async function queryAgent({
   sessionId,
   post,
 }) {
-  const key = process.env.OPENCODE_API_KEY;
+  const { key, url, model, name } = providerConfig();
   if (!key) {
-    throw new Error('Missing OPENCODE_API_KEY');
+    throw new Error('Missing CMD_API_KEY or legacy OPENCODE_API_KEY');
   }
 
   const session = sessionId || process.env.OPENCODE_SESSION || crypto.randomUUID();
@@ -226,9 +249,9 @@ async function queryAgent({
     try {
       const send = post || axios.post.bind(axios);
       const { data } = await send(
-        OPENCODE_URL,
+        url,
         {
-          model: OPENCODE_MODEL,
+          model,
           temperature: 0.4,
           messages: [
             { role: 'system', content: buildSystemPrompt(route) },
@@ -247,17 +270,12 @@ async function queryAgent({
         },
         {
           timeout: TIMEOUT_MS,
-          headers: {
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-            'User-Agent': 'omi-vector-bot/1.0',
-            'x-opencode-session': session,
-          },
+          headers: providerHeaders(key, session, name),
         }
       );
 
       const content = data?.choices?.[0]?.message?.content;
-      if (!content) throw new Error('OpenCode response empty');
+      if (!content) throw new Error(`${name} response empty`);
       const parsed = parseAgentJson(content);
       if (parsed.reason === 'model json failed' && attempt === 0) continue;
       return parsed;
@@ -265,36 +283,38 @@ async function queryAgent({
       const apiErr = err.response?.data?.error;
       const kind = apiErr?.type || '';
       if (kind === 'CreditsError' || /insufficient balance/i.test(apiErr?.message || '')) {
-        throw new Error(
-          'OpenCode wallet is empty. Ask David to add credits on this test key, then retry npm run ask.'
-        );
+        throw new Error(`${name} credits are unavailable. Check the provider account before retrying.`);
       }
       if (kind === 'MissingSessionID') {
         throw new Error(
-          'OpenCode Go needs x-opencode-session. This is a bot bug — retry after a fix.'
+          `${name} requires a session header. This is a bot configuration error.`
         );
       }
       if (err.response?.status) {
-        throw new Error(`OpenCode HTTP ${err.response.status}: ${apiErr?.message || err.message}`);
+        throw new Error(`${name} HTTP ${err.response.status}: ${apiErr?.message || err.message}`);
       }
       if (attempt === 1) throw err;
     }
   }
-  throw new Error('OpenCode response empty');
+  throw new Error(`${name} response empty`);
 }
 
-// The answer model is already configured and known to work at this endpoint.
+// The answer model is configured by the provider selection above.
 // An explicitly configured reviewer may use a different supported model.
-const REVIEW_MODEL = process.env.OPENCODE_REVIEW_MODEL || OPENCODE_MODEL;
-
-const UNSAFE_TECH_STEP = /\b(?:re-?install(?:ing)?|log(?:ging)?\s*out|sign(?:ing)?\s*out|clear(?:ing)?\s+(?:pending|all|recordings?|local\s+data)|delet(?:e|ing)\s+(?:pending|all|recordings?|local\s+data)|flash(?:ing)?\s+(?:the\s+)?firmware|factory\s+reset)\b/i;
+const UNSAFE_TECH_STEP = /\b(?:re-?install(?:ing)?|log(?:ging)?\s*out|sign(?:ing)?\s*out|clear(?:ing)?\s+(?:pending|all|storage|recordings?|local\s+data)|delet(?:e|ing)\s+(?:pending|all|storage|recordings?|local\s+data)|flash(?:ing)?\s+(?:the\s+)?firmware|factory\s+reset)\b/i;
 const TROUBLESHOOTING_STEP = /\b(?:try|check|make sure|enable|allow|restart|reboot|reset|reconnect|pair|unpair|charge|plug|unplug|update|open|close|keep|hold|press|tap|turn\s+on|turn\s+off|switch|go\s+to|settings\s*[>→]|permissions?)\b/i;
 const OFFICIAL_STEP_URL = /^https:\/\/(?:help|docs)\.omi\.me\//i;
 
 function technicalReviewSafety(answer, lane, sources, sourceIds) {
   if (lane !== 'tech' && lane !== 'firmware') return { safe: true, reason: '' };
   const body = String(answer || '').replace(/(?:^|\n)Sources?:[^\n]*/gi, '');
-  if (UNSAFE_TECH_STEP.test(body)) return { safe: false, reason: 'Unsafe data-loss or firmware step' };
+  const unsafeAdvice = body.split(/[.!?;\n]+/).some((clause) =>
+    [...clause.matchAll(new RegExp(UNSAFE_TECH_STEP.source, 'gi'))].some((match) => {
+      const before = clause.slice(0, match.index);
+      return !/\b(?:do not|don['’]t|never|avoid|should not|must not|no need to)\b(?:(?!\b(?:then|instead)\b).){0,45}$/i.test(before);
+    })
+  );
+  if (unsafeAdvice) return { safe: false, reason: 'Unsafe data-loss or firmware step' };
   if (!TROUBLESHOOTING_STEP.test(body)) return { safe: true, reason: '' };
   const urls = evidenceUrls(sources);
   // groundedSourceLine publishes only the first two distinct URLs.
@@ -306,7 +326,7 @@ function technicalReviewSafety(answer, lane, sources, sourceIds) {
 }
 
 async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, sessionId, post }) {
-  const key = process.env.OPENCODE_API_KEY;
+  const { key, url, reviewModel, name } = providerConfig();
   if (!String(draft || '').trim() || (!key && !post)) {
     return {
       final_answer: EMPTY_ANSWER_FALLBACK,
@@ -321,9 +341,9 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const send = post || axios.post.bind(axios);
   const session = sessionId || crypto.randomUUID();
   const { data } = await send(
-    OPENCODE_URL,
+    url,
     {
-      model: REVIEW_MODEL,
+      model: reviewModel,
       temperature: 0.2,
       messages: [
         {
@@ -346,16 +366,11 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     },
     {
       timeout: TIMEOUT_MS,
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'omi-vector-bot/1.0',
-        'x-opencode-session': session,
-      },
+      headers: providerHeaders(key, session, name),
     }
   );
   const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('OpenCode review was empty');
+  if (!content) throw new Error('Provider review was empty');
   const parsed = jsonObject(content);
   const sourceIds = Array.isArray(parsed.sources_used)
     ? parsed.sources_used.map((value) => String(value)).slice(0, 4)
@@ -378,7 +393,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     sources,
     sourceIds
   );
-  if (!answer) throw new Error('OpenCode review JSON missing final_answer');
+  if (!answer) throw new Error('Provider review JSON missing final_answer');
   return {
     final_answer: answer,
     grounded: parsed.grounded === true,
@@ -403,4 +418,5 @@ module.exports = {
   evidenceUrls,
   groundedSourceLine,
   technicalReviewSafety,
+  providerConfig,
 };

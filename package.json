@@ -7,6 +7,7 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "ask": "node ask.js",
+    "live-eval": "node scripts/live-eval.js",
     "invite": "node invite.js",
     "test": "node --test --test-concurrency=1 test/*.js"
   },
