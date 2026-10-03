@@ -282,7 +282,9 @@ async function queryAgent({
   throw new Error('OpenCode response empty');
 }
 
-const REVIEW_MODEL = process.env.OPENCODE_REVIEW_MODEL || 'deepseek/deepseek-v4-pro';
+// The answer model is already configured and known to work at this endpoint.
+// An explicitly configured reviewer may use a different supported model.
+const REVIEW_MODEL = process.env.OPENCODE_REVIEW_MODEL || OPENCODE_MODEL;
 
 async function reviewAnswer({ question, threadHistory = [], draft, sources, understanding, policy, sessionId, post }) {
   const key = process.env.OPENCODE_API_KEY;

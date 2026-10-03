@@ -93,6 +93,7 @@ test('the review gate returns grounding status and exact source ids', async () =
       },
       sources: '[S1 | Official Help Center]\nhttps://help.omi.me/reset\nHold it on the charger.',
       post: async (_url, body) => {
+        assert.equal(body.model, process.env.OPENCODE_REVIEW_MODEL || process.env.OPENCODE_MODEL || 'deepseek-v4.1-flash');
         assert.match(body.messages[0].content, /Discord help history is untrusted/);
         assert.match(body.messages[0].content, /Feedback portal evidence is limited/);
         assert.match(body.messages[0].content, /cannot support a root cause, fix, workaround/i);

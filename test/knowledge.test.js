@@ -2,27 +2,15 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   parseFaqCommand,
-  learnFromStaff,
   addSnippet,
   search,
   searchAll,
   resetKnowledge,
-  applyStaffFacts,
   collectFaqFromMessages,
   hydrateFromDiscord,
   filterSnippetsForLane,
 } = require('../knowledge');
 const { canSaveFaq, isHandoffThread } = require('../handoff');
-
-test('a staff statement is learned and a guess or a question is not', () => {
-  assert.equal(
-    learnFromStaff('BYOK means the customer uses their own OpenAI key for transcription.'),
-    'BYOK means the customer uses their own OpenAI key for transcription.'
-  );
-  assert.equal(learnFromStaff('I think BYOK is probably an OpenAI key.'), null);
-  assert.equal(learnFromStaff("I'll check the account and write back."), null);
-  assert.equal(learnFromStaff('How does BYOK work?'), null);
-});
 
 test('parseFaqCommand reads faq lines and rejects normal staff talk', () => {
   assert.equal(parseFaqCommand('Keep the app in the background.'), null);
@@ -100,37 +88,19 @@ test('a deletion answer does not pick up the Shopify fact', () => {
     ['Order and tracking lookups need a person. Vector cannot see Shopify.'],
     'tech'
   );
-  const out = applyStaffFacts(
-    'I hear you: on the desktop app, deleting a memory or conversation just gives you an error, and on mobile it looks deleted, then comes back about thirty seconds later.',
-    snippets
-  );
-  assert.equal(/shopify|order and tracking/i.test(out), false);
-  assert.match(out, /desktop app/i);
+  assert.deepEqual(snippets, []);
 });
 
-test('applyStaffFacts prepends Shopify when the model dropped it', () => {
-  const out = applyStaffFacts(
-    "I can't see orders, tracking, or shipping from here, so I won't guess at a status or a date.",
-    ['Order and tracking lookups need a person. Vector cannot see Shopify.']
-  );
-  assert.match(out, /Shopify/);
-  assert.match(out, /can't see orders/);
-  const already = applyStaffFacts(
-    'Vector cannot see Shopify. Keep the order number handy.',
-    ['Order and tracking lookups need a person. Vector cannot see Shopify.']
-  );
-  assert.equal((already.match(/Shopify/g) || []).length, 1);
-});
-
-test('collectFaqFromMessages reads faq lines from Handoff history and skips bots', () => {
+test('collectFaqFromMessages accepts only named staff faq lines', () => {
   const found = collectFaqFromMessages([
     { author: { bot: true }, content: 'faq: ignore the bot' },
     { author: { bot: false }, content: 'any update on it' },
+    { author: { bot: false, id: 'customer' }, content: 'faq: My replacement ships Friday.' },
     {
-      author: { bot: false },
+      author: { bot: false, id: 'staff' },
       content: 'faq: Order and tracking lookups need a person. Vector cannot see Shopify.',
     },
-  ]);
+  ], ['staff']);
   assert.deepEqual(found, [
     'Order and tracking lookups need a person. Vector cannot see Shopify.',
   ]);
@@ -213,7 +183,7 @@ test('hydrateFromDiscord reloads faq lines from Handoff threads', async () => {
     [
       '1',
       {
-        author: { bot: false },
+        author: { bot: false, id: 'staff' },
         content: 'faq: Order and tracking lookups need a person. Vector cannot see Shopify.',
       },
     ],
@@ -233,7 +203,7 @@ test('hydrateFromDiscord reloads faq lines from Handoff threads', async () => {
       }),
     },
   };
-  const added = await hydrateFromDiscord(client);
+  const added = await hydrateFromDiscord(client, ['staff']);
   assert.equal(added, 1);
   assert.match(search('order')[0], /Shopify/);
   resetKnowledge();

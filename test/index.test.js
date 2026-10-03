@@ -895,13 +895,13 @@ test('an escalated how-to whose Handoff cannot be posted says nobody was pinged'
   assert.equal(reply.includes(utils.PINGED_FOOTER), false);
 });
 
-test('a saved staff fact is prepended to a related answer and left off an unrelated one', async () => {
+test('a saved staff note reaches the draft but is never pasted into the final answer', async () => {
   const fact = 'The magnetic charging cable takes about two hours to fill the battery.';
   knowledge.addSnippet(fact);
   modelReply = { final_answer: 'Most people leave it plugged in overnight.' };
   const related = await ask('How long does charging take with the magnetic cable?');
   assert.deepEqual(modelCalls.at(-1).knowledgeSnippets, [fact]);
-  assert.equal(related.reply.startsWith(fact), true);
+  assert.equal(related.reply.startsWith(fact), false);
   assert.match(related.reply, /overnight/);
   const unrelated = await ask('How do I pair my Omi with a new phone?');
   assert.equal(unrelated.reply.includes('magnetic'), false);

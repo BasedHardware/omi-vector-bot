@@ -782,3 +782,26 @@ test('staff cannot answer the helpful question', async () => {
   });
   assert.match(replies[0].content, /Only the customer/i);
 });
+
+test('the customer can rate a bot-owned Handoff thread', async () => {
+  const { handleInteraction } = require('../commands');
+  const { resetRatings } = require('../ratings');
+  resetRatings();
+  const replies = [];
+  await handleInteraction({
+    customId: 'rate:yes',
+    isButton: () => true,
+    isChatInputCommand: () => false,
+    channelId: '700000000000000370',
+    user: { id: 'customer-2' },
+    channel: {
+      id: '700000000000000370',
+      name: 'Handoff · charging',
+      ownerId: 'bot-1',
+      fetchStarterMessage: async () => ({ author: { id: 'customer-2', bot: false } }),
+    },
+    client: { channels: { fetch: async () => null } },
+    reply: async (payload) => replies.push(payload),
+  });
+  assert.match(replies.at(-1).content, /Glad it helped/);
+});

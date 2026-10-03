@@ -7,16 +7,6 @@ const SEARCH_LIMIT = 5;
 
 const snippets = [];
 
-function learnFromStaff(text) {
-  const raw = String(text || '').replace(/<@!?\d+>/g, '').trim();
-  if (!raw || raw.length < 24 || raw.length > 280) return null;
-  if (/[?]/.test(raw) || /^(faq:|\/)/i.test(raw)) return null;
-  if (/\b(i'll|i will|let me|i'm|i am|i think|maybe|not sure|might|probably|i guess)\b/i.test(raw)) return null;
-  if (!/\b(is|are|means|works|uses|stores|deletes)\b/i.test(raw)) return null;
-  if (looksLikeStaffLie(raw)) return null;
-  return clipForDiscord(raw, MAX_SNIPPET);
-}
-
 function parseFaqCommand(text) {
   const raw = String(text || '').replace(/<@!?\d+>/g, '').trim();
   const match = raw.match(/^faq:\s*([\s\S]*)$/i);
@@ -107,46 +97,6 @@ function search(query, limit = SEARCH_LIMIT) {
   return pool.slice(0, limit);
 }
 
-const STOP = new Set([
-  'order',
-  'orders',
-  'tracking',
-  'lookups',
-  'lookup',
-  'person',
-  'cannot',
-  'vector',
-  'need',
-  'needs',
-  'and',
-  'the',
-  'from',
-  'here',
-  'status',
-  'shipping',
-]);
-
-function factAlreadyUsed(body, fact) {
-  const b = String(body || '').toLowerCase();
-  const f = String(fact || '').trim();
-  if (!f) return true;
-  if (b.includes(f.toLowerCase().slice(0, Math.min(48, f.length)))) return true;
-  const tokens = f
-    .split(/\s+/)
-    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ''))
-    .filter((w) => w.length > 5 && !STOP.has(w.toLowerCase()));
-  return tokens.some((w) => b.includes(w.toLowerCase()));
-}
-
-function applyStaffFacts(answer, factsIn) {
-  const facts = (factsIn || []).map((s) => String(s || '').trim()).filter(Boolean);
-  if (!facts.length) return String(answer || '').trim();
-  const body = String(answer || '').trim();
-  const unused = facts.filter((fact) => !factAlreadyUsed(body, fact));
-  if (!unused.length) return body;
-  return [unused[0], body].filter(Boolean).join('\n\n');
-}
-
 async function searchAll(query, limit = SEARCH_LIMIT) {
   if (!searchWords(query).length) return [];
   const local = search(query, limit);
@@ -170,17 +120,20 @@ async function searchAll(query, limit = SEARCH_LIMIT) {
   }
 }
 
-function collectFaqFromMessages(messages) {
+function collectFaqFromMessages(messages, allowedStaffIds = []) {
   const found = [];
+  const allowed = new Set(allowedStaffIds.map(String));
   for (const m of messages || []) {
     if (m?.author?.bot) continue;
+    if (!allowed.has(String(m?.author?.id || ''))) continue;
     const snippet = parseFaqCommand(m.content);
     if (snippet) found.push(snippet);
   }
   return found;
 }
 
-async function hydrateFromDiscord(client) {
+async function hydrateFromDiscord(client, allowedStaffIds = []) {
+  if (!allowedStaffIds.length) return 0;
   const channelId = process.env.VECTOR_TEST_CHANNEL_ID;
   if (!channelId || !client?.channels?.fetch) return 0;
   const channel = await client.channels.fetch(channelId);
@@ -203,7 +156,7 @@ async function hydrateFromDiscord(client) {
     if (seen.has(thread.id)) continue;
     seen.add(thread.id);
     const fetched = await thread.messages.fetch({ limit: 50 });
-    for (const snippet of collectFaqFromMessages([...fetched.values()].reverse())) {
+    for (const snippet of collectFaqFromMessages([...fetched.values()].reverse(), allowedStaffIds)) {
       const saved = addSnippet(snippet);
       if (saved.ok && !saved.duplicate) added += 1;
     }
@@ -214,14 +167,12 @@ async function hydrateFromDiscord(client) {
 module.exports = {
   MAX_SNIPPET,
   parseFaqCommand,
-  learnFromStaff,
   resetKnowledge,
   listSnippets,
   addSnippet,
   persistSnippet,
   search,
   searchAll,
-  applyStaffFacts,
   collectFaqFromMessages,
   hydrateFromDiscord,
   filterSnippetsForLane,

@@ -7,9 +7,9 @@ Discord support agent for Omi. Customers see it as **Omi Support**. It answers p
 1. A deterministic router protects private orders, money, privacy, app failures, and device failures before model output can change the lane. Informational exceptions still use the grounded answer pipeline.
 2. An interpretation pass identifies the customer’s actual goal, facts they supplied, and every point the response must answer. It then rewrites follow-ups into a standalone question and several short search queries. Non-English questions are translated for retrieval while names, places, prices, device names, versions, and error codes are preserved.
 3. PostgreSQL full-text search retrieves small, overlapping passages instead of whole truncated pages. Results from multiple queries are combined and labeled by source trust.
-4. The answer model receives only the most relevant evidence, the same-thread history, and any staff-approved `faq:` facts.
-5. A separate review model checks the interpretation against the raw message, confirms that the evidence actually applies, verifies every factual claim, and rejects generic replies that do not answer the customer’s goal. An irrelevant or unverified answer fails closed and goes to a person.
-6. Deterministic honesty filters remove invented pings, diagnoses, shipped-fix claims, and unsupported steps before Discord receives the reply.
+4. The answer model receives the most relevant evidence, same-thread history, and explicit notes saved by named staff with `faq:`. Legacy database notes with unknown authorship are not loaded into this path.
+5. Deterministic honesty filters run on the draft. A separate review model then checks the interpretation against the raw message and official evidence, verifies claims, and can restore relevant supported details. An irrelevant or unverified answer fails closed and goes to a person.
+6. The reviewed answer receives only the no-false-ping guard and Discord formatting/length limits; sentence-deleting claim filters do not run after review. Staff notes are never pasted directly into the final answer.
 
 Source priority:
 
@@ -68,13 +68,13 @@ Without `--force`, each source is refreshed only when its freshness window has e
 
 Money, orders, privacy, account deletion, app crashes, and device faults require a person. A successful handoff creates or reuses a customer-specific Discord thread. The bot only says that someone was notified when Discord actually accepted the handoff.
 
-Staff may save a durable support fact inside a Handoff thread:
+Named staff may save an explicit support note inside a Handoff thread:
 
 ```text
 faq: Teal LED means charging and connected.
 ```
 
-Only configured staff can save facts. Customer messages and empty staff lists never become facts automatically.
+Only configured staff user IDs can save notes. Ordinary staff replies are not learned automatically. On restart, the bot reloads `faq:` lines only from named staff in test-channel Handoff threads. Legacy database notes are ignored because they lack author provenance. Notes are not a substitute for official-source verification.
 
 ## GitHub workflow
 

@@ -5,8 +5,7 @@ const { relevantFeedback } = require('../feedback');
 const { buildToolFacts, OFFICIAL } = require('../prompt');
 const { planSearch, queryAgent, reviewAnswer } = require('../opencode');
 const triage = require('../triage');
-const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('../honesty');
-const { stripFalseCertainty } = require('../utils');
+const { prepareDraftForReview, presentReviewedAnswer } = require('../answerPipeline');
 const github = require('../github');
 const { loadOfficialSource } = require('../sourcecode');
 const {
@@ -214,9 +213,10 @@ async function replyFor(scene, route) {
       understanding: searchPlan,
       sessionId: `eval-${scene.id}`,
     });
+    const draftLane = triage.merge(route, agent, scene.ask).lane;
     const checked = await reviewAnswer({
       question: scene.ask,
-      draft: agent.final_answer,
+      draft: prepareDraftForReview(agent.final_answer, draftLane, scene.ask),
       understanding: searchPlan,
       policy: toolFacts,
       sources: [
@@ -232,15 +232,7 @@ async function replyFor(scene, route) {
       : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
     agent.escalate = Boolean(agent.escalate || checked.escalate);
     agent.confidence = Math.min(Number(agent.confidence) || 0.4, Number(checked.confidence) || 0.4);
-    const merged = triage.merge(route, agent, scene.ask);
-    const answer = stripFalseCertainty(
-      stripUnsupportedClaims(
-        stripShopBleed(stripHowtoBleed(String(agent.final_answer || ''), merged.lane), merged.lane),
-        merged.lane,
-        scene.ask
-      )
-    );
-    return { answer, agent, from: 'model+review+filters' };
+    return { answer: presentReviewedAnswer(agent.final_answer), agent, from: 'model+review' };
   } catch (err) {
     if (/429|usage limit|wallet/i.test(err.message)) modelBlocked = true;
     const down = router.whenModelDown(route, scene.ask);

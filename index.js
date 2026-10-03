@@ -13,14 +13,10 @@ const {
   releaseAsker,
   shouldEscalate,
   typingDelay,
-  sanitizeReply,
   stripSupportRedirect,
-  formatDiscordReply,
   clipForDiscord,
   clipThreadHistory,
   escalateReply,
-  stripPingNarration,
-  stripFalseCertainty,
   rewriteUserMentions,
   wantsAuthorPing,
   attachAuthorMention,
@@ -54,7 +50,7 @@ const { relevantDocs } = require('./docs');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
-const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
+const { prepareDraftForReview, presentReviewedAnswer } = require('./answerPipeline');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -377,12 +373,9 @@ async function getHistory(channel, excludeId) {
 }
 
 async function searchKnowledge(question) {
-  try {
-    return await knowledge.searchAll(question);
-  } catch (err) {
-    console.error('[Knowledge] search failed:', err.message);
-    return knowledge.search(question);
-  }
+  // Legacy database notes have no author/provenance field, so do not expose
+  // them to the model until they can be reviewed or migrated.
+  return knowledge.search(question);
 }
 
 async function handleFaqSave(message) {
@@ -390,7 +383,7 @@ async function handleFaqSave(message) {
   if (!isTrustedHandoffThread(message.channel)) return false;
 
   const commanded = knowledge.parseFaqCommand(message.content);
-  const snippet = commanded || (canSaveFaq(message.author.id) ? knowledge.learnFromStaff(message.content) : null);
+  const snippet = commanded;
   if (!snippet) return false;
 
   if (!canSaveFaq(message.author.id)) {
@@ -418,11 +411,8 @@ async function handleFaqSave(message) {
     return true;
   }
 
-  if (!saved.duplicate) {
-    await knowledge.persistSnippet(saved.snippet);
-  }
   try {
-    await replySafe(message, 'Saved. I will use this on later questions.');
+    await replySafe(message, 'Saved as a staff note. Answers still require official-source review.');
   } catch (err) {
     console.error('[Knowledge] reply failed:', err.message);
   }
@@ -712,6 +702,12 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           canNotifyStaff: canNotifyStaff({ discordReady: true }),
         });
         if (aiResponse?.final_answer) {
+          const draftLane = triage.merge(route, aiResponse, question).lane;
+          aiResponse.final_answer = prepareDraftForReview(
+            aiResponse.final_answer,
+            draftLane,
+            caseQuestion
+          );
           try {
             const checked = await reviewAnswer({
               question,
@@ -771,22 +767,12 @@ async function answerMessage(message, { directHistory = [] } = {}) {
 
     const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
     if (!skipModel) {
+      cleanAnswer = presentReviewedAnswer(aiResponse.final_answer);
+    } else {
       cleanAnswer = clipForDiscord(
-        knowledge.applyStaffFacts(
-          formatDiscordReply(stripPingNarration(sanitizeReply(aiResponse.final_answer))),
-          snippets
-        )
+        prepareDraftForReview(cleanAnswer || '', triaged.lane, caseQuestion)
       );
     }
-    cleanAnswer = clipForDiscord(
-      stripFalseCertainty(
-        stripUnsupportedClaims(
-          stripShopBleed(stripHowtoBleed(cleanAnswer || '', triaged.lane), triaged.lane),
-          triaged.lane,
-          caseQuestion
-        )
-      )
-    );
     if (threadHasKnownIssueTag(channel)) {
       cleanAnswer = router.knownIssueReply();
       aiResponse.reason = 'Already tagged Known issue.';
@@ -1081,8 +1067,8 @@ client.once(Events.ClientReady, async () => {
     `[Bot] Handoff staff-channel=${Boolean(process.env.STAFF_ALERT_CHANNEL_ID)} telegram=${telegramReady} threads=${process.env.HANDOFF_THREADS !== '0'} shopify=${shopify.isConfigured()} github=${github.isConfigured()}`
   );
   try {
-    const n = await knowledge.hydrateFromDiscord(client);
-    console.log(`[Knowledge] hydrated ${n} faq line(s) from Handoff threads`);
+    const n = await knowledge.hydrateFromDiscord(client, staffMentionIds().users);
+    console.log(`[Knowledge] hydrated ${n} named-staff faq line(s) from Handoff threads`);
   } catch (err) {
     console.error('[Knowledge] hydrate failed:', err.message);
   }

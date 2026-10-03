@@ -105,7 +105,19 @@ function closePayload(user) {
 async function handleRating(interaction) {
   const helped = interaction.customId === 'rate:yes';
   const threadId = String(interaction.channelId || interaction.channel?.id || '');
-  const customerId = String(interaction.channel?.ownerId || '');
+  let customerId = String(interaction.channel?.ownerId || '');
+  // A Handoff started from a customer's message is owned by the bot, not by
+  // that customer. The starter message is the authoritative customer here.
+  if (interaction.channel && /^Handoff\b/i.test(String(interaction.channel.name || ''))) {
+    try {
+      const starter = await interaction.channel.fetchStarterMessage?.();
+      if (starter?.author && !starter.author.bot) {
+        customerId = String(starter.author.id || '');
+      }
+    } catch (err) {
+      console.error('[Bot] rating starter lookup failed:', err.message);
+    }
+  }
   const clicker = String(interaction.user?.id || interaction.member?.user?.id || '');
   if (!customerId || clicker !== customerId) {
     await interaction.reply({
