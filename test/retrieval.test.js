@@ -11,7 +11,31 @@ const {
   sourceKind,
   supportQueries,
   uniqueQueries,
+  isDeveloperIntent,
 } = require('../retrieval');
+const { pages: developerPages } = require('./fixtures/developer-docs');
+
+test('developer intent is shared across building apps and programmatic data access', () => {
+  for (const question of [
+    'I want to make my own Omi app that pulls my memories',
+    'How can I build a plugin for Omi?',
+    'Creating an integration that reads conversations',
+    'Can I fetch memories programmatically?',
+    'Where is the Omi source?',
+  ]) assert.equal(isDeveloperIntent(question), true, question);
+  for (const question of [
+    'How do I use an Omi app?',
+    'How do I connect my Google Calendar integration?',
+    'How do I delete one memory from the app?',
+  ]) assert.equal(isDeveloperIntent(question), false, question);
+});
+
+test('an app-builder question ranks developer docs before consumer guides', () => {
+  const question = 'I want to make my own Omi app that pulls my memories, where do I start?';
+  const rows = rankLocalChunks(supportQueries(question), developerPages, 5, { customerQuestion: question });
+  assert.match(rows[0].url, /docs\.omi\.me\/docs\/developer\/apps\/Import/);
+  assert.ok(rows.slice(0, 3).every((row) => row.url.startsWith('https://docs.omi.me/')));
+});
 
 test('long official pages are chunked without dropping the answer near the end', () => {
   const tail = 'Reset the necklace while holding the button on the charger.';

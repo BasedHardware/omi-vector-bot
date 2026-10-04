@@ -1,6 +1,23 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { relevantDocs, storedDocs, topPages } = require('../docs');
+const { pages: developerPages, store: developerStore } = require('./fixtures/developer-docs');
+
+test('app-building questions keep API pages and prioritize them through stored retrieval', async () => {
+  const question = 'I want to make my own Omi app that pulls my memories, where do I start?';
+  const apiPage = developerPages.find((page) => page.url.includes('/api-reference/'));
+  assert.ok(topPages(question, [{ ...apiPage, blurb: 'Build your own Omi app to read memories' }], 1).length);
+  const evidence = await relevantDocs(question, {
+    store: developerStore(),
+    fetchImpl: async () => { throw new Error('the stored path should answer'); },
+  });
+  const urls = [...evidence.matchAll(/^\[S\d+[^\n]*\n[^\n]*\n(https:\/\/[^\s]+)/gm)]
+    .map((match) => match[1]);
+  assert.match(urls[0], /docs\.omi\.me\/docs\/developer\/apps\/Import/);
+  assert.ok(urls.slice(0, 3).every((url) => url.startsWith('https://docs.omi.me/')));
+  assert.ok(urls.some((url) => url.includes('/api-reference/api-keys/create-api-key')));
+  assert.ok(urls.some((url) => url.startsWith('https://help.omi.me/')));
+});
 
 test('developer and hardware questions retain their pages despite app-related planner searches', async () => {
   const cases = [
