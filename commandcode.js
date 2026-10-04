@@ -464,6 +464,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     privateProviderBody({
       model: provider.reviewModel,
       temperature: 0.2,
+      reasoning_effort: 'low',
       messages: [
         {
           role: 'system',

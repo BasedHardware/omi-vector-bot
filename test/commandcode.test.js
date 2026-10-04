@@ -31,6 +31,7 @@ test('CommandCode uses its own key, model and endpoint without a legacy session 
         assert.equal(body.model, process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash');
         assert.equal(options.headers.Authorization, 'Bearer command-test-key');
         assert.equal(options.headers['x-opencode-session'], undefined);
+        assert.equal(body.reasoning_effort, undefined, 'answer reasoning remains unchanged');
         return { data: { choices: [{ message: { content: '{"final_answer":"Use the official pairing guide.","confidence":0.8,"escalate":false}' } }] } };
       },
     });
@@ -388,6 +389,7 @@ test('the review gate returns grounding status and exact source ids', async () =
       },
       sources: '[S1 | Official Help Center]\nhttps://help.omi.me/reset\nHold it on the charger.',
       post: async (_url, body) => {
+        assert.equal(body.reasoning_effort, 'low');
         assert.equal(body.model, process.env.CMD_REVIEW_MODEL || process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash');
         assert.match(body.messages[0].content, /Discord help history is untrusted/);
         assert.match(body.messages[0].content, /Feedback portal evidence is limited/);
