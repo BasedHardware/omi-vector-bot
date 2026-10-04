@@ -1,6 +1,23 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { relevantDocs, storedDocs, topPages } = require('../docs');
+const { pages: developerPages, store: developerStore } = require('./fixtures/developer-docs');
+
+test('app-building questions keep API pages and prioritize them through stored retrieval', async () => {
+  const question = 'I want to make my own Omi app that pulls my memories, where do I start?';
+  const apiPage = developerPages.find((page) => page.url.includes('/api-reference/'));
+  assert.ok(topPages(question, [{ ...apiPage, blurb: 'Build your own Omi app to read memories' }], 1).length);
+  const evidence = await relevantDocs(question, {
+    store: developerStore(),
+    fetchImpl: async () => { throw new Error('the stored path should answer'); },
+  });
+  const urls = [...evidence.matchAll(/^\[S\d+[^\n]*\n[^\n]*\n(https:\/\/[^\s]+)/gm)]
+    .map((match) => match[1]);
+  assert.match(urls[0], /docs\.omi\.me\/docs\/developer\/apps\/Import/);
+  assert.ok(urls.slice(0, 3).every((url) => url.startsWith('https://docs.omi.me/')));
+  assert.ok(urls.some((url) => url.includes('/api-reference/api-keys/create-api-key')));
+  assert.ok(urls.some((url) => url.startsWith('https://help.omi.me/')));
+});
 
 test('developer and hardware questions retain their pages despite app-related planner searches', async () => {
   const cases = [
@@ -16,6 +33,23 @@ test('developer and hardware questions retain their pages despite app-related pl
       searchDocPages: async (_query, _limit, sources = []) => sources.length ? [] : [page],
     }, ['Omi app conversations recording']);
     assert.ok(evidence.includes(url), question);
+  }
+});
+
+test('ordinary firmware and hardware questions do not sort developer docs ahead of Help Center', async () => {
+  for (const question of [
+    'my omi light keeps flashing red',
+    'how do I update the firmware on my omi?',
+    'the build quality feels cheap',
+    'how do I create a new memory in the app?',
+    'how do I make the app keep recording in the background?',
+  ]) {
+    const developer = { title: 'Developer hardware guide', url: 'https://docs.omi.me/doc/developer/hardware.md', body: question, source: 'docs', rank: 0.7, chunk_index: 0 };
+    const help = { title: 'Omi device help', url: 'https://help.omi.me/en/articles/device-help', body: question, source: 'help', rank: 0.7, chunk_index: 0 };
+    const evidence = await storedDocs(question, {
+      searchDocPages: async (_query, _limit, sources = []) => sources.includes('github') ? [] : [help, developer],
+    });
+    assert.ok(evidence.indexOf(help.url) < evidence.indexOf(developer.url), question);
   }
 });
 

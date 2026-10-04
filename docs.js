@@ -9,6 +9,8 @@ const {
   rankLocalChunks,
   supportQueries,
   isSingleItemDeletionQuestion,
+  isDeveloperIntent,
+  isDeveloperPageCompatibleQuestion,
 } = require('./retrieval');
 let indexCache = { at: 0, text: '' };
 
@@ -27,7 +29,7 @@ function pagesFromIndex(text) {
 }
 
 function compatibleDevicePage(question, page) {
-  const developerQuestion = /\b(?:api|sdk|webhook|endpoint|developer|programmatic(?:ally)?|curl|build|building|compil\w*|source|repos?itor\w*|repos?|github|flutter|npm|firmware|flash\w*|dev\s*kit|devkit|integrations?|plugins?|oauth)\b/i.test(question);
+  const developerQuestion = isDeveloperPageCompatibleQuestion(question);
   if (!developerQuestion && /\/api-reference\//i.test(String(page.url || ''))) return false;
   if (!developerQuestion && isSingleItemDeletionQuestion(question) &&
       /\/(?:doc\/(?:developer|assembly|hardware)\/|get_started\/Flash_device)/i.test(String(page.url || ''))) return false;
@@ -90,7 +92,12 @@ async function storedDocs(question, store, plannedQueries = []) {
     const allSets = batches.map((batch) => batch[0].filter((row) => compatibleDevicePage(question, row)));
     const helpSets = batches.map((batch) => batch[1].filter((row) => compatibleDevicePage(question, row)));
     const githubSets = batches.map((batch) => batch[2].filter((row) => compatibleDevicePage(question, row)));
-    const ranked = mergeRanked([...allSets, ...helpSets, ...githubSets], 12);
+    const developerQuestion = isDeveloperIntent(question);
+    const ranked = mergeRanked([...allSets, ...helpSets, ...githubSets], developerQuestion ? 24 : 12);
+    if (developerQuestion) {
+      const developerPage = (row) => /^https:\/\/docs\.omi\.me\/(?:api-reference|docs?\/developer)\//i.test(String(row.url || ''));
+      ranked.sort((a, b) => Number(developerPage(b)) - Number(developerPage(a)) || b.fusedScore - a.fusedScore);
+    }
     const required = [mergeRanked(helpSets, 1)[0], mergeRanked(githubSets, 1)[0]].filter(Boolean);
     const rows = [];
     const seen = new Set();

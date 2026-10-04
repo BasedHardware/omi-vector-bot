@@ -16,7 +16,6 @@ for (const key of [
   'STAFF_ALERT_CHANNEL_ID',
   'STAFF_USER_IDS',
   'STAFF_ROLE_ID',
-  'AREA_OWNERS',
   'GITHUB_APP_ID',
   'GITHUB_APP_INSTALLATION_ID',
   'GITHUB_APP_PRIVATE_KEY',
@@ -424,6 +423,26 @@ test('a how-to question in #vector-test gets the model answer and no Handoff', a
   assert.equal(r.github.length, 0);
 });
 
+test('missing delivery gets a grounded answer, no invented status, and a staff handoff', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  modelReply = {
+    final_answer: 'Your order was delivered yesterday. Open the tracking link in the shipping email and contact the carrier about the missing parcel. Source: https://help.omi.me/en/articles/shipping',
+    escalate: false,
+  };
+  const question = 'My tracking page says the parcel was delivered two days ago but nothing arrived.';
+  const result = await ask(question);
+  assert.equal(result.modelCalled, true);
+  assert.ok(plannerCalls.includes(question));
+  assert.match(result.reply, /^I can't see order status from here/i);
+  assert.doesNotMatch(result.reply, /Your order was delivered yesterday/i);
+  assert.match(result.reply, /tracking link in the shipping email/i);
+  assert.match(result.reply, /contact the carrier/i);
+  assert.equal(staff.length, 1);
+});
+
 test('the planner runs for a short first customer question', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';
@@ -506,6 +525,9 @@ test('blank transcript after a completed recording warns and reaches staff', asy
     const result = await ask(question);
     assert.match(result.reply, /Do not reinstall the app/i);
     assert.equal(staff.length, question.startsWith('I recorded') ? 1 : 2);
+    const card = staff.at(-1).embeds[0];
+    assert.match(card.fields.find((field) => field.name === 'Labels').value, /`data-loss`/);
+    assert.match(card.fields.find((field) => field.name === 'Why').value, /^Possible data loss:/);
   }
 });
 
@@ -532,6 +554,7 @@ test('a multilingual planner data-loss signal hands off without an English warni
   const result = await ask('Hablé toda la reunión y no aparece ninguna transcripción');
   assert.equal(staff.length, 1);
   assert.doesNotMatch(result.reply, /Recordings may still be unsynced|Do not reinstall/i);
+  assert.match(staff[0].embeds[0].fields.find((field) => field.name === 'Labels').value, /`data-loss`/);
 });
 
 test('person-kind request with private details in #help holds the public answer', async (t) => {
@@ -866,10 +889,11 @@ test('a Plaud 24-hour question is answered from the docs and does not file', asy
   assert.equal(r.github.length, 0);
 });
 
-test('an order status question points to email while /order is off, skips the model and opens a shop Handoff', async () => {
+test('an order status question checks sources, keeps email fallback when undelivered, and opens a shop Handoff', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('Where is my order? I still have no tracking email.');
-  assert.equal(r.modelCalled, false);
+  assert.equal(r.modelCalled, true);
+  assert.match(r.reply, /^I can't see order status from here/i);
   assert.match(r.reply, /help@omi\.me/);
   assert.equal(/\/order/.test(r.reply), false);
   assert.ok(r.thread);
@@ -962,6 +986,19 @@ test('an undelivered tech Handoff gives one help email fallback', async () => {
   assert.match(r.reply, /can['’]?t see why the iPhone app is crashing/i);
   assert.equal((r.reply.match(/help@omi\.me/gi) || []).length, 1);
   assert.match(r.reply, /could not deliver this to the support team/i);
+});
+
+test('a delivered Handoff keeps details without directing the customer to another channel', async (t) => {
+  const staff = enableStaffDelivery(t);
+  modelReply = {
+    final_answer: 'The app crashes when you open a memory. Use the contact form on help.omi.me. Join discord.omi.me and look for #help. Please include the app version.',
+    escalate: true,
+  };
+  const result = await ask('The iPhone app crashes every time I open a memory.');
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /Please include the app version/i);
+  assert.doesNotMatch(result.reply, /contact form|discord\.omi\.me|#help|help@omi\.me/i);
+  assert.match(result.reply, /person.*(?:team|thread)/i);
 });
 
 test('a transcribed device-button question searches official app source before the model answers', async () => {

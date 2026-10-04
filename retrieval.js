@@ -211,11 +211,21 @@ function isSingleItemDeletionQuestion(question) {
     /\b(?:one|single|individual|from my list)\b/i.test(text);
 }
 
+function isDeveloperIntent(question) {
+  const text = String(question || '');
+  if (/\b(?:api|sdk|webhook|endpoint|oauth|curl|programmatic(?:ally)?)\b|\bdeveloper\s+(?:docs?|guides?|api)\b/i.test(text)) return true;
+  return /\b(?:build|building|make|making|create|creating|develop|developing|write|writing|code|coding|publish|publishing)\s+(?:(?:a|an)(?:\s+(?:custom|new))?|(?:my|our|your)\s+own|custom|new)\s+(?:omi\s+)?(?:app|integration|plugin)s?\b/i.test(text);
+}
+
+function isDeveloperPageCompatibleQuestion(question) {
+  return isDeveloperIntent(question) ||
+    /\b(?:firmware|flash\w*|dev\s*kit|devkit|developer|compil\w*|source|repos?itor\w*|repos?|github|npm|flutter)\b/i.test(String(question || ''));
+}
+
 function supportQueries(question, planned = []) {
   const text = [question, ...(planned || [])].filter(Boolean).join(' ');
   const variants = [];
-  if (/\b(?:build|building|create|make|develop)\b/i.test(question) &&
-      /\bapps?\b/i.test(question) && /\bomi\b/i.test(question)) {
+  if (isDeveloperIntent(question) && /\bapps?\b/i.test(question) && /\bomi\b/i.test(question)) {
     variants.push('Omi building apps developer integrations conversations memory');
   }
   if (/\b(?:buy|buying|purchase|which\s+(?:omi|device)|choose\s+(?:an?\s+)?(?:omi|device))\b/i.test(question) &&
@@ -280,7 +290,7 @@ function mergeRanked(resultSets, limit = 8) {
 
 function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '' } = {}) {
   const wanted = (queries || []).map((query) => new Set(queryTerms(query, 20)));
-  const consumerQuestion = !/\b(?:api|sdk|webhook|endpoint|developer|programmatic(?:ally)?|curl)\b/i.test(customerQuestion || queries?.[0] || '');
+  const consumerQuestion = !isDeveloperIntent(customerQuestion || queries?.[0] || '');
   const singleItemDeletion = consumerQuestion && isSingleItemDeletionQuestion(customerQuestion || queries?.[0] || '');
   const ranked = (rows || [])
     .map((row) => {
@@ -302,6 +312,7 @@ function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '' } = {
       }
       if (consumerQuestion && (row.source || sourceKind(row.url)) === 'help') score += 4;
       if (consumerQuestion && /\/api-reference\//i.test(String(row.url || ''))) score -= 8;
+      if (!consumerQuestion && score > 0 && /docs\.omi\.me\/(?:api-reference|docs?\/developer)\//i.test(String(row.url || ''))) score += 12;
       if (singleItemDeletion && (row.source || sourceKind(row.url)) === 'help' &&
           /\b(?:delete|remove|erase)\b/i.test(body) &&
           /\b(?:individual|single|one)\s+(?:conversations?|memories|memory|recordings?|transcripts?)\b/i.test(body)) score += 16;
@@ -362,6 +373,8 @@ module.exports = {
   queryTerms,
   uniqueQueries,
   isSingleItemDeletionQuestion,
+  isDeveloperIntent,
+  isDeveloperPageCompatibleQuestion,
   supportQueries,
   mergeRanked,
   rankLocalChunks,

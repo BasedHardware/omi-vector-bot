@@ -311,6 +311,26 @@ test('failed handoff overrides issue and conversation copy with an honest email 
   assert.match(out, /help@omi\.me/);
 });
 
+test('a delivered handoff keeps case details but removes routes to other support channels', () => {
+  const answer = [
+    'Your report needs a person.',
+    'Use the contact form on help.omi.me.',
+    'Join discord.omi.me and look for #help.',
+    'Please contact support and please include the device and app version.',
+    'Source: https://help.omi.me/en/articles/contacting-omi-support',
+  ].join(' ');
+  const delivered = escalateReply(answer, { pinged: true });
+  assert.doesNotMatch(delivered, /contact form|discord\.omi\.me|#help|contact support/i);
+  assert.match(delivered, /Please include the device and app version/i);
+  assert.match(delivered, /Source: https:\/\/help\.omi\.me/i);
+  assert.match(delivered, /person on the team has this now/i);
+  const failed = escalateReply(answer, { deliveryFailed: true });
+  assert.doesNotMatch(failed, /contact form|discord\.omi\.me|#help|contact support/i);
+  assert.match(failed, /Please include the device and app version/i);
+  assert.match(failed, /help@omi\.me/i);
+  assert.doesNotMatch(failed, /has this now/i);
+});
+
 test('an incomplete locale map cannot suppress a delivered or failed handoff next step', () => {
   const footers = { thread: '', failed: '', pending: '' };
   assert.match(escalateReply('A person needs to review this.', {
@@ -402,7 +422,7 @@ test('sanitizeReply keeps AI message as a product-output description', () => {
   assert.equal(sanitizeReply('As an AI, I cannot do that.'), 'I cannot do that.');
 });
 
-test('a successful Discord handoff can remove only the duplicate email redirect', () => {
+test('a successful Discord handoff removes redirects but keeps useful details', () => {
   assert.equal(
     stripSupportRedirect(
       "I can't see the phone from here. Please contact help@omi.me so the team can investigate. Keep the exact error ready."
@@ -415,6 +435,31 @@ test('a successful Discord handoff can remove only the duplicate email redirect'
     ),
     ''
   );
+});
+
+test('delivered handoffs remove alternate contact routes, including Help Center contact options', () => {
+  const answer = [
+    'The way to reach Omi Support is through the Help Center at help.omi.me — browse the guides there and use the contact Support option.',
+    'You can request a person on the help.omi.me contact page, or email help@omi.me.',
+    'Post in #help or join discord.omi.me for a support agent.',
+    'Contact support with the details below.',
+    'Please include the app version and the exact error.',
+  ].join('\n');
+  const delivered = escalateReply(answer, { pinged: true, replyInThread: true });
+  assert.doesNotMatch(delivered, /help\.omi\.me|help@omi\.me|discord\.omi\.me|#help|contact support/i);
+  assert.match(delivered, /Please include the app version and the exact error/);
+  assert.match(delivered, /will reply in this thread/i);
+});
+
+test('handoff redirect cleanup preserves sourced delivery steps and carrier contact', () => {
+  const answer = [
+    "What Omi's Help Center does suggest is to open the tracking link from your shipping email.",
+    'Contact the carrier if the tracking page lists the parcel as delivered.',
+    'Per the Help Center, use the tracking page to check the latest carrier scan.',
+    'Source: https://help.omi.me/en/articles/contact-support',
+  ].join('\n');
+  assert.equal(stripSupportRedirect(answer), answer);
+  assert.equal(stripSupportRedirect('The way to reach Omi Support is through the Help Center at help.omi.me — browse the guides there and use the contact Support option.'), '');
 });
 
 test('clipThreadHistory drops empty lines and caps length', () => {

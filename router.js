@@ -1,4 +1,3 @@
-const AREAS = ['shop', 'app', 'desktop', 'firmware', 'privacy', 'unknown'];
 
 // Refunds and charges always beat a product bug. "billing reasons" in a
 // desktop 402 report is not a Shopify refund.
@@ -49,6 +48,7 @@ const STRONG_SHOP = [
 const WEAK_SHOP = [/\border\s*(#|number|id|num)\b/i, /\border\s*no\.?\s*#?\d{3,}/i];
 
 const SHOP = [...STRONG_SHOP, ...WEAK_SHOP];
+const ORDER_STATUS_OPENING = "I can't see order status from here, so I can't tell you where that order is or when it will arrive.";
 
 const FIRMWARE = [
   /\bfirmware\b/i,
@@ -142,12 +142,27 @@ const WANT_HUMAN = [
   /\b(?:connect me with|(?:help me )?(?:get|put)(?: me)? in touch with)\s+(?:(?:an?|the)\s+)?(?:human|person|agent|representative|team|staff|sales|support)\b/i,
   /\bcontact\s+(?:an?\s+|the\s+)?(?:human|person|agent|representative|support|shop|shipping)(?:\s+team)?\b/i,
   /\bcan\s+someone(?:\s+from\s+(?:the\s+)?(?:team|sales|support))?\s+(?:contact|call|email)\s+me\b/i,
-  /\bis\s+there\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
-  /\b(?:can|could|may)\s+i\s+get\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
-  /^\s*(?:please[,\s]+)?(?:(?:an?|the)\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\s+please[.!?]*\s*$/i,
-  /\bis\s+this\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\s+or\s+(?:an?\s+)?bot\b[^\n]{0,80}\b(?:i\s+need\s+help|help\s+me)\b/i,
-  /\b(?:i|we)\s+(?:really\s+)?need\s+someone\s+(?:from\s+(?:the\s+)?(?:team|support|sales)\b|to\s+(?:help|check|look\s+at|review|contact|reply|call|email)\b)/i,
+  /\bis\s+there\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)(?=\s*(?:$|[.!?]|to\s+(?:help|talk|chat|speak|assist)\b|available\s*(?:$|[.!?]|to\s+(?:help|talk|chat|speak|assist)\b)))/i,
+  /\b(?:get|give|connect|put)\s+me\s+(?:(?:in\s+touch\s+)?with\s+)?(?:(?:an?|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?|(?:the\s+)?(?:team|support|sales))\b/i,
+  /\b(?:(?:i|we)\s+(?:really\s+)?)?(?:need|want)\s+(?:(?:an?|the|real|actual|live)\s+)*(?:someone|human|person|agent|representative)(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?\s+to\s+(?:help|check|look(?:\s+at)?|review|contact|reply|call|email)\b/i,
+  /\bput\s+me\s+through\s+to\s+(?:(?:your|the|a|an)\s+)?(?:team|support|sales|human|person|agent|representative)\b/i,
+  /\bis\s+(?:(?:a|an|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone)\s+available(?=\s*(?:$|[.!?]|to\s+(?:help|talk|chat|speak|assist)\b))/i,
+  /\b(?:please\s+)?have\s+(?:(?:someone|a\s+person|an?\s+(?:human|agent|representative))|(?:the|your)\s+(?:team|support|sales))\s+(?:contact|call|email)\s+me\b/i,
+  /\bconnect\s+me\s+to\s+(?:(?:your|the|a|an|real|actual|live)\s+)*(?:team|support|sales|human|person|agent|representative|someone)\b/i,
+  /(?:^\s*(?:please\s+)?reach\s+out\s+to\s+me\b|\b(?:team|support|staff|someone|person|human|agent)\b[^.!?]{0,40}\breach\s+out\s+to\s+me\b|\b(?:i\s+need|i\s+want|i['’]d\s+like)\s+(?:you|the\s+team)\s+to\s+reach\s+out\s+to\s+me\b)/i,
+  /\b(?:i['’]d|i\s+would)\s+like\s+(?:(?:a|an|the|real|actual|live)\s+)*(?:human|person|someone|agent|representative)(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?\s+to\s+(?:help|look(?:\s+at)?|check|review)\b/i,
 ];
+
+function wantsHumanSupport(text) {
+  const question = String(text || '');
+  if (any(question, WANT_HUMAN)) return true;
+  const availability = /\bis\s+(?:there\s+)?(?:(?:a|an|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone)\s+available\b/i.exec(question);
+  if (availability && !/^\s*(?:$|[.!?]|to\s+(?:help|talk|chat|speak|assist)\b)/i.test(question.slice(availability.index + availability[0].length))) return false;
+  const person = /\b(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i;
+  if (!person.test(question)) return false;
+  const describesSpeaker = /\b(?:real|actual|live)\s+(?:human|person|agent|representative)\b[^.!?\n]{0,80}\b(?:speak(?:s|ing|ed)|talk(?:s|ing|ed)|record(?:s|ing|ed)|mic(?:rophone)?|audio|video|voice|to\s+be\s+(?:present|close|near))\b/i;
+  return !describesSpeaker.test(question);
+}
 
 const SUPPORT_NUDGE = [
   /\b(?:same|similar) (?:problem|issue)(?:\s+(?:here|too|for me))?\b/i,
@@ -194,51 +209,6 @@ function isPublicForumSafe(text) {
   return true;
 }
 
-function parseAreaOwners(raw) {
-  const src = raw === undefined ? process.env.AREA_OWNERS : raw;
-  const map = {};
-  const text = String(src || '').trim();
-  if (!text) return map;
-  if (text.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(text);
-      for (const [key, value] of Object.entries(parsed || {})) {
-        if ((AREAS.includes(key) || key === 'default') && value) map[key] = String(value).trim();
-      }
-      return map;
-    } catch {
-      return map;
-    }
-  }
-  for (const part of text.split(',')) {
-    const idx = part.indexOf(':');
-    if (idx <= 0) continue;
-    const area = part.slice(0, idx).trim();
-    const rest = part.slice(idx + 1).trim();
-    if ((!AREAS.includes(area) && area !== 'default') || !rest) continue;
-    map[area] = rest;
-  }
-  return map;
-}
-
-function ownerRef(area, owners) {
-  const configured = owners || parseAreaOwners();
-  for (const key of [area, 'default']) {
-    const raw = Object.hasOwn(configured, key) ? String(configured[key] || '') : '';
-    const role = raw.match(/^role:(\d{5,})$/i);
-    if (role) return { kind: 'role', id: role[1] };
-    const user = raw.match(/^(\d{5,})$/);
-    if (user) return { kind: 'user', id: user[1] };
-  }
-  return null;
-}
-
-function ownerMention(area, owners) {
-  const ref = ownerRef(area, owners);
-  if (!ref) return '';
-  return ref.kind === 'role' ? `<@&${ref.id}>` : `<@${ref.id}>`;
-}
-
 function namesBothApps(text) {
   const s = String(text || '');
   const desktop = /\b(desktop|macos|mac\s?os|computer app)\b/i.test(s);
@@ -273,7 +243,7 @@ function looksLikeOtherLanguage(text) {
 
 function classifyRoute(text) {
   const s = String(text || '');
-  const wantHuman = any(s, WANT_HUMAN);
+  const wantHuman = wantsHumanSupport(s);
 
   if (/\bin order to\b/i.test(s) && !any(s, SHOP) && !any(s, STRONG_MONEY) && !any(s, WEAK_MONEY)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
@@ -345,7 +315,6 @@ function isTechLane(route) {
 }
 
 function specialistNames(area, lane) {
-  if (lane === 'faq') return '';
   if (area === 'shop' || area === 'app') return 'Mohsin';
   if (area === 'desktop') return 'Aryan';
   if (area === 'firmware') return 'TuEmb';
@@ -353,9 +322,16 @@ function specialistNames(area, lane) {
   return 'Aryan, David, undivisible';
 }
 
-function shouldPingOwner(route) {
-  if (!route || route.lane === 'faq') return false;
-  return Boolean(route.escalate) && route.area !== 'unknown';
+function needsGroundedShopAnswer(question) {
+  const text = String(question || '');
+  if (looksLikeShippingQuote(text)) return false;
+  if (/\bstuck\s+(?:in|at)\s+customs\b/i.test(text)) return true;
+  const shippingContext = /\b(?:order|package|parcel|shipment|shipping|delivery)\b/i.test(text);
+  const trackingObject = /\btracking\s+(?:number|link|page)\b/i.test(text);
+  if (!shippingContext && !trackingObject) return false;
+  const deliveryProblem = /\b(?:where\s+(?:is|are)\s+(?:my|the)\s+(?:order|package|parcel|shipment)|(?:order|shipment|shipping|delivery)\s+status|status\s+of\s+(?:my|the)\s+(?:order|shipment|delivery)|when\s+(?:will|does|is)\s+(?:my|the)\s+(?:order|package|parcel|shipment)\b.{0,40}\b(?:ship|arrive|deliver)|(?:order|package|parcel|shipment|delivery)\b.{0,60}\b(?:lost|missing|not\s+received|never\s+arrived|hasn['’]?t\s+arrived|delivered\b.{0,40}\b(?:not|nothing|missing|never))|(?:lost|missing|not\s+received|never\s+arrived)\b.{0,60}\b(?:order|package|parcel|shipment|delivery))\b/i.test(text);
+  const trackingProblem = /\btracking\b.{0,60}\b(?:stuck|not\s+updat\w*|no\s+updat\w*|not\s+mov\w*|delivered|lost|missing)\b|\btracking\s+status\b/i.test(text);
+  return deliveryProblem || trackingProblem;
 }
 
 function skipModel(route) {
@@ -556,8 +532,7 @@ function shopStatusReply(route, question) {
       "Please don't post your address or payment details here.",
     ].join(' ');
   }
-  const head =
-    "I can't see order status from here, so I can't tell you where that order is or when it will arrive. That needs someone with access to the order system, and I'm not going to guess a date.";
+  const head = `${ORDER_STATUS_OPENING} That needs someone with access to the order system, and I'm not going to guess a date.`;
   if (orderLookupLive()) {
     return `${head}\n\nUse /order to check your own orders. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.`;
   }
@@ -711,16 +686,13 @@ function describe(route) {
 }
 
 module.exports = {
-  AREAS,
+  ORDER_STATUS_OPENING,
   classify,
   looksLikePii,
   isPublicForumSafe,
-  parseAreaOwners,
-  ownerRef,
-  ownerMention,
   isTechLane,
-  shouldPingOwner,
   specialistNames,
+  needsGroundedShopAnswer,
   skipModel,
   requiresGroundedAnswer,
   looksLikeTax,

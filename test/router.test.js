@@ -43,6 +43,25 @@ test('order and tracking are shop', () => {
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
 });
 
+test('delivery problems and status questions use grounded shop answers, not checkout quotes', () => {
+  for (const question of [
+    'My tracking page says delivered but the parcel never arrived',
+    'The package is missing',
+    'My tracking page has been stuck and is not updating',
+    'My shipment is stuck in customs',
+    'It is stuck in customs',
+    'Where is my order?',
+    'When will my shipment arrive?',
+  ]) assert.equal(router.needsGroundedShopAnswer(question), true, question);
+  for (const question of [
+    'Shipping costs 145 euros at checkout',
+    'How do I use tracking notifications?',
+    'Does Omi have sleep tracking? It seems missing',
+    'Tracking has been stuck and is not updating',
+    'Can I order 50 units for my company?',
+  ]) assert.equal(router.needsGroundedShopAnswer(question), false, question);
+});
+
 test('a checkout shipping quote is not treated as order status', () => {
   const q =
     'I live on Reunion island and the shipping cost at cashout is 145 euros. Can someone arrange normal-cost shipping from Europe or Asia?';
@@ -100,6 +119,27 @@ test('direct human-contact requests route to staff without misreading ordinary c
     'real person please',
     'is this a real person or a bot? i need help',
     'I need someone from the team to look at this',
+    'get me a real human',
+    'need someone to check my order',
+    'Give me an actual agent to help with this',
+    'I want someone from support to reply',
+    'Is a live representative available?',
+    'I need a real person to talk to about billing',
+    'Put me through to your team',
+    'Is a human available?',
+    'Is someone available?',
+    'Please have the team contact me',
+    'Have a person call me',
+    'Have your support email me',
+    'Is a human available to help?',
+    'Is there a live agent to help?',
+    'Is an agent available to chat?',
+    'Please reach out to me',
+    'Can the support team reach out to me?',
+    'Connect me to your team',
+    "I'd like a human to help with this",
+    "I'd like someone to look at the failed sync",
+    'I would like a person to review my case',
   ]) assert.equal(router.classify(question).wantHuman, true, question);
   for (const question of [
     'Does Omi need a person to be close to the mic?',
@@ -108,6 +148,15 @@ test('direct human-contact requests route to staff without misreading ordinary c
     'do I need a person to set it up?',
     'can omi tell which person is speaking?',
     'I need a human-readable export of my notes',
+    'does it work if a real person talks over a video?',
+    'Can Omi distinguish a live person speaking in a recording?',
+    'I watched a clip where an actual person was talking near the microphone',
+    'Is someone available to test the beta app?',
+    'Is a human available to test the beta app?',
+    'Is a real person available to test the beta app?',
+    'Is there a live agent available for beta testing?',
+    'Is a real person available next week for a beta test?',
+    'Can Omi reach out to me when recording stops?',
   ]) assert.equal(router.classify(question).wantHuman, false, question);
 });
 
@@ -368,38 +417,15 @@ test('money, privacy, and shop skip the model; crash, firmware, and pairing do n
   assert.equal(router.skipModel(router.classify('it powers off by itself at 100% battery')), false);
 });
 
-test('AREA_OWNERS parses users and roles; empty means no ping', () => {
-  const map = router.parseAreaOwners('shop:123456789012345678,firmware:role:987654321098765432');
-  assert.equal(router.ownerMention('shop', map), '<@123456789012345678>');
-  assert.equal(router.ownerMention('firmware', map), '<@&987654321098765432>');
-  assert.equal(router.ownerMention('app', map), '');
-  assert.equal(router.shouldPingOwner(router.classify('Where is my order?')), true);
-  assert.equal(router.shouldPingOwner(router.classify('How do I pair my Omi?')), false);
+test('staff owner names are plain text for every lane', () => {
   assert.equal(router.specialistNames('shop', 'money'), 'Mohsin');
   assert.equal(router.specialistNames('app', 'tech'), 'Mohsin');
   assert.equal(router.specialistNames('desktop', 'tech'), 'Aryan');
   assert.equal(router.specialistNames('firmware', 'firmware'), 'TuEmb');
   assert.equal(router.specialistNames('privacy', 'privacy'), 'David');
   assert.equal(router.specialistNames('unknown', 'unknown'), 'Aryan, David, undivisible');
-  assert.equal(router.specialistNames('unknown', 'faq'), '');
+  assert.equal(router.specialistNames('unknown', 'faq'), 'Aryan, David, undivisible');
   assert.equal(/@/.test(router.specialistNames('shop', 'money')), false);
-});
-
-test('AREA_OWNERS default covers unknown and unassigned areas without overriding named owners', () => {
-  const owners = router.parseAreaOwners(
-    'shop:123456789012345678,default:role:987654321098765432'
-  );
-  assert.equal(router.ownerMention('shop', owners), '<@123456789012345678>');
-  assert.equal(router.ownerMention('unknown', owners), '<@&987654321098765432>');
-  assert.equal(router.ownerMention('desktop', owners), '<@&987654321098765432>');
-  assert.equal(
-    router.ownerMention('app', router.parseAreaOwners('app:MOHSIN_ID,default:111111111111111111')),
-    '<@111111111111111111>'
-  );
-  assert.equal(router.ownerMention('unknown', router.parseAreaOwners('default:111111111111111111')), '<@111111111111111111>');
-  assert.equal(router.ownerMention('unknown', router.parseAreaOwners('shop:123456789012345678')), '');
-  const json = router.parseAreaOwners('{"default":"role:987654321098765432"}');
-  assert.equal(router.ownerMention('app', json), '<@&987654321098765432>');
 });
 
 test('device not capturing stays with transcription and does not become a firmware repair', () => {

@@ -7,7 +7,59 @@ const {
   EMPTY_ANSWER_FALLBACK,
   addUnsyncedDataWarning,
   hasUnsyncedDataRisk,
+  stripUnverifiedOrderClaims,
 } = require('../answerPipeline');
+
+test('order replies remove unsupported customer-specific status but retain carrier steps', () => {
+  const answer = [
+    'Your order was delivered yesterday. It will arrive by Friday. The package is at the depot.',
+    'Open the tracking link from the shipping email and contact the carrier about a missing parcel.',
+    'Source: https://help.omi.me/en/articles/shipping',
+  ].join('\n');
+  const safe = stripUnverifiedOrderClaims(answer);
+  assert.doesNotMatch(safe, /delivered yesterday|arrive by Friday|at the depot/i);
+  assert.match(safe, /tracking link from the shipping email/i);
+  assert.match(safe, /contact the carrier/i);
+  assert.match(safe, /Source: https:\/\/help\.omi\.me/i);
+  assert.equal(stripUnverifiedOrderClaims(answer, { verifiedLookup: true }), answer);
+  assert.match(stripUnverifiedOrderClaims('If tracking shows delivered, contact the carrier.'), /contact the carrier/i);
+});
+
+test('unverified delivery status variants are removed but general and conditional advice remains', () => {
+  for (const claim of [
+    'Your package was marked as delivered on Monday.',
+    'Your parcel is showing as shipped today.',
+    'The shipment is listed as delivered.',
+    'The carrier delivered it to your door.',
+    'Your package is sitting at the depot.',
+    'Your order was sitting with the carrier.',
+    'It is sitting at customs.',
+  ]) assert.equal(stripUnverifiedOrderClaims(claim), '', claim);
+  for (const general of [
+    'Tracking can show delivered before the package arrives.',
+    'If it was marked delivered, check your tracking link.',
+    'If the carrier delivered it to a neighbor, ask them to check.',
+  ]) assert.equal(stripUnverifiedOrderClaims(general), general);
+});
+
+test('contractions and unverified depot or customs locations are stripped', () => {
+  for (const claim of [
+    "It's on its way.",
+    'It is out for delivery.',
+    "They're in transit.",
+    'It has shipped.',
+    "It's delivered.",
+    'Your parcel is stuck at customs.',
+    'The shipment has been held in a depot.',
+    'The package is sitting at the sorting facility.',
+    'It was stuck in the warehouse.',
+  ]) assert.equal(stripUnverifiedOrderClaims(claim), '', claim);
+  for (const general of [
+    "If it's on its way, the tracking page should show it.",
+    'If the package is held at customs, ask the carrier for details.',
+    'Packages can be held at a sorting facility.',
+  ]) assert.equal(stripUnverifiedOrderClaims(general), general, general);
+});
 
 test('sync stalls and missing conversations get a data-loss warning without the word offline', () => {
   for (const question of ['sync is stuck at 40%', 'lost my conversations after the update']) {

@@ -14,7 +14,6 @@ const {
   claimAsker,
   releaseAsker,
   typingDelay,
-  stripSupportRedirect,
   clipForDiscord,
   clipThreadHistory,
   escalateReply,
@@ -53,7 +52,7 @@ const { relevantDocs } = require('./docs');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
-const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk } = require('./answerPipeline');
+const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk, stripUnverifiedOrderClaims } = require('./answerPipeline');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -588,7 +587,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
     const caseQuestion = contextualQuestion(question, contextHistory);
     const routeText = [routeSource, prior].filter(Boolean).join('\n');
-    const currentRoute = router.classify(asked || question);
+    const groundedShop = router.needsGroundedShopAnswer(asked || question);
+    const classifiedCurrent = router.classify(asked || question);
+    const currentRoute = groundedShop
+      ? { ...classifiedCurrent, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' }
+      : classifiedCurrent;
     const contextRoute = router.classify(routeText);
     // History preserves the ticket topic, but only the newest customer message
     // decides whether they are currently asking for a human.
@@ -597,6 +600,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       wantHuman: Boolean(currentRoute.wantHuman),
       escalate: Boolean(contextRoute.escalate || currentRoute.escalate),
     };
+    if (groundedShop) route = { ...route, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' };
     if (plannerPolicy.suppressAcknowledgment(null, asked || question)) return;
     const cannedEnglish = plannerPolicy.skipPlannerForCanned(currentRoute, asked || question);
     let searchPlan = {
@@ -628,10 +632,13 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     route = cannedEnglish
       ? currentRoute
       : plannerPolicy.routeWithUnderstanding(route, searchPlan, asked || question);
+    if (groundedShop) route = { ...route, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' };
     const forceGroundedPersonAnswer = Boolean(plannedPersonKind);
     const cannedEnglishReply = cannedEnglish ? router.cannedReply(route, asked || question) : '';
     const supportFollowup =
       Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
+    const handoffPlanned = Boolean(route.escalate || forceGroundedPersonAnswer ||
+      searchPlan.dataLossRisk || hasUnsyncedDataRisk(asked || question));
     const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
     if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
@@ -705,7 +712,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       const retrievalStart = performance.now();
       const [docsText, officialCodeText, feedbackText, releaseText] = await Promise.all([
         relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
-        github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
+        route.area === 'shop' ? '' : github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
         router.isTechLane(route) || route.lane === 'unknown'
           ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })
           : '',
@@ -736,6 +743,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             route,
             toolFacts,
             understanding: searchPlan,
+            handoffPlanned,
             sessionId: `discord-${channel.id}`,
             canNotifyStaff: canNotifyStaff({ discordReady: true }),
           });
@@ -762,6 +770,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 understanding: searchPlan,
                 policy: toolFacts,
                 lane: draftLane,
+                handoffPlanned: handoffPlanned || aiResponse.escalate === true,
                 sources: [
                   retrievedEvidence,
                   releaseText ? `[S99 | Official release note]\n${releaseText}` : '',
@@ -898,6 +907,13 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       dataLossRisk,
       language: searchPlan.replyLanguage,
     }));
+    if (groundedShop && !holdPublicCopy) {
+      const verifiedLookup = Boolean(shopifyLookup?.order);
+      cleanAnswer = stripUnverifiedOrderClaims(cleanAnswer, { verifiedLookup });
+      if (!verifiedLookup && !/^I can't see order status from here\b/i.test(cleanAnswer)) {
+        cleanAnswer = `${router.ORDER_STATUS_OPENING}\n\n${cleanAnswer}`;
+      }
+    }
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
     const nameMeta = {
@@ -958,7 +974,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         if (existing) {
           try {
             await existing.send({
-              content: rewriteUserMentions(escalateReply(cleanAnswer, { conversation: true, footers: localizedFooters }), message),
+              content: rewriteUserMentions(escalateReply(cleanAnswer, { pinged: true, conversation: true, footers: localizedFooters }), message),
               allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
             });
             reused = true;
@@ -991,6 +1007,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             skipDedupe: (isTestChannel(channel) && !inHandoff) || reuseFailed,
             topic: nameMeta.topic,
             labels: triaged.labels,
+            dataLossRisk,
           });
           pinged = Boolean(handoff.ok);
           deliveryFailed = !handoff.ok;
@@ -1031,10 +1048,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       ) {
         await postShopTicketCard(handoffThread, triaged);
       }
-      const handoffAnswer = pinged ? stripSupportRedirect(cleanAnswer) : cleanAnswer;
       const movedToThread = !inHandoff && Boolean(handoffThread?.id);
-      let parentReply = escalateReply(handoffAnswer, {
-        pinged,
+      let parentReply = escalateReply(cleanAnswer, {
+        pinged: pinged || inHandoff,
         duplicate,
         conversation: stayInPost && !handoffFollowup,
         issue:
