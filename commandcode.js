@@ -258,6 +258,10 @@ async function understandQuestion({ question, threadHistory = [], route, post })
           content: 'Updated classification: message_kind may also be off_topic for chatter, opinions, questions about the team, or unrelated facts; a direct request for a person is never off_topic. support_kind may also be money or privacy when those need a person. For every non-English person-needed request, provide a brief neutral handoff_acknowledgment in the customer language and the same script as the message; romanized Hindi must stay in Latin letters. Do not include private identifiers, prices, dates, policy claims, or promised outcomes.',
         },
         {
+          role: 'system',
+          content: 'Classification and search clarification: self-serve actions inside the Omi app, such as deleting one conversation or memory or changing a setting, are official_information. Use account_action only when staff must change something the customer cannot do themselves. Keep the customer\'s in-app wording in at least one search query and add official product synonyms in another; do not substitute developer API terminology for an app question.',
+        },
+        {
           role: 'user',
           content: `Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,
         },

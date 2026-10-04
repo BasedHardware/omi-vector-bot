@@ -15,6 +15,14 @@ test('consumer necklace questions do not mix in DevKit button instructions', () 
   assert.deepEqual(topPages('How do I turn my Omi DevKit 2 off with the button?', [devkit, consumer], 3)[0], devkit);
 });
 
+test('consumer app searches exclude developer API reference pages', () => {
+  const api = { title: 'Delete memory', url: 'https://docs.omi.me/api-reference/memories/delete', blurb: 'Delete a memory by API' };
+  const developer = { title: 'Memory client', url: 'https://docs.omi.me/doc/developer/memory-clients.md', blurb: 'Store conversations from an app' };
+  const app = { title: 'Manage memories in the app', url: 'https://docs.omi.me/user-guide/memories', blurb: 'Remove a memory in Omi' };
+  assert.deepEqual(topPages('How do I remove one memory in the Omi app?', [api, developer, app], 3), [app]);
+  assert.deepEqual(topPages('How do I delete a memory with the API?', [api, app], 3)[0], api);
+});
+
 test('stored consumer-device results also exclude DevKit instructions', async () => {
   const text = await relevantDocs('How do I turn my Omi necklace off with the button?', {
     fetchImpl: async () => { throw new Error('stored evidence should win'); },
@@ -27,6 +35,20 @@ test('stored consumer-device results also exclude DevKit instructions', async ()
   });
   assert.match(text, /hold for 3 seconds/);
   assert.doesNotMatch(text, /DevKit|Single press to turn off/i);
+});
+
+test('stored consumer-app results do not crowd out Help Center with API references', async () => {
+  const text = await relevantDocs('Can I erase a single recording from my list?', {
+    fetchImpl: async () => { throw new Error('stored evidence should win'); },
+    store: {
+      searchDocPages: async (_query, _limit, sources = []) => sources.includes('github') ? [] : [
+        { title: 'Delete recording API', url: 'https://docs.omi.me/api-reference/recordings/delete', body: 'DELETE /recordings/{id}', source: 'docs', chunk_index: 0, rank: 1 },
+        { title: 'Conversations and memories', url: 'https://help.omi.me/en/articles/manage-conversations', body: 'Delete an individual conversation in the app.', source: 'help', chunk_index: 0, rank: 0.5 },
+      ],
+    },
+  });
+  assert.match(text, /Delete an individual conversation/);
+  assert.doesNotMatch(text, /DELETE \/recordings/);
 });
 
 test('a recording question pulls the matching docs page', async () => {
