@@ -45,6 +45,24 @@ function presentReviewedAnswer(answer) {
   return ensureNonEmptyAnswer(clipForDiscord(formatDiscordReply(stripPingNarration(answer))));
 }
 
+function stripUnverifiedOrderClaims(answer, { verifiedLookup = false } = {}) {
+  if (verifiedLookup) return String(answer || '').trim();
+  const assertedStatus = /\b(?:(?:your|this|the)\s+(?:order|package|parcel|shipment|delivery)|it)\s+(?:(?:is|was|has|had|hasn['’]?t|will|would|should|may|might|appears?|seems?|expected|likely)\s+){1,3}(?:(?:been|be|to|have|not|already|currently|probably)\s+){0,3}(?:deliver\w*|shipp\w*|dispatch\w*|arriv\w*|in\s+transit|out\s+for\s+delivery|on\s+its\s+way|located|at\s+(?:the|a|your)\b)/i;
+  return String(answer || '')
+    .split('\n')
+    .map((line) => line.split(/(?<=[.!?])\s+/)
+      .filter((sentence) => {
+        if (/^\s*(?:source|fuente|quelle|fonte|источник|来源|출처)\s*:/i.test(sentence)) return true;
+        const claim = assertedStatus.exec(sentence);
+        if (!claim) return true;
+        return /\b(?:if|when|in case)\b/i.test(sentence.slice(0, claim.index));
+      })
+      .join(' ').trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
 function hasUnsyncedDataRisk(question) {
   const text = String(question || '');
   const data = /\b(?:sync\w*|record\w*|audio|meetings?|conversations?|memories?|transcri\w*|dictat\w*|voice)\b/i.test(text);
@@ -74,6 +92,7 @@ module.exports = {
   prepareDraftForReview,
   prepareDraftForReviewWithAudit,
   presentReviewedAnswer,
+  stripUnverifiedOrderClaims,
   addUnsyncedDataWarning,
   hasUnsyncedDataRisk,
 };

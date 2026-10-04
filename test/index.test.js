@@ -423,6 +423,26 @@ test('a how-to question in #vector-test gets the model answer and no Handoff', a
   assert.equal(r.github.length, 0);
 });
 
+test('missing delivery gets a grounded answer, no invented status, and a staff handoff', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  modelReply = {
+    final_answer: 'Your order was delivered yesterday. Open the tracking link in the shipping email and contact the carrier about the missing parcel. Source: https://help.omi.me/en/articles/shipping',
+    escalate: false,
+  };
+  const question = 'My tracking page says the parcel was delivered two days ago but nothing arrived.';
+  const result = await ask(question);
+  assert.equal(result.modelCalled, true);
+  assert.ok(plannerCalls.includes(question));
+  assert.match(result.reply, /^I can't see order status from here/i);
+  assert.doesNotMatch(result.reply, /Your order was delivered yesterday/i);
+  assert.match(result.reply, /tracking link in the shipping email/i);
+  assert.match(result.reply, /contact the carrier/i);
+  assert.equal(staff.length, 1);
+});
+
 test('the planner runs for a short first customer question', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';
@@ -865,10 +885,11 @@ test('a Plaud 24-hour question is answered from the docs and does not file', asy
   assert.equal(r.github.length, 0);
 });
 
-test('an order status question points to email while /order is off, skips the model and opens a shop Handoff', async () => {
+test('an order status question checks sources, keeps email fallback when undelivered, and opens a shop Handoff', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('Where is my order? I still have no tracking email.');
-  assert.equal(r.modelCalled, false);
+  assert.equal(r.modelCalled, true);
+  assert.match(r.reply, /^I can't see order status from here/i);
   assert.match(r.reply, /help@omi\.me/);
   assert.equal(/\/order/.test(r.reply), false);
   assert.ok(r.thread);

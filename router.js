@@ -48,6 +48,7 @@ const STRONG_SHOP = [
 const WEAK_SHOP = [/\border\s*(#|number|id|num)\b/i, /\border\s*no\.?\s*#?\d{3,}/i];
 
 const SHOP = [...STRONG_SHOP, ...WEAK_SHOP];
+const ORDER_STATUS_OPENING = "I can't see order status from here, so I can't tell you where that order is or when it will arrive.";
 
 const FIRMWARE = [
   /\bfirmware\b/i,
@@ -306,6 +307,13 @@ function specialistNames(area, lane) {
   return 'Aryan, David, undivisible';
 }
 
+function needsGroundedShopAnswer(question) {
+  const text = String(question || '');
+  if (looksLikeShippingQuote(text)) return false;
+  if (!/\b(?:order|package|parcel|shipment|shipping|delivery|tracking)\b/i.test(text)) return false;
+  return /\b(?:where\s+(?:is|are)\s+(?:my|the)\s+(?:order|package|parcel|shipment)|(?:order|shipment|shipping|delivery|tracking)\s+status|status\s+of\s+(?:my|the)\s+(?:order|shipment|delivery)|when\s+(?:will|does|is)\s+(?:my|the)\s+(?:order|package|parcel|shipment)\b.{0,40}\b(?:ship|arrive|deliver)|tracking\b.{0,60}\b(?:stuck|not\s+updat\w*|no\s+updat\w*|not\s+mov\w*|delivered|lost|missing)|(?:order|package|parcel|shipment|delivery)\b.{0,60}\b(?:lost|missing|not\s+received|never\s+arrived|hasn['’]?t\s+arrived|delivered\b.{0,40}\b(?:not|nothing|missing|never))|(?:lost|missing|not\s+received|never\s+arrived)\b.{0,60}\b(?:order|package|parcel|shipment|delivery))\b/i.test(text);
+}
+
 function skipModel(route) {
   return (
     route?.lane === 'money' ||
@@ -504,8 +512,7 @@ function shopStatusReply(route, question) {
       "Please don't post your address or payment details here.",
     ].join(' ');
   }
-  const head =
-    "I can't see order status from here, so I can't tell you where that order is or when it will arrive. That needs someone with access to the order system, and I'm not going to guess a date.";
+  const head = `${ORDER_STATUS_OPENING} That needs someone with access to the order system, and I'm not going to guess a date.`;
   if (orderLookupLive()) {
     return `${head}\n\nUse /order to check your own orders. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.`;
   }
@@ -659,11 +666,13 @@ function describe(route) {
 }
 
 module.exports = {
+  ORDER_STATUS_OPENING,
   classify,
   looksLikePii,
   isPublicForumSafe,
   isTechLane,
   specialistNames,
+  needsGroundedShopAnswer,
   skipModel,
   requiresGroundedAnswer,
   looksLikeTax,

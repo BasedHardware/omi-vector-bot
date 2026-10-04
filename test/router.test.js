@@ -43,6 +43,21 @@ test('order and tracking are shop', () => {
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
 });
 
+test('delivery problems and status questions use grounded shop answers, not checkout quotes', () => {
+  for (const question of [
+    'My tracking page says delivered but the parcel never arrived',
+    'The package is missing',
+    'Tracking has been stuck and is not updating',
+    'Where is my order?',
+    'When will my shipment arrive?',
+  ]) assert.equal(router.needsGroundedShopAnswer(question), true, question);
+  for (const question of [
+    'Shipping costs 145 euros at checkout',
+    'How do I use tracking notifications?',
+    'Can I order 50 units for my company?',
+  ]) assert.equal(router.needsGroundedShopAnswer(question), false, question);
+});
+
 test('a checkout shipping quote is not treated as order status', () => {
   const q =
     'I live on Reunion island and the shipping cost at cashout is 145 euros. Can someone arrange normal-cost shipping from Europe or Asia?';

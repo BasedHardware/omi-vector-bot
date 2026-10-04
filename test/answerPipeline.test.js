@@ -7,7 +7,23 @@ const {
   EMPTY_ANSWER_FALLBACK,
   addUnsyncedDataWarning,
   hasUnsyncedDataRisk,
+  stripUnverifiedOrderClaims,
 } = require('../answerPipeline');
+
+test('order replies remove unsupported customer-specific status but retain carrier steps', () => {
+  const answer = [
+    'Your order was delivered yesterday. It will arrive by Friday. The package is at the depot.',
+    'Open the tracking link from the shipping email and contact the carrier about a missing parcel.',
+    'Source: https://help.omi.me/en/articles/shipping',
+  ].join('\n');
+  const safe = stripUnverifiedOrderClaims(answer);
+  assert.doesNotMatch(safe, /delivered yesterday|arrive by Friday|at the depot/i);
+  assert.match(safe, /tracking link from the shipping email/i);
+  assert.match(safe, /contact the carrier/i);
+  assert.match(safe, /Source: https:\/\/help\.omi\.me/i);
+  assert.equal(stripUnverifiedOrderClaims(answer, { verifiedLookup: true }), answer);
+  assert.match(stripUnverifiedOrderClaims('If tracking shows delivered, contact the carrier.'), /contact the carrier/i);
+});
 
 test('sync stalls and missing conversations get a data-loss warning without the word offline', () => {
   for (const question of ['sync is stuck at 40%', 'lost my conversations after the update']) {
