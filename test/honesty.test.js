@@ -311,6 +311,17 @@ test('failed handoff overrides issue and conversation copy with an honest email 
   assert.match(out, /help@omi\.me/);
 });
 
+test('an incomplete locale map cannot suppress a delivered or failed handoff next step', () => {
+  const footers = { thread: '', failed: '', pending: '' };
+  assert.match(escalateReply('A person needs to review this.', {
+    pinged: true, replyInThread: true, footers,
+  }), /will reply in this thread/i);
+  assert.match(escalateReply('A person needs to review this.', {
+    deliveryFailed: true, footers,
+  }), /help@omi\.me/i);
+  assert.match(escalateReply('A person needs to review this.', { footers }), /have not pinged anyone yet/i);
+});
+
 test('reused tickets from the parent channel keep the duplicate footer', () => {
   const out = escalateReply('You wrote about the phone app.', {
     pinged: true,

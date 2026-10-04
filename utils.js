@@ -438,11 +438,11 @@ function escalateReply(answer, opts = {}) {
 
   if (opts.deliveryFailed) {
     body = stripSupportRedirect(body);
-    return [body, footers ? footers.failed : FAILED_HANDOFF_FOOTER].filter(Boolean).join('\n\n');
+    return [body, footers?.failed || FAILED_HANDOFF_FOOTER].filter(Boolean).join('\n\n');
   }
 
   if (pinged && opts.replyInThread) {
-    return [body, footers ? footers.thread : THREAD_REPLY_FOOTER].filter(Boolean).join('\n\n');
+    return [body, footers?.thread || THREAD_REPLY_FOOTER].filter(Boolean).join('\n\n');
   }
 
   if (opts.conversation) {
@@ -451,13 +451,13 @@ function escalateReply(answer, opts = {}) {
 
   if (opts.issue && !opts.pingAuthor) {
     if (/written (up|in this thread)/i.test(body)) return body;
-    return [body, footers ? footers.issue : ISSUE_FOOTER].filter(Boolean).join('\n\n');
+    return [body, footers?.issue || ISSUE_FOOTER].filter(Boolean).join('\n\n');
   }
 
   if (pinged) {
     const footer = duplicate
-      ? (footers ? footers.duplicate : DUPLICATE_FOOTER)
-      : (footers ? footers.sent : PINGED_FOOTER);
+      ? (footers?.duplicate || DUPLICATE_FOOTER)
+      : (footers?.sent || PINGED_FOOTER);
     if (!duplicate && ALREADY_SAID_PINGED.some((re) => re.test(body))) return body;
     if (duplicate && /already has this/i.test(body)) return body;
     return [body, footer].filter(Boolean).join('\n\n');
@@ -465,7 +465,7 @@ function escalateReply(answer, opts = {}) {
 
   if (opts.pingAuthor) return body;
 
-  return [body, footers ? footers.pending : ESCALATE_FOOTER].filter(Boolean).join('\n\n');
+  return [body, footers?.pending || ESCALATE_FOOTER].filter(Boolean).join('\n\n');
 }
 
 module.exports = {

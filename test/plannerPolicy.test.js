@@ -63,6 +63,8 @@ test('planner cannot turn a plain device how-to into a fault handoff', () => {
   const plan = { supportKind: 'technical_problem', standaloneQuestion: 'Omi necklace keeps turning itself off' };
   assert.deepEqual(policy.routeWithUnderstanding(route, plan, 'How do I switch my Omi necklace off?'), route);
   assert.equal(policy.routeWithUnderstanding({ area: 'unknown', lane: 'unknown' }, plan, 'It keeps turning itself off').lane, 'firmware');
+  const symptom = { supportKind: 'technical_problem', standaloneQuestion: 'The transcripts are empty after pairing was resolved' };
+  assert.equal(policy.routeWithUnderstanding(route, symptom, 'Resolved the pairing, now transcripts are empty').lane, 'tech');
 });
 
 test('a cited canned how-to is usable only when its official source is retrieved', () => {
@@ -102,6 +104,42 @@ test('off-topic chatter is silent but a request for a person is not', () => {
   assert.equal(policy.suppressOffTopic({ messageKind: 'off_topic' }, { lane: 'unknown', escalate: false }), true);
   assert.equal(policy.suppressOffTopic({ messageKind: 'off_topic' }, { lane: 'unknown', wantHuman: true }), false);
   assert.equal(policy.suppressOffTopic({ messageKind: 'off_topic' }, { lane: 'tech', escalate: true }), false);
+});
+
+test('only short, pure acknowledgments are suppressed, even when the planner mislabels a question', () => {
+  for (const message of ['Thanks!', 'fixed it thanks', 'Gracias, ya funciona', 'Order #12345 is resolved, merci']) {
+    assert.equal(policy.suppressAcknowledgment({ messageKind: 'acknowledgment' }, message), true, message);
+  }
+  for (const message of [
+    'Has the error been fixed in the new version',
+    'Resolved the pairing, now transcripts are empty',
+    'Thanks, but the recordings are still missing',
+    'It was fixed, another issue appeared with the microphone',
+    'Can support check whether that bug is fixed',
+  ]) {
+    assert.equal(policy.suppressAcknowledgment(null, message), false, message);
+    assert.equal(policy.suppressAcknowledgment({ messageKind: 'acknowledgment' }, message), false, message);
+  }
+});
+
+test('unsupported handoff languages keep a delivered or failed next step', () => {
+  const { escalateReply } = require('../utils');
+  for (const { language, question, acknowledgment } of [
+    { language: 'it', question: 'Vorrei parlare con una persona', acknowledgment: 'Una persona deve esaminare la tua richiesta in privato.' },
+    { language: 'zh', question: '我想联系人工客服', acknowledgment: '需要由工作人员私下查看您的请求。' },
+    { language: 'ko', question: '상담원과 이야기하고 싶어요', acknowledgment: '담당자가 요청을 비공개로 검토해야 합니다.' },
+  ]) {
+    const plan = { replyLanguage: language, handoffAcknowledgment: acknowledgment };
+    const body = policy.personReply('exception_request', { lane: 'account' }, question, plan);
+    assert.equal(body, acknowledgment);
+    const footers = policy.handoffFooters(plan, question);
+    const delivered = escalateReply(body, { pinged: true, replyInThread: true, footers });
+    assert.match(delivered, /will reply in this thread/i, language);
+    const failed = escalateReply(body, { deliveryFailed: true, footers });
+    assert.match(failed, /help@omi\.me/i, language);
+  }
+  const fallback = policy.personReply('exception_request', { lane: 'account' }, 'Хочу поговорить с человеком', { replyLanguage: 'ru' });
+  assert.match(fallback, /person needs to review/i);
 });
 
 test('person-only fallback matches the request and uses the customer script', () => {

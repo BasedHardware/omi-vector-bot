@@ -15,10 +15,14 @@ function skipPlannerForCanned(route, question) {
 
 function isPlainAcknowledgment(question) {
   const text = String(question || '').trim();
-  if (/[?？]/.test(text) || /\b(?:but|however|still|except|yet|now it|another issue)\b/i.test(text)) return false;
-  if (/^(?:thanks|thank you|gracias|merci|obrigad[oa]|danke)[\s!.]*$/i.test(text)) return true;
-  return /\b(?:resolved|fixed|works now|working now)\b/i.test(text) &&
-    !/\b(?:want|need|please|refund|cancel|delete|replace|help)\b/i.test(text);
+  const words = text.match(/[\p{L}\p{N}]+/gu) || [];
+  if (!words.length || words.length > 8 || /[?？\n\r]/.test(text)) return false;
+  // A missing question mark is common in support requests. A model's
+  // "acknowledgment" label cannot override these question/problem cues.
+  if (/^(?:has|is|did|does|can|when|why|how|what)\b/i.test(text) ||
+      /\b(?:when|why|how|what|not|still|again|now|empty|error|broken|issue|another|but|however|except|yet|missing|failed|failing|stuck|stopped|vanished|lost|cannot|can't|won't|want|need|please|refund|cancel|delete|replace|help)\b/i.test(text)) return false;
+  return /\b(?:thanks|thank you|gracias|merci|obrigad[oa]|danke|grazie|fixed|resolved|works|working|ok|okay|yes|yeah|great|perfect|understood|got it|all good)\b/i.test(text) ||
+    /(?:ありがとう|ありがとうございます|谢谢|謝謝|감사합니다|고마워요)/u.test(text);
 }
 
 function suppressOffTopic(understanding, route) {
@@ -51,8 +55,10 @@ function routeWithUnderstanding(route, understanding, originalQuestion = '') {
   }
   if (kind === 'money') return { ...current, area: 'shop', lane: 'money', escalate: true };
   if (kind === 'privacy') return { ...current, area: 'privacy', lane: 'privacy', escalate: true };
+  const reportedFault = /\b(?:empty|missing|vanished|lost|stopped|failed|failing|broken|error|crash(?:ed|ing)?|doesn['’]?t|won['’]?t|cannot|can['’]?t|not working|not syncing|no answer)\b/i.test(String(originalQuestion || ''));
   const weakRoute = current.lane === 'unknown' ||
-    (current.lane === 'faq' && current.area === 'unknown' && router.isTechLane(translated) &&
+    (current.lane === 'faq' && current.area === 'unknown' &&
+      (router.isTechLane(translated) || understanding?.messageKind === 'new_symptom' || reportedFault) &&
       !router.looksLikeProductQuestion(originalQuestion));
   if (kind === 'technical_problem' && weakRoute) {
     const area = ['app', 'desktop', 'firmware'].includes(translated.area) ? translated.area : 'unknown';
@@ -61,11 +67,8 @@ function routeWithUnderstanding(route, understanding, originalQuestion = '') {
   return current;
 }
 
-function suppressAcknowledgment(understanding, question) {
-  if (isPlainAcknowledgment(question)) return true;
-  if (understanding?.messageKind !== 'acknowledgment') return false;
-  const text = String(question || '');
-  return !/[?？]/.test(text) && !/\b(?:but|however|still|except|yet)\b/i.test(text);
+function suppressAcknowledgment(_understanding, question) {
+  return isPlainAcknowledgment(question);
 }
 
 const LOCALIZED_HANDOFF = {
@@ -89,7 +92,8 @@ function handoffLocale(understanding, question) {
 function handoffFooters(understanding, question) {
   const language = String(understanding?.replyLanguage || 'en').toLowerCase().split('-')[0];
   if (language === 'en') return null;
-  const locale = handoffLocale(understanding, question) || {};
+  const locale = handoffLocale(understanding, question);
+  if (!locale) return null;
   return {
     thread: locale.thread || '', sent: locale.sent || '', failed: locale.failed || '',
     duplicate: locale.duplicate || '', pending: locale.pending || '', issue: locale.issue || '',
@@ -110,7 +114,8 @@ function personReply(kind, route, question, understanding) {
   if (route?.intent === 'shipping_quote') return router.cannedReply(route, question);
   const acknowledgment = safeHandoffAcknowledgment(understanding, question);
   if (String(understanding?.replyLanguage || 'en').toLowerCase().split('-')[0] !== 'en') {
-    return acknowledgment || handoffLocale(understanding, question)?.pending || '';
+    const localized = acknowledgment || handoffLocale(understanding, question)?.pending;
+    if (localized) return localized;
   }
   let reply;
   if (kind === 'order_lookup') {

@@ -575,6 +575,27 @@ test('planner acknowledgment stays silent, but a new symptom after thanks is ans
   }
 });
 
+test('an unpunctuated fix-status question and a new symptom survive acknowledgment misclassification', async (t) => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  });
+  const delivered = enableStaffDelivery(t);
+  plannerMessageKind = 'acknowledgment';
+  plannerSupportKind = 'technical_problem';
+  for (const question of [
+    'Has the error been fixed in the new version',
+    'Resolved the pairing, now transcripts are empty',
+  ]) {
+    const sentBefore = delivered.length;
+    const result = await ask(question);
+    assert.ok(result.message.replies.length > 0, question);
+    assert.ok(delivered.length > sentBefore, `staff handoff: ${question}`);
+  }
+});
+
 test('an acknowledgment in an existing order case stays silent without a planner call', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';
