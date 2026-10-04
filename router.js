@@ -197,7 +197,7 @@ function parseAreaOwners(raw) {
     try {
       const parsed = JSON.parse(text);
       for (const [key, value] of Object.entries(parsed || {})) {
-        if (AREAS.includes(key) && value) map[key] = String(value).trim();
+        if ((AREAS.includes(key) || key === 'default') && value) map[key] = String(value).trim();
       }
       return map;
     } catch {
@@ -209,19 +209,21 @@ function parseAreaOwners(raw) {
     if (idx <= 0) continue;
     const area = part.slice(0, idx).trim();
     const rest = part.slice(idx + 1).trim();
-    if (!AREAS.includes(area) || !rest) continue;
+    if ((!AREAS.includes(area) && area !== 'default') || !rest) continue;
     map[area] = rest;
   }
   return map;
 }
 
 function ownerRef(area, owners) {
-  const raw = (owners || parseAreaOwners())[area];
-  if (!raw) return null;
-  const role = raw.match(/^role:(\d{5,})$/i);
-  if (role) return { kind: 'role', id: role[1] };
-  const user = raw.match(/^(\d{5,})$/);
-  if (user) return { kind: 'user', id: user[1] };
+  const configured = owners || parseAreaOwners();
+  for (const key of [area, 'default']) {
+    const raw = Object.hasOwn(configured, key) ? String(configured[key] || '') : '';
+    const role = raw.match(/^role:(\d{5,})$/i);
+    if (role) return { kind: 'role', id: role[1] };
+    const user = raw.match(/^(\d{5,})$/);
+    if (user) return { kind: 'user', id: user[1] };
+  }
   return null;
 }
 

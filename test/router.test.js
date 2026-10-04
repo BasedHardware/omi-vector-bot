@@ -341,6 +341,23 @@ test('AREA_OWNERS parses users and roles; empty means no ping', () => {
   assert.equal(/@/.test(router.specialistNames('shop', 'money')), false);
 });
 
+test('AREA_OWNERS default covers unknown and unassigned areas without overriding named owners', () => {
+  const owners = router.parseAreaOwners(
+    'shop:123456789012345678,default:role:987654321098765432'
+  );
+  assert.equal(router.ownerMention('shop', owners), '<@123456789012345678>');
+  assert.equal(router.ownerMention('unknown', owners), '<@&987654321098765432>');
+  assert.equal(router.ownerMention('desktop', owners), '<@&987654321098765432>');
+  assert.equal(
+    router.ownerMention('app', router.parseAreaOwners('app:MOHSIN_ID,default:111111111111111111')),
+    '<@111111111111111111>'
+  );
+  assert.equal(router.ownerMention('unknown', router.parseAreaOwners('default:111111111111111111')), '<@111111111111111111>');
+  assert.equal(router.ownerMention('unknown', router.parseAreaOwners('shop:123456789012345678')), '');
+  const json = router.parseAreaOwners('{"default":"role:987654321098765432"}');
+  assert.equal(router.ownerMention('app', json), '<@&987654321098765432>');
+});
+
 test('device not capturing stays with transcription and does not become a firmware repair', () => {
   const q = "Have pro sub and device doesn't capture anything. Keep getting transcription unavailable.";
   const route = router.classify(q);

@@ -8,6 +8,8 @@ const telegram = require('./telegram');
 const {
   isOnCooldown,
   markReplied,
+  wasRecentlyAnsweredText,
+  markAnsweredText,
   claimMessage,
   claimAsker,
   releaseAsker,
@@ -487,6 +489,12 @@ async function handleMessage(message) {
   if (!shouldHandle(message)) {
     directHistory = await directContinuationHistory(message);
     if (!directHistory.length) return;
+  }
+  if (
+    message.channel?.isThread?.() &&
+    wasRecentlyAnsweredText(message.channel.id, message.author?.id, message.content)
+  ) {
+    return;
   }
   if (!claimMessage(message.id)) {
     console.log(`[Bot] already handling ${message.id}`);
@@ -1013,10 +1021,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       ) {
         await postShopTicketCard(handoffThread, triaged);
       }
-      const handoffAnswer =
-        pinged && router.isTechLane({ lane: triaged.lane, area: triaged.area })
-          ? stripSupportRedirect(cleanAnswer)
-          : cleanAnswer;
+      const handoffAnswer = pinged ? stripSupportRedirect(cleanAnswer) : cleanAnswer;
       const movedToThread = !inHandoff && Boolean(handoffThread?.id);
       let parentReply = escalateReply(handoffAnswer, {
         pinged,
@@ -1030,6 +1035,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           (Boolean(handoffThread) || cardHere),
         pingAuthor,
         deliveryFailed,
+        replyInThread: pinged && Boolean(channel.isThread?.() || handoffThread?.id),
       });
       if (movedToThread) {
         const threadLink = `<#${handoffThread.id}>`;
@@ -1045,6 +1051,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
 
     if (stayInPost) await noteCustomerLead(channel, message);
     markReplied(`${channel.id}:${message.author.id}`);
+    if (channel.isThread?.()) markAnsweredText(channel.id, message.author.id, message.content);
     if (dbReady) {
       await db.upsertThread(channel.id, message.id);
     }

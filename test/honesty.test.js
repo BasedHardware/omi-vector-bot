@@ -398,6 +398,12 @@ test('a successful Discord handoff can remove only the duplicate email redirect'
     ),
     "I can't see the phone from here. Keep the exact error ready."
   );
+  assert.equal(
+    stripSupportRedirect(
+      'Email help@omi.me with the order number. Use /order to check your orders. We email a code to the address on the order. Include order #22777. Keep your order number handy.'
+    ),
+    ''
+  );
 });
 
 test('clipThreadHistory drops empty lines and caps length', () => {
