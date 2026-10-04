@@ -9,6 +9,7 @@ const {
   looksLikeTranscription,
   looksLikeShippingQuote,
   specialistNames,
+  ownerRef,
 } = require('./router');
 
 const DEDUPE_MS = 15 * 60_000;
@@ -625,18 +626,16 @@ function formatStaffTicket({
   lane,
   github,
   fileIssueId,
-  extraMentions,
-  extraUsers,
-  extraRoles,
+  staffOnly = false,
   labels: labelOverride,
 }) {
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
   const from = message?.author?.id ? `<@${message.author.id}>` : 'unknown user';
   const channel = message?.channel?.id ? `<#${message.channel.id}>` : '';
-  const mentions = '';
   const cleanDraft = stripPingNarration(draft || '');
   const resolved = resolveRoute({ area, lane, question });
+  const owner = staffOnly ? ownerRef(resolved.area) : null;
   const why = clipForDiscord(
     pickStaffReason(resolved, reason, question) || "I can't finish this from chat.",
     200
@@ -686,18 +685,19 @@ function formatStaffTicket({
   }
   embed.fields.push({
     name: 'Staff',
-    value:
-      'Reply here. If this card is in the customer thread, they can read it.\nIf they did not name the device and the app version, ask for both.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
+    value: staffOnly
+      ? "Reply in the customer's thread using the Jump link above; replies in #vector-staff do not reach the customer.\nIf they did not name the device and the app version, ask for both.\nUse `/done` in the customer's Handoff or help thread when resolved. Use `faq: short true sentence` in a Handoff thread to save a fact."
+      : 'Reply here. If this card is in the customer thread, they can read it.\nIf they did not name the device and the app version, ask for both.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
     inline: false,
   });
 
   const discord = {
-    content: mentions || undefined,
+    content: owner ? (owner.kind === 'role' ? `<@&${owner.id}>` : `<@${owner.id}>`) : undefined,
     embeds: [embed],
     allowedMentions: {
       parse: [],
-      users: [],
-      roles: [],
+      users: owner?.kind === 'user' ? [owner.id] : [],
+      roles: owner?.kind === 'role' ? [owner.id] : [],
     },
   };
   if (fileIssueId) {
@@ -841,10 +841,6 @@ async function notifyStaff({
     return { ok: true, via: 'recent', duplicate: true };
   }
 
-  let extraMentions = '';
-  const extraUsers = [];
-  const extraRoles = [];
-
   const ticket = formatStaffTicket({
     message,
     question,
@@ -855,9 +851,7 @@ async function notifyStaff({
     lane: route?.lane,
     github,
     fileIssueId,
-    extraMentions,
-    extraUsers,
-    extraRoles,
+    staffOnly: true,
     labels,
   });
   const errors = [];

@@ -1,4 +1,5 @@
 const { stripStaffLies, stripInventedLookup } = require('./honesty');
+const { createHash } = require('node:crypto');
 
 const ESCALATION_PATTERNS = [
   /\bbilling\b/i,
@@ -47,6 +48,26 @@ function markReplied(threadId) {
 
 const claimedMessages = new Map();
 const CLAIM_MS = 10 * 60_000;
+const answeredText = new Map();
+const ANSWER_REPEAT_MS = 10 * 60_000;
+
+function answeredTextKey(channelId, authorId, text) {
+  const normalized = String(text || '').normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!channelId || !authorId || !normalized) return '';
+  const hash = createHash('sha256').update(normalized).digest('hex');
+  return `${channelId}:${authorId}:${hash}`;
+}
+
+function wasRecentlyAnsweredText(channelId, authorId, text, now = Date.now()) {
+  const key = answeredTextKey(channelId, authorId, text);
+  const last = key && answeredText.get(key);
+  return Boolean(last && now - last < ANSWER_REPEAT_MS);
+}
+
+function markAnsweredText(channelId, authorId, text, now = Date.now()) {
+  const key = answeredTextKey(channelId, authorId, text);
+  if (key) answeredText.set(key, now);
+}
 
 function claimMessage(id, now = Date.now()) {
   const key = String(id || '').trim();
@@ -79,6 +100,9 @@ function pruneTracked(now = Date.now()) {
   }
   for (const [key, ts] of claimedMessages) {
     if (ts < claimCutoff) claimedMessages.delete(key);
+  }
+  for (const [key, ts] of answeredText) {
+    if (ts < now - ANSWER_REPEAT_MS) answeredText.delete(key);
   }
 }
 
@@ -129,9 +153,8 @@ function stripSupportRedirect(text) {
         .split(/(?<=[.!?])\s+/)
         .filter(
           (sentence) =>
-            !/\b(?:email|e-mail|contact|reach out to|write to)\b[^.!?]{0,80}\bhelp@omi\.me\b/i.test(
-              sentence
-            )
+            !/\b(?:email|e-mail|contact|reach out to|write to)\b[^.!?]{0,80}\bhelp@omi\.me\b/i.test(sentence) &&
+            !/^\s*(?:use\s+\/order\b|include (?:the )?order (?:number|#)|we email a code\b|keep (?:your|the) order number handy\b)/i.test(sentence)
         )
         .join(' ')
         .trim()
@@ -268,6 +291,7 @@ const FAILED_HANDOFF_FOOTER =
   'I could not deliver this to the support team from here. Please email help@omi.me with the details; do not post order or account information publicly.';
 
 const PINGED_FOOTER = 'A person on the team has this now.';
+const THREAD_REPLY_FOOTER = 'A person on the team has this now and will reply in this thread.';
 
 const DUPLICATE_FOOTER =
   'A person on the team already has this. I have not sent another ping.';
@@ -416,6 +440,10 @@ function escalateReply(answer, opts = {}) {
     return [body, FAILED_HANDOFF_FOOTER].filter(Boolean).join('\n\n');
   }
 
+  if (pinged && opts.replyInThread) {
+    return [body, THREAD_REPLY_FOOTER].filter(Boolean).join('\n\n');
+  }
+
   if (opts.conversation) {
     return body;
   }
@@ -440,6 +468,8 @@ function escalateReply(answer, opts = {}) {
 module.exports = {
   isOnCooldown,
   markReplied,
+  wasRecentlyAnsweredText,
+  markAnsweredText,
   claimMessage,
   claimAsker,
   releaseAsker,
