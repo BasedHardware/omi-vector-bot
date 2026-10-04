@@ -144,7 +144,7 @@ function isGroundedHowTo(route, question, answer) {
   if (route?.lane !== 'faq' || route?.wantHuman || !router.looksLikeProductQuestion(question)) return false;
   const text = String(answer || '');
   if (!/https:\/\/(?:help|docs)\.omi\.me\//i.test(text)) return false;
-  const uncertainty = /\b(?:couldn['’]?t find|can['’]?t find|not sure|can['’]?t confirm|unable to verify|don['’]?t know)\b/i.exec(text);
+  const uncertainty = /\b(?:couldn['’]?t find|can['’]?t find|couldn['’]?t verify|could not verify|can['’]?t verify|cannot verify|not sure|can['’]?t confirm|unable to verify|don['’]?t know)\b/i.exec(text);
   const actionableStep = /\b(?:open|go to|tap|select|choose|press|connect|update|visit)\b/i.exec(text);
   if (uncertainty && (!actionableStep || uncertainty.index < actionableStep.index)) return false;
   return true;

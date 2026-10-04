@@ -46,6 +46,7 @@ test('planner-routed order reply uses verified /order when live and email when u
 test('an official answer to a how-to can stay in-thread despite a model handoff request', () => {
   assert.equal(policy.isGroundedHowTo({ lane: 'faq' }, 'How do I update Omi?', 'Open Settings → Device Settings → Update Firmware. Source: https://help.omi.me/en/articles/13149698-omi'), true);
   assert.equal(policy.isGroundedHowTo({ lane: 'faq' }, 'How do I turn Omi off?', "I couldn't find an official power-off step. Source: https://help.omi.me/en/articles/13154278-omi-necklace-issues"), false);
+  assert.equal(policy.isGroundedHowTo({ lane: 'faq' }, 'How do I update Omi?', "I couldn't verify a safe answer. A person needs to check this. Source: https://help.omi.me/en/articles/123-update-omi"), false);
   assert.equal(policy.isGroundedHowTo({ lane: 'faq' }, 'How do I update Omi?', "Open Settings → Device Settings → Update Firmware. I'm not sure where to see the version afterward. Source: https://help.omi.me/en/articles/13149698-omi"), true);
 });
 

@@ -13,7 +13,6 @@ const {
   claimMessage,
   claimAsker,
   releaseAsker,
-  shouldEscalate,
   typingDelay,
   stripSupportRedirect,
   clipForDiscord,
@@ -46,6 +45,7 @@ const shopify = require('./shopify');
 const shopifyBind = require('./shopifyBind');
 const router = require('./router');
 const plannerPolicy = require('./plannerPolicy');
+const { decideEscalation } = require('./escalationPolicy');
 const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts, OFFICIAL } = require('./prompt');
@@ -910,17 +910,15 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const handoffFollowup = continuingPost && supportFollowup;
     const pingAuthor = wantsAuthorPing(caption);
     const localizedFooters = plannerPolicy.handoffFooters(searchPlan, asked || question);
-    const docsQuiet = plannerPolicy.isGroundedHowTo(route, asked || question, cleanAnswer) ||
-      route.lane === 'faq' &&
-      (router.looksLikeDocs(asked || question) ||
-        router.looksLikeRecordingHow(asked || question) ||
-        router.looksLikeDeviceReset(asked || question)) &&
-      !route.wantHuman &&
-      !aiResponse.escalate;
-    const escalate =
-      holdPublicCopy ||
-      (!docsQuiet &&
-        (shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate));
+    const { escalate } = decideEscalation({
+      route,
+      question: asked || question,
+      answer: cleanAnswer,
+      agent: aiResponse,
+      caption,
+      triaged,
+      holdPublicCopy,
+    });
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,
       labels: triaged.labels,

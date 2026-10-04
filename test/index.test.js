@@ -1286,6 +1286,33 @@ test('review may clear a grounded self-serve FAQ handoff but not a tech handoff'
   assert.ok(tech.thread);
 });
 
+test('review failure with a cited FAQ still delivers one staff handoff and a thread next step', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const db = require('../db');
+  const previousSearch = db.searchDocPages;
+  const previousUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = 'test-only-database';
+  db.searchDocPages = async (_query, _limit, sources) =>
+    sources && !sources.includes('help') ? [] : [{
+      url: 'https://help.omi.me/en/articles/123-update-omi',
+      title: 'Conversations in the app',
+      body: 'Conversations and memories can be managed in the app.',
+      source: 'help',
+      chunk_index: 0,
+    }];
+  t.after(() => {
+    db.searchDocPages = previousSearch;
+    process.env.DATABASE_URL = previousUrl;
+  });
+  reviewerResponse = () => { throw new Error('test reviewer unavailable'); };
+  modelReply = { final_answer: 'Open the app to review the stored conversation.', confidence: 0.95, escalate: false };
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'storage question' });
+  const result = await ask('why does omi save two copies of my conversation?', { channel });
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /couldn't verify a safe answer/i);
+  assert.match(result.reply.trim(), /will reply in this thread\.$/i);
+});
+
 test('an escalated how-to whose Handoff cannot be posted says nobody was pinged', async () => {
   modelReply = { escalate: true };
   const message = makeMessage('How do I pair my Omi with a new phone?');
