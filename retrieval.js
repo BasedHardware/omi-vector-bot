@@ -214,6 +214,10 @@ function isSingleItemDeletionQuestion(question) {
 function supportQueries(question, planned = []) {
   const text = [question, ...(planned || [])].filter(Boolean).join(' ');
   const variants = [];
+  if (/\b(?:build|building|create|make|develop)\b/i.test(question) &&
+      /\bapps?\b/i.test(question) && /\bomi\b/i.test(question)) {
+    variants.push('Omi building apps developer integrations conversations memory');
+  }
   if (/\b(?:buy|buying|purchase|which\s+(?:omi|device)|choose\s+(?:an?\s+)?(?:omi|device))\b/i.test(question) &&
       /\b(?:omi|device|hardware)\b/i.test(question)) {
     variants.push('Omi device buying guide parts list choose hardware');

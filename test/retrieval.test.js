@@ -87,6 +87,11 @@ test('device purchase questions also search buying and parts terminology', () =>
   assert.match(queries.join('\n'), /buying guide.*parts list/i);
 });
 
+test('building Omi apps searches the app-development guides as well as API docs', () => {
+  const queries = supportQueries('How can I build an Omi app that reads my conversations?');
+  assert.match(queries.join('\n'), /building apps.*developer.*conversations/i);
+});
+
 test('conversation deletion searches both synced data and phone-local copies', () => {
   const queries = supportQueries(
     'How do I remove past conversations from the app and phone?',
