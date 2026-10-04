@@ -146,13 +146,14 @@ function sanitizeReply(text) {
 }
 
 function stripSupportRedirect(text) {
-  const isRedirect = (sentence) =>
-    /\b(?:email|e-mail|contact|reach out to|write to)\b[^.!?]{0,100}\bhelp@omi\.me\b/i.test(sentence) ||
-    /\b(?:contact form|submit (?:a |the )?(?:request|ticket))\b[^.!?]{0,100}\bhelp\.omi\.me\b/i.test(sentence) ||
-    /\bhelp\.omi\.me\b[^.!?]{0,100}\b(?:contact form|submit (?:a |the )?(?:request|ticket))\b/i.test(sentence) ||
-    /\b(?:join|visit|go to|head to|use|try)\b[^.!?]{0,100}\bdiscord\.omi\.me\b/i.test(sentence) ||
-    /\b(?:look for|post (?:in|to)|ask (?:in|on)|join|use)\b[^.!?]{0,60}(?:#help\b|help channel\b)/i.test(sentence) ||
-    /^\s*(?:please\s+|you\s+(?:can|should)\s+)?(?:contact|reach out to)\s+(?:omi\s+)?support\b/i.test(sentence);
+  const isRedirect = (sentence) => {
+    const contactAction = /\b(?:email|e-mail|contact|reach|write|message|ask|post|submit|open|use|visit|go|head|browse|find|request|talk|speak|join|try|look)\b/i;
+    const externalChannel = /(?:help@omi\.me|discord\.omi\.me|#help\b|help channel\b|help\.omi\.me\b)/i;
+    const supportDestination = /\b(?:contact\s+(?:omi\s+)?support|support\s+(?:contact|form|page|option|request|ticket)|(?:help|support)\s+(?:center|desk|team)|(?:real\s+)?person\s+(?:at|through|via)\s+(?:the\s+)?(?:help|support))\b/i;
+    return (/help@omi\.me/i.test(sentence) && /\b(?:email|e-mail|contact|reach|write|send)\b/i.test(sentence)) ||
+      (externalChannel.test(sentence) && contactAction.test(sentence)) ||
+      (supportDestination.test(sentence) && contactAction.test(sentence));
+  };
   return String(text || '')
     .split('\n')
     .map((line) =>

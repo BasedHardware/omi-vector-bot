@@ -437,6 +437,20 @@ test('a successful Discord handoff removes redirects but keeps useful details', 
   );
 });
 
+test('delivered handoffs remove alternate contact routes, including Help Center contact options', () => {
+  const answer = [
+    'The way to reach Omi Support is through the Help Center at help.omi.me — browse the guides there and use the contact Support option.',
+    'You can request a person on the help.omi.me contact page, or email help@omi.me.',
+    'Try the #help channel or discord.omi.me for a support agent.',
+    'Contact support with the details below.',
+    'Please include the app version and the exact error.',
+  ].join('\n');
+  const delivered = escalateReply(answer, { pinged: true, replyInThread: true });
+  assert.doesNotMatch(delivered, /help\.omi\.me|help@omi\.me|discord\.omi\.me|#help|contact support/i);
+  assert.match(delivered, /Please include the app version and the exact error/);
+  assert.match(delivered, /will reply in this thread/i);
+});
+
 test('clipThreadHistory drops empty lines and caps length', () => {
   const out = clipThreadHistory(
     [
