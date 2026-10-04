@@ -408,6 +408,50 @@ test('a refund request skips the model and opens a money Handoff', async () => {
   assert.ok(r.reply);
 });
 
+test('delivered refund, order, and account tickets give one next step in the customer thread', async (t) => {
+  const originalFetch = client.channels.fetch;
+  const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
+  client.channels.fetch = async () => ({ isTextBased: () => true, send: async (payload) => payload });
+  t.after(() => {
+    client.channels.fetch = originalFetch;
+    process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
+  });
+  for (const question of [
+    'I want a refund for my Omi.',
+    'Where is my order? I have no tracking email.',
+    'Please delete my account and all my data.',
+  ]) {
+    const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Customer support case' });
+    const result = await ask(question, { channel });
+    assert.match(result.reply, /person.*will reply in this thread/i, question);
+    assert.doesNotMatch(result.reply, /help@omi\.me/i, question);
+    assert.doesNotMatch(result.reply, /use \/order|include (?:the )?order (?:number|#)/i, question);
+    assert.equal(result.message.replies.length, 1, question);
+  }
+});
+
+test('failed refund, order, and account delivery keeps the email fallback', async (t) => {
+  const originalFetch = client.channels.fetch;
+  const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
+  client.channels.fetch = async () => { throw new Error('staff channel unavailable'); };
+  t.after(() => {
+    client.channels.fetch = originalFetch;
+    process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
+  });
+  for (const question of [
+    'I want a refund for my Omi.',
+    'Where is my order? I have no tracking email.',
+    'Please delete my account and all my data.',
+  ]) {
+    const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Customer support case' });
+    const result = await ask(question, { channel });
+    assert.match(result.reply, /could not deliver.*help@omi\.me/is, question);
+    assert.doesNotMatch(result.reply, /will reply in this thread/i, question);
+  }
+});
+
 test('a firmware report opens a firmware Handoff and does not file until staff approve', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('My Omi keeps turning itself off after 5 seconds.');
@@ -787,6 +831,33 @@ test('#vector-test still answers two quick questions from one person', async () 
   await Promise.all([handleMessage(first), handleMessage(second)]);
   assert.equal(first.replies.length, 1);
   assert.equal(second.replies.length, 1);
+});
+
+test('same author repeating normalized text in one thread is quiet for ten minutes after an answer', async (t) => {
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Pairing question' });
+  const authorId = nextId();
+  const first = makeMessage('How do I pair my Omi with a new phone?', { channel, authorId });
+  await handleMessage(first);
+  assert.equal(first.replies.length, 1);
+  const answeredCalls = modelCalls.length;
+
+  const duplicate = makeMessage('  HOW do I pair my Omi with a new phone?  ', { channel, authorId });
+  await handleMessage(duplicate);
+  assert.equal(duplicate.replies.length, 0);
+  assert.equal(modelCalls.length, answeredCalls);
+
+  const otherAuthor = makeMessage('How do I pair my Omi with a new phone?', { channel });
+  await handleMessage(otherAuthor);
+  assert.equal(otherAuthor.replies.length, 1);
+  const otherThread = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Another pairing question' });
+  const elsewhere = makeMessage('How do I pair my Omi with a new phone?', { channel: otherThread, authorId });
+  await handleMessage(elsewhere);
+  assert.equal(elsewhere.replies.length, 1);
+
+  advanceClock(t, 11 * 60_000);
+  const later = makeMessage('How do I pair my Omi with a new phone?', { channel, authorId });
+  await handleMessage(later);
+  assert.equal(later.replies.length, 1);
 });
 
 test('asking to talk to a human opens a Handoff even when the model says not to escalate', async () => {
