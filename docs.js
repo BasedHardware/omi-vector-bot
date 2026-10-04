@@ -20,7 +20,7 @@ async function docsIndexText(fetchFn) {
   if (indexCache.text && now - indexCache.at <= 60 * 60 * 1000) return indexCache.text;
   if (!indexLookup) {
     indexLookup = (async () => {
-      const response = await fetchFn(INDEX_URL);
+      const response = await fetchFn(INDEX_URL, { signal: AbortSignal.timeout(10_000) });
       if (!response.ok) return '';
       const text = await response.text();
       indexCache = { at: Date.now(), text };
@@ -146,13 +146,13 @@ function activeStore(store) {
 
 async function rememberPages(store, pages) {
   if (!store?.saveDocPage) return;
-  for (const page of pages) {
+  await Promise.all(pages.map(async (page) => {
     try {
       await store.saveDocPage(page);
     } catch (err) {
       console.error('[Docs] save failed:', err.message);
     }
-  }
+  }));
 }
 
 async function storedDocs(question, store, plannedQueries = []) {
@@ -216,16 +216,19 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
       if (picked.length >= 6) break;
     }
     if (!picked.length) return '';
-    const pages = [];
-    const chunks = [];
-    for (const page of picked) {
-      const pageRes = await fetchFn(page.url);
-      if (!pageRes.ok) continue;
-      const excerpt = clipPage(await pageRes.text());
-      if (!excerpt) continue;
-      pages.push({ url: page.url, title: page.title, body: excerpt });
-      chunks.push(...chunkDocument({ url: page.url, title: page.title, body: excerpt }));
-    }
+    const fetched = await Promise.all(picked.map(async (page) => {
+      try {
+        const pageRes = await fetchFn(page.url, { signal: AbortSignal.timeout(10_000) });
+        if (!pageRes.ok) return null;
+        const excerpt = clipPage(await pageRes.text());
+        return excerpt ? { url: page.url, title: page.title, body: excerpt } : null;
+      } catch (err) {
+        console.error('[Docs] page fetch failed:', err.message);
+        return null;
+      }
+    }));
+    const pages = fetched.filter(Boolean);
+    const chunks = pages.flatMap((page) => chunkDocument(page));
     await rememberPages(saved, pages);
     return formatEvidence(rankLocalChunks(queries, chunks, 8, { customerQuestion: question }));
   } catch (err) {
