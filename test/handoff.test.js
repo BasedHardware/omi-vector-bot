@@ -156,7 +156,7 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
   assert.equal(staffMentions(), '');
 });
 
-test('staff card text cannot contain an active Discord mention', () => {
+test('staff card names the customer in From without notifying or retaining untrusted mentions', () => {
   const card = formatStaffTicket({
     message: { url: 'https://discord.com/channels/1/2/3', author: { id: '123456789012345678' }, channel: { id: '2' } },
     question: 'Please ask <@123456789012345678> about this',
@@ -165,7 +165,11 @@ test('staff card text cannot contain an active Discord mention', () => {
   }).discord;
   assert.equal(card.content, undefined);
   assert.deepEqual(card.allowedMentions, { parse: [], users: [], roles: [] });
-  assert.doesNotMatch(JSON.stringify(card), /<@(?:&|!)?\d+>/);
+  assert.equal(card.embeds[0].fields.find((field) => field.name === 'From')?.value, '<@123456789012345678> · <#2>');
+  assert.doesNotMatch(card.embeds[0].description, /<@(?:&|!)?\d+>/);
+  for (const field of card.embeds[0].fields.filter((field) => field.name !== 'From')) {
+    assert.doesNotMatch(field.value, /<@(?:&|!)?\d+>/);
+  }
   assert.ok(card.embeds[0].fields.find((field) => field.name === 'Owner')?.value);
 });
 
@@ -480,7 +484,7 @@ test('a customer-visible channel card is not a delivered handoff', async () => {
   resetHandoffMemory();
 });
 
-test('staff-only cards show plain owner names and never mention users or roles', async () => {
+test('staff-only cards show plain owners and identify the customer only in the From embed', async () => {
   resetHandoffMemory();
   const prevThread = process.env.HANDOFF_THREADS;
   const prevStaff = process.env.STAFF_ALERT_CHANNEL_ID;
@@ -551,7 +555,11 @@ test('staff-only cards show plain owner names and never mention users or roles',
   assert.equal(faqResult.via, 'staff-channel');
   assert.equal(sent[3].embeds[0].fields.find((f) => f.name === 'Owner').value, 'Aryan, David, undivisible');
   for (const card of sent) {
-    assert.doesNotMatch(JSON.stringify(card), /<@(?:&|!)?\d+>/);
+    assert.equal(card.embeds[0].fields.find((f) => f.name === 'From')?.value, '<@99> · <#chan-owner>');
+    assert.doesNotMatch(card.embeds[0].description, /<@(?:&|!)?\d+>/);
+    for (const field of card.embeds[0].fields.filter((field) => field.name !== 'From')) {
+      assert.doesNotMatch(field.value, /<@(?:&|!)?\d+>/);
+    }
     assert.deepEqual(card.allowedMentions, { parse: [], users: [], roles: [] });
     assert.ok(card.embeds[0].fields.find((f) => f.name === 'Owner')?.value);
   }

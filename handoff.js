@@ -654,7 +654,7 @@ function formatStaffTicket({
 }) {
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
-  const from = message?.author?.id ? `Discord user ${message.author.id}` : 'unknown user';
+  const from = /^\d+$/.test(String(message?.author?.id || '')) ? `<@${message.author.id}>` : 'unknown user';
   const channel = message?.channel?.id ? `<#${message.channel.id}>` : '';
   const cleanDraft = stripPingNarration(draft || '');
   const resolved = resolveRoute({ area, lane, question });
@@ -716,6 +716,7 @@ function formatStaffTicket({
   });
   embed.description = embed.description.replace(/<@(?:&|!)?\d+>/g, '[Discord user]');
   for (const field of embed.fields) {
+    if (field.name === 'From') continue; // Trusted author ID identifies the customer without a notification.
     field.value = field.value.replace(/<@(?:&|!)?\d+>/g, '[Discord user]');
   }
 
