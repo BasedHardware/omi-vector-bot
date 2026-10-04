@@ -115,6 +115,12 @@ test('direct human-contact requests route to staff without misreading ordinary c
     'real person please',
     'is this a real person or a bot? i need help',
     'I need someone from the team to look at this',
+    'get me a real human',
+    'need someone to check my order',
+    'Give me an actual agent to help with this',
+    'I want someone from support to reply',
+    'Is a live representative available?',
+    'I need a real person to talk to about billing',
   ]) assert.equal(router.classify(question).wantHuman, true, question);
   for (const question of [
     'Does Omi need a person to be close to the mic?',
@@ -123,6 +129,9 @@ test('direct human-contact requests route to staff without misreading ordinary c
     'do I need a person to set it up?',
     'can omi tell which person is speaking?',
     'I need a human-readable export of my notes',
+    'does it work if a real person talks over a video?',
+    'Can Omi distinguish a live person speaking in a recording?',
+    'I watched a clip where an actual person was talking near the microphone',
   ]) assert.equal(router.classify(question).wantHuman, false, question);
 });
 

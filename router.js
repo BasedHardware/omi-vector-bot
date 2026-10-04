@@ -143,11 +143,18 @@ const WANT_HUMAN = [
   /\bcontact\s+(?:an?\s+|the\s+)?(?:human|person|agent|representative|support|shop|shipping)(?:\s+team)?\b/i,
   /\bcan\s+someone(?:\s+from\s+(?:the\s+)?(?:team|sales|support))?\s+(?:contact|call|email)\s+me\b/i,
   /\bis\s+there\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
-  /\b(?:can|could|may)\s+i\s+get\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
-  /^\s*(?:please[,\s]+)?(?:(?:an?|the)\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\s+please[.!?]*\s*$/i,
-  /\bis\s+this\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\s+or\s+(?:an?\s+)?bot\b[^\n]{0,80}\b(?:i\s+need\s+help|help\s+me)\b/i,
-  /\b(?:i|we)\s+(?:really\s+)?need\s+someone\s+(?:from\s+(?:the\s+)?(?:team|support|sales)\b|to\s+(?:help|check|look\s+at|review|contact|reply|call|email)\b)/i,
+  /\b(?:get|give|connect|put)\s+me\s+(?:(?:in\s+touch\s+)?with\s+)?(?:(?:an?|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?|(?:the\s+)?(?:team|support|sales))\b/i,
+  /\b(?:(?:i|we)\s+(?:really\s+)?)?(?:need|want)\s+(?:(?:an?|the|real|actual|live)\s+)*(?:someone|human|person|agent|representative)(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?\s+to\s+(?:help|check|look(?:\s+at)?|review|contact|reply|call|email)\b/i,
 ];
+
+function wantsHumanSupport(text) {
+  const question = String(text || '');
+  if (any(question, WANT_HUMAN)) return true;
+  const person = /\b(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i;
+  if (!person.test(question)) return false;
+  const describesSpeaker = /\b(?:real|actual|live)\s+(?:human|person|agent|representative)\b[^.!?\n]{0,80}\b(?:speak(?:s|ing|ed)|talk(?:s|ing|ed)|record(?:s|ing|ed)|mic(?:rophone)?|audio|video|voice|to\s+be\s+(?:present|close|near))\b/i;
+  return !describesSpeaker.test(question);
+}
 
 const SUPPORT_NUDGE = [
   /\b(?:same|similar) (?:problem|issue)(?:\s+(?:here|too|for me))?\b/i,
@@ -228,7 +235,7 @@ function looksLikeOtherLanguage(text) {
 
 function classifyRoute(text) {
   const s = String(text || '');
-  const wantHuman = any(s, WANT_HUMAN);
+  const wantHuman = wantsHumanSupport(s);
 
   if (/\bin order to\b/i.test(s) && !any(s, SHOP) && !any(s, STRONG_MONEY) && !any(s, WEAK_MONEY)) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
