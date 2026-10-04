@@ -455,7 +455,7 @@ test('staff-only ticket pings only the configured area owner', async () => {
   const prevOwners = process.env.AREA_OWNERS;
   process.env.HANDOFF_THREADS = '0';
   process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
-  process.env.AREA_OWNERS = 'shop:555555555555555555,privacy:role:666666666666666666';
+  process.env.AREA_OWNERS = 'shop:555555555555555555,privacy:role:666666666666666666,default:777777777777777777';
 
   const sent = [];
   const message = {
@@ -506,6 +506,20 @@ test('staff-only ticket pings only the configured area owner', async () => {
   assert.deepEqual(sent[1].allowedMentions, {
     parse: [], users: [], roles: ['666666666666666666'],
   });
+  const defaultResult = await notifyStaff({
+    client,
+    message,
+    question: 'Can someone look into this unusual case?',
+    reason: 'Needs review',
+    area: 'unknown',
+    route: { area: 'unknown', lane: 'unknown', escalate: true },
+    skipDedupe: true,
+  });
+  assert.equal(defaultResult.via, 'staff-channel');
+  assert.equal(sent[2].content, '<@777777777777777777>');
+  assert.deepEqual(sent[2].allowedMentions, {
+    parse: [], users: ['777777777777777777'], roles: [],
+  });
 
   if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
   else delete process.env.HANDOFF_THREADS;
@@ -525,7 +539,7 @@ test('customer-visible card has no owner mentions even when AREA_OWNERS is set',
   };
   delete process.env.STAFF_ALERT_CHANNEL_ID;
   process.env.HANDOFF_THREADS = '0';
-  process.env.AREA_OWNERS = 'shop:555555555555555555';
+  process.env.AREA_OWNERS = 'default:555555555555555555';
   const sent = [];
   try {
     const result = await notifyStaff({
@@ -538,8 +552,8 @@ test('customer-visible card has no owner mentions even when AREA_OWNERS is set',
           send: async (payload) => { sent.push(payload); return payload; },
         },
       },
-      question: 'I want a refund', area: 'shop',
-      route: { area: 'shop', lane: 'money', escalate: true },
+      question: 'Can someone look into this unusual case?', area: 'unknown',
+      route: { area: 'unknown', lane: 'unknown', escalate: true },
       skipDedupe: true,
     });
     assert.equal(result.via, 'channel');
