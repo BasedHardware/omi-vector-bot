@@ -70,6 +70,31 @@ test('planned staff handoff tells both answer and review to keep the customer in
   }
 });
 
+test('each provider stage reports completion and reasoning tokens to its reply callback', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  const events = [];
+  const onUsage = (event) => events.push(event);
+  const post = (content) => async () => ({ data: {
+    choices: [{ message: { content } }],
+    usage: { completion_tokens: 23, completion_tokens_details: { reasoning_tokens: 9 } },
+  } });
+  try {
+    await planSearch({ question: 'How do I pair?', onUsage, post: post('{"standalone_question":"How do I pair?","search_queries":[]}') });
+    await queryAgent({ question: 'How do I pair?', onUsage, post: post('{"final_answer":"Open the app.","confidence":0.8}') });
+    await reviewAnswer({ question: 'How do I pair?', draft: 'Open the app.', lane: 'faq', onUsage,
+      post: post('{"final_answer":"Open the app.","grounded":true,"relevant":true,"sources_used":[]}') });
+    assert.deepEqual(events.map(({ stage, completionTokens, reasoningTokens }) => ({ stage, completionTokens, reasoningTokens })), [
+      { stage: 'planner', completionTokens: 23, reasoningTokens: 9 },
+      { stage: 'answer', completionTokens: 23, reasoningTokens: 9 },
+      { stage: 'review', completionTokens: 23, reasoningTokens: 9 },
+    ]);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
 test('planner, answer and review redact customer identifiers before the provider sees them', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';

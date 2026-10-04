@@ -50,9 +50,11 @@ let plannerWantsPerson = false;
 let plannerDataLossRisk = false;
 let reviewerResponse = null;
 const reviewCalls = [];
+let emitTestUsage = false;
 commandcode.queryAgent = async (args) => {
   modelCalls.push(args);
   if (modelDown) throw new Error('model unavailable');
+  if (emitTestUsage) args.onUsage?.({ stage: 'answer', completionTokens: 40, reasoningTokens: 12 });
   return {
     final_answer: 'Hold the center button for ten seconds, then pair it again from the app.',
     confidence: 0.9,
@@ -65,8 +67,9 @@ commandcode.queryAgent = async (args) => {
     ...modelReply,
   };
 };
-commandcode.understandQuestion = async ({ question }) => {
+commandcode.understandQuestion = async ({ question, onUsage }) => {
   plannerCalls.push(question);
+  if (emitTestUsage) onUsage?.({ stage: 'planner', completionTokens: 20, reasoningTokens: 5 });
   return {
     standaloneQuestion: plannerStandaloneQuestion || question,
     customerGoal: question,
@@ -83,6 +86,7 @@ commandcode.understandQuestion = async ({ question }) => {
 };
 commandcode.reviewAnswer = async (args) => {
   reviewCalls.push(args);
+  if (emitTestUsage) args.onUsage?.({ stage: 'review', completionTokens: 30, reasoningTokens: 7 });
   if (reviewerResponse) return reviewerResponse(args);
   const hasDraft = Boolean(String(args.draft || '').trim());
   return {
@@ -402,15 +406,35 @@ test('/health reports missing staff delivery without revealing IDs', () => {
 
 test('answer path emits per-stage timing metrics without customer text', async () => {
   let metric;
+  const timingLines = [];
+  const originalLog = console.log;
+  const previousKey = process.env.CMD_API_KEY;
   const onMetric = (value) => { metric = value; };
   process.on('omiSupportTimings', onMetric);
   try {
+    process.env.CMD_API_KEY = 'test-only-key';
+    emitTestUsage = true;
+    console.log = (...parts) => {
+      if (String(parts[0]).startsWith('[Timing]')) timingLines.push(String(parts[0]));
+      else originalLog(...parts);
+    };
     await ask('How do I pair my Omi?');
     assert.ok(metric);
     assert.deepEqual(Object.keys(metric.stages).sort(), ['answer', 'planner', 'retrieval', 'review', 'total']);
     assert.ok(metric.stages.total >= 0);
     assert.equal(JSON.stringify(metric).includes('How do I pair'), false);
+    assert.equal(timingLines.length, 1);
+    assert.match(timingLines[0], /planner_completion_tokens=20 planner_reasoning_tokens=5/);
+    assert.match(timingLines[0], /answer_completion_tokens=40 answer_reasoning_tokens=12/);
+    assert.match(timingLines[0], /review_completion_tokens=30 review_reasoning_tokens=7/);
+    assert.doesNotMatch(timingLines[0], /How do I pair/);
+    await ask('Perfect, thank you!');
+    assert.equal(timingLines.length, 1, 'suppressed acknowledgments do not log a reply');
   } finally {
+    console.log = originalLog;
+    emitTestUsage = false;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
     process.off('omiSupportTimings', onMetric);
   }
 });

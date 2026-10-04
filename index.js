@@ -53,6 +53,7 @@ const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
 const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk, stripUnverifiedOrderClaims } = require('./answerPipeline');
+const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -528,6 +529,9 @@ async function handleMessage(message) {
 async function answerMessage(message, { directHistory = [] } = {}) {
   const startedAt = performance.now();
   const stageMs = { planner: 0, retrieval: 0, answer: 0, review: 0 };
+  const stageUsage = newUsageCounters();
+  const onUsage = (event) => addStageUsage(stageUsage, event);
+  let didReply = false;
   const channel = message.channel;
   const caption = messageCaption(message.content);
   const files = await fetchTextAttachments(message.attachments);
@@ -618,6 +622,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           question: asked || question,
           threadHistory: contextHistory,
           route,
+          onUsage,
           sessionId: `discord-${channel.id}-search`,
         });
       } catch (err) {
@@ -744,6 +749,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             toolFacts,
             understanding: searchPlan,
             handoffPlanned,
+            onUsage,
             sessionId: `discord-${channel.id}`,
             canNotifyStaff: canNotifyStaff({ discordReady: true }),
           });
@@ -771,6 +777,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 policy: toolFacts,
                 lane: draftLane,
                 handoffPlanned: handoffPlanned || aiResponse.escalate === true,
+                onUsage,
                 sources: [
                   retrievedEvidence,
                   releaseText ? `[S99 | Official release note]\n${releaseText}` : '',
@@ -1069,11 +1076,13 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         parentReply = `${clipForDiscord(parentReply, 1900 - threadLink.length - 2)}\n\n${threadLink}`;
       }
       await replySafe(message, parentReply, { pingAuthor });
+      didReply = true;
       if (dbReady) {
         await db.createEscalation(channel.id);
       }
     } else {
       await replySafe(message, cleanAnswer, { pingAuthor });
+      didReply = true;
     }
 
     if (stayInPost) await noteCustomerLead(channel, message);
@@ -1089,12 +1098,13 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         message,
         'Something broke on my side. I have not pinged anyone. Try that again in a moment.'
       );
+      didReply = true;
     } catch (replyErr) {
       console.error('[Bot] Reply failed:', replyErr.message);
     }
   } finally {
     const total = Math.round(performance.now() - startedAt);
-    console.log(`[Timing] planner=${stageMs.planner} retrieval=${stageMs.retrieval} answer=${stageMs.answer} review=${stageMs.review} total=${total}`);
+    if (didReply) console.log(timingLogLine({ ...stageMs, total }, stageUsage));
     process.emit('omiSupportTimings', { messageId: message.id, stages: { ...stageMs, total } });
   }
 }

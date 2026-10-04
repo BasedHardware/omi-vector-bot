@@ -46,18 +46,20 @@ function privateProviderBody(body) {
   };
 }
 
-function recordModelUsage(data, stage, requestedModel) {
+function recordModelUsage(data, stage, requestedModel, onUsage) {
   const usage = data?.usage || {};
   const count = (value) => value === undefined || value === null || !Number.isFinite(Number(value))
     ? null
     : Math.max(0, Number(value));
-  process.emit('omiSupportModelUsage', {
+  const event = {
     stage,
     model: String(data?.model || requestedModel || '').slice(0, 120),
     promptTokens: count(usage.prompt_tokens ?? usage.input_tokens),
     completionTokens: count(usage.completion_tokens ?? usage.output_tokens),
     reasoningTokens: count(usage.completion_tokens_details?.reasoning_tokens ?? usage.output_tokens_details?.reasoning_tokens ?? usage.reasoning_tokens),
-  });
+  };
+  process.emit('omiSupportModelUsage', event);
+  if (typeof onUsage === 'function') onUsage(event);
 }
 
 function jsonObject(raw) {
@@ -250,7 +252,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
   return chosen.length ? `${body}\n\n${label ? `${label}: ` : ''}${chosen.join(' ')}` : body;
 }
 
-async function understandQuestion({ question, threadHistory = [], route, post }) {
+async function understandQuestion({ question, threadHistory = [], route, onUsage, post }) {
   const provider = providerConfig();
   if (!provider.key) throw new Error('Missing CMD_API_KEY');
   const send = post || axios.post.bind(axios);
@@ -292,7 +294,7 @@ async function understandQuestion({ question, threadHistory = [], route, post })
       headers: providerHeaders(provider),
     }
   );
-  recordModelUsage(data, 'planner', provider.model);
+  recordModelUsage(data, 'planner', provider.model, onUsage);
   const content = data?.choices?.[0]?.message?.content;
   if (!content) throw new Error('CommandCode search plan was empty');
   return parseSearchPlan(content, question);
@@ -308,6 +310,7 @@ async function queryAgent({
   toolFacts,
   understanding,
   handoffPlanned = false,
+  onUsage,
   post,
 }) {
   const provider = providerConfig();
@@ -344,7 +347,7 @@ async function queryAgent({
           headers: providerHeaders(provider),
         }
       );
-      recordModelUsage(data, 'answer', provider.model);
+      recordModelUsage(data, 'answer', provider.model, onUsage);
 
       const content = data?.choices?.[0]?.message?.content;
       if (!content) throw new Error('CommandCode response empty');
@@ -437,7 +440,7 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
   };
 }
 
-async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, handoffPlanned = false, post }) {
+async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, handoffPlanned = false, onUsage, post }) {
   const provider = providerConfig();
   if (!String(draft || '').trim() || (!provider.key && !post)) {
     return {
@@ -488,7 +491,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
       headers: providerHeaders(provider),
     }
       ));
-      recordModelUsage(data, 'review', provider.reviewModel);
+      recordModelUsage(data, 'review', provider.reviewModel, onUsage);
       if (data?.choices?.[0]?.message?.content) break;
       console.error(`[Provider] empty review response finish=${String(data?.choices?.[0]?.finish_reason || 'unknown')} output_tokens=${Number(data?.usage?.completion_tokens || 0)} reasoning_tokens=${Number(data?.usage?.completion_tokens_details?.reasoning_tokens || 0)}`);
       if (compact) throw new Error('Provider review was empty after retry');
