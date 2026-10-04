@@ -5,7 +5,18 @@ const {
   prepareDraftForReviewWithAudit,
   presentReviewedAnswer,
   EMPTY_ANSWER_FALLBACK,
+  addUnsyncedDataWarning,
 } = require('../answerPipeline');
+
+test('sync stalls and missing conversations get a data-loss warning without the word offline', () => {
+  for (const question of ['sync is stuck at 40%', 'lost my conversations after the update']) {
+    const reply = addUnsyncedDataWarning('A person needs to check this.\n\nSource: https://help.omi.me/example', question);
+    assert.match(reply, /unsynced/i);
+    assert.match(reply, /do not reinstall|avoid reinstall/i);
+    assert.match(reply, /Source: https:\/\/help\.omi\.me\/example/);
+  }
+  assert.equal(addUnsyncedDataWarning('Open the app.', 'How do I pair my Omi?'), 'Open the app.');
+});
 
 test('presentation preserves a sourced troubleshooting step after draft filtering', () => {
   const question = 'Why does my Omi keep disconnecting?';

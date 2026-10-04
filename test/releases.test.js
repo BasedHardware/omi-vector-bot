@@ -19,6 +19,7 @@ test('a desktop version question gets the matching release note', async () => {
   });
   assert.match(text, /Desktop app/);
   assert.match(text, /v1\.2\.0/);
+  assert.match(text, /https:\/\/github\.com\/BasedHardware\/omi\/releases\/tag\/v1\.2\.0/);
 });
 
 test('a charging question does not pull a release note', async () => {

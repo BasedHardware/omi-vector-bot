@@ -35,7 +35,10 @@ function bestNote(question, notes) {
     }
   }
   if (!best || score < 1) return '';
-  return `${best.name} (${best.tag}). ${clip(best.body)}`.trim();
+  const releaseUrl = best.tag
+    ? `https://github.com/BasedHardware/omi/releases/tag/${encodeURIComponent(best.tag)}`
+    : '';
+  return `${best.name} (${best.tag}). ${clip(best.body)} ${releaseUrl}`.trim();
 }
 
 async function loadNotes(fetchImpl, store) {

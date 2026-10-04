@@ -9,7 +9,14 @@ const {
   queryAgent,
   reviewAnswer,
   providerConfig,
+  technicalReviewSafety,
+  officialHandoffLinks,
 } = require('../commandcode');
+
+test('review failure links include at most two retrieved official pages', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/a\nOne\n[S2 | GitHub]\nhttps://github.com/BasedHardware/omi/issues/1\nTwo\n[S3 | Docs]\nhttps://docs.omi.me/b\nThree\n[S4 | Help]\nhttps://help.omi.me/c\nFour';
+  assert.deepEqual(officialHandoffLinks(evidence), ['https://help.omi.me/a', 'https://docs.omi.me/b']);
+});
 
 test('CommandCode uses its own key, model and endpoint without a legacy session header', async () => {
   const previous = { command: process.env.CMD_API_KEY, open: process.env.OPENCODE_API_KEY };
@@ -32,6 +39,123 @@ test('CommandCode uses its own key, model and endpoint without a legacy session 
     else process.env.CMD_API_KEY = previous.command;
     if (previous.open === undefined) delete process.env.OPENCODE_API_KEY;
     else process.env.OPENCODE_API_KEY = previous.open;
+  }
+});
+
+test('technical reviewer allows only cited official, reversible checks', () => {
+  const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/13154278-omi-necklace-issues\nRestart the app and phone.';
+  const feedback = '[S2 | Omi Feedback portal]\nhttps://feedback.omi.me/p/example\nA customer suggested restarting.';
+  assert.equal(technicalReviewSafety('Restart the app.', 'tech', help, ['S1']).safe, true);
+  assert.equal(technicalReviewSafety('Restart the app.', 'tech', feedback, ['S2']).safe, false);
+  assert.equal(technicalReviewSafety('Restart the app.', 'tech', help, []).safe, false);
+  assert.equal(technicalReviewSafety('Reinstall the app, then try again.', 'tech', help, ['S1']).safe, false);
+  assert.equal(technicalReviewSafety('Clear Pending recordings.', 'firmware', help, ['S1']).safe, false);
+  assert.equal(technicalReviewSafety('Flash firmware.', 'firmware', help, ['S1']).safe, false);
+});
+
+test('technical safety checks instruction structure, not stray action words', () => {
+  const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/app-issues\nCheck battery settings.';
+  const docs = '[S2 | Official documentation]\nhttps://docs.omi.me/onboarding/firmware\nUpdate in the app.';
+  const unchanged = [
+    "I'm not sure what's causing this. Please tell me your app version and phone model so a person can check.",
+    'The app keeps this conversation open until it syncs. Your app version and phone model would help.',
+    'Do not reinstall the app or log out while recordings are unsynced.',
+  ];
+  for (const reply of unchanged) {
+    const checked = technicalReviewSafety(reply, 'tech', '', []);
+    assert.equal(checked.answer, reply);
+    assert.equal(checked.escalate, false);
+  }
+  assert.equal(
+    technicalReviewSafety('If that does not help, the team may suggest a reinstall later, so tell me your app version.', 'tech', '', []).escalate,
+    true
+  );
+  const battery = 'You can check Battery Optimization and Background App Refresh. Source: https://help.omi.me/en/articles/app-issues';
+  assert.equal(technicalReviewSafety(battery, 'tech', help, ['S1']).answer, battery);
+  const firmware = 'Update the firmware in the app. Source: https://docs.omi.me/onboarding/firmware';
+  assert.equal(technicalReviewSafety(firmware, 'firmware', docs, ['S2']).answer, firmware);
+  const release = '[S99 | Official release note]\nhttps://github.com/BasedHardware/omi/releases/tag/v0.12.413\nVersion 0.12.413 fixes the microphone restart issue.';
+  const update = 'Update to version 0.12.413, which fixes this.';
+  assert.equal(technicalReviewSafety(update, 'tech', release, ['S99']).answer, update);
+});
+
+test('technical safety removes only unsupported instructions and warns on unsynced recordings', () => {
+  const github = '[S1 | Official GitHub]\nhttps://github.com/BasedHardware/omi/issues/123\nCustomer report';
+  const partial = technicalReviewSafety('Sorry about the crash. Clear the app cache, then restart the phone.', 'tech', github, ['S1']);
+  assert.match(partial.answer, /Sorry about the crash/);
+  assert.doesNotMatch(partial.answer, /Clear the app cache|restart the phone/i);
+  assert.equal(partial.escalate, true);
+  const unsynced = technicalReviewSafety('Reinstall the app to fix it.', 'tech', github, ['S1'], { question: 'sync is stuck at 40%' });
+  assert.doesNotMatch(unsynced.answer, /^Reinstall the app/i);
+  assert.match(unsynced.answer, /unsynced|not yet synced/i);
+  assert.equal(unsynced.escalate, true);
+  const onlyBad = technicalReviewSafety('Reinstall the app. Source: https://github.com/BasedHardware/omi/issues/123', 'tech', github, ['S1']);
+  assert.equal(onlyBad.fallback, true);
+  assert.doesNotMatch(onlyBad.answer, /Reinstall the app|github\.com/i);
+});
+
+test('unsafe actions are removed even in conditional or descriptive sentences', () => {
+  const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/sync\nKeep recordings safe.';
+  const unsafe = [
+    'If that does not work, reinstall the app.',
+    'Then log out and log back in.',
+    'Otherwise, clear Pending storage in Settings.',
+    'After that, do a factory reset from the app.',
+    'If it is still stuck, delete the app and install it again.',
+    'Your best bet is to reinstall the app.',
+    'Reinstalling the app usually fixes this.',
+    'When it keeps failing, flash the firmware again from the docs.',
+    'Uninstall the app and reinstall it.',
+  ];
+  for (const sentence of unsafe) {
+    const checked = technicalReviewSafety(sentence, 'tech', help, ['S1'], { question: 'sync is stuck at 40%' });
+    assert.equal(checked.escalate, true, sentence);
+    assert.equal(checked.fallback, true, sentence);
+    assert.doesNotMatch(checked.answer, new RegExp(sentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), sentence);
+    assert.match(checked.answer, /unsynced|not yet synced/i, sentence);
+  }
+  for (const sentence of [
+    'Do not reinstall the app or log out while recordings are unsynced.',
+    'Avoid reinstalling until a person checks.',
+  ]) {
+    const checked = technicalReviewSafety(sentence, 'tech', help, ['S1'], { question: 'sync is stuck at 40%' });
+    assert.equal(checked.answer, sentence);
+    assert.equal(checked.escalate, false);
+  }
+});
+
+test('dropping an unsafe sentence preserves other bullets and paragraph breaks', () => {
+  const answer = 'The recording is still on your phone.\n\n- Keep the app open.\n- If that fails, reinstall the app.\n- Tell a person the app version.\n\nPlease keep the device nearby.';
+  const sources = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/sync\nKeep the app open and device nearby.';
+  const checked = technicalReviewSafety(answer, 'tech', sources, ['S1'], { question: 'sync is stuck at 40%' });
+  assert.equal(checked.escalate, true);
+  assert.doesNotMatch(checked.answer, /If that fails, reinstall the app/i);
+  assert.match(checked.answer, /The recording is still on your phone\.\n\n- Keep the app open\.\n- Tell a person the app version\.\n\nPlease keep the device nearby\./);
+});
+
+test('reviewer timeout retries once with shorter evidence and never accepts the draft directly', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-key';
+  const inputs = [];
+  try {
+    const reviewed = await reviewAnswer({
+      question: 'What happened?',
+      draft: 'Unreviewed draft',
+      lane: 'faq',
+      policy: 'P'.repeat(5000),
+      sources: `[S1 | Official Help Center]\nhttps://help.omi.me/example\n${'S'.repeat(13000)}`,
+      post: async (_url, body) => {
+        inputs.push(body.messages[1].content);
+        if (inputs.length === 1) throw Object.assign(new Error('timeout'), { code: 'ECONNABORTED' });
+        return { data: { choices: [{ message: { content: '{"final_answer":"A person needs to check.","grounded":true,"relevant":true,"escalate":true,"sources_used":[]}' } }] } };
+      },
+    });
+    assert.equal(inputs.length, 2);
+    assert.ok(inputs[1].length < inputs[0].length);
+    assert.equal(reviewed.final_answer, 'A person needs to check.');
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
   }
 });
 

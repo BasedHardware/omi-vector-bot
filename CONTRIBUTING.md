@@ -6,7 +6,7 @@ This bot speaks publicly in Omi's Discord, so correctness and restraint matter m
 
 - Trace the full customer path: routing, retrieval, model prompt, review, honesty filters, Discord reply, and handoff.
 - Prefer improving retrieval or a general policy over adding a regex for one customer sentence.
-- Keep money, privacy, account deletion, app crashes, and device faults on the human-handoff path.
+- Keep money, privacy, account deletion, refunds, and replacements with a person. For app and device problems, give safe, reversible steps from a cited official Help Center or docs page first, then hand off when those steps do not resolve the case.
 - Never make Discord history or customer-submitted Feedback posts authoritative. Product instructions must be supported by an official Omi page or current repository source.
 - Never log or commit tokens, customer emails, order data, verification codes, or private keys.
 
@@ -36,4 +36,4 @@ If authoritative sources disagree, the Help Center controls customer-support ins
 
 ## Deployment
 
-Pushing GitHub does not deploy the service. Deployment is a separate Railway action and must happen only after tests and the relevant evaluation pass. Confirm the deployment reaches a successful state and that `/health` returns `OK`.
+Pushing GitHub does not deploy the service. Deployment is a separate Railway action and must happen only after tests and the relevant evaluation pass. Confirm the deployment reaches a successful state and that `/health` reports `status: "ok"` and a configured staff handoff route.

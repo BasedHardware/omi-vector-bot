@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const express = require('express');
 const db = require('./db');
-const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion } = require('./commandcode');
+const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion, officialHandoffLinks } = require('./commandcode');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -52,7 +52,7 @@ const { relevantDocs } = require('./docs');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
-const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer } = require('./answerPipeline');
+const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning } = require('./answerPipeline');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -526,6 +526,8 @@ async function handleMessage(message) {
 }
 
 async function answerMessage(message, { directHistory = [] } = {}) {
+  const startedAt = performance.now();
+  const stageMs = { planner: 0, retrieval: 0, answer: 0, review: 0 };
   const channel = message.channel;
   const caption = messageCaption(message.content);
   const files = await fetchTextAttachments(message.attachments);
@@ -669,6 +671,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         queries: [],
       };
       if (process.env.CMD_API_KEY) {
+        const stageStart = performance.now();
         try {
           searchPlan = await understandQuestion({
             question: asked || question,
@@ -678,12 +681,15 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           });
         } catch (err) {
           console.error('[Bot] search planning failed:', err.message);
+        } finally {
+          stageMs.planner += Math.round(performance.now() - stageStart);
         }
       }
       const sourceQuestion = contextualQuestion(
         searchPlan.standaloneQuestion || asked || question,
         threadHistory
       );
+      const retrievalStart = performance.now();
       const [docsText, officialCodeText, feedbackText, releaseText] = await Promise.all([
         relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
         github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
@@ -692,6 +698,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           : '',
         matchingRelease(sourceQuestion),
       ]);
+      stageMs.retrieval += Math.round(performance.now() - retrievalStart);
       const retrievedEvidence = combineEvidence(docsText, feedbackText, officialCodeText);
       const toolFacts = buildToolFacts({
         route,
@@ -702,16 +709,21 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       });
 
       try {
-        aiResponse = await queryAgent({
-          question,
-          threadHistory,
-          knowledgeSnippets: snippets,
-          route,
-          toolFacts,
-          understanding: searchPlan,
-          sessionId: `discord-${channel.id}`,
-          canNotifyStaff: canNotifyStaff({ discordReady: true }),
-        });
+        const answerStart = performance.now();
+        try {
+          aiResponse = await queryAgent({
+            question,
+            threadHistory,
+            knowledgeSnippets: snippets,
+            route,
+            toolFacts,
+            understanding: searchPlan,
+            sessionId: `discord-${channel.id}`,
+            canNotifyStaff: canNotifyStaff({ discordReady: true }),
+          });
+        } finally {
+          stageMs.answer += Math.round(performance.now() - answerStart);
+        }
         if (aiResponse?.final_answer) {
           const draftLane = triage.merge(route, aiResponse, question).lane;
           const prepared = prepareDraftForReviewWithAudit(
@@ -721,27 +733,36 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           );
           aiResponse.final_answer = prepared.draft;
           try {
-            const checked = await reviewAnswer({
-              question,
-              threadHistory,
-              draft: aiResponse.final_answer,
-              removedBySafetyFilters: prepared.removed,
-              understanding: searchPlan,
-              policy: toolFacts,
-              sources: [
-                `[Static fallback | lower priority than retrieved Help Center and docs]\n${OFFICIAL}`,
-                retrievedEvidence,
-                releaseText ? `[Official release note]\n${releaseText}` : '',
-                relatedPullEvidence,
-              ]
-                .filter(Boolean)
-                .join('\n\n'),
-              sessionId: `discord-${channel.id}-review`,
-            });
+            const reviewStart = performance.now();
+            let checked;
+            try {
+              checked = await reviewAnswer({
+                question,
+                threadHistory,
+                draft: aiResponse.final_answer,
+                removedBySafetyFilters: prepared.removed,
+                understanding: searchPlan,
+                policy: toolFacts,
+                lane: draftLane,
+                sources: [
+                  retrievedEvidence,
+                  releaseText ? `[S99 | Official release note]\n${releaseText}` : '',
+                  `[Static fallback | lower priority than retrieved Help Center and docs]\n${OFFICIAL}`,
+                  relatedPullEvidence,
+                ]
+                  .filter(Boolean)
+                  .join('\n\n'),
+                sessionId: `discord-${channel.id}-review`,
+              });
+            } finally {
+              stageMs.review += Math.round(performance.now() - reviewStart);
+            }
             const approved = checked.relevant && checked.grounded && String(checked.final_answer || '').trim();
             aiResponse.final_answer = approved
               ? github.reviewedPullMention(checked.final_answer, relatedPull)
-              : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
+              : checked.safeHandoff
+                ? checked.final_answer
+                : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
             aiResponse.confidence = Math.min(
               Number(aiResponse.confidence) || 0.4,
               Number(checked.confidence) || 0.4
@@ -753,11 +774,22 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 (checked.relevant
                   ? 'The answer was not fully supported by official pages.'
                   : 'The drafted reply did not answer the customer question.');
+            } else if (
+              route.lane === 'faq' &&
+              !route.wantHuman &&
+              !route.escalate &&
+              (router.looksLikeDocs(asked || question) ||
+                router.looksLikeRecordingHow(asked || question) ||
+                router.looksLikeDeviceReset(asked || question))
+            ) {
+              aiResponse.escalate = false;
             }
           } catch (err) {
             console.error('[Bot] review failed:', err.message);
+            const links = officialHandoffLinks(retrievedEvidence);
             aiResponse.final_answer =
-              "I found relevant information, but I couldn't verify a safe answer from the official Omi sources just now. I won't guess or ask you to repeat steps already in this thread; a person needs to check this.";
+              "I found relevant information, but I couldn't verify a safe answer from the official Omi sources just now. I won't guess or ask you to repeat steps already in this thread; a person needs to check this." +
+              (links.length ? `\n\nSource: ${links.join(' ')}` : '');
             aiResponse.confidence = 0.2;
             aiResponse.escalate = true;
             aiResponse.reason = 'Official-source review was unavailable.';
@@ -831,7 +863,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         cleanAnswer = "I can't share account or order details in this public post.";
       }
     }
-    cleanAnswer = ensureNonEmptyAnswer(cleanAnswer);
+    cleanAnswer = ensureNonEmptyAnswer(addUnsyncedDataWarning(cleanAnswer, caseQuestion));
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
     const nameMeta = {
@@ -1009,6 +1041,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     } catch (replyErr) {
       console.error('[Bot] Reply failed:', replyErr.message);
     }
+  } finally {
+    const total = Math.round(performance.now() - startedAt);
+    console.log(`[Timing] planner=${stageMs.planner} retrieval=${stageMs.retrieval} answer=${stageMs.answer} review=${stageMs.review} total=${total}`);
+    process.emit('omiSupportTimings', { messageId: message.id, stages: { ...stageMs, total } });
   }
 }
 
