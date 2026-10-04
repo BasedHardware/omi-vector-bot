@@ -214,6 +214,10 @@ function isSingleItemDeletionQuestion(question) {
 function supportQueries(question, planned = []) {
   const text = [question, ...(planned || [])].filter(Boolean).join(' ');
   const variants = [];
+  if (/\b(?:buy|buying|purchase|which\s+(?:omi|device)|choose\s+(?:an?\s+)?(?:omi|device))\b/i.test(question) &&
+      /\b(?:omi|device|hardware)\b/i.test(question)) {
+    variants.push('Omi device buying guide parts list choose hardware');
+  }
   if (isSingleItemDeletionQuestion(question)) {
     variants.push('Omi app delete individual conversation memory recording from list');
   }

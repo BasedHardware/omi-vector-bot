@@ -82,6 +82,11 @@ test('voice input without an answer adds the intended chat-delivery vocabulary',
   assert.match(queries[1], /chat answer AI message response visible/);
 });
 
+test('device purchase questions also search buying and parts terminology', () => {
+  const queries = supportQueries('Which Omi device should I buy for meetings?');
+  assert.match(queries.join('\n'), /buying guide.*parts list/i);
+});
+
 test('conversation deletion searches both synced data and phone-local copies', () => {
   const queries = supportQueries(
     'How do I remove past conversations from the app and phone?',
