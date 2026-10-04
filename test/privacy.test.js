@@ -2,6 +2,16 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { redactSensitive } = require('../privacy');
 
+test('provider-only official email exception does not weaken public issue redaction', () => {
+  const input = 'Email: help@omi.me; team@basedhardware.com; press@news.omi.me; user@notomi.me';
+  assert.doesNotMatch(redactSensitive(input, { issue: true }), /help@omi\.me|team@basedhardware\.com/);
+  const provider = redactSensitive(input, { issue: true, preserveOfficialEmails: true });
+  assert.match(provider, /help@omi\.me/);
+  assert.match(provider, /team@basedhardware\.com/);
+  assert.match(provider, /press@news\.omi\.me/);
+  assert.doesNotMatch(provider, /user@notomi\.me/);
+});
+
 test('public issue redaction covers international contacts, addresses, identifiers and secrets', () => {
   const input = [
     'Reach @DorkKnight or <@123456789012345678> at ada@example.com.',

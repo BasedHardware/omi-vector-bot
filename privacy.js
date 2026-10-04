@@ -1,10 +1,14 @@
 // Public GitHub issues and customer-visible cards must never carry raw customer identifiers.
 // Keep this independent of route classification so every filing path has the same boundary.
-function redactSensitive(text, { issue = false } = {}) {
+function redactSensitive(text, { issue = false, preserveOfficialEmails = false } = {}) {
   let out = String(text || '');
-  out = out.replace(/\b[A-Z0-9._%+-]+\s*@\s*[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]');
+  const officialEmail = (value) => preserveOfficialEmails &&
+    /^[A-Z0-9._%+-]+@(?:[A-Z0-9-]+\.)*(?:omi\.me|basedhardware\.com)$/i.test(value);
+  out = out.replace(/\b[A-Z0-9._%+-]+\s*@\s*[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+    (match) => officialEmail(match) ? match : '[email]');
   out = out.replace(/\b[A-Z0-9._%+-]+\s*(?:\(at\)|\[at\])\s*[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]');
-  out = out.replace(/\b(?:email|e-mail)\s*[:=]\s*[^\s,;]+/gi, '[email]');
+  out = out.replace(/\b(?:email|e-mail)\s*[:=]\s*[^\s,;]+/gi,
+    (match) => officialEmail(match.replace(/^\b(?:email|e-mail)\s*[:=]\s*/i, '')) ? match : '[email]');
   out = out.replace(/\b(?:address|shipping address|billing address)\s*[:=]\s*[^\n;]+/gi, '[address]');
   out = out.replace(
     /\b(?:(?:flat|apt|apartment|unit)\s+[A-Za-z0-9-]+,?\s+)?\d{1,5}[A-Za-z]?\s+(?:[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ.'-]*\s+){0,5}(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|court|ct|place|pl|way|terrace|crescent|rue|chemin|route|strasse|straße|via|viale|calle|carrer|rua|ulica|ul\.|marg|nagar)\b\.?[^\n;]*/gi,

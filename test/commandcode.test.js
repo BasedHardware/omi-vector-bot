@@ -73,15 +73,17 @@ test('provider redaction retains Omi’s public support address but not a custom
   let sent = '';
   try {
     await queryAgent({
-      question: 'My email is ada@example.com',
-      toolFacts: 'Official support contact: help@omi.me',
+      question: 'My email is ada@example.com and my phone is 612 345 678',
+      toolFacts: 'Official support contacts: help@omi.me and team@basedhardware.com.',
       post: async (_url, body) => {
         sent = JSON.stringify(body.messages);
         return { data: { choices: [{ message: { content: '{"final_answer":"Contact support","confidence":0.8,"escalate":false}' } }] } };
       },
     });
     assert.match(sent, /help@omi\.me/);
+    assert.match(sent, /team@basedhardware\.com/);
     assert.doesNotMatch(sent, /ada@example\.com/);
+    assert.doesNotMatch(sent, /612 345 678/);
   } finally {
     if (previous === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previous;

@@ -26,7 +26,6 @@ function providerHeaders(provider) {
 }
 
 function privateProviderBody(body) {
-  const publicSupportEmail = 'OMI_PUBLIC_SUPPORT_CONTACT';
   const messages = [...(body.messages || [])];
   // Keep policy clarifications at system priority without changing the
   // one-system/one-user shape expected by provider adapters and tests.
@@ -39,8 +38,7 @@ function privateProviderBody(body) {
     messages: messages.map((message) => ({
       ...message,
       content: typeof message.content === 'string'
-        ? redactSensitive(message.content.replace(/help@omi\.me/gi, publicSupportEmail), { issue: true })
-          .replaceAll(publicSupportEmail, 'help@omi.me')
+        ? redactSensitive(message.content, { issue: true, preserveOfficialEmails: true })
         : message.content,
     })),
   };
