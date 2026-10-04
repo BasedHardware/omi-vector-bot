@@ -42,6 +42,25 @@ test('unverified delivery status variants are removed but general and conditiona
   ]) assert.equal(stripUnverifiedOrderClaims(general), general);
 });
 
+test('contractions and unverified depot or customs locations are stripped', () => {
+  for (const claim of [
+    "It's on its way.",
+    'It is out for delivery.',
+    "They're in transit.",
+    'It has shipped.',
+    "It's delivered.",
+    'Your parcel is stuck at customs.',
+    'The shipment has been held in a depot.',
+    'The package is sitting at the sorting facility.',
+    'It was stuck in the warehouse.',
+  ]) assert.equal(stripUnverifiedOrderClaims(claim), '', claim);
+  for (const general of [
+    "If it's on its way, the tracking page should show it.",
+    'If the package is held at customs, ask the carrier for details.',
+    'Packages can be held at a sorting facility.',
+  ]) assert.equal(stripUnverifiedOrderClaims(general), general, general);
+});
+
 test('sync stalls and missing conversations get a data-loss warning without the word offline', () => {
   for (const question of ['sync is stuck at 40%', 'lost my conversations after the update']) {
     const reply = addUnsyncedDataWarning('A person needs to check this.\n\nSource: https://help.omi.me/example', question);
