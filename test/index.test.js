@@ -48,6 +48,7 @@ let plannerReplyLanguage = 'en';
 let plannerHandoffAcknowledgment = '';
 let plannerWantsPerson = false;
 let plannerDataLossRisk = false;
+let plannerBarrier = null;
 let reviewerResponse = null;
 const reviewCalls = [];
 let emitTestUsage = false;
@@ -70,6 +71,7 @@ commandcode.queryAgent = async (args) => {
 commandcode.understandQuestion = async ({ question, onUsage }) => {
   plannerCalls.push(question);
   if (emitTestUsage) onUsage?.({ stage: 'planner', completionTokens: 20, reasoningTokens: 5 });
+  if (plannerBarrier) await plannerBarrier;
   return {
     standaloneQuestion: plannerStandaloneQuestion || question,
     customerGoal: question,
@@ -160,6 +162,10 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 
 const knowledge = require('../knowledge');
+const docs = require('../docs');
+const originalRelevantDocs = docs.relevantDocs;
+let docsObserver = null;
+docs.relevantDocs = (...args) => docsObserver ? docsObserver(...args) : originalRelevantDocs(...args);
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
@@ -436,6 +442,40 @@ test('answer path emits per-stage timing metrics without customer text', async (
     if (previousKey === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previousKey;
     process.off('omiSupportTimings', onMetric);
+  }
+});
+
+test('official docs retrieval begins before the planner resolves and adds its new queries afterward', async () => {
+  const previousKey = process.env.CMD_API_KEY;
+  const previousQueries = searchPlanQueries;
+  let releasePlanner;
+  let signalFirstLookup;
+  const firstLookup = new Promise((resolve) => { signalFirstLookup = resolve; });
+  const calls = [];
+  try {
+    process.env.CMD_API_KEY = 'test-only-key';
+    searchPlanQueries = ['Omi Bluetooth pairing guide'];
+    plannerBarrier = new Promise((resolve) => { releasePlanner = resolve; });
+    docsObserver = async (question, options) => {
+      calls.push({ question, options });
+      if (calls.length === 1) signalFirstLookup();
+      return '';
+    };
+    const pending = ask('How do I pair my Omi?');
+    await firstLookup;
+    assert.equal(calls.length, 1);
+    releasePlanner();
+    await pending;
+    assert.equal(calls.length, 2);
+    assert.ok(calls[1].options.queries.includes('Omi Bluetooth pairing guide'));
+    assert.equal(calls[0].options.lookupCache, calls[1].options.lookupCache);
+  } finally {
+    if (releasePlanner) releasePlanner();
+    docsObserver = null;
+    plannerBarrier = null;
+    searchPlanQueries = previousQueries;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
   }
 });
 
