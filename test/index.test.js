@@ -45,6 +45,8 @@ const plannerCalls = [];
 let plannerSupportKind = 'other';
 let plannerMessageKind = 'question';
 let plannerStandaloneQuestion = '';
+let plannerReplyLanguage = 'en';
+let plannerHandoffAcknowledgment = '';
 let reviewerResponse = null;
 const reviewCalls = [];
 commandcode.queryAgent = async (args) => {
@@ -71,6 +73,8 @@ commandcode.understandQuestion = async ({ question }) => {
     customerFacts: [],
     supportKind: plannerSupportKind,
     messageKind: plannerMessageKind,
+    replyLanguage: plannerReplyLanguage,
+    handoffAcknowledgment: plannerHandoffAcknowledgment,
     queries: searchPlanQueries,
   };
 };
@@ -330,6 +334,22 @@ async function ask(content, options = {}) {
   };
 }
 
+function enableStaffDelivery(t) {
+  const originalFetch = client.channels.fetch;
+  const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
+  const delivered = [];
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
+  client.channels.fetch = async () => ({
+    isTextBased: () => true,
+    send: async (payload) => { delivered.push(payload); return payload; },
+  });
+  t.after(() => {
+    client.channels.fetch = originalFetch;
+    process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
+  });
+  return delivered;
+}
+
 test.beforeEach(() => {
   modelCalls.length = 0;
   modelReply = {};
@@ -339,6 +359,8 @@ test.beforeEach(() => {
   plannerSupportKind = 'other';
   plannerMessageKind = 'question';
   plannerStandaloneQuestion = '';
+  plannerReplyLanguage = 'en';
+  plannerHandoffAcknowledgment = '';
   reviewerResponse = null;
   reviewCalls.length = 0;
   pulls = [];
@@ -431,6 +453,104 @@ test('planner-classified order, account and exception requests reach a person in
   }
 });
 
+test('planner-detected account action keeps a grounded answer and still reaches staff', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'account_action';
+  plannerStandaloneQuestion = 'How can I delete my Omi account?';
+  plannerReplyLanguage = 'fr';
+  plannerHandoffAcknowledgment = "Une personne doit examiner votre demande en privé.";
+  modelReply = {
+    final_answer: "Dans l'application, ouvrez les paramètres de confidentialité pour demander la suppression. Source: https://help.omi.me/en/articles/13162549-omi-privacy-policy",
+    escalate: false,
+  };
+  const result = await ask('Comment supprimer mon compte Omi ?');
+  assert.equal(result.modelCalled, true);
+  assert.match(result.reply, /paramètres de confidentialité/i);
+  assert.equal(staff.length, 1);
+  assert.doesNotMatch(result.reply, /I can't change your account|A person on the team/i);
+});
+
+test('planner-detected billing request keeps the sourced answer instead of a data-removal line', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'money';
+  plannerStandaloneQuestion = 'What does my invoice cover?';
+  plannerReplyLanguage = 'es';
+  modelReply = { final_answer: 'La factura muestra el cargo del plan. Fuente: https://help.omi.me/en/articles/billing', escalate: false };
+  const result = await ask('¿Qué incluye el cargo de mi factura?');
+  assert.equal(result.modelCalled, true);
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /factura muestra el cargo/i);
+  assert.doesNotMatch(result.reply, /remove your data|replacement or warranty/i);
+});
+
+test('English canned refund uses the router reply without a planner or model call', async (t) => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  const result = await ask('I want a refund for my order.');
+  assert.equal(plannerCalls.length, 0);
+  assert.equal(result.modelCalled, false);
+  assert.match(result.reply, /refund/i);
+  assert.ok(result.thread);
+});
+
+test('off-topic chatter stays silent but asking for a person still routes to staff', async (t) => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerMessageKind = 'off_topic';
+  const chatter = await ask('What time is it where your team is based?');
+  assert.equal(chatter.message.replies.length, 0);
+  assert.equal(chatter.thread, null);
+  assert.equal(modelCalls.length, 0);
+  const human = await ask('Can I talk to a person?');
+  assert.ok(human.message.replies.length > 0);
+  assert.ok(human.thread);
+});
+
+test('a delivered Spanish handoff adds no English footer or extra email instruction', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'exception_request';
+  plannerStandaloneQuestion = 'I want a refund for a broken device.';
+  plannerReplyLanguage = 'es';
+  plannerHandoffAcknowledgment = 'Una persona debe revisar la solicitud en privado.';
+  modelReply = { final_answer: 'Una persona debe revisar el reembolso. Fuente: https://help.omi.me/en/articles/13162549-omi-privacy-policy', escalate: false };
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Consulta de reembolso' });
+  const result = await ask('Quiero un reembolso, el dispositivo no funciona.', { channel });
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /responderá en este hilo/i);
+  assert.doesNotMatch(result.reply, /A person on the team|Source:|Email help@omi\.me/i);
+});
+
+test('romanized Hindi handoff and failed Spanish delivery never append English templates', async (t) => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'exception_request';
+  plannerReplyLanguage = 'hi';
+  plannerHandoffAcknowledgment = 'टीम को यह देखना होगा।';
+  modelReply = { final_answer: 'Team ko refund request dekhni hogi.', escalate: true };
+  const hindi = await ask('Mujhe refund chahiye.');
+  assert.doesNotMatch(hindi.reply, /\p{Script=Devanagari}/u);
+  assert.doesNotMatch(hindi.reply, /A person on the team|I could not deliver/i);
+
+  plannerReplyLanguage = 'es';
+  plannerHandoffAcknowledgment = 'Una persona debe revisar esto.';
+  modelReply = { final_answer: 'Una persona debe revisar el reembolso.', escalate: true };
+  const spanish = await ask('Quiero un reembolso.');
+  assert.match(spanish.reply, /help@omi\.me/);
+  assert.doesNotMatch(spanish.reply, /I could not deliver|A person on the team/i);
+});
+
 test('planner acknowledgment stays silent, but a new symptom after thanks is answered', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';
@@ -452,7 +572,7 @@ test('planner acknowledgment stays silent, but a new symptom after thanks is ans
   }
 });
 
-test('an acknowledgment in an existing order case stays silent before the shop shortcut', async () => {
+test('an acknowledgment in an existing order case stays silent without a planner call', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';
   plannerMessageKind = 'acknowledgment';
@@ -460,7 +580,7 @@ test('an acknowledgment in an existing order case stays silent before the shop s
     const result = await ask('Order #12345 is resolved, merci');
     assert.equal(result.message.replies.length, 0);
     assert.equal(result.thread, null);
-    assert.equal(plannerCalls.length, 1);
+    assert.equal(plannerCalls.length, 0);
   } finally {
     if (previous === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previous;

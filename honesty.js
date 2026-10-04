@@ -315,7 +315,7 @@ function looksLikeDeviceStep(sentence) {
 function dropDeviceStepClauses(sentence) {
   const parts = String(sentence || '').split(/,\s+|\s+[—–]\s+/);
   if (parts.length < 2) return '';
-  return parts
+  const kept = parts
     .filter((part) => {
       const bit = part.trim();
       if (!bit || looksLikeDeviceStep(bit) || clauseIsInventedFix(bit)) return false;
@@ -323,6 +323,9 @@ function dropDeviceStepClauses(sentence) {
       return true;
     })
     .join(', ');
+  return kept
+    .replace(/^(?:and|then|but)\s+/i, '')
+    .replace(/^(\p{Ll})/u, (letter) => letter.toLocaleUpperCase());
 }
 
 function lineHasDeviceStep(line) {

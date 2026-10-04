@@ -1,6 +1,31 @@
 const router = require('./router');
 
-const PERSON_KINDS = new Set(['order_lookup', 'account_action', 'exception_request']);
+const PERSON_KINDS = new Set(['order_lookup', 'account_action', 'exception_request', 'money', 'privacy']);
+const CANNED_LANES = new Set(['money', 'privacy', 'shop', 'account']);
+const ENGLISH_WORDS = new Set(['i', 'my', 'me', 'we', 'our', 'you', 'your', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'have', 'has', 'do', 'does', 'did', 'can', 'could', 'would', 'what', 'where', 'how', 'why', 'please', 'want', 'need', 'to', 'for', 'with', 'this', 'that', 'from']);
+const OTHER_LANGUAGE_WORDS = /\b(?:quiero|necesito|reembolso|pedido|factura|donde|como|quero|preciso|meu|minha|obrigado|ich|mein|meine|bitte|rechnung|kann|sipari[sş]|iade|nas[iı]l|merhaba|mujhe|mera|meri|kya|kaise|chahiye|hai|nahi|merci|gracias)\b/i;
+
+function skipPlannerForCanned(route, question) {
+  if (!CANNED_LANES.has(route?.lane) || route?.responseMode === 'grounded') return false;
+  const text = String(question || '');
+  if (/[^\x00-\x7F]/.test(text) || OTHER_LANGUAGE_WORDS.test(text)) return false;
+  const words = text.toLowerCase().match(/[a-z]+/g) || [];
+  return words.filter((word) => ENGLISH_WORDS.has(word)).length >= 2;
+}
+
+function isPlainAcknowledgment(question) {
+  const text = String(question || '').trim();
+  if (/[?？]/.test(text) || /\b(?:but|however|still|except|yet|now it|another issue)\b/i.test(text)) return false;
+  if (/^(?:thanks|thank you|gracias|merci|obrigad[oa]|danke)[\s!.]*$/i.test(text)) return true;
+  return /\b(?:resolved|fixed|works now|working now)\b/i.test(text) &&
+    !/\b(?:want|need|please|refund|cancel|delete|replace|help)\b/i.test(text);
+}
+
+function suppressOffTopic(understanding, route) {
+  return understanding?.messageKind === 'off_topic' &&
+    !route?.wantHuman && !route?.escalate &&
+    !CANNED_LANES.has(route?.lane) && !router.isTechLane(route);
+}
 
 function personKind(understanding) {
   const kind = String(understanding?.supportKind || '').trim();
@@ -24,6 +49,8 @@ function routeWithUnderstanding(route, understanding, originalQuestion = '') {
     const money = current.lane === 'money' || translated.lane === 'money';
     return { ...current, area: 'shop', lane: money ? 'money' : 'shop', escalate: true };
   }
+  if (kind === 'money') return { ...current, area: 'shop', lane: 'money', escalate: true };
+  if (kind === 'privacy') return { ...current, area: 'privacy', lane: 'privacy', escalate: true };
   const weakRoute = current.lane === 'unknown' ||
     (current.lane === 'faq' && current.area === 'unknown' && router.isTechLane(translated) &&
       !router.looksLikeProductQuestion(originalQuestion));
@@ -35,35 +62,77 @@ function routeWithUnderstanding(route, understanding, originalQuestion = '') {
 }
 
 function suppressAcknowledgment(understanding, question) {
+  if (isPlainAcknowledgment(question)) return true;
   if (understanding?.messageKind !== 'acknowledgment') return false;
   const text = String(question || '');
   return !/[?？]/.test(text) && !/\b(?:but|however|still|except|yet)\b/i.test(text);
 }
 
-function safeHandoffAcknowledgment(understanding) {
+const LOCALIZED_HANDOFF = {
+  es: { pending: 'Una persona del equipo debe revisar esto.', thread: 'Una persona del equipo responderá en este hilo.', sent: 'Una persona del equipo ya tiene este caso.', failed: 'No pude entregar el caso al equipo. Escribe a help@omi.me en privado.', duplicate: 'El equipo ya tiene este caso.', issue: 'El problema está registrado en este hilo.' },
+  pt: { pending: 'Uma pessoa da equipe precisa analisar isso.', thread: 'Uma pessoa da equipe responderá nesta conversa.', sent: 'A equipe já recebeu este caso.', failed: 'Não consegui enviar o caso à equipe. Escreva para help@omi.me em privado.', duplicate: 'A equipe já tem este caso.', issue: 'O problema está registrado nesta conversa.' },
+  de: { pending: 'Jemand aus dem Team muss das prüfen.', thread: 'Jemand aus dem Team antwortet in diesem Thread.', sent: 'Das Team hat diesen Fall erhalten.', failed: 'Ich konnte den Fall nicht an das Team weiterleiten. Bitte schreibe privat an help@omi.me.', duplicate: 'Das Team hat diesen Fall bereits.', issue: 'Das Problem ist in diesem Thread festgehalten.' },
+  tr: { pending: 'Ekipten birinin bunu incelemesi gerekiyor.', thread: 'Ekipten biri bu başlıkta yanıt verecek.', sent: 'Ekip bu talebi aldı.', failed: 'Talebi ekibe iletemedim. Lütfen help@omi.me adresine özel olarak yazın.', duplicate: 'Ekip bu talebi zaten aldı.', issue: 'Sorun bu başlıkta kayıtlı.' },
+  fr: { pending: "Une personne de l'équipe doit examiner cela.", thread: "Une personne de l'équipe répondra dans ce fil.", sent: "L'équipe a reçu ce dossier.", failed: "Je n'ai pas pu transmettre le dossier à l'équipe. Écrivez à help@omi.me en privé.", duplicate: "L'équipe a déjà ce dossier.", issue: 'Le problème est consigné dans ce fil.' },
+  id: { pending: 'Seseorang dari tim perlu meninjau ini.', thread: 'Seseorang dari tim akan membalas di utas ini.', sent: 'Tim sudah menerima kasus ini.', failed: 'Saya tidak dapat mengirim kasus ini ke tim. Silakan email help@omi.me secara pribadi.', duplicate: 'Tim sudah menerima kasus ini.', issue: 'Masalah ini tercatat di utas ini.' },
+  'hi-Latn': { pending: 'Team ke kisi vyakti ko iski jaanch karni hogi.', thread: 'Team ka koi vyakti isi thread mein jawab dega.', sent: 'Team ko yeh mamla mil gaya hai.', failed: 'Main yeh mamla team tak nahi pahuncha saka. Kripya help@omi.me par private email karein.', duplicate: 'Team ke paas yeh mamla pehle se hai.', issue: 'Yeh samasya isi thread mein darj hai.' },
+  'hi-Deva': { pending: 'टीम के किसी व्यक्ति को इसकी जाँच करनी होगी।', thread: 'टीम का कोई व्यक्ति इसी थ्रेड में जवाब देगा।', sent: 'टीम को यह मामला मिल गया है।', failed: 'मैं यह मामला टीम तक नहीं पहुँचा सका। कृपया help@omi.me पर निजी ईमेल करें।', duplicate: 'टीम के पास यह मामला पहले से है।', issue: 'यह समस्या इसी थ्रेड में दर्ज है।' },
+  ja: { pending: '担当者による確認が必要です。', thread: '担当者がこのスレッドで返信します。', sent: '担当者にこの件を共有しました。', failed: '担当者に届けられませんでした。詳細を help@omi.me に非公開でメールしてください。', duplicate: '担当者にはすでに共有されています。', issue: '問題はこのスレッドに記録されています。' },
+};
+
+function handoffLocale(understanding, question) {
+  const language = String(understanding?.replyLanguage || 'en').toLowerCase().split('-')[0];
+  if (language === 'hi') return LOCALIZED_HANDOFF[/\p{Script=Devanagari}/u.test(String(question || '')) ? 'hi-Deva' : 'hi-Latn'];
+  return LOCALIZED_HANDOFF[language] || null;
+}
+
+function handoffFooters(understanding, question) {
+  const language = String(understanding?.replyLanguage || 'en').toLowerCase().split('-')[0];
+  if (language === 'en') return null;
+  const locale = handoffLocale(understanding, question) || {};
+  return {
+    thread: locale.thread || '', sent: locale.sent || '', failed: locale.failed || '',
+    duplicate: locale.duplicate || '', pending: locale.pending || '', issue: locale.issue || '',
+  };
+}
+
+function safeHandoffAcknowledgment(understanding, question) {
   const language = String(understanding?.replyLanguage || '').toLowerCase();
   const acknowledgment = String(understanding?.handoffAcknowledgment || '').trim();
   if (!language || language === 'en' || !acknowledgment || acknowledgment.length > 220) return '';
   if (/[\d@#€$£₹<>\n\r]|https?:\/\//i.test(acknowledgment)) return '';
+  if (!/\p{Script=Devanagari}/u.test(String(question || '')) &&
+      /\p{Script=Devanagari}/u.test(acknowledgment)) return '';
   return acknowledgment;
 }
 
 function personReply(kind, route, question, understanding) {
   if (route?.intent === 'shipping_quote') return router.cannedReply(route, question);
-  const acknowledgment = safeHandoffAcknowledgment(understanding);
+  const acknowledgment = safeHandoffAcknowledgment(understanding, question);
+  if (String(understanding?.replyLanguage || 'en').toLowerCase().split('-')[0] !== 'en') {
+    return acknowledgment || handoffLocale(understanding, question)?.pending || '';
+  }
   let reply;
   if (kind === 'order_lookup') {
     reply = router.cannedReply({ ...route, area: 'shop', lane: 'shop', wantHuman: false }, question);
   } else if (kind === 'account_action') {
     reply = route?.lane === 'privacy'
       ? router.cannedReply(route, question)
-      : "I can't change your account or remove your data from chat. A person needs to handle this privately.";
+      : "I can't change your account from chat. A person needs to review this privately.";
+  } else if (kind === 'privacy') {
+    reply = "I can't delete your data from chat. A person needs to review this privately.";
+  } else if (kind === 'money') {
+    reply = "I can't change billing from chat. A person needs to review the request.";
+  } else if (route?.wantHuman) {
+    reply = 'A person needs to review your request.';
   } else if (route?.lane === 'money') {
-    reply = "I can't issue or promise a refund from chat. A person needs to review the request. Email help@omi.me and keep your order number handy.";
+    reply = "I can't issue or promise a refund from chat. A person needs to review the request.";
+  } else if (/\b(?:replacement|warranty)\b/i.test(String(question || ''))) {
+    reply = "I can't approve a replacement or warranty exception from chat. A person needs to review this request.";
   } else {
-    reply = "I can't approve or promise a replacement or warranty exception from chat. A person needs to review this request.";
+    reply = 'A person needs to review this request.';
   }
-  return acknowledgment ? `${acknowledgment}\n\n${reply}` : reply;
+  return reply;
 }
 
 function isGroundedHowTo(route, question, answer) {
@@ -99,4 +168,4 @@ function personReason(kind) {
   return 'Exception request requires staff review';
 }
 
-module.exports = { personKind, routeWithUnderstanding, suppressAcknowledgment, personReply, personReason, isGroundedHowTo, verifiedCannedReply };
+module.exports = { personKind, routeWithUnderstanding, skipPlannerForCanned, suppressAcknowledgment, suppressOffTopic, personReply, personReason, handoffFooters, isGroundedHowTo, verifiedCannedReply };

@@ -31,6 +31,18 @@ test('presentation preserves a sourced troubleshooting step after draft filterin
   assert.match(presented, /Source: https:\/\/help\.omi\.me\/en\/articles\/example/);
 });
 
+test('unsynced-data warning catches missing audio and conversations in varied wording', () => {
+  for (const question of [
+    'Nothing synced and my meeting audio vanished.',
+    'I am losing recordings from the app.',
+    'My conversations never showed up after recording.',
+    'The memories are gone and I may have unsynced audio.',
+  ]) {
+    const reply = addUnsyncedDataWarning('A person needs to check this.', question);
+    assert.match(reply, /Do not reinstall the app, log out, or clear Pending\/All/i, question);
+  }
+});
+
 test('the presentation step does not prepend a saved staff note', () => {
   const answer = 'I cannot confirm a shipping date for this order.';
   assert.equal(presentReviewedAnswer(answer), answer);

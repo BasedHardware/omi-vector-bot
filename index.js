@@ -597,6 +597,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       wantHuman: Boolean(currentRoute.wantHuman),
       escalate: Boolean(contextRoute.escalate || currentRoute.escalate),
     };
+    if (plannerPolicy.suppressAcknowledgment(null, asked || question)) return;
+    const cannedEnglish = plannerPolicy.skipPlannerForCanned(currentRoute, asked || question);
     let searchPlan = {
       standaloneQuestion: caseQuestion,
       customerGoal: asked || question,
@@ -605,7 +607,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       supportKind: 'other',
       queries: [],
     };
-    if (process.env.CMD_API_KEY) {
+    if (!cannedEnglish && process.env.CMD_API_KEY) {
       const stageStart = performance.now();
       try {
         searchPlan = await understandQuestion({
@@ -621,8 +623,13 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
     }
     if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
-    const plannedPersonKind = plannerPolicy.personKind(searchPlan);
-    route = plannerPolicy.routeWithUnderstanding(route, searchPlan, asked || question);
+    if (plannerPolicy.suppressOffTopic(searchPlan, currentRoute)) return;
+    const plannedPersonKind = cannedEnglish ? '' : plannerPolicy.personKind(searchPlan);
+    route = cannedEnglish
+      ? currentRoute
+      : plannerPolicy.routeWithUnderstanding(route, searchPlan, asked || question);
+    const forceGroundedPersonAnswer = Boolean(plannedPersonKind && plannedPersonKind !== 'order_lookup');
+    const cannedEnglishReply = cannedEnglish ? router.cannedReply(route, asked || question) : '';
     const supportFollowup =
       Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
     const holdPublicCopy = isHelpThread(channel) &&
@@ -647,6 +654,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     let threadHistory = [];
     let cleanAnswer;
     let skipModel = false;
+    let reviewedGrounded = false;
     let snippets = [];
 
     if (useShopify) {
@@ -666,7 +674,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         reason: 'Pull request already covers this',
       };
       cleanAnswer = '';
-    } else if (holdPublicCopy || !router.requiresGroundedAnswer(route)) {
+    } else if (holdPublicCopy || cannedEnglishReply ||
+      (!forceGroundedPersonAnswer && !router.requiresGroundedAnswer(route))) {
       skipModel = true;
       aiResponse = {
         final_answer: '',
@@ -674,7 +683,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         escalate: true,
         reason: router.staffReason(route, asked || question),
       };
-      cleanAnswer = clipForDiscord(router.cannedReply(route, asked || question) || '');
+      cleanAnswer = clipForDiscord(cannedEnglishReply || router.cannedReply(route, asked || question) || '');
       if (shopifyLookup?.reason) {
         aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
       }
@@ -767,6 +776,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               stageMs.review += Math.round(performance.now() - reviewStart);
             }
             const approved = checked.relevant && checked.grounded && String(checked.final_answer || '').trim();
+            reviewedGrounded = Boolean(approved);
             aiResponse.final_answer = approved || checked.safeHandoff
               ? checked.final_answer
               : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
@@ -822,7 +832,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     if (plannedPersonKind) {
       aiResponse.escalate = true;
       aiResponse.reason = plannerPolicy.personReason(plannedPersonKind);
-      aiResponse.final_answer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
+      if (!reviewedGrounded || plannedPersonKind === 'order_lookup') {
+        aiResponse.final_answer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
+      }
     }
 
     const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
@@ -833,7 +845,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         prepareDraftForReview(cleanAnswer || '', triaged.lane, caseQuestion)
       );
     }
-    if (plannedPersonKind) cleanAnswer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
+    if (plannedPersonKind && (!reviewedGrounded || plannedPersonKind === 'order_lookup')) {
+      cleanAnswer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
+    }
     if (!plannedPersonKind && threadHasKnownIssueTag(channel)) {
       cleanAnswer = router.knownIssueReply();
       aiResponse.reason = 'Already tagged Known issue.';
@@ -901,6 +915,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const stayInPost = inHandoff || continuingPost;
     const handoffFollowup = continuingPost && supportFollowup;
     const pingAuthor = wantsAuthorPing(caption);
+    const localizedFooters = plannerPolicy.handoffFooters(searchPlan, asked || question);
     const docsQuiet = plannerPolicy.isGroundedHowTo(route, asked || question, cleanAnswer) ||
       route.lane === 'faq' &&
       (router.looksLikeDocs(asked || question) ||
@@ -948,7 +963,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         if (existing) {
           try {
             await existing.send({
-              content: rewriteUserMentions(escalateReply(cleanAnswer, { conversation: true }), message),
+              content: rewriteUserMentions(escalateReply(cleanAnswer, { conversation: true, footers: localizedFooters }), message),
               allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
             });
             reused = true;
@@ -1036,6 +1051,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         pingAuthor,
         deliveryFailed,
         replyInThread: pinged && Boolean(channel.isThread?.() || handoffThread?.id),
+        footers: localizedFooters,
       });
       if (movedToThread) {
         const threadLink = `<#${handoffThread.id}>`;

@@ -742,6 +742,17 @@ test('a light-color fact is kept when a later step is stripped', () => {
   assert.equal(/set it aside/i.test(out), false);
 });
 
+test('a kept clause is capitalized after an unsafe opening step is removed', () => {
+  const { stripUnsupportedClaims } = require('../honesty');
+  const reply = stripUnsupportedClaims(
+    'Please restart the phone, the app still closes when memories open.',
+    'tech',
+    'The app closes when memories open'
+  );
+  assert.match(reply, /^The app still closes/);
+  assert.doesNotMatch(reply, /restart the phone/i);
+});
+
 test('formatDiscordReply turns LED pipe lists into bullets', () => {
   const out = formatDiscordReply(
     'LED colours: red = on, disconnected | blue = on, connected | orange = charging, disconnected'

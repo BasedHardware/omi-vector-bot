@@ -45,12 +45,16 @@ function presentReviewedAnswer(answer) {
   return ensureNonEmptyAnswer(clipForDiscord(formatDiscordReply(stripPingNarration(answer))));
 }
 
+function hasUnsyncedDataRisk(question) {
+  const text = String(question || '');
+  const data = /\b(?:sync\w*|record\w*|audio|meetings?|conversations?|memories?|transcripts?)\b/i.test(text);
+  const loss = /\b(?:gone|vanish\w*|disappear\w*|lost|losing|missing|nothing\s+sync\w*|never\s+showed\s+up|not\s+sync\w*|didn['’]?t\s+sync\w*|sync\w*\s+(?:is\s+)?(?:stuck|stall\w*|fail\w*)|(?:stuck|stall\w*|fail\w*)\s+sync\w*)\b/i.test(text);
+  return data && loss;
+}
+
 function addUnsyncedDataWarning(answer, question) {
-  const context = String(question || '');
-  const syncFailed = /\bsync(?:ing)?\b.{0,45}\b(?:stuck|stall\w*|fail\w*|not\s+(?:working|complet\w*|finish\w*))\b|\b(?:stuck|stall\w*|fail\w*)\b.{0,45}\bsync(?:ing)?\b/i.test(context);
-  const missingRecordings = /\b(?:recordings?|conversations?|transcripts?|memories?)\b.{0,45}\b(?:missing|gone|lost|disappear\w*)\b|\b(?:missing|gone|lost|disappear\w*)\b.{0,45}\b(?:recordings?|conversations?|transcripts?|memories?)\b/i.test(context);
   const current = String(answer || '').trim();
-  if (!syncFailed && !missingRecordings) return current;
+  if (!hasUnsyncedDataRisk(question)) return current;
   if (/do not reinstall/i.test(current) && /log out/i.test(current) && /clear Pending\/All/i.test(current)) return current;
   const warning = UNSYNCED_DATA_WARNING;
   const sourceAt = current.search(/\n(?:Sources?):\s*https:\/\//i);
@@ -68,4 +72,5 @@ module.exports = {
   prepareDraftForReviewWithAudit,
   presentReviewedAnswer,
   addUnsyncedDataWarning,
+  hasUnsyncedDataRisk,
 };

@@ -465,6 +465,41 @@ test('source formatting removes inline model citations and emits each chosen URL
   assert.equal((answer.match(/https:\/\/help\.omi\.me\/reset/g) || []).length, 1);
 });
 
+test('localized source labels stay localized and never gain an English Source line', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/reset\nReset instructions.';
+  for (const [language, label] of [['es', 'Fuente'], ['de', 'Quelle'], ['pt', 'Fonte'], ['tr', 'Kaynak']]) {
+    const answer = groundedSourceLine(`Respuesta útil.\n\n${label}: https://help.omi.me/reset`, evidence, ['S1'], language);
+    assert.equal((answer.match(/https:\/\/help\.omi\.me\/reset/g) || []).length, 1, language);
+    assert.match(answer, new RegExp(`\\b${label}:`), language);
+    assert.doesNotMatch(answer, /\bSource:/i, language);
+  }
+});
+
+test('FAQ review may use lower-ranked team product facts without treating them as tech troubleshooting', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-key';
+  try {
+    const reply = await reviewAnswer({
+      question: 'Does 24 hours mean recording with the app closed?',
+      draft: 'The 24-hour figure is battery life, not standalone recording time.',
+      lane: 'faq',
+      sources: '[Static fallback | lower priority than Help Center and docs]\nThe 24-hour figure is battery life, not standalone recording time.',
+      post: async (_url, body) => {
+        assert.match(body.messages[0].content, /static product facts are usable below the Help Center and docs/i);
+        return { data: { choices: [{ message: { content: JSON.stringify({
+          final_answer: 'The 24-hour figure is battery life, not standalone recording time.',
+          grounded: true, relevant: true, escalate: false, confidence: 0.9, sources_used: [],
+        }) } }] } };
+      },
+    });
+    assert.equal(reply.grounded, true);
+    assert.match(reply.final_answer, /battery life, not standalone recording time/);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
 test('a bad model JSON is tried once more, and a usage limit is not', async () => {
   const prev = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-key';

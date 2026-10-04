@@ -89,3 +89,34 @@ test('person handoff can acknowledge the request in the customer language withou
   });
   assert.doesNotMatch(unsafe, /#12345|€40|mañana/);
 });
+
+test('confident English canned lanes skip planning while multilingual and grounded requests do not', () => {
+  assert.equal(policy.skipPlannerForCanned({ lane: 'money' }, 'I want a refund for my order.'), true);
+  assert.equal(policy.skipPlannerForCanned({ lane: 'privacy' }, 'Please delete my data.'), true);
+  assert.equal(policy.skipPlannerForCanned({ lane: 'account' }, 'I have a question about my plan.'), true);
+  assert.equal(policy.skipPlannerForCanned({ lane: 'money' }, 'Quiero un refund para mi pedido.'), false);
+  assert.equal(policy.skipPlannerForCanned({ lane: 'shop', responseMode: 'grounded' }, 'Can I get a cheaper shipping quote?'), false);
+});
+
+test('off-topic chatter is silent but a request for a person is not', () => {
+  assert.equal(policy.suppressOffTopic({ messageKind: 'off_topic' }, { lane: 'unknown', escalate: false }), true);
+  assert.equal(policy.suppressOffTopic({ messageKind: 'off_topic' }, { lane: 'unknown', wantHuman: true }), false);
+  assert.equal(policy.suppressOffTopic({ messageKind: 'off_topic' }, { lane: 'tech', escalate: true }), false);
+});
+
+test('person-only fallback matches the request and uses the customer script', () => {
+  const billing = policy.personReply('money', { lane: 'money' }, 'My bill is wrong');
+  assert.match(billing, /billing/i);
+  assert.doesNotMatch(billing, /remove your data|replacement|warranty/i);
+  const human = policy.personReply('exception_request', { lane: 'shop', wantHuman: true }, 'Can I talk to a person?');
+  assert.match(human, /person/i);
+  assert.doesNotMatch(human, /replacement|warranty/i);
+  const romanized = policy.personReply('exception_request', { lane: 'money' }, 'Mujhe refund chahiye', {
+    replyLanguage: 'hi', handoffAcknowledgment: 'मुझे मदद चाहिए।',
+  });
+  assert.match(romanized, /Team ke kisi vyakti/i);
+  assert.doesNotMatch(romanized, /\p{Script=Devanagari}/u);
+  const footer = policy.handoffFooters({ replyLanguage: 'hi' }, 'Mujhe refund chahiye');
+  assert.match(footer.thread, /isi thread mein jawab/i);
+  assert.doesNotMatch(footer.thread, /\p{Script=Devanagari}/u);
+});
