@@ -600,12 +600,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
-    let botCanAnswer = false;
     if (!holdPublicCopy && router.isTechLane(route) && !changes.length) {
       const found = await github.searchPulls(caseQuestion);
       if (found) changes.push(found);
     }
-    if (router.isTechLane(route) && changes.length) botCanAnswer = true;
 
     const binding = await shopifyBind.get(message.author.id);
     const verifiedEmail = binding?.email || '';
@@ -626,17 +624,19 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     if (!holdPublicCopy && github.isConfigured() && router.isTechLane(route)) {
       githubHit = await github.searchIssues(caseQuestion);
     }
+    const relatedPull = changes.find((change) => change.kind === 'pull');
+    const relatedPullLookup = relatedPull ? await github.lookupChange(relatedPull) : null;
+    const relatedPullEvidence = relatedPull
+      ? [
+          '[Related GitHub pull request | lower priority than the Help Center, docs, and release notes; not proof of a customer fix]',
+          `#${relatedPull.number}: ${String(relatedPull.title || '').replace(/\s+/g, ' ').slice(0, 200)}`,
+          `Status: ${relatedPullLookup?.ok ? relatedPullLookup.state : 'unverified'}`,
+          relatedPull.url,
+          "Mention this only if it is directly relevant, and say: There's a related change on GitHub; I can't confirm it fixes your case.",
+        ].join('\n')
+      : '';
 
-    if (botCanAnswer) {
-      skipModel = true;
-      aiResponse = {
-        final_answer: '',
-        confidence: 0.95,
-        escalate: false,
-        reason: 'Pull request already covers this',
-      };
-      cleanAnswer = '';
-    } else if (holdPublicCopy || !router.requiresGroundedAnswer(route)) {
+    if (holdPublicCopy || !router.requiresGroundedAnswer(route)) {
       skipModel = true;
       aiResponse = {
         final_answer: '',
@@ -732,6 +732,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 `[Static fallback | lower priority than retrieved Help Center and docs]\n${OFFICIAL}`,
                 retrievedEvidence,
                 releaseText ? `[Official release note]\n${releaseText}` : '',
+                relatedPullEvidence,
               ]
                 .filter(Boolean)
                 .join('\n\n'),
@@ -739,7 +740,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             });
             const approved = checked.relevant && checked.grounded && String(checked.final_answer || '').trim();
             aiResponse.final_answer = approved
-              ? checked.final_answer
+              ? github.reviewedPullMention(checked.final_answer, relatedPull)
               : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
             aiResponse.confidence = Math.min(
               Number(aiResponse.confidence) || 0.4,
@@ -805,22 +806,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
     let changeSentence = '';
     if (changes[0]) {
-      const lookup = await github.lookupChange(changes[0]);
+      const lookup = changes[0] === relatedPull
+        ? relatedPullLookup
+        : await github.lookupChange(changes[0]);
       changeSentence = github.customerChangeSentence(changes[0], lookup, {
         question,
         title: changes[0].title,
       });
       cleanAnswer = github.stripShippedClaims(cleanAnswer);
-      const changeWasAlreadyShared = contextHistory.some((item) =>
-        String(item?.content || '').includes(changes[0].url)
-      );
-      if (
-        changeSentence &&
-        !changeWasAlreadyShared &&
-        !String(cleanAnswer || '').includes(changes[0].url)
-      ) {
-        cleanAnswer = [cleanAnswer, changeSentence].filter(Boolean).join('\n\n');
-      }
     }
 
     if (holdPublicCopy) {
@@ -838,7 +831,6 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         cleanAnswer = "I can't share account or order details in this public post.";
       }
     }
-    if (threadHistory.length) cleanAnswer = github.keepMergedPull(threadHistory, cleanAnswer);
     cleanAnswer = ensureNonEmptyAnswer(cleanAnswer);
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
@@ -864,7 +856,6 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const escalate =
       holdPublicCopy ||
       (!docsQuiet &&
-        !botCanAnswer &&
         (shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate));
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,
