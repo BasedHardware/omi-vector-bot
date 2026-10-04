@@ -96,11 +96,18 @@ test('direct human-contact requests route to staff without misreading ordinary c
     'We want a real person to look at this',
     'Need a person please',
     'I want to speak to an agent',
+    'can I get a real person please',
+    'real person please',
+    'is this a real person or a bot? i need help',
+    'I need someone from the team to look at this',
   ]) assert.equal(router.classify(question).wantHuman, true, question);
   for (const question of [
     'Does Omi need a person to be close to the mic?',
     'I want a person to see my summaries, can I share?',
     'Does recording need a real person to be present?',
+    'do I need a person to set it up?',
+    'can omi tell which person is speaking?',
+    'I need a human-readable export of my notes',
   ]) assert.equal(router.classify(question).wantHuman, false, question);
 });
 

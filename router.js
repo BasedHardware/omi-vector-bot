@@ -143,6 +143,10 @@ const WANT_HUMAN = [
   /\bcontact\s+(?:an?\s+|the\s+)?(?:human|person|agent|representative|support|shop|shipping)(?:\s+team)?\b/i,
   /\bcan\s+someone(?:\s+from\s+(?:the\s+)?(?:team|sales|support))?\s+(?:contact|call|email)\s+me\b/i,
   /\bis\s+there\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
+  /\b(?:can|could|may)\s+i\s+get\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
+  /^\s*(?:please[,\s]+)?(?:(?:an?|the)\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\s+please[.!?]*\s*$/i,
+  /\bis\s+this\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\s+or\s+(?:an?\s+)?bot\b[^\n]{0,80}\b(?:i\s+need\s+help|help\s+me)\b/i,
+  /\b(?:i|we)\s+(?:really\s+)?need\s+someone\s+(?:from\s+(?:the\s+)?(?:team|support|sales)\b|to\s+(?:help|check|look\s+at|review|contact|reply|call|email)\b)/i,
 ];
 
 const SUPPORT_NUDGE = [
