@@ -131,6 +131,15 @@ test('direct human-contact requests route to staff without misreading ordinary c
     'Please have the team contact me',
     'Have a person call me',
     'Have your support email me',
+    'Is a human available to help?',
+    'Is there a live agent to help?',
+    'Is an agent available to chat?',
+    'Please reach out to me',
+    'Can the support team reach out to me?',
+    'Connect me to your team',
+    "I'd like a human to help with this",
+    "I'd like someone to look at the failed sync",
+    'I would like a person to review my case',
   ]) assert.equal(router.classify(question).wantHuman, true, question);
   for (const question of [
     'Does Omi need a person to be close to the mic?',
@@ -142,6 +151,12 @@ test('direct human-contact requests route to staff without misreading ordinary c
     'does it work if a real person talks over a video?',
     'Can Omi distinguish a live person speaking in a recording?',
     'I watched a clip where an actual person was talking near the microphone',
+    'Is someone available to test the beta app?',
+    'Is a human available to test the beta app?',
+    'Is a real person available to test the beta app?',
+    'Is there a live agent available for beta testing?',
+    'Is a real person available next week for a beta test?',
+    'Can Omi reach out to me when recording stops?',
   ]) assert.equal(router.classify(question).wantHuman, false, question);
 });
 

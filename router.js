@@ -142,17 +142,22 @@ const WANT_HUMAN = [
   /\b(?:connect me with|(?:help me )?(?:get|put)(?: me)? in touch with)\s+(?:(?:an?|the)\s+)?(?:human|person|agent|representative|team|staff|sales|support)\b/i,
   /\bcontact\s+(?:an?\s+|the\s+)?(?:human|person|agent|representative|support|shop|shipping)(?:\s+team)?\b/i,
   /\bcan\s+someone(?:\s+from\s+(?:the\s+)?(?:team|sales|support))?\s+(?:contact|call|email)\s+me\b/i,
-  /\bis\s+there\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
+  /\bis\s+there\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)(?=\s*(?:$|[.!?]|to\s+(?:help|talk|chat|speak|assist)\b|available\s*(?:$|[.!?]|to\s+(?:help|talk|chat|speak|assist)\b)))/i,
   /\b(?:get|give|connect|put)\s+me\s+(?:(?:in\s+touch\s+)?with\s+)?(?:(?:an?|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?|(?:the\s+)?(?:team|support|sales))\b/i,
   /\b(?:(?:i|we)\s+(?:really\s+)?)?(?:need|want)\s+(?:(?:an?|the|real|actual|live)\s+)*(?:someone|human|person|agent|representative)(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?\s+to\s+(?:help|check|look(?:\s+at)?|review|contact|reply|call|email)\b/i,
   /\bput\s+me\s+through\s+to\s+(?:(?:your|the|a|an)\s+)?(?:team|support|sales|human|person|agent|representative)\b/i,
-  /\bis\s+(?:(?:a|an|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone)\s+available\b/i,
+  /\bis\s+(?:(?:a|an|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone)\s+available(?=\s*(?:$|[.!?]|to\s+(?:help|talk|chat|speak|assist)\b))/i,
   /\b(?:please\s+)?have\s+(?:(?:someone|a\s+person|an?\s+(?:human|agent|representative))|(?:the|your)\s+(?:team|support|sales))\s+(?:contact|call|email)\s+me\b/i,
+  /\bconnect\s+me\s+to\s+(?:(?:your|the|a|an|real|actual|live)\s+)*(?:team|support|sales|human|person|agent|representative|someone)\b/i,
+  /(?:^\s*(?:please\s+)?reach\s+out\s+to\s+me\b|\b(?:team|support|staff|someone|person|human|agent)\b[^.!?]{0,40}\breach\s+out\s+to\s+me\b|\b(?:i\s+need|i\s+want|i['’]d\s+like)\s+(?:you|the\s+team)\s+to\s+reach\s+out\s+to\s+me\b)/i,
+  /\b(?:i['’]d|i\s+would)\s+like\s+(?:(?:a|an|the|real|actual|live)\s+)*(?:human|person|someone|agent|representative)(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?\s+to\s+(?:help|look(?:\s+at)?|check|review)\b/i,
 ];
 
 function wantsHumanSupport(text) {
   const question = String(text || '');
   if (any(question, WANT_HUMAN)) return true;
+  const availability = /\bis\s+(?:there\s+)?(?:(?:a|an|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone)\s+available\b/i.exec(question);
+  if (availability && !/^\s*(?:$|[.!?]|to\s+(?:help|talk|chat|speak|assist)\b)/i.test(question.slice(availability.index + availability[0].length))) return false;
   const person = /\b(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i;
   if (!person.test(question)) return false;
   const describesSpeaker = /\b(?:real|actual|live)\s+(?:human|person|agent|representative)\b[^.!?\n]{0,80}\b(?:speak(?:s|ing|ed)|talk(?:s|ing|ed)|record(?:s|ing|ed)|mic(?:rophone)?|audio|video|voice|to\s+be\s+(?:present|close|near))\b/i;
