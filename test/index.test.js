@@ -490,6 +490,19 @@ test('person-kind policy question in #help keeps a reviewed answer and hands off
   assert.equal(staff.length, 1);
 });
 
+test('blank transcript after a completed recording warns and reaches staff', async (t) => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'I understand the recording happened but the transcript is blank.', escalate: false };
+  for (const question of [
+    'I recorded my whole lecture and the transcript is blank',
+    "The app shows an empty transcript for yesterday's two hour call",
+  ]) {
+    const result = await ask(question);
+    assert.match(result.reply, /Do not reinstall the app/i);
+    assert.equal(staff.length, question.startsWith('I recorded') ? 1 : 2);
+  }
+});
+
 test('person-kind request with private details in #help holds the public answer', async (t) => {
   const staff = enableStaffDelivery(t);
   const previous = process.env.CMD_API_KEY;

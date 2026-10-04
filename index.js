@@ -53,7 +53,7 @@ const { relevantDocs } = require('./docs');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
-const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning } = require('./answerPipeline');
+const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk } = require('./answerPipeline');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -917,6 +917,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       caption,
       triaged,
       holdPublicCopy,
+      dataLossRisk: hasUnsyncedDataRisk(caseQuestion),
     });
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,

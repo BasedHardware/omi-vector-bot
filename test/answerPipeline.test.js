@@ -6,6 +6,7 @@ const {
   presentReviewedAnswer,
   EMPTY_ANSWER_FALLBACK,
   addUnsyncedDataWarning,
+  hasUnsyncedDataRisk,
 } = require('../answerPipeline');
 
 test('sync stalls and missing conversations get a data-loss warning without the word offline', () => {
@@ -40,6 +41,24 @@ test('unsynced-data warning catches missing audio and conversations in varied wo
   ]) {
     const reply = addUnsyncedDataWarning('A person needs to check this.', question);
     assert.match(reply, /Do not reinstall the app, log out, or clear Pending\/All/i, question);
+  }
+});
+
+test('blank output after a real recording risks data loss, but transcript how-tos do not', () => {
+  for (const question of [
+    'I recorded my whole lecture and the transcript is blank',
+    "The app shows an empty transcript for yesterday's two hour call",
+    'Nothing was recorded during my meeting',
+  ]) {
+    assert.equal(hasUnsyncedDataRisk(question), true, question);
+    assert.match(addUnsyncedDataWarning('I will check this.', question), /Do not reinstall/i);
+  }
+  for (const question of [
+    'Where do I find the transcript of a conversation?',
+    'Is there a transcript export?',
+  ]) {
+    assert.equal(hasUnsyncedDataRisk(question), false, question);
+    assert.equal(addUnsyncedDataWarning('Open the app.', question), 'Open the app.');
   }
 });
 

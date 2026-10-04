@@ -39,3 +39,8 @@ test('an upstream person request cannot be canceled by a grounded how-to', () =>
   assert.equal(decision(answer, { route: { ...route, escalate: true } }).escalate, true);
   assert.equal(decision(answer, { agent: { confidence: 0.95, escalate: false } }).escalate, false);
 });
+
+test('data-loss risk forces a handoff even when the FAQ answer is grounded', () => {
+  assert.equal(decision('Open the app and check the transcript.', { dataLossRisk: true }).escalate, true);
+  assert.equal(decision('Open the app and check the transcript.', { dataLossRisk: false }).escalate, false);
+});

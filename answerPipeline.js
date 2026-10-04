@@ -49,7 +49,9 @@ function hasUnsyncedDataRisk(question) {
   const text = String(question || '');
   const data = /\b(?:sync\w*|record\w*|audio|meetings?|conversations?|memories?|transcripts?)\b/i.test(text);
   const loss = /\b(?:gone|vanish\w*|disappear\w*|lost|losing|missing|nothing\s+sync\w*|never\s+showed\s+up|not\s+sync\w*|didn['’]?t\s+sync\w*|sync\w*\s+(?:is\s+)?(?:stuck|stall\w*|fail\w*)|(?:stuck|stall\w*|fail\w*)\s+sync\w*)\b/i.test(text);
-  return data && loss;
+  const emptyOutput = /\b(?:(?:no|zero|empty|blank)\s+(?:transcripts?|recordings?|audio)|(?:transcripts?|recordings?|audio)\s+(?:is|was|are|were|came(?:\s+back)?)?\s*(?:empty|blank|zero)|nothing\s+(?:was\s+)?(?:recorded|transcribed|saved))\b/i.test(text);
+  const happened = /\b(?:recorded|captured|finished|yesterday|last\s+(?:night|week|meeting|call)|\d+\s*(?:hours?|minutes?)|during\s+(?:my|the|a)\s+(?:call|meeting|lecture)|(?:my|the)\s+(?:recording|audio|transcript))\b/i.test(text);
+  return data && (loss || (emptyOutput && happened));
 }
 
 function addUnsyncedDataWarning(answer, question) {
