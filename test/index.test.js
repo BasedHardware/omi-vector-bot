@@ -326,6 +326,25 @@ async function ask(content, options = {}) {
   };
 }
 
+function enableStaffDelivery(t) {
+  const originalFetch = client.channels.fetch;
+  const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
+  const delivered = [];
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
+  client.channels.fetch = async () => ({
+    isTextBased: () => true,
+    send: async (payload) => {
+      delivered.push(payload);
+      return payload;
+    },
+  });
+  t.after(() => {
+    client.channels.fetch = originalFetch;
+    process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
+  });
+  return delivered;
+}
+
 test.beforeEach(() => {
   modelCalls.length = 0;
   modelReply = {};
@@ -869,8 +888,10 @@ test('asking to talk to a human opens a Handoff even when the model says not to 
   assert.match(r.thread.name, /^Handoff · /);
 });
 
-test('an open pull request that matches the report is cited as unshipped with no Handoff and no model', async () => {
+test('an open pull request match still gets a reviewed answer and a Handoff', async (t) => {
+  const staff = enableStaffDelivery(t);
   process.env.GITHUB_TOKEN = 'ghs_test';
+  modelReply = { final_answer: 'Please share your Android version and Omi app version so a person can investigate the crash.', escalate: false };
   pulls = [
     {
       number: 4321,
@@ -880,17 +901,20 @@ test('an open pull request that matches the report is cited as unshipped with no
     },
   ];
   const r = await ask('The Android app crashes when I open the memories tab.');
-  assert.match(r.reply, /#4321/);
-  assert.match(r.reply, /omi\/pull\/4321/);
+  assert.match(r.reply, /Android version and Omi app version/);
   assert.ok(r.github.some((c) => /\/pulls\/4321$/.test(c.url)));
-  assert.equal(/has been merged|has shipped|is fixed/i.test(r.reply), false);
-  assert.equal(r.thread, null);
-  assert.equal(r.modelCalled, false);
+  assert.equal(r.reply.includes('omi/pull/4321'), false);
+  assert.equal(staff.length, 1);
+  assert.equal(r.modelCalled, true);
+  assert.match(reviewCalls.at(-1).sources, /Related GitHub pull request.*lower priority/i);
+  assert.match(reviewCalls.at(-1).sources, /omi\/pull\/4321/);
   assert.equal(posts().length, 0);
 });
 
-test('a merged pull request that matches the report is described as merged', async () => {
+test('a merged pull request match still gets a reviewed answer and a Handoff', async (t) => {
+  const staff = enableStaffDelivery(t);
   process.env.GITHUB_TOKEN = 'ghs_test';
+  modelReply = { final_answer: 'Please share your Android version and Omi app version so a person can investigate the crash.', escalate: false };
   pullState = { state: 'closed', merged: true };
   pulls = [
     {
@@ -901,10 +925,37 @@ test('a merged pull request that matches the report is described as merged', asy
     },
   ];
   const r = await ask('The Android app crashes when I open the memories tab.');
-  assert.match(r.reply, /#4400/);
-  assert.match(r.reply, /merged/);
-  assert.equal(r.thread, null);
-  assert.equal(r.modelCalled, false);
+  assert.match(r.reply, /Android version and Omi app version/);
+  assert.equal(r.reply.includes('omi/pull/4400'), false);
+  assert.equal(staff.length, 1);
+  assert.equal(r.modelCalled, true);
+  assert.match(reviewCalls.at(-1).sources, /Related GitHub pull request.*lower priority/i);
+  assert.match(reviewCalls.at(-1).sources, /omi\/pull\/4400/);
+});
+
+test('a related pull is mentioned cautiously only when the reviewer cites it', async (t) => {
+  const staff = enableStaffDelivery(t);
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  modelReply = { final_answer: 'Please share your Android version and Omi app version so a person can investigate the crash.', escalate: false };
+  pulls = [{
+    number: 4500,
+    state: 'open',
+    title: 'Fix Android crash when opening memories',
+    html_url: 'https://github.com/BasedHardware/omi/pull/4500',
+  }];
+  reviewerResponse = ({ draft }) => ({
+    final_answer: `${draft} Pull request #4500 fixes this. https://github.com/BasedHardware/omi/pull/4500`,
+    grounded: true,
+    relevant: true,
+    confidence: 0.9,
+    escalate: true,
+  });
+  const r = await ask('The Android app crashes when I open the memories tab.');
+  assert.equal(staff.length, 1);
+  assert.match(r.reply, /Android version and Omi app version/);
+  assert.match(r.reply, /related change on GitHub; I can't confirm it fixes your case/i);
+  assert.equal((r.reply.match(/omi\/pull\/4500/g) || []).length, 1);
+  assert.doesNotMatch(r.reply, /Pull request #4500 fixes this/i);
 });
 
 test('an open issue found by the duplicate search is linked on the Handoff and no new issue is filed', async () => {

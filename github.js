@@ -799,6 +799,26 @@ function customerChangeSentence(ref, lookup, extra = {}) {
   return `Pull request ${number} was already opened for this.${scope} It has not shipped. ${url}`;
 }
 
+function reviewedPullMention(answer, ref) {
+  const text = String(answer || '').trim();
+  const url = String(ref?.url || '');
+  if (!url || !text.includes(url)) return text;
+  const number = String(ref?.number || '');
+  const namedPull = number ? new RegExp(`\\b(?:pull request|PR)\\s*#?${number}\\b`, 'i') : null;
+  const body = text
+    .split('\n')
+    .map((line) => line
+      .split(/(?<=[.!?])\s+/)
+      .filter((sentence) => !sentence.includes(url) && !(namedPull && namedPull.test(sentence)))
+      .join(' '))
+    .filter((line) => line.trim())
+    .join('\n')
+    .trim();
+  return [body, `There's a related change on GitHub; I can't confirm it fixes your case. ${url}`]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 const SEARCH_STOP = new Set([
   'once',
   'again',
@@ -1079,6 +1099,7 @@ module.exports = {
   lookupChange,
   stripShippedClaims,
   customerChangeSentence,
+  reviewedPullMention,
   keepMergedPull,
   scorePull,
   searchPulls,
