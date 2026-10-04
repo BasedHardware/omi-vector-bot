@@ -628,12 +628,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     route = cannedEnglish
       ? currentRoute
       : plannerPolicy.routeWithUnderstanding(route, searchPlan, asked || question);
-    const forceGroundedPersonAnswer = Boolean(plannedPersonKind && plannedPersonKind !== 'order_lookup');
+    const forceGroundedPersonAnswer = Boolean(plannedPersonKind);
     const cannedEnglishReply = cannedEnglish ? router.cannedReply(route, asked || question) : '';
     const supportFollowup =
       Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
-    const holdPublicCopy = isHelpThread(channel) &&
-      (Boolean(plannedPersonKind) || !router.isPublicForumSafe(asked || question));
+    const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
     if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
     }
@@ -835,7 +834,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     if (plannedPersonKind) {
       aiResponse.escalate = true;
       aiResponse.reason = plannerPolicy.personReason(plannedPersonKind);
-      if (!reviewedGrounded || plannedPersonKind === 'order_lookup') {
+      if (!reviewedGrounded) {
         aiResponse.final_answer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
       }
     }
@@ -848,7 +847,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         prepareDraftForReview(cleanAnswer || '', triaged.lane, caseQuestion)
       );
     }
-    if (plannedPersonKind && (!reviewedGrounded || plannedPersonKind === 'order_lookup')) {
+    if (plannedPersonKind && !reviewedGrounded) {
       cleanAnswer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
     }
     if (!plannedPersonKind && threadHasKnownIssueTag(channel)) {

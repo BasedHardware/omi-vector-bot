@@ -476,6 +476,48 @@ test('planner-detected account action keeps a grounded answer and still reaches 
   assert.doesNotMatch(result.reply, /I can't change your account|A person on the team/i);
 });
 
+test('person-kind policy question in #help keeps a reviewed answer and hands off', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'exception_request';
+  modelReply = { final_answer: 'The return policy is described here. Source: https://help.omi.me/en/articles/returns', escalate: false };
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Return policy' });
+  const result = await ask('What is the return policy for Omi?', { channel: post });
+  assert.equal(result.modelCalled, true);
+  assert.match(result.reply, /return policy is described here/i);
+  assert.equal(staff.length, 1);
+});
+
+test('person-kind request with private details in #help holds the public answer', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'exception_request';
+  modelReply = { final_answer: 'The return policy is described here. Source: https://help.omi.me/en/articles/returns', escalate: false };
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Private return request' });
+  const result = await ask('Can you return order #22777? My email is jane@example.com.', { channel: post });
+  assert.equal(result.modelCalled, false);
+  assert.doesNotMatch(result.reply, /jane@example\.com|#22777|return policy is described here/i);
+  assert.equal(staff.length, 1);
+});
+
+test('order lookup with an approved sourced draft keeps that policy answer and hands off', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'order_lookup';
+  modelReply = { final_answer: 'The delivery policy says to contact the shop team for a missing package. Source: https://help.omi.me/en/articles/delivery', escalate: false };
+  const result = await ask('Tracking says delivered but I never got it');
+  assert.equal(result.modelCalled, true);
+  assert.match(result.reply, /delivery policy says/i);
+  assert.doesNotMatch(result.reply, /Order lookup in chat is not live yet/i);
+  assert.equal(staff.length, 1);
+});
+
 test('planner-detected billing request keeps the sourced answer instead of a data-removal line', async (t) => {
   const staff = enableStaffDelivery(t);
   const previous = process.env.CMD_API_KEY;

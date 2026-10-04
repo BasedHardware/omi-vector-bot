@@ -555,7 +555,7 @@ function shopStatusReply(route, question) {
   if (orderLookupLive()) {
     return `${head}\n\nUse /order to check your own orders. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.`;
   }
-  return `${head}\n\nEmail help@omi.me with the order number. Order lookup in chat is not live yet. Keep your order number handy.`;
+  return `${head}\n\nEmail help@omi.me with the order number. Keep your order number handy.`;
 }
 
 function shippingQuoteReply() {

@@ -442,7 +442,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
         },
         {
           role: 'system',
-          content: 'Clarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.',
+          content: 'Clarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.',
         },
         {
           role: 'user',

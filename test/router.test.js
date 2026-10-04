@@ -34,7 +34,11 @@ test('order and tracking are shop', () => {
   assert.equal(router.skipModel(numbered), true);
   const canned = router.cannedReply(numbered, 'where is order #1042');
   assert.match(canned, /help@omi\.me/);
-  assert.match(canned, /not live yet/);
+  assert.doesNotMatch(canned, /Order lookup in chat is not live yet/);
+  const delivered = require('../utils').stripSupportRedirect(canned);
+  assert.match(delivered, /can't see order status from here/i);
+  assert.match(delivered, /needs someone with access to the order system/i);
+  assert.doesNotMatch(delivered, /Email help@omi\.me/);
   assert.equal(/\/order/.test(canned), false);
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
 });
