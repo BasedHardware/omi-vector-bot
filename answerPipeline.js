@@ -47,13 +47,14 @@ function presentReviewedAnswer(answer) {
 
 function stripUnverifiedOrderClaims(answer, { verifiedLookup = false } = {}) {
   if (verifiedLookup) return String(answer || '').trim();
-  const assertedStatus = /\b(?:(?:your|this|the)\s+(?:order|package|parcel|shipment|delivery)|it)\s+(?:(?:is|was|has|had|hasn['’]?t|will|would|should|may|might|appears?|seems?|expected|likely)\s+){1,3}(?:(?:been|be|to|have|not|already|currently|probably)\s+){0,3}(?:deliver\w*|shipp\w*|dispatch\w*|arriv\w*|in\s+transit|out\s+for\s+delivery|on\s+its\s+way|located|at\s+(?:the|a|your)\b)/i;
+  const assertedStatus = /\b(?:(?:your|this|the)\s+(?:order|package|parcel|shipment|delivery)|it)\s+(?:(?:is|was|has|had|hasn['’]?t|will|would|should|may|might|appears?|seems?|expected|likely)\s+){1,3}(?:(?:been|be|to|have|not|already|currently|probably)\s+){0,3}(?:(?:(?:marked|showing|listed)\s+as\s+)?(?:deliver\w*|shipp\w*|dispatch\w*|arriv\w*|in\s+transit|out\s+for\s+delivery|on\s+its\s+way)|located|at\s+(?:the|a|your)\b|sitting\s+(?:at|with)\s+(?:the\s+)?(?:depot|carrier|customs)\b)/i;
+  const carrierClaim = /\b(?:the|your|a)\s+carrier\s+(?:has\s+|had\s+)?(?:deliver\w*|shipp\w*|dispatch\w*)\s+(?:it|your\s+(?:order|package|parcel|shipment))\b/i;
   return String(answer || '')
     .split('\n')
     .map((line) => line.split(/(?<=[.!?])\s+/)
       .filter((sentence) => {
         if (/^\s*(?:source|fuente|quelle|fonte|источник|来源|출처)\s*:/i.test(sentence)) return true;
-        const claim = assertedStatus.exec(sentence);
+        const claim = assertedStatus.exec(sentence) || carrierClaim.exec(sentence);
         if (!claim) return true;
         return /\b(?:if|when|in case)\b/i.test(sentence.slice(0, claim.index));
       })

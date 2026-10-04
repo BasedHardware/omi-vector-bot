@@ -25,6 +25,23 @@ test('order replies remove unsupported customer-specific status but retain carri
   assert.match(stripUnverifiedOrderClaims('If tracking shows delivered, contact the carrier.'), /contact the carrier/i);
 });
 
+test('unverified delivery status variants are removed but general and conditional advice remains', () => {
+  for (const claim of [
+    'Your package was marked as delivered on Monday.',
+    'Your parcel is showing as shipped today.',
+    'The shipment is listed as delivered.',
+    'The carrier delivered it to your door.',
+    'Your package is sitting at the depot.',
+    'Your order was sitting with the carrier.',
+    'It is sitting at customs.',
+  ]) assert.equal(stripUnverifiedOrderClaims(claim), '', claim);
+  for (const general of [
+    'Tracking can show delivered before the package arrives.',
+    'If it was marked delivered, check your tracking link.',
+    'If the carrier delivered it to a neighbor, ask them to check.',
+  ]) assert.equal(stripUnverifiedOrderClaims(general), general);
+});
+
 test('sync stalls and missing conversations get a data-loss warning without the word offline', () => {
   for (const question of ['sync is stuck at 40%', 'lost my conversations after the update']) {
     const reply = addUnsyncedDataWarning('A person needs to check this.\n\nSource: https://help.omi.me/example', question);
