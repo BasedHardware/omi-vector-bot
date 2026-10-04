@@ -34,6 +34,7 @@ test('order replies remove unsupported customer-specific status but retain carri
   assert.match(safe, /Source: https:\/\/help\.omi\.me/i);
   assert.equal(stripUnverifiedOrderClaims(answer, { verifiedLookup: true }), answer);
   assert.match(stripUnverifiedOrderClaims('If tracking shows delivered, contact the carrier.'), /contact the carrier/i);
+  assert.equal(stripUnverifiedOrderClaims('Your Omi was delivered yesterday. Open the tracking link from the shipping email.'), 'Open the tracking link from the shipping email.');
 });
 
 test('unverified delivery status variants are removed but general and conditional advice remains', () => {

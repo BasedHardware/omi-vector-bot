@@ -507,6 +507,23 @@ test('missing delivery gets a grounded answer, no invented status, and a staff h
   assert.equal(staff.length, 1);
 });
 
+test('a delivered Omi that never arrived gets grounded delivery handling without a package noun', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  modelReply = {
+    final_answer: 'Your Omi was delivered yesterday. Open the tracking link from the shipping email and contact the carrier about the missing delivery.',
+    escalate: false,
+  };
+  const result = await ask("UPS says my Omi was delivered yesterday but it isn't here");
+  assert.equal(result.modelCalled, true);
+  assert.match(result.reply, /^I can't see order status from here/i);
+  assert.doesNotMatch(result.reply, /Your Omi was delivered yesterday/i);
+  assert.match(result.reply, /tracking link from the shipping email/i);
+  assert.equal(staff.length, 1);
+});
+
 test('the planner runs for a short first customer question', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';
