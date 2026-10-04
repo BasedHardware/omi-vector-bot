@@ -686,7 +686,7 @@ function formatStaffTicket({
   embed.fields.push({
     name: 'Staff',
     value: staffOnly
-      ? "Reply in the customer's thread using the Jump link above; replies in #vector-staff do not reach the customer.\nIf they did not name the device and the app version, ask for both.\nUse `/done` in the customer's Handoff or help thread when resolved. Use `faq: short true sentence` in a Handoff thread to save a fact."
+      ? "Reply in the customer's thread using the Jump link above (or to the linked message if it is not in a thread); replies in #vector-staff do not reach the customer.\nIf they did not name the device and the app version, ask for both.\nUse `/done` in the customer's forum or Handoff thread when resolved. Use `faq: short true sentence` in a Handoff thread to save a fact."
       : 'Reply here. If this card is in the customer thread, they can read it.\nIf they did not name the device and the app version, ask for both.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
     inline: false,
   });
