@@ -963,6 +963,19 @@ test('an undelivered tech Handoff gives one help email fallback', async () => {
   assert.match(r.reply, /could not deliver this to the support team/i);
 });
 
+test('a delivered Handoff keeps details without directing the customer to another channel', async (t) => {
+  const staff = enableStaffDelivery(t);
+  modelReply = {
+    final_answer: 'The app crashes when you open a memory. Use the contact form on help.omi.me. Join discord.omi.me and look for #help. Please include the app version.',
+    escalate: true,
+  };
+  const result = await ask('The iPhone app crashes every time I open a memory.');
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /Please include the app version/i);
+  assert.doesNotMatch(result.reply, /contact form|discord\.omi\.me|#help|help@omi\.me/i);
+  assert.match(result.reply, /person.*(?:team|thread)/i);
+});
+
 test('a transcribed device-button question searches official app source before the model answers', async () => {
   const q = [
     'I received my Omi yesterday. I press it, get the vibration, ask my question, and press again.',

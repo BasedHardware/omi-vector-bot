@@ -311,6 +311,26 @@ test('failed handoff overrides issue and conversation copy with an honest email 
   assert.match(out, /help@omi\.me/);
 });
 
+test('a delivered handoff keeps case details but removes routes to other support channels', () => {
+  const answer = [
+    'Your report needs a person.',
+    'Use the contact form on help.omi.me.',
+    'Join discord.omi.me and look for #help.',
+    'Please contact support and please include the device and app version.',
+    'Source: https://help.omi.me/en/articles/contacting-omi-support',
+  ].join(' ');
+  const delivered = escalateReply(answer, { pinged: true });
+  assert.doesNotMatch(delivered, /contact form|discord\.omi\.me|#help|contact support/i);
+  assert.match(delivered, /Please include the device and app version/i);
+  assert.match(delivered, /Source: https:\/\/help\.omi\.me/i);
+  assert.match(delivered, /person on the team has this now/i);
+  const failed = escalateReply(answer, { deliveryFailed: true });
+  assert.doesNotMatch(failed, /contact form|discord\.omi\.me|#help|contact support/i);
+  assert.match(failed, /Please include the device and app version/i);
+  assert.match(failed, /help@omi\.me/i);
+  assert.doesNotMatch(failed, /has this now/i);
+});
+
 test('an incomplete locale map cannot suppress a delivered or failed handoff next step', () => {
   const footers = { thread: '', failed: '', pending: '' };
   assert.match(escalateReply('A person needs to review this.', {
@@ -402,7 +422,7 @@ test('sanitizeReply keeps AI message as a product-output description', () => {
   assert.equal(sanitizeReply('As an AI, I cannot do that.'), 'I cannot do that.');
 });
 
-test('a successful Discord handoff can remove only the duplicate email redirect', () => {
+test('a successful Discord handoff removes redirects but keeps useful details', () => {
   assert.equal(
     stripSupportRedirect(
       "I can't see the phone from here. Please contact help@omi.me so the team can investigate. Keep the exact error ready."

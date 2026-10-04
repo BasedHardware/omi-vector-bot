@@ -14,7 +14,6 @@ const {
   claimAsker,
   releaseAsker,
   typingDelay,
-  stripSupportRedirect,
   clipForDiscord,
   clipThreadHistory,
   escalateReply,
@@ -958,7 +957,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         if (existing) {
           try {
             await existing.send({
-              content: rewriteUserMentions(escalateReply(cleanAnswer, { conversation: true, footers: localizedFooters }), message),
+              content: rewriteUserMentions(escalateReply(cleanAnswer, { pinged: true, conversation: true, footers: localizedFooters }), message),
               allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
             });
             reused = true;
@@ -1031,10 +1030,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       ) {
         await postShopTicketCard(handoffThread, triaged);
       }
-      const handoffAnswer = pinged ? stripSupportRedirect(cleanAnswer) : cleanAnswer;
       const movedToThread = !inHandoff && Boolean(handoffThread?.id);
-      let parentReply = escalateReply(handoffAnswer, {
-        pinged,
+      let parentReply = escalateReply(cleanAnswer, {
+        pinged: pinged || inHandoff,
         duplicate,
         conversation: stayInPost && !handoffFollowup,
         issue:

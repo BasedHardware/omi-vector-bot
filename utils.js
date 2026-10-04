@@ -146,16 +146,24 @@ function sanitizeReply(text) {
 }
 
 function stripSupportRedirect(text) {
+  const isRedirect = (sentence) =>
+    /\b(?:email|e-mail|contact|reach out to|write to)\b[^.!?]{0,100}\bhelp@omi\.me\b/i.test(sentence) ||
+    /\b(?:contact form|submit (?:a |the )?(?:request|ticket))\b[^.!?]{0,100}\bhelp\.omi\.me\b/i.test(sentence) ||
+    /\bhelp\.omi\.me\b[^.!?]{0,100}\b(?:contact form|submit (?:a |the )?(?:request|ticket))\b/i.test(sentence) ||
+    /\b(?:join|visit|go to|head to|use|try)\b[^.!?]{0,100}\bdiscord\.omi\.me\b/i.test(sentence) ||
+    /\b(?:look for|post (?:in|to)|ask (?:in|on)|join|use)\b[^.!?]{0,60}(?:#help\b|help channel\b)/i.test(sentence) ||
+    /^\s*(?:please\s+|you\s+(?:can|should)\s+)?(?:contact|reach out to)\s+(?:omi\s+)?support\b/i.test(sentence);
   return String(text || '')
     .split('\n')
     .map((line) =>
       line
         .split(/(?<=[.!?])\s+/)
-        .filter(
-          (sentence) =>
-            !/\b(?:email|e-mail|contact|reach out to|write to)\b[^.!?]{0,80}\bhelp@omi\.me\b/i.test(sentence) &&
-            !/^\s*(?:use\s+\/order\b|include (?:the )?order (?:number|#)|we email a code\b|keep (?:your|the) order number handy\b)/i.test(sentence)
-        )
+        .flatMap((sentence) => {
+          if (/^\s*(?:use\s+\/order\b|include (?:the )?order (?:number|#)|we email a code\b|keep (?:your|the) order number handy\b)/i.test(sentence)) return [];
+          if (!isRedirect(sentence)) return [sentence];
+          const details = sentence.match(/\b(?:please\s+)?include\b.+$/i);
+          return details ? [`Please ${details[0].replace(/^please\s+/i, '')}`] : [];
+        })
         .join(' ')
         .trim()
     )
@@ -436,8 +444,9 @@ function escalateReply(answer, opts = {}) {
   const footers = opts.footers;
   let body = dropPingNarration(String(answer || '').trim());
 
+  if (pinged || opts.deliveryFailed) body = stripSupportRedirect(body);
+
   if (opts.deliveryFailed) {
-    body = stripSupportRedirect(body);
     return [body, footers?.failed || FAILED_HANDOFF_FOOTER].filter(Boolean).join('\n\n');
   }
 
