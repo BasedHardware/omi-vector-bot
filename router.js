@@ -137,8 +137,8 @@ const ACCOUNT = [
 const WANT_HUMAN = [
   /\b(?:talk|speak|chat)\s+(?:to|with)\s+(?:(?:an?|the|actual|real|live)\s+)*(?:human|person|agent|representative|someone\s+from\s+(?:the\s+)?(?:team|sales|support))\b/i,
   /\b(?:i want to|i['’]d like to|can i|let me|need to)\s+(?:talk|speak|chat)\s+(?:to|with)\s+someone\b/i,
-  /\b(?:need|want)\s+(?:an?\s+)?(?:human|person|agent|representative)\b/i,
-  /\b(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
+  /\b(?:i|we)\s+(?:really\s+)?(?:need|want)\s+(?:(?:a|an|the|real|actual|live)\s+)*(?:human|person|agent|representative)(?=\s*(?:$|[.!?]|please\b|to\s+(?:help|check|look|review|answer|handle|contact|call|email|talk|speak)\b))/i,
+  /^\s*(?:please[,\s]+)?(?:need|want)\s+(?:(?:a|an|the|real|actual|live)\s+)*(?:human|person|agent|representative)(?=\s*(?:$|[.!?]|please\b|to\s+(?:help|check|look|review|answer|handle|contact|call|email|talk|speak)\b))/i,
   /\b(?:connect me with|(?:help me )?(?:get|put)(?: me)? in touch with)\s+(?:(?:an?|the)\s+)?(?:human|person|agent|representative|team|staff|sales|support)\b/i,
   /\bcontact\s+(?:an?\s+|the\s+)?(?:human|person|agent|representative|support|shop|shipping)(?:\s+team)?\b/i,
   /\bcan\s+someone(?:\s+from\s+(?:the\s+)?(?:team|sales|support))?\s+(?:contact|call|email)\s+me\b/i,

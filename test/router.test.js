@@ -91,6 +91,17 @@ test('direct human-contact requests route to staff without misreading ordinary c
   ]) {
     assert.equal(router.classify(question).wantHuman, false, question);
   }
+  for (const question of [
+    'I need a human',
+    'We want a real person to look at this',
+    'Need a person please',
+    'I want to speak to an agent',
+  ]) assert.equal(router.classify(question).wantHuman, true, question);
+  for (const question of [
+    'Does Omi need a person to be close to the mic?',
+    'I want a person to see my summaries, can I share?',
+    'Does recording need a real person to be present?',
+  ]) assert.equal(router.classify(question).wantHuman, false, question);
 });
 
 test('a customer nudge is recognized without treating arbitrary questions as nudges', () => {
