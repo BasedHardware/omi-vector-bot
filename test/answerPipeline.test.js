@@ -62,6 +62,27 @@ test('blank output after a real recording risks data loss, but transcript how-to
   }
 });
 
+test('spoken sessions and spelled-out durations count as completed recordings', () => {
+  for (const question of [
+    'I talked through a whole meeting and there is no transcript at all',
+    'I spoke for an hour and got zero audio',
+    'I dictated notes all day but nothing was transcribed',
+    'I said everything during the call and the transcript came back blank',
+  ]) assert.equal(hasUnsyncedDataRisk(question), true, question);
+  for (const question of [
+    'where do I find the transcript of a conversation?',
+    'is there a transcript export?',
+    'how do I turn off recording?',
+  ]) assert.equal(hasUnsyncedDataRisk(question), false, question);
+});
+
+test('the fixed English data-loss warning is never appended to a non-English reply', () => {
+  const question = 'I recorded a lecture and the transcript is blank';
+  const spanish = addUnsyncedDataWarning('La transcripción está vacía.', question, { language: 'es', dataLossRisk: true });
+  assert.equal(spanish, 'La transcripción está vacía.');
+  assert.match(addUnsyncedDataWarning('The transcript is blank.', question, { language: 'en', dataLossRisk: true }), /Do not reinstall/);
+});
+
 test('the presentation step does not prepend a saved staff note', () => {
   const answer = 'I cannot confirm a shipping date for this order.';
   assert.equal(presentReviewedAnswer(answer), answer);

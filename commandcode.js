@@ -145,6 +145,7 @@ function parseSearchPlan(raw, question) {
     customerFacts: shortList(data.customer_facts, 6),
     supportKind: String(data.support_kind || 'other').trim().slice(0, 60),
     wantsPerson: data.wants_person === true,
+    dataLossRisk: data.data_loss_risk === true,
     messageKind: String(data.message_kind || 'question').trim().slice(0, 40),
     replyLanguage: String(data.reply_language || 'en').trim().slice(0, 16),
     handoffAcknowledgment: String(data.handoff_acknowledgment || '').replace(/\s+/g, ' ').trim().slice(0, 300),
@@ -275,6 +276,10 @@ async function understandQuestion({ question, threadHistory = [], route, post })
           content: 'Classification and search clarification: self-serve actions inside the Omi app, such as deleting one conversation or memory or changing a setting, are official_information. Use account_action only when staff must change something the customer cannot do themselves. Keep the customer\'s in-app wording in at least one search query and add official product synonyms in another; do not substitute developer API terminology for an app question.',
         },
         {
+          role: 'system',
+          content: 'Include data_loss_risk as a boolean in the JSON. Set it true only when the customer says audio, a recording, or a transcript from a session they made is missing, empty, blank, lost, or not syncing. Do not set it for a general how-to about finding, exporting, or turning off recordings. When true, the case needs a person; do not suggest reinstalling, logging out, or clearing local storage.',
+        },
+        {
           role: 'user',
           content: `Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,
         },
@@ -317,7 +322,7 @@ async function queryAgent({
           temperature: 0.4,
           messages: [
             { role: 'system', content: buildSystemPrompt(route) },
-            { role: 'system', content: 'Write the customer reply entirely in the language and script of the latest customer message. If it is romanized Hindi, use Latin letters rather than Devanagari. A person-needed request can still receive an official, sourced policy or how-to answer; keep escalation for the action or decision and do not promise an outcome.' },
+            { role: 'system', content: 'Write the customer reply entirely in the language and script of the latest customer message. If it is romanized Hindi, use Latin letters rather than Devanagari. A person-needed request can still receive an official, sourced policy or how-to answer; keep escalation for the action or decision and do not promise an outcome. If understanding.dataLossRisk is true, warn in the customer language not to reinstall, log out, or clear local recordings before staff checks; do not append an English warning to a non-English reply.' },
             {
               role: 'user',
               content: buildUserPrompt({
@@ -377,7 +382,7 @@ function recommendsUnsafeAction(sentence) {
   return false;
 }
 
-function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question = '' } = {}) {
+function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question = '', language = 'en', dataLossRisk = false } = {}) {
   const original = String(answer || '').trim();
   if (lane !== 'tech' && lane !== 'firmware') return { safe: true, answer: original, escalate: false, reason: '' };
   const urls = evidenceUrls(sources);
@@ -410,13 +415,14 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
     blankLines = 0;
   }
   if (!dropped.length) return { safe: true, answer: original, escalate: false, reason: '' };
-  const dataRisk = hasUnsyncedDataRisk(question);
+  const dataRisk = dataLossRisk || hasUnsyncedDataRisk(question);
   const officialLinks = [...urls.values()].filter((url) => OFFICIAL_STEP_URL.test(url)).slice(0, 2);
   const fallback = !kept.trim();
   let body = fallback
     ? "I couldn't verify a safe troubleshooting step from the official information. A person needs to check this."
     : kept;
-  if (dataRisk && !body.includes(UNSYNCED_DATA_WARNING)) body = `${body}\n\n${UNSYNCED_DATA_WARNING}`;
+  if (dataRisk && String(language || 'en').toLowerCase().split('-')[0] === 'en' &&
+      !body.includes(UNSYNCED_DATA_WARNING)) body = `${body}\n\n${UNSYNCED_DATA_WARNING}`;
   return {
     safe: false,
     answer: fallback && officialLinks.length ? `${body}\n\nSource: ${officialLinks.join(' ')}` : body,
@@ -459,7 +465,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
         },
         {
           role: 'system',
-          content: 'Clarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.',
+          content: 'Clarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. If understanding.dataLossRisk is true, retain a brief warning in the customer language not to reinstall, log out, or clear local recordings while staff checks; do not add an English warning to a non-English reply. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.',
         },
         {
           role: 'user',
@@ -494,7 +500,9 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const sourceIds = Array.isArray(parsed.sources_used)
     ? parsed.sources_used.map((value) => String(value)).slice(0, 4)
     : [];
-  const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, { question });
+  const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, {
+    question, language: understanding?.replyLanguage, dataLossRisk: understanding?.dataLossRisk === true,
+  });
   const answer = safety.fallback
     ? safety.answer
     : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, understanding?.replyLanguage);

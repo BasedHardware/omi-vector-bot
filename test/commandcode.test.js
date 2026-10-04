@@ -120,6 +120,14 @@ test('technical reviewer allows only cited official, reversible checks', () => {
   assert.equal(technicalReviewSafety('Flash firmware.', 'firmware', help, ['S1']).safe, false);
 });
 
+test('technical safety gate does not append an English data warning to a non-English reply', () => {
+  const result = technicalReviewSafety('Reinstall the app.', 'tech', '', [], {
+    question: 'No se guardó el audio de mi reunión', language: 'es', dataLossRisk: true,
+  });
+  assert.equal(result.escalate, true);
+  assert.doesNotMatch(result.answer, /Recordings may still be unsynced|Do not reinstall/i);
+});
+
 test('technical safety checks instruction structure, not stray action words', () => {
   const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/app-issues\nCheck battery settings.';
   const docs = '[S2 | Official documentation]\nhttps://docs.omi.me/onboarding/firmware\nUpdate in the app.';
@@ -440,6 +448,11 @@ test('the review gate rejects a grounded but irrelevant answer', async () => {
 test('planner parses an explicit human-request flag without treating text as truthy', () => {
   assert.equal(parseSearchPlan('{"standalone_question":"Help","wants_person":true}', 'Help').wantsPerson, true);
   assert.equal(parseSearchPlan('{"standalone_question":"Help","wants_person":"false"}', 'Help').wantsPerson, false);
+});
+
+test('planner parses data-loss risk only from a boolean true', () => {
+  assert.equal(parseSearchPlan('{"standalone_question":"No audio was saved","data_loss_risk":true}', 'No audio was saved').dataLossRisk, true);
+  assert.equal(parseSearchPlan('{"standalone_question":"How do I record?","data_loss_risk":"false"}', 'How do I record?').dataLossRisk, false);
 });
 
 test('parseSearchPlan clips and deduplicates unsafe output shape', () => {

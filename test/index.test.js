@@ -48,6 +48,7 @@ let plannerStandaloneQuestion = '';
 let plannerReplyLanguage = 'en';
 let plannerHandoffAcknowledgment = '';
 let plannerWantsPerson = false;
+let plannerDataLossRisk = false;
 let reviewerResponse = null;
 const reviewCalls = [];
 commandcode.queryAgent = async (args) => {
@@ -77,6 +78,7 @@ commandcode.understandQuestion = async ({ question }) => {
     replyLanguage: plannerReplyLanguage,
     handoffAcknowledgment: plannerHandoffAcknowledgment,
     wantsPerson: plannerWantsPerson,
+    dataLossRisk: plannerDataLossRisk,
     queries: searchPlanQueries,
   };
 };
@@ -367,6 +369,7 @@ test.beforeEach(() => {
   plannerReplyLanguage = 'en';
   plannerHandoffAcknowledgment = '';
   plannerWantsPerson = false;
+  plannerDataLossRisk = false;
   reviewerResponse = null;
   reviewCalls.length = 0;
   pulls = [];
@@ -504,6 +507,19 @@ test('blank transcript after a completed recording warns and reaches staff', asy
     assert.match(result.reply, /Do not reinstall the app/i);
     assert.equal(staff.length, question.startsWith('I recorded') ? 1 : 2);
   }
+});
+
+test('a multilingual planner data-loss signal hands off without an English warning', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerDataLossRisk = true;
+  plannerReplyLanguage = 'es';
+  modelReply = { final_answer: 'No se guardó el audio de la reunión.', escalate: false };
+  const result = await ask('Hablé toda la reunión y no aparece ninguna transcripción');
+  assert.equal(staff.length, 1);
+  assert.doesNotMatch(result.reply, /Recordings may still be unsynced|Do not reinstall/i);
 });
 
 test('person-kind request with private details in #help holds the public answer', async (t) => {

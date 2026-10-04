@@ -893,7 +893,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         cleanAnswer = "I can't share account or order details in this public post.";
       }
     }
-    cleanAnswer = ensureNonEmptyAnswer(addUnsyncedDataWarning(cleanAnswer, caseQuestion));
+    const dataLossRisk = hasUnsyncedDataRisk(caseQuestion) || searchPlan.dataLossRisk === true;
+    cleanAnswer = ensureNonEmptyAnswer(addUnsyncedDataWarning(cleanAnswer, caseQuestion, {
+      dataLossRisk,
+      language: searchPlan.replyLanguage,
+    }));
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
     const nameMeta = {
@@ -917,7 +921,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       caption,
       triaged,
       holdPublicCopy,
-      dataLossRisk: hasUnsyncedDataRisk(caseQuestion),
+      dataLossRisk,
     });
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,
