@@ -14,17 +14,33 @@ function ensureNonEmptyAnswer(answer) {
   return String(answer || '').trim() || EMPTY_ANSWER_FALLBACK;
 }
 
+function dropDanglingFragments(answer) {
+  return String(answer || '')
+    .split('\n')
+    .map((line) => {
+      if (/^\s*(?:https?:\/\/|\[(?:https?:\/\/[^\]]+|[^\]]+)\]\(https?:\/\/)/i.test(line)) return '';
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((part) => !/^\s*(?:and|or)\b/i.test(part))
+        .join(' ');
+    })
+    .filter((line) => line.trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 // Filter the draft, and separately show the reviewer the original sentences
 // removed by those filters. Only the reviewer may restore supported details.
 function prepareDraftForReviewWithAudit(answer, lane, question) {
   const original = String(answer || '').trim();
-  const draft = stripFalseCertainty(
+  const draft = dropDanglingFragments(stripFalseCertainty(
     stripUnsupportedClaims(
       stripShopBleed(stripHowtoBleed(sanitizeReply(answer), lane), lane),
       lane,
       question
     )
-  );
+  ));
   const normalizedDraft = draft.replace(/\s+/g, ' ').toLowerCase();
   const removed = original
     .split(/(?<=[.!?])\s+|\n+/)
@@ -42,7 +58,7 @@ function prepareDraftForReview(answer, lane, question) {
 function presentReviewedAnswer(answer) {
   // The reviewer has already checked the claims. Only enforce the hard
   // no-false-ping rule and Discord's format/length constraints here.
-  return ensureNonEmptyAnswer(clipForDiscord(formatDiscordReply(stripPingNarration(answer))));
+  return ensureNonEmptyAnswer(clipForDiscord(formatDiscordReply(dropDanglingFragments(stripPingNarration(answer)))));
 }
 
 function stripUnverifiedOrderClaims(answer, { verifiedLookup = false } = {}) {
@@ -92,6 +108,7 @@ module.exports = {
   EMPTY_ANSWER_FALLBACK,
   UNSYNCED_DATA_WARNING,
   ensureNonEmptyAnswer,
+  dropDanglingFragments,
   prepareDraftForReview,
   prepareDraftForReviewWithAudit,
   presentReviewedAnswer,
