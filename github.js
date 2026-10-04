@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { clipForDiscord } = require('./utils');
+const { redactSensitive, attachmentCount } = require('./privacy');
 const {
   chunkDocument,
   formatEvidence,
@@ -124,29 +125,17 @@ function draftFromQuestion(question, area, extra = {}) {
   };
 }
 
-function fileMarkdown(files) {
-  const lines = [];
-  for (const file of (files || []).slice(0, 4)) {
-    const url = String(file?.url || '');
-    if (!url) continue;
-    const name = String(file.name || 'file').replace(/[\r\n[\]]/g, ' ').trim() || 'file';
-    const image = /^image\//i.test(file.type) || /\.(png|jpe?g|gif|webp)$/i.test(name);
-    lines.push(image ? `![${name}](${url})` : `[${name}](${url})`);
-  }
-  return lines;
-}
-
 function issueBody({ quote, reason, threadUrl, related, files } = {}) {
   const lines = ['Reported in Discord.'];
   if (threadUrl) lines.push(`Discord thread: ${threadUrl}`);
-  lines.push('', '## What they wrote', '', quote || '(no text)', '', '## What support can see', '');
-  if (reason) lines.push(reason);
+  lines.push('', '## What they wrote', '', redactSensitive(quote || '(no text)', { issue: true }), '', '## What support can see', '');
+  if (reason) lines.push(redactSensitive(reason, { issue: true }));
   lines.push('Cannot see the app or device from chat. No versions invented.', '', '## Earlier changes');
   if (!related?.length) {
     lines.push('No open issue, open pull request, or merged fix had a matching title.');
   } else {
     for (const item of related) {
-      lines.push(`- ${item.title} (${item.state}) ${item.url}`);
+      lines.push(`- ${redactSensitive(item.title, { issue: true })} (${item.state}) ${item.url}`);
     }
     if (related.some((item) => item.kind !== 'issue')) {
       lines.push('This report is still a problem after those changes.');
@@ -155,15 +144,15 @@ function issueBody({ quote, reason, threadUrl, related, files } = {}) {
       lines.push('Related open issue. Not treated as the fix.');
     }
   }
-  const attached = fileMarkdown(files);
-  if (attached.length) {
-    lines.push('', '## Files from the chat', '', ...attached);
+  const count = attachmentCount(files);
+  if (count) {
+    lines.push('', `Attachments in Discord: ${count}. Open the Discord thread to review them privately.`);
   }
   return lines.join('\n');
 }
 
 function isImportantLead(text, files) {
-  if (fileMarkdown(files).length) return true;
+  if (attachmentCount(files)) return true;
   const t = String(text || '').trim();
   if (t.length < 15) return false;
   if (/^(thanks|thank you|ok|okay|got it|cool|hello|hi|hey|lol)\b/i.test(t) && t.length < 40) return false;
@@ -172,9 +161,9 @@ function isImportantLead(text, files) {
 }
 
 function leadComment(text, files) {
-  const lines = ['Later from the customer:', '', String(text || '').trim() || '(no text)'];
-  const attached = fileMarkdown(files);
-  if (attached.length) lines.push('', '## Files from the chat', '', ...attached);
+  const lines = ['Later from the customer:', '', redactSensitive(String(text || '').trim() || '(no text)', { issue: true })];
+  const count = attachmentCount(files);
+  if (count) lines.push('', `Attachments in Discord: ${count}. Open the Discord thread to review them privately.`);
   return lines.join('\n');
 }
 
@@ -193,9 +182,10 @@ function threadMarker(threadId) {
 }
 
 function withFiles(body, files) {
-  const extra = fileMarkdown(files).filter((line) => !String(body || '').includes(line));
-  if (!extra.length) return String(body || '');
-  return `${String(body || '').trim()}\n\n## Files from the chat\n\n${extra.join('\n')}`;
+  const text = String(body || '');
+  const count = attachmentCount(files);
+  if (!count || /Attachments in Discord: \d+/.test(text)) return text;
+  return `${text.trim()}\n\nAttachments in Discord: ${count}. Open the Discord thread to review them privately.`;
 }
 
 function withThreadMarker(body, threadId) {
@@ -221,9 +211,9 @@ function formatIssueCard(draft, extra = {}) {
   const visible = (draft?.labels || []).filter((label) => String(label).toLowerCase() !== 'vector');
   const labels = visible.map((label) => `\`${label}\``).join('  ') || '`none`';
   const embed = {
-    title: clipForDiscord(draft?.title || 'Issue', 80),
+    title: 'Issue tracking',
     color: 0x5865f2,
-    description: clipForDiscord(String(draft?.body || '').trim(), 900),
+    description: 'The report is in this Discord thread. Customer details are not repeated on this card.',
     fields: [{ name: 'Labels', value: labels, inline: true }],
   };
   if (extra.url) {
@@ -245,7 +235,7 @@ function formatShopTicketCard({ title, labels } = {}) {
     .map((label) => `\`${label}\``)
     .join('  ') || '`shop`';
   return {
-    title: clipForDiscord(title || 'Shop ticket', 80),
+    title: 'Shop ticket',
     color: 0x5865f2,
     description: 'Tracked in this Discord thread. GitHub is not used for tax or orders.',
     fields: [
@@ -549,12 +539,16 @@ async function commentOnIssue(number, body, { fetchImpl } = {}) {
 async function createIssue(draft, { fetchImpl } = {}) {
   if (!isConfigured()) return { ok: false, reason: 'unconfigured' };
   const url = `https://api.github.com/repos/${repo()}/issues`;
-  const body = withThreadMarker(withFiles(draft.body, draft.files), draft.threadId);
+  const withoutAttachments = String(draft.body || '')
+    .split('\n')
+    .filter((line) => !/https:\/\/(?:cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\//i.test(line))
+    .join('\n');
+  const body = withThreadMarker(redactSensitive(withFiles(withoutAttachments, draft.files), { issue: true }), draft.threadId);
   try {
     const res = await githubFetch(url, {
       method: 'POST',
       body: {
-        title: draft.title,
+        title: redactSensitive(draft.title, { issue: true }),
         body,
         labels: draft.labels,
       },

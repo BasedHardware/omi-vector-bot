@@ -34,6 +34,19 @@ npm test
 npm run ask -- "How do I pair my Omi?"
 ```
 
+Set `CMD_API_KEY` in ignored `.env` for the CommandCode Provider API. `CMD_MODEL`,
+`CMD_REVIEW_MODEL`, `CMD_API_URL`, and `CMD_TIMEOUT_MS` are optional overrides.
+The bot requires `CMD_API_KEY`; an old provider key cannot be used as a fallback.
+Never commit or log a real key.
+
+For human handoffs, production must have either `STAFF_ALERT_CHANNEL_ID` pointing
+to a private staff-only Discord text channel, or both `TELEGRAM_TOKEN` and
+`TELEGRAM_CHAT_ID` pointing to the private staff chat. A customer-visible
+Handoff card does not count as delivery. If both staff routes fail, the bot
+tells the customer to email `help@omi.me`; `/health` reports `staffHandoff:
+"missing"` without exposing any IDs. Check that staff can receive a test ticket
+before enabling public support.
+
 Never commit `.env` or the local `railway.toml`. Do not run a local Discord process while the hosted process is active, or two bots may answer the same message.
 
 ## Quality checks
@@ -66,7 +79,7 @@ Without `--force`, each source is refreshed only when its freshness window has e
 
 ## Human handoff
 
-Money, orders, privacy, account deletion, app crashes, and device faults require a person. A successful handoff creates or reuses a customer-specific Discord thread. The bot only says that someone was notified when Discord actually accepted the handoff.
+Money, orders, privacy, account deletion, app crashes, and device faults require a person. The full handoff card, including Shopify facts, is sent only to the configured staff channel. If that fails, the bot prefers a private customer-and-staff thread when Discord supports one; any customer-visible thread or channel receives only a minimal card without customer text, order data, or Shopify facts. The bot only says that someone was notified when Discord actually accepted the handoff.
 
 Named staff may save an explicit support note inside a Handoff thread:
 
@@ -76,9 +89,11 @@ faq: Teal LED means charging and connected.
 
 Only configured staff user IDs can save notes. Ordinary staff replies are not learned automatically. On restart, the bot reloads `faq:` lines only from named staff in test-channel Handoff threads. Legacy database notes are ignored because they lack author provenance. Notes are not a substitute for official-source verification.
 
+An authenticated Telegram escalation reply may also include `KB: short support note` after its `A:` answer. The note enters the same in-memory pool as Discord `faq:` and is subject to the same official-source review before a customer sees an answer. Telegram notes are not written to the legacy database and do not survive a restart.
+
 ## GitHub workflow
 
-Technical handoffs can show a proposed issue card. The bot searches existing issues and pull requests first, but it does not open a public issue by itself. Staff must press **File**. Only threads linked by the bot receive signed GitHub webhook updates, and later customer messages are not copied to the issue.
+Technical handoffs can show a minimal proposed issue card. The bot searches existing issues and pull requests first, but it does not open a public issue by itself. Staff must press **File**. Filing redacts contacts, addresses, order numbers, Discord identities, and secrets from the public issue; attachments are represented only by a count and the Discord thread link. Only threads linked by the bot receive signed GitHub webhook updates, and later customer messages are redacted before any GitHub comment.
 
 Repository contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). CI is intentionally deferred until the scored answer-quality set is a release gate.
 

@@ -1,5 +1,5 @@
 const { looksLikeStaffLie, stripStaffLies } = require('../honesty');
-const { parseAgentJson } = require('../opencode');
+const { parseAgentJson } = require('../commandcode');
 const { shouldEscalate, clipForDiscord, clipThreadHistory, escalateReply, sanitizeReply, stripSupportRedirect, formatDiscordReply, needsHumanAccess, PINGED_FOOTER, DUPLICATE_FOOTER } = require('../utils');
 const assert = require('node:assert/strict');
 const test = require('node:test');
@@ -298,6 +298,17 @@ test('escalate footer only claims a ping after a real handoff', () => {
 
   const failed = escalateReply('This needs a person.', { pinged: false });
   assert.match(failed, /have not pinged anyone yet/i);
+});
+
+test('failed handoff overrides issue and conversation copy with an honest email fallback', () => {
+  const out = escalateReply('A person on the team has this now.', {
+    issue: true,
+    conversation: true,
+    deliveryFailed: true,
+  });
+  assert.doesNotMatch(out, /has this now|do not need to ping anyone/i);
+  assert.match(out, /could not deliver/i);
+  assert.match(out, /help@omi\.me/);
 });
 
 test('reused tickets from the parent channel keep the duplicate footer', () => {

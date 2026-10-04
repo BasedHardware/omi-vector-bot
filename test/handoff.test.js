@@ -9,9 +9,73 @@ const {
   staffMentions,
 } = require('../handoff');
 const { formatEscalationText } = require('../telegram');
+const { ChannelType } = require('discord.js');
 
-test('canNotifyStaff is true on Discord, false in CLI without Telegram', () => {
+test('private handoff invites the customer but never exposes the staff-only card', async () => {
+  const previous = {
+    threads: process.env.HANDOFF_THREADS,
+    staff: process.env.STAFF_ALERT_CHANNEL_ID,
+    users: process.env.STAFF_USER_IDS,
+  };
+  process.env.HANDOFF_THREADS = '1';
+  delete process.env.STAFF_ALERT_CHANNEL_ID;
+  process.env.STAFF_USER_IDS = '123456789012345678';
+  const invited = [];
+  const sent = [];
+  let createOptions;
+  const thread = {
+    id: 'private-handoff-1',
+    members: { add: async (id) => invited.push(id) },
+    send: async (payload) => sent.push(payload),
+  };
+  try {
+    const result = await notifyStaff({
+      client: null,
+      message: {
+        author: { id: '998877665544332211' },
+        channel: {
+          id: 'general-private-test',
+          isThread: () => false,
+          threads: { create: async (options) => { createOptions = options; return thread; } },
+          isTextBased: () => true,
+          send: async () => { throw new Error('must use private thread'); },
+        },
+        startThread: async () => { throw new Error('must not create public thread'); },
+      },
+      question: 'Order #22777 for ada@example.com',
+      reason: 'Needs shipping check',
+      shopify: 'SECRET_SHOPIFY_FACT',
+      area: 'shop',
+      route: { area: 'shop', lane: 'shop' },
+      skipDedupe: true,
+    });
+    assert.equal(result.via, 'thread');
+    assert.equal(result.ok, false);
+    assert.equal(createOptions.type, ChannelType.PrivateThread);
+    assert.deepEqual(invited, ['998877665544332211', '123456789012345678']);
+    assert.equal(sent.length, 1);
+    const blob = JSON.stringify(sent[0]);
+    assert.doesNotMatch(blob, /22777|ada@example\.com|SECRET_SHOPIFY_FACT|Needs shipping check/);
+    assert.match(blob, /does not repeat it/);
+    assert.doesNotMatch(blob, /customer's message is above/);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      const name = key === 'threads' ? 'HANDOFF_THREADS' : key === 'staff' ? 'STAFF_ALERT_CHANNEL_ID' : 'STAFF_USER_IDS';
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    resetHandoffMemory();
+  }
+});
+
+test('canNotifyStaff requires a configured staff-only destination', () => {
+  const previous = process.env.STAFF_ALERT_CHANNEL_ID;
+  delete process.env.STAFF_ALERT_CHANNEL_ID;
+  assert.equal(canNotifyStaff({ discordReady: true }), false);
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
   assert.equal(canNotifyStaff({ discordReady: true }), true);
+  if (previous === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID;
+  else process.env.STAFF_ALERT_CHANNEL_ID = previous;
 });
 
 test('staff ticket is a scannable Discord embed, not a wall', () => {
@@ -234,7 +298,8 @@ test('handoff threads are skipped by name', () => {
     area: 'shop',
     lane: 'shop',
   });
-  assert.match(brazil, /order #20716/i);
+  assert.match(brazil, /\[order number\]/i);
+  assert.doesNotMatch(brazil, /20716/);
   assert.match(brazil, /import tax/i);
   assert.equal(/AUGUST 11/i.test(brazil), false);
   assert.match(brazil, /shop/);
@@ -290,7 +355,7 @@ test('handoff threads are skipped by name', () => {
   assert.equal(ticketLabels({ question: 'How do I pair my Omi?' }).includes('faq'), true);
 });
 
-test('notifyStaff posts a channel card and does not double-ping', async () => {
+test('a customer-visible channel card is not a delivered handoff', async () => {
   resetHandoffMemory();
   const prevThread = process.env.HANDOFF_THREADS;
   const prevStaff = process.env.STAFF_ALERT_CHANNEL_ID;
@@ -323,7 +388,7 @@ test('notifyStaff posts a channel card and does not double-ping', async () => {
     reason: 'refund',
     draft: 'A person needs to take this.',
   });
-  assert.equal(first.ok, true);
+  assert.equal(first.ok, false);
   assert.equal(first.via, 'channel');
   assert.equal(sent.length, 1);
   assert.equal(sent[0].embeds[0].title, 'Needs a human');
@@ -335,9 +400,9 @@ test('notifyStaff posts a channel card and does not double-ping', async () => {
     reason: 'tracking',
     draft: 'Still needs a person.',
   });
-  assert.equal(second.ok, true);
-  assert.equal(second.duplicate, true);
-  assert.equal(sent.length, 1);
+  assert.equal(second.ok, false);
+  assert.equal(second.duplicate, undefined);
+  assert.equal(sent.length, 2);
 
   const other = await notifyStaff({
     client: null,
@@ -347,7 +412,7 @@ test('notifyStaff posts a channel card and does not double-ping', async () => {
     draft: 'A different customer.',
   });
   assert.equal(other.duplicate, undefined);
-  assert.equal(sent.length, 2);
+  assert.equal(sent.length, 3);
 
   const third = await notifyStaff({
     client: null,
@@ -357,9 +422,9 @@ test('notifyStaff posts a channel card and does not double-ping', async () => {
     draft: 'A person needs to take this.',
     skipDedupe: true,
   });
-  assert.equal(third.ok, true);
+  assert.equal(third.ok, false);
   assert.equal(Boolean(third.duplicate), false);
-  assert.equal(sent.length, 3);
+  assert.equal(sent.length, 4);
 
   if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
   else delete process.env.HANDOFF_THREADS;
@@ -719,7 +784,7 @@ test('help forum card does not repeat the customer post', async () => {
     'Please reach ada@example.com or 415-555-0199 about the pendant stuck in customs at 12 King Street.';
   const draft = 'UNIQUE_DRAFT would repeat ada@example.com and 12 King Street.';
   const shopify = 'UNIQUE_SHOPIFY Ship to: Berlin, Germany ada@example.com 415-555-0199';
-  const publicDescription = "The customer's message is above. This card does not repeat it.";
+  const publicDescription = 'Details are in the original support message. This card does not repeat it.';
   process.env.HELP_FORUM_CHANNEL_ID = HELP;
   process.env.VECTOR_TEST_CHANNEL_ID = VECTOR;
   process.env.HANDOFF_THREADS = '1';
@@ -888,8 +953,8 @@ test('help forum card does not repeat the customer post', async () => {
     });
     assert.equal(vector.via, 'channel');
     assert.equal(vectorStarted, 0);
-    assert.match(vectorSent[0].embeds[0].description, /Where is my order #20716/);
-    assert.equal(vectorSent[0].embeds[0].description.includes(publicDescription), false);
+    assert.equal(vectorSent[0].embeds[0].description, publicDescription);
+    assert.equal(JSON.stringify(vectorSent[0]).includes('20716'), false);
 
     const normalSent = [];
     process.env.HANDOFF_THREADS = '0';
@@ -916,8 +981,8 @@ test('help forum card does not repeat the customer post', async () => {
       skipDedupe: true,
     });
     assert.equal(normal.via, 'channel');
-    assert.match(normalSent[0].embeds[0].description, /Where is my order #20716/);
-    assert.equal(normalSent[0].embeds[0].description.includes(publicDescription), false);
+    assert.equal(normalSent[0].embeds[0].description, publicDescription);
+    assert.equal(JSON.stringify(normalSent[0]).includes('20716'), false);
   } finally {
     telegram.sendEscalation = originalSend;
     if (prev.help === undefined) delete process.env.HELP_FORUM_CHANNEL_ID;

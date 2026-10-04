@@ -3,7 +3,7 @@ const router = require('../router');
 const { relevantDocs } = require('../docs');
 const { relevantFeedback } = require('../feedback');
 const { buildToolFacts, OFFICIAL } = require('../prompt');
-const { planSearch, queryAgent, reviewAnswer } = require('../opencode');
+const { planSearch, queryAgent, reviewAnswer } = require('../commandcode');
 const triage = require('../triage');
 const { prepareDraftForReview, presentReviewedAnswer } = require('../answerPipeline');
 const github = require('../github');
@@ -245,7 +245,7 @@ async function replyFor(scene, route) {
 }
 
 async function main() {
-  const key = Boolean(String(process.env.OPENCODE_API_KEY || '').trim());
+  const key = Boolean(String(process.env.CMD_API_KEY || '').trim());
   console.log(`model ${key && !modelBlocked ? 'on' : 'off'}`);
   let failed = 0;
   let ran = 0;

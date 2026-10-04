@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const express = require('express');
 const db = require('./db');
-const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion } = require('./opencode');
+const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion } = require('./commandcode');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -50,7 +50,7 @@ const { relevantDocs } = require('./docs');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
-const { prepareDraftForReview, presentReviewedAnswer } = require('./answerPipeline');
+const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer } = require('./answerPipeline');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -72,7 +72,10 @@ const client = new Client({
 });
 
 const app = express();
-app.get('/health', (_req, res) => res.send('OK'));
+app.get('/health', (_req, res) => res.json({
+  status: 'ok',
+  staffHandoff: process.env.STAFF_ALERT_CHANNEL_ID || telegram.isReady() ? 'configured' : 'missing',
+}));
 app.get('/ratings', async (_req, res) => {
   const { ratingCounts } = require('./ratings');
   const counts = await ratingCounts();
@@ -129,7 +132,7 @@ function rememberBotReply(sent, message) {
 }
 
 async function replySafe(message, content, { pingAuthor = false } = {}) {
-  let text = rewriteUserMentions(content, message);
+  let text = ensureNonEmptyAnswer(rewriteUserMentions(ensureNonEmptyAnswer(content), message));
   if (pingAuthor) text = attachAuthorMention(text, message);
   const payload = {
     content: text,
@@ -657,7 +660,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         supportKind: 'other',
         queries: [],
       };
-      if (process.env.OPENCODE_API_KEY) {
+      if (process.env.CMD_API_KEY) {
         try {
           searchPlan = await understandQuestion({
             question: asked || question,
@@ -703,16 +706,18 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         });
         if (aiResponse?.final_answer) {
           const draftLane = triage.merge(route, aiResponse, question).lane;
-          aiResponse.final_answer = prepareDraftForReview(
+          const prepared = prepareDraftForReviewWithAudit(
             aiResponse.final_answer,
             draftLane,
             caseQuestion
           );
+          aiResponse.final_answer = prepared.draft;
           try {
             const checked = await reviewAnswer({
               question,
               threadHistory,
               draft: aiResponse.final_answer,
+              removedBySafetyFilters: prepared.removed,
               understanding: searchPlan,
               policy: toolFacts,
               sources: [
@@ -724,14 +729,15 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 .join('\n\n'),
               sessionId: `discord-${channel.id}-review`,
             });
-            aiResponse.final_answer = checked.relevant
+            const approved = checked.relevant && checked.grounded && String(checked.final_answer || '').trim();
+            aiResponse.final_answer = approved
               ? checked.final_answer
               : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
             aiResponse.confidence = Math.min(
               Number(aiResponse.confidence) || 0.4,
               Number(checked.confidence) || 0.4
             );
-            if (checked.escalate) {
+            if (checked.escalate || !approved) {
               aiResponse.escalate = true;
               aiResponse.reason =
                 aiResponse.reason ||
@@ -825,6 +831,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
     }
     if (threadHistory.length) cleanAnswer = github.keepMergedPull(threadHistory, cleanAnswer);
+    cleanAnswer = ensureNonEmptyAnswer(cleanAnswer);
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
     const nameMeta = {
@@ -875,6 +882,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       let reused = false;
       let reuseFailed = false;
       let cardHere = false;
+      let deliveryFailed = false;
       let handoffThread = inHandoff ? channel : null;
       if (!inHandoff && shouldReuseOpenHandoff(channel)) {
         const existing = await findOpenHandoff(channel, {
@@ -920,10 +928,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             labels: triaged.labels,
           });
           pinged = Boolean(handoff.ok);
+          deliveryFailed = !handoff.ok;
           cardHere = handoff.via === 'channel' && Boolean(channel.isThread?.());
           duplicate = Boolean(handoff.duplicate);
           handoffThread = handoff.thread || handoffThread;
-          if (handoff.thread) {
+          if (handoff.thread && handoff.ok) {
             rememberOpenHandoff(channel.id, message.author?.id, handoff.thread);
             await applyThreadName(handoff.thread, nameMeta);
           }
@@ -934,6 +943,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             `[Bot] Handoff ${channel.id} via=${handoff.via || 'none'} ok=${pinged}`
           );
         } catch (err) {
+          deliveryFailed = true;
           console.error('[Bot] Handoff failed:', err.message);
         }
       }
@@ -960,6 +970,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         pinged && router.isTechLane({ lane: triaged.lane, area: triaged.area })
           ? stripSupportRedirect(cleanAnswer)
           : cleanAnswer;
+      const movedToThread = !inHandoff && Boolean(handoffThread?.id);
       let parentReply = escalateReply(handoffAnswer, {
         pinged,
         duplicate,
@@ -968,11 +979,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           (triaged.fileIssue || triage.wantsShopTicket(triaged)) &&
           !inHandoff &&
           !reused &&
+          !movedToThread &&
           (Boolean(handoffThread) || cardHere),
         pingAuthor,
+        deliveryFailed,
       });
-      if (reused && handoffThread?.id && !inHandoff) {
-        parentReply = `${parentReply}\n\n<#${handoffThread.id}>`;
+      if (movedToThread) {
+        const threadLink = `<#${handoffThread.id}>`;
+        parentReply = `${clipForDiscord(parentReply, 1900 - threadLink.length - 2)}\n\n${threadLink}`;
       }
       await replySafe(message, parentReply, { pingAuthor });
       if (dbReady) {
@@ -1081,11 +1095,15 @@ client.once(Events.ClientReady, async () => {
 });
 
 async function start() {
-  const required = ['DISCORD_TOKEN', 'OPENCODE_API_KEY'];
+  const required = ['DISCORD_TOKEN'];
+  if (!process.env.CMD_API_KEY) required.push('CMD_API_KEY');
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length) {
     console.error(`[Boot] Missing env variables: ${missing.join(', ')}`);
     process.exit(1);
+  }
+  if (!process.env.STAFF_ALERT_CHANNEL_ID && !telegram.isReady()) {
+    console.error('[Boot] No staff-only handoff destination configured; customer handoffs will use the email fallback.');
   }
 
   if (dbReady) {
@@ -1138,4 +1156,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { client, handleMessage, shouldHandle };
+module.exports = { app, client, handleMessage, shouldHandle };
