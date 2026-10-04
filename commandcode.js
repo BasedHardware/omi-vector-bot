@@ -203,9 +203,18 @@ function officialHandoffLinks(sources) {
 
 const SOURCE_LABELS = {
   es: 'Fuente', de: 'Quelle', pt: 'Fonte', tr: 'Kaynak', id: 'Sumber',
-  fr: 'Source', hi: 'Srot', ja: '出典',
+  fr: 'Source', hi: 'Srot', ja: '出典', zh: '来源', ko: '출처', ru: 'Источник',
 };
 const SOURCE_LABEL = /(?:^|\s)(?:Sources?|Fuentes?|Quellen?|Fonte|Fontes|Sumber|Kaynak|Srot|स्रोत|出典)\s*:/iu;
+
+function trailingSourceLabel(line) {
+  const match = String(line || '').trim().match(/^([\p{L}\p{M}][\p{L}\p{M}\s-]{0,32})\s*:\s*((?:https:\/\/[^\s]+)(?:\s+https:\/\/[^\s]+)*)\s*$/iu);
+  if (!match) return '';
+  const urls = match[2].split(/\s+/);
+  return urls.every((url) => /^https:\/\/(?:help|docs|feedback)\.omi\.me\/|^https:\/\/(?:www\.)?omi\.me\/|^https:\/\/github\.com\/BasedHardware\//i.test(url))
+    ? match[1].trim()
+    : '';
+}
 
 function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
   const urls = evidenceUrls(sources);
@@ -214,6 +223,8 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
   ].slice(0, 2);
   const text = String(answer || '');
   const modelLabel = text.split('\n').map((line) => {
+    const trailing = trailingSourceLabel(line);
+    if (trailing) return trailing;
     const marker = SOURCE_LABEL.exec(line);
     return marker && /https?:\/\//i.test(line.slice(marker.index))
       ? marker[0].trim().replace(/:$/, '')
@@ -222,6 +233,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
   const body = text
     .split('\n')
     .map((line) => {
+      if (trailingSourceLabel(line)) return '';
       const marker = line.search(SOURCE_LABEL);
       return marker >= 0 && /https:\/\//i.test(line.slice(marker))
         ? line.slice(0, marker).trimEnd()
@@ -231,7 +243,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
     .join('\n')
     .trim();
   const code = String(language || 'en').toLowerCase().split('-')[0];
-  const label = code === 'en' ? 'Source' : SOURCE_LABELS[code] || modelLabel || '';
+  const label = code === 'en' ? 'Source' : SOURCE_LABELS[code] || modelLabel || 'Source';
   return chosen.length ? `${body}\n\n${label ? `${label}: ` : ''}${chosen.join(' ')}` : body;
 }
 

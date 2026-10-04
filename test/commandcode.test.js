@@ -482,6 +482,23 @@ test('localized source labels stay localized and never gain an English Source li
   }
 });
 
+test('Chinese, Korean, and Russian replies retain exactly one localized source line', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/delete-one\nDelete one item.';
+  for (const [language, label] of [['zh', '来源'], ['ko', '출처'], ['ru', 'Источник']]) {
+    const answer = groundedSourceLine(`这里是回答。\n\n${label}: https://help.omi.me/en/articles/delete-one`, evidence, ['S1'], language);
+    assert.equal((answer.match(/https:\/\/help\.omi\.me\/en\/articles\/delete-one/g) || []).length, 1, language);
+    assert.equal((answer.match(new RegExp(`${label}:`, 'g')) || []).length, 1, language);
+    assert.doesNotMatch(answer, /\bSource:/i, language);
+  }
+});
+
+test('an unfamiliar localized source label is replaced instead of duplicated', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/delete-one\nDelete one item.';
+  const answer = groundedSourceLine('Risposta utile.\n\nRiferimenti: https://help.omi.me/en/articles/delete-one', evidence, ['S1'], 'it');
+  assert.equal((answer.match(/Riferimenti:/g) || []).length, 1);
+  assert.equal((answer.match(/https:\/\/help\.omi\.me\/en\/articles\/delete-one/g) || []).length, 1);
+});
+
 test('FAQ review may use lower-ranked team product facts without treating them as tech troubleshooting', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-key';
