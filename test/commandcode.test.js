@@ -321,6 +321,7 @@ test('search planning rewrites a follow-up into several source searches', async 
       threadHistory: [{ author: 'customer', content: 'I need a developer API key.' }],
       route: { lane: 'faq', area: 'unknown' },
       post: async (_url, body) => {
+        assert.equal(body.reasoning_effort, 'low');
         assert.match(body.messages[0].content, /Do not answer the customer/);
         assert.match(body.messages[1].content, /developer API key/);
         return {

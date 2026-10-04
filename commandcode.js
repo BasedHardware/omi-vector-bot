@@ -265,6 +265,7 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
     privateProviderBody({
       model: provider.model,
       temperature: 0.1,
+      reasoning_effort: 'low',
       messages: [
         {
           role: 'system',
