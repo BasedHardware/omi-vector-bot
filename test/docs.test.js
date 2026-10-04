@@ -1,6 +1,98 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { relevantDocs } = require('../docs');
+const { relevantDocs, storedDocs, topPages } = require('../docs');
+
+test('developer and hardware questions retain their pages despite app-related planner searches', async () => {
+  const cases = [
+    ['how do I build an app for omi that reads my conversations', 'https://docs.omi.me/doc/developer/apps/PromptBased.md'],
+    ['does the devkit 2 keep recording when the app is closed', 'https://docs.omi.me/doc/hardware/DevKit2.md'],
+    ['how do I flash new firmware to my devkit, the app update fails', 'https://docs.omi.me/doc/get_started/Flash_device.md'],
+    ['which omi should I buy if I mostly want the app to record meetings', 'https://docs.omi.me/doc/assembly/Buying_Guide.md'],
+  ];
+  for (const [question, url] of cases) {
+    const page = { title: question, url, blurb: question, body: question, source: 'docs', chunk_index: 0, rank: 1 };
+    assert.equal(topPages(question, [page], 1, `${question} Omi app guide`)[0]?.url, url, question);
+    const evidence = await storedDocs(question, {
+      searchDocPages: async (_query, _limit, sources = []) => sources.length ? [] : [page],
+    }, ['Omi app conversations recording']);
+    assert.ok(evidence.includes(url), question);
+  }
+});
+
+test('single-item in-app deletion keeps Help Center and excludes developer pages', async () => {
+  for (const question of [
+    'How do I remove just one memory without clearing the rest?',
+    'Can I erase a single recording from my list?',
+  ]) {
+    const developer = { title: 'Delete memory in developer app', url: 'https://docs.omi.me/doc/developer/memory-clients.md', blurb: question, body: question, source: 'docs', chunk_index: 0, rank: 1 };
+    const help = { title: 'Conversations and memories', url: 'https://help.omi.me/en/articles/conversations', blurb: question, body: 'You can delete individual conversations or memories from their detail view.', source: 'help', chunk_index: 0, rank: 0.5 };
+    assert.deepEqual(topPages(question, [developer], 1), [], question);
+    const evidence = await storedDocs(question, {
+      searchDocPages: async (_query, _limit, sources = []) => sources.includes('github') ? [] : [developer, help],
+    }, ['Omi app delete one item']);
+    assert.match(evidence, /Conversations and memories/, question);
+    assert.doesNotMatch(evidence, /memory-clients\.md/, question);
+  }
+});
+
+test('planner wording cannot turn an ambiguous consumer question into API documentation', async () => {
+  const text = await storedDocs('How do I make one?', {
+    searchDocPages: async () => [{
+      title: 'Create API key', url: 'https://docs.omi.me/api-reference/api-keys/create-api-key',
+      body: 'Create an API key.', source: 'docs', chunk_index: 0, rank: 1,
+    }],
+  }, ['Omi developer API key']);
+  assert.equal(text, '');
+});
+
+test('device controls retrieve the official Omi setup page even when its index blurb omits power-off', () => {
+  const setup = { title: 'Omi Setup', url: 'https://docs.omi.me/onboarding/omi', blurb: 'Get started with your Omi device' };
+  const unrelated = { title: 'API Setup', url: 'https://docs.omi.me/api/setup', blurb: 'Developer setup' };
+  assert.deepEqual(topPages('How do I turn the Omi necklace off?', [unrelated, setup], 2), [setup]);
+});
+
+test('consumer necklace questions do not mix in DevKit button instructions', () => {
+  const consumer = { title: 'Omi Setup', url: 'https://docs.omi.me/onboarding/omi.md', blurb: 'Get started with your Omi device' };
+  const devkit = { title: 'Omi DevKit 2 Setup', url: 'https://docs.omi.me/onboarding/omi-devkit-2.md', blurb: 'Necklace button on and off' };
+  assert.deepEqual(topPages('How do I turn my Omi necklace off with the button?', [devkit, consumer], 3), [consumer]);
+  assert.deepEqual(topPages('How do I turn my Omi DevKit 2 off with the button?', [devkit, consumer], 3)[0], devkit);
+});
+
+test('consumer app searches exclude developer API reference pages', () => {
+  const api = { title: 'Delete memory', url: 'https://docs.omi.me/api-reference/memories/delete', blurb: 'Delete a memory by API' };
+  const developer = { title: 'Memory client', url: 'https://docs.omi.me/doc/developer/memory-clients.md', blurb: 'Store conversations from an app' };
+  const app = { title: 'Manage memories in the app', url: 'https://docs.omi.me/user-guide/memories', blurb: 'Remove a memory in Omi' };
+  assert.deepEqual(topPages('How do I remove one memory in the Omi app?', [api, developer, app], 3), [app]);
+  assert.deepEqual(topPages('How do I delete a memory with the API?', [api, app], 3)[0], api);
+});
+
+test('stored consumer-device results also exclude DevKit instructions', async () => {
+  const text = await relevantDocs('How do I turn my Omi necklace off with the button?', {
+    fetchImpl: async () => { throw new Error('stored evidence should win'); },
+    store: {
+      searchDocPages: async (_query, _limit, sources = []) => sources.length ? [] : [
+        { title: 'Omi DevKit 2 Setup', url: 'https://docs.omi.me/onboarding/omi-devkit-2.md', body: 'Single press to turn off', source: 'docs', chunk_index: 0, rank: 0.9 },
+        { title: 'Omi Setup', url: 'https://docs.omi.me/onboarding/omi.md', body: 'Press and hold for 3 seconds to turn the device off.', source: 'docs', chunk_index: 0, rank: 0.5 },
+      ],
+    },
+  });
+  assert.match(text, /hold for 3 seconds/);
+  assert.doesNotMatch(text, /DevKit|Single press to turn off/i);
+});
+
+test('stored consumer-app results do not crowd out Help Center with API references', async () => {
+  const text = await relevantDocs('Can I erase a single recording from my list?', {
+    fetchImpl: async () => { throw new Error('stored evidence should win'); },
+    store: {
+      searchDocPages: async (_query, _limit, sources = []) => sources.includes('github') ? [] : [
+        { title: 'Delete recording API', url: 'https://docs.omi.me/api-reference/recordings/delete', body: 'DELETE /recordings/{id}', source: 'docs', chunk_index: 0, rank: 1 },
+        { title: 'Conversations and memories', url: 'https://help.omi.me/en/articles/manage-conversations', body: 'Delete an individual conversation in the app.', source: 'help', chunk_index: 0, rank: 0.5 },
+      ],
+    },
+  });
+  assert.match(text, /Delete an individual conversation/);
+  assert.doesNotMatch(text, /DELETE \/recordings/);
+});
 
 test('a recording question pulls the matching docs page', async () => {
   const fetched = [];
@@ -54,9 +146,9 @@ test('a docs lookup uses the saved page when the site is down', async () => {
   assert.match(text, /docs\.omi\.me\/doc\/battery\.md/);
 });
 
-test('planned searches retrieve source-labeled Help Center evidence', async () => {
+test('explicit developer questions retrieve source-labeled API evidence', async () => {
   const searches = [];
-  const text = await relevantDocs('How do I make one?', {
+  const text = await relevantDocs('How do I make a developer API key?', {
     queries: ['create Omi developer API key', 'developer credentials settings'],
     fetchImpl: async () => {
       throw new Error('stored evidence should win');

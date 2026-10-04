@@ -34,7 +34,11 @@ test('order and tracking are shop', () => {
   assert.equal(router.skipModel(numbered), true);
   const canned = router.cannedReply(numbered, 'where is order #1042');
   assert.match(canned, /help@omi\.me/);
-  assert.match(canned, /not live yet/);
+  assert.doesNotMatch(canned, /Order lookup in chat is not live yet/);
+  const delivered = require('../utils').stripSupportRedirect(canned);
+  assert.match(delivered, /can't see order status from here/i);
+  assert.match(delivered, /needs someone with access to the order system/i);
+  assert.doesNotMatch(delivered, /Email help@omi\.me/);
   assert.equal(/\/order/.test(canned), false);
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
 });
@@ -65,6 +69,46 @@ test('an order customer asking for a human gets a handoff answer, not another /o
   const reply = router.cannedReply(route, q);
   assert.match(reply, /person from the shop team/i);
   assert.doesNotMatch(reply, /\/order\b|order status from here/i);
+});
+
+test('direct human-contact requests route to staff without misreading ordinary conversation', () => {
+  for (const question of [
+    'I want to talk to someone',
+    'Connect me with the team please',
+    'Can someone from sales contact me?',
+    'Is there a live agent?',
+    'Can I speak with an actual human?',
+    'I would like to chat with a representative',
+    'Put me in touch with support',
+    'Help me get in touch with a human',
+  ]) {
+    assert.equal(router.classify(question).wantHuman, true, question);
+  }
+  for (const question of [
+    'Does Omi keep recording when I talk to someone on a call?',
+    "Can it tell who I'm speaking with?",
+    'Can I share a conversation with someone?',
+  ]) {
+    assert.equal(router.classify(question).wantHuman, false, question);
+  }
+  for (const question of [
+    'I need a human',
+    'We want a real person to look at this',
+    'Need a person please',
+    'I want to speak to an agent',
+    'can I get a real person please',
+    'real person please',
+    'is this a real person or a bot? i need help',
+    'I need someone from the team to look at this',
+  ]) assert.equal(router.classify(question).wantHuman, true, question);
+  for (const question of [
+    'Does Omi need a person to be close to the mic?',
+    'I want a person to see my summaries, can I share?',
+    'Does recording need a real person to be present?',
+    'do I need a person to set it up?',
+    'can omi tell which person is speaking?',
+    'I need a human-readable export of my notes',
+  ]) assert.equal(router.classify(question).wantHuman, false, question);
 });
 
 test('a customer nudge is recognized without treating arbitrary questions as nudges', () => {
@@ -295,6 +339,12 @@ test('model-down fallback still escalates a phone-app ticket without naming the 
   const tax = router.classify('import tax on order #20716');
   const taxDown = router.whenModelDown(tax, 'import tax on order #20716');
   assert.match(taxDown.reply, /tax or duties/i);
+});
+
+test('an unknown-area technical fallback does not invent a phone-app diagnosis', () => {
+  const reply = router.cannedReply({ area: 'unknown', lane: 'tech', escalate: true }, 'Omi keeps disconnecting');
+  assert.match(reply, /technical problem/i);
+  assert.doesNotMatch(reply, /phone app/i);
 });
 
 test('money, privacy, and shop skip the model; crash, firmware, and pairing do not', () => {

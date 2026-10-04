@@ -135,12 +135,18 @@ const ACCOUNT = [
 ];
 
 const WANT_HUMAN = [
-  /\btalk to (a )?(human|person)\b/i,
-  /\bspeak to (a )?(human|person)\b/i,
-  /\bneed (a )?(human|person|someone)\b/i,
-  /\breal person\b/i,
-  /\b(?:help me )?(?:get|put) (?:me )?in touch with (?:a |the )?(?:human|person|team|staff)\b/i,
-  /\bcontact (?:a |the )?(?:human|person|support|shop|shipping)(?: team)?\b/i,
+  /\b(?:talk|speak|chat)\s+(?:to|with)\s+(?:(?:an?|the|actual|real|live)\s+)*(?:human|person|agent|representative|someone\s+from\s+(?:the\s+)?(?:team|sales|support))\b/i,
+  /\b(?:i want to|i['’]d like to|can i|let me|need to)\s+(?:talk|speak|chat)\s+(?:to|with)\s+someone\b/i,
+  /\b(?:i|we)\s+(?:really\s+)?(?:need|want)\s+(?:(?:a|an|the|real|actual|live)\s+)*(?:human|person|agent|representative)(?=\s*(?:$|[.!?]|please\b|to\s+(?:help|check|look|review|answer|handle|contact|call|email|talk|speak)\b))/i,
+  /^\s*(?:please[,\s]+)?(?:need|want)\s+(?:(?:a|an|the|real|actual|live)\s+)*(?:human|person|agent|representative)(?=\s*(?:$|[.!?]|please\b|to\s+(?:help|check|look|review|answer|handle|contact|call|email|talk|speak)\b))/i,
+  /\b(?:connect me with|(?:help me )?(?:get|put)(?: me)? in touch with)\s+(?:(?:an?|the)\s+)?(?:human|person|agent|representative|team|staff|sales|support)\b/i,
+  /\bcontact\s+(?:an?\s+|the\s+)?(?:human|person|agent|representative|support|shop|shipping)(?:\s+team)?\b/i,
+  /\bcan\s+someone(?:\s+from\s+(?:the\s+)?(?:team|sales|support))?\s+(?:contact|call|email)\s+me\b/i,
+  /\bis\s+there\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
+  /\b(?:can|could|may)\s+i\s+get\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
+  /^\s*(?:please[,\s]+)?(?:(?:an?|the)\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\s+please[.!?]*\s*$/i,
+  /\bis\s+this\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\s+or\s+(?:an?\s+)?bot\b[^\n]{0,80}\b(?:i\s+need\s+help|help\s+me)\b/i,
+  /\b(?:i|we)\s+(?:really\s+)?need\s+someone\s+(?:from\s+(?:the\s+)?(?:team|support|sales)\b|to\s+(?:help|check|look\s+at|review|contact|reply|call|email)\b)/i,
 ];
 
 const SUPPORT_NUDGE = [
@@ -555,7 +561,7 @@ function shopStatusReply(route, question) {
   if (orderLookupLive()) {
     return `${head}\n\nUse /order to check your own orders. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.`;
   }
-  return `${head}\n\nEmail help@omi.me with the order number. Order lookup in chat is not live yet. Keep your order number handy.`;
+  return `${head}\n\nEmail help@omi.me with the order number. Keep your order number handy.`;
 }
 
 function shippingQuoteReply() {
@@ -607,14 +613,18 @@ function cannedReply(route, question) {
   if (lane === 'tech' && route?.area === 'desktop') {
     return "You wrote about the computer app. I can't open that app from here, so I won't guess a fix.";
   }
+  if (lane === 'tech' && route?.area === 'unknown') {
+    return "This looks like a technical problem. I can't inspect your app or device from here, so I won't guess a fix.";
+  }
   if (lane === 'tech') {
     return "You wrote about the phone app. I can't open that app from here, so I won't guess a fix.";
   }
   if (/\bblue\b/i.test(String(question || '')) && /\blight\b/i.test(String(question || ''))) {
     return 'A solid blue light means the Omi is on and connected to your phone.';
   }
-  if (/\bhow do i turn\b/i.test(String(question || '')) && /\boff\b/i.test(String(question || ''))) {
-    return 'On the necklace, hold the button for about 3 seconds to turn it off. One press turns it on.';
+  if (/\bhow do i turn\b/i.test(String(question || '')) && /\boff\b/i.test(String(question || '')) &&
+      /\bnecklace\b/i.test(String(question || '')) && !/\bdev\s*kit\b|devkit/i.test(String(question || ''))) {
+    return 'On the necklace, hold the button for about 3 seconds to turn it off. Press once to turn it back on. Source: https://docs.omi.me/onboarding/omi';
   }
   if (/\bdelete\b/i.test(String(question || '')) && /\bconversation\b/i.test(String(question || ''))) {
     return 'Open that conversation and delete it from its detail view. That deletes the transcript and any stored audio for it.';

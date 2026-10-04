@@ -105,6 +105,18 @@ function percentile(values, pct) {
   return sorted[Math.min(sorted.length - 1, Math.ceil((pct / 100) * sorted.length) - 1)];
 }
 
+function captureModelUsage(state, event) {
+  if (!state || !event) return;
+  if (!Array.isArray(state.modelCalls)) state.modelCalls = [];
+  state.modelCalls.push({
+    stage: event.stage,
+    model: event.model,
+    promptTokens: event.promptTokens,
+    completionTokens: event.completionTokens,
+    reasoningTokens: event.reasoningTokens,
+  });
+}
+
 function summarize(rows, runs) {
   const byCase = new Map();
   for (const row of rows) {
@@ -211,7 +223,11 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
       })
     );
     const officialDocs = await realRelevantDocs(question, options);
-    return retrieval.combineEvidence(official, officialDocs);
+    // The live harness has no Postgres index, so it loads Help Center and docs
+    // separately. Put the directly matched docs chunks before the broad local
+    // Help Center matches so the answer/reviewer context limits retain both.
+    // Source authority is still carried by each block and enforced by policy.
+    return retrieval.combineEvidence(officialDocs, official);
   };
   const utils = inRoot('utils.js');
   utils.typingDelay = async () => {};
@@ -245,12 +261,17 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
     if (!state) return;
     for (const [key, value] of Object.entries(stages)) state.timings[key] = (state.timings[key] || 0) + value;
   };
+  const onModelUsage = (event) => {
+    const state = caseContext.getStore();
+    if (state) captureModelUsage(state, event);
+  };
   process.on('omiSupportTimings', onTiming);
+  process.on('omiSupportModelUsage', onModelUsage);
   const tasks = Array.from({ length: runs }, (_, index) => selected.map((scene) => ({ scene, runIndex: index + 1 }))).flat();
   let next = 0;
   let incomplete = false;
   async function runOne({ scene, runIndex }) {
-    const state = { handoff: false, providerError: '', timings: {} };
+    const state = { handoff: false, providerError: '', timings: {}, modelCalls: [] };
     return caseContext.run(state, async () => {
       const { channel, history } = makeChannel(process.env.VECTOR_TEST_CHANNEL_ID);
       const authorId = nextId();
@@ -273,7 +294,7 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
         : [...judge(scene, reply, state.handoff, lane), ...(error ? [`error: ${error}`] : [])];
       return {
         id: scene.id, run: runIndex, reply, handoff: state.handoff, urls,
-        timings: state.timings, latencyMs: Math.round(performance.now() - start),
+        timings: state.timings, modelCalls: state.modelCalls, latencyMs: Math.round(performance.now() - start),
         pass: scene.observeOnly || Boolean(state.providerError) ? null : problems.length === 0,
         invalid: Boolean(state.providerError), problems,
       };
@@ -294,6 +315,7 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   } finally {
     console.error = originalError;
     process.off('omiSupportTimings', onTiming);
+    process.off('omiSupportModelUsage', onModelUsage);
   }
   rows.sort((a, b) => a.run - b.run || selected.findIndex((scene) => scene.id === a.id) - selected.findIndex((scene) => scene.id === b.id));
   return {
@@ -332,4 +354,4 @@ async function main() {
 
 if (require.main === module) main().catch((err) => { console.error(err.message); process.exitCode = 1; });
 
-module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, makeChannel, makeMessage, run };
+module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, makeChannel, makeMessage, run };

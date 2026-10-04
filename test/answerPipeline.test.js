@@ -6,6 +6,7 @@ const {
   presentReviewedAnswer,
   EMPTY_ANSWER_FALLBACK,
   addUnsyncedDataWarning,
+  hasUnsyncedDataRisk,
 } = require('../answerPipeline');
 
 test('sync stalls and missing conversations get a data-loss warning without the word offline', () => {
@@ -29,6 +30,57 @@ test('presentation preserves a sourced troubleshooting step after draft filterin
   const presented = presentReviewedAnswer(reviewed);
   assert.match(presented, /reconnecting Bluetooth from the Omi app/);
   assert.match(presented, /Source: https:\/\/help\.omi\.me\/en\/articles\/example/);
+});
+
+test('unsynced-data warning catches missing audio and conversations in varied wording', () => {
+  for (const question of [
+    'Nothing synced and my meeting audio vanished.',
+    'I am losing recordings from the app.',
+    'My conversations never showed up after recording.',
+    'The memories are gone and I may have unsynced audio.',
+  ]) {
+    const reply = addUnsyncedDataWarning('A person needs to check this.', question);
+    assert.match(reply, /Do not reinstall the app, log out, or clear Pending\/All/i, question);
+  }
+});
+
+test('blank output after a real recording risks data loss, but transcript how-tos do not', () => {
+  for (const question of [
+    'I recorded my whole lecture and the transcript is blank',
+    "The app shows an empty transcript for yesterday's two hour call",
+    'Nothing was recorded during my meeting',
+  ]) {
+    assert.equal(hasUnsyncedDataRisk(question), true, question);
+    assert.match(addUnsyncedDataWarning('I will check this.', question), /Do not reinstall/i);
+  }
+  for (const question of [
+    'Where do I find the transcript of a conversation?',
+    'Is there a transcript export?',
+  ]) {
+    assert.equal(hasUnsyncedDataRisk(question), false, question);
+    assert.equal(addUnsyncedDataWarning('Open the app.', question), 'Open the app.');
+  }
+});
+
+test('spoken sessions and spelled-out durations count as completed recordings', () => {
+  for (const question of [
+    'I talked through a whole meeting and there is no transcript at all',
+    'I spoke for an hour and got zero audio',
+    'I dictated notes all day but nothing was transcribed',
+    'I said everything during the call and the transcript came back blank',
+  ]) assert.equal(hasUnsyncedDataRisk(question), true, question);
+  for (const question of [
+    'where do I find the transcript of a conversation?',
+    'is there a transcript export?',
+    'how do I turn off recording?',
+  ]) assert.equal(hasUnsyncedDataRisk(question), false, question);
+});
+
+test('the fixed English data-loss warning is never appended to a non-English reply', () => {
+  const question = 'I recorded a lecture and the transcript is blank';
+  const spanish = addUnsyncedDataWarning('La transcripción está vacía.', question, { language: 'es', dataLossRisk: true });
+  assert.equal(spanish, 'La transcripción está vacía.');
+  assert.match(addUnsyncedDataWarning('The transcript is blank.', question, { language: 'en', dataLossRisk: true }), /Do not reinstall/);
 });
 
 test('the presentation step does not prepend a saved staff note', () => {

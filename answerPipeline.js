@@ -45,12 +45,19 @@ function presentReviewedAnswer(answer) {
   return ensureNonEmptyAnswer(clipForDiscord(formatDiscordReply(stripPingNarration(answer))));
 }
 
-function addUnsyncedDataWarning(answer, question) {
-  const context = String(question || '');
-  const syncFailed = /\bsync(?:ing)?\b.{0,45}\b(?:stuck|stall\w*|fail\w*|not\s+(?:working|complet\w*|finish\w*))\b|\b(?:stuck|stall\w*|fail\w*)\b.{0,45}\bsync(?:ing)?\b/i.test(context);
-  const missingRecordings = /\b(?:recordings?|conversations?|transcripts?|memories?)\b.{0,45}\b(?:missing|gone|lost|disappear\w*)\b|\b(?:missing|gone|lost|disappear\w*)\b.{0,45}\b(?:recordings?|conversations?|transcripts?|memories?)\b/i.test(context);
+function hasUnsyncedDataRisk(question) {
+  const text = String(question || '');
+  const data = /\b(?:sync\w*|record\w*|audio|meetings?|conversations?|memories?|transcri\w*|dictat\w*|voice)\b/i.test(text);
+  const loss = /\b(?:gone|vanish\w*|disappear\w*|lost|losing|missing|nothing\s+sync\w*|never\s+showed\s+up|not\s+sync\w*|didn['’]?t\s+sync\w*|sync\w*\s+(?:is\s+)?(?:stuck|stall\w*|fail\w*)|(?:stuck|stall\w*|fail\w*)\s+sync\w*)\b/i.test(text);
+  const emptyOutput = /\b(?:(?:no|zero|empty|blank)\s+(?:transcripts?|recordings?|audio)|(?:transcripts?|recordings?|audio)\s+(?:is|was|are|were|came(?:\s+back)?)?\s*(?:empty|blank|zero|missing)|nothing\s+(?:was\s+)?(?:recorded|transcribed|saved))\b/i.test(text);
+  const happened = /\b(?:recorded|captured|finished|spoke|talked|said|dictated|yesterday|last\s+(?:night|week|meeting|call)|(?:\d+|an?|one|two|three|four|several)\s+(?:hours?|minutes?)|(?:a|the|my)\s+whole\s+(?:meeting|lecture|call|day)|all\s+day|during\s+(?:my|the|a)\s+(?:call|meeting|lecture)|(?:my|the)\s+(?:recording|audio|transcript))\b/i.test(text);
+  return data && (loss || (emptyOutput && happened));
+}
+
+function addUnsyncedDataWarning(answer, question, { dataLossRisk = false, language = 'en' } = {}) {
   const current = String(answer || '').trim();
-  if (!syncFailed && !missingRecordings) return current;
+  if (!(dataLossRisk || hasUnsyncedDataRisk(question))) return current;
+  if (String(language || 'en').toLowerCase().split('-')[0] !== 'en') return current;
   if (/do not reinstall/i.test(current) && /log out/i.test(current) && /clear Pending\/All/i.test(current)) return current;
   const warning = UNSYNCED_DATA_WARNING;
   const sourceAt = current.search(/\n(?:Sources?):\s*https:\/\//i);
@@ -68,4 +75,5 @@ module.exports = {
   prepareDraftForReviewWithAudit,
   presentReviewedAnswer,
   addUnsyncedDataWarning,
+  hasUnsyncedDataRisk,
 };

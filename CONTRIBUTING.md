@@ -32,7 +32,7 @@ Support facts are ranked in this order:
 6. Omi Feedback portal metadata and customer reports, for issue/status signals only
 7. Discord help history, for corroboration only
 
-If authoritative sources disagree, the Help Center controls customer-support instructions. If no authoritative page answers the question, say so and route the customer to `help@omi.me` rather than guessing.
+If authoritative sources disagree, the Help Center controls customer-support instructions. A Help Center article omitting a detail is not a contradiction: check the relevant Help Center, docs, and current official repository source before calling a product step undocumented. If no authoritative page answers the question, say so and route the customer to `help@omi.me` rather than guessing.
 
 ## Deployment
 

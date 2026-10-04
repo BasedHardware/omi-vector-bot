@@ -82,6 +82,16 @@ test('voice input without an answer adds the intended chat-delivery vocabulary',
   assert.match(queries[1], /chat answer AI message response visible/);
 });
 
+test('device purchase questions also search buying and parts terminology', () => {
+  const queries = supportQueries('Which Omi device should I buy for meetings?');
+  assert.match(queries.join('\n'), /buying guide.*parts list/i);
+});
+
+test('building Omi apps searches the app-development guides as well as API docs', () => {
+  const queries = supportQueries('How can I build an Omi app that reads my conversations?');
+  assert.match(queries.join('\n'), /building apps.*developer.*conversations/i);
+});
+
 test('conversation deletion searches both synced data and phone-local copies', () => {
   const queries = supportQueries(
     'How do I remove past conversations from the app and phone?',
@@ -89,6 +99,28 @@ test('conversation deletion searches both synced data and phone-local copies', (
   );
   assert.match(queries.join('\n'), /Offline Sync Manage Storage/);
   assert.match(queries.join('\n'), /phone local synced recording copies/);
+});
+
+test('single-item app deletion searches consumer terminology and favors Help Center evidence', () => {
+  const question = 'Can I erase a single recording from my list?';
+  const queries = supportQueries(question, []);
+  assert.equal(queries[0], question);
+  assert.match(queries[1], /individual conversation memory recording/);
+  const ranked = rankLocalChunks(queries, [
+    { url: 'https://www.omi.me/pages/second-memory', title: 'Second memory', body: 'Your Omi memories and recordings.', source: 'website' },
+    { url: 'https://help.omi.me/en/articles/manage-conversations', title: 'Conversations and memories', body: 'Delete an individual conversation from the app.', source: 'help' },
+  ], 2, { customerQuestion: question });
+  assert.match(ranked[0].url, /help\.omi\.me/);
+});
+
+test('a Help Center page with individual deletion instructions outranks generic memory marketing', () => {
+  const question = 'How do I remove just one memory without clearing the rest?';
+  const queries = supportQueries(question, ['Omi memory deletion settings']);
+  const ranked = rankLocalChunks(queries, [
+    { url: 'https://www.omi.me/pages/second-memory', title: 'Your second memory', body: 'Omi memory stores conversations and recordings in the app.', source: 'website' },
+    { url: 'https://help.omi.me/en/articles/manage-data', title: 'Conversations and memories', body: 'Delete: You can delete individual conversations or memories from their detail view.', source: 'help' },
+  ], 2, { customerQuestion: question });
+  assert.equal(ranked[0].source, 'help');
 });
 
 test('rank fusion rewards results recalled by more than one search', () => {

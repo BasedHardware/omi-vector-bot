@@ -204,9 +204,27 @@ function uniqueQueries(question, planned = []) {
   return out;
 }
 
+function isSingleItemDeletionQuestion(question) {
+  const text = String(question || '');
+  return /\b(?:delete|remove|erase)\b/i.test(text) &&
+    /\b(?:memory|memories|recording|conversation|transcript)s?\b/i.test(text) &&
+    /\b(?:one|single|individual|from my list)\b/i.test(text);
+}
+
 function supportQueries(question, planned = []) {
   const text = [question, ...(planned || [])].filter(Boolean).join(' ');
   const variants = [];
+  if (/\b(?:build|building|create|make|develop)\b/i.test(question) &&
+      /\bapps?\b/i.test(question) && /\bomi\b/i.test(question)) {
+    variants.push('Omi building apps developer integrations conversations memory');
+  }
+  if (/\b(?:buy|buying|purchase|which\s+(?:omi|device)|choose\s+(?:an?\s+)?(?:omi|device))\b/i.test(question) &&
+      /\b(?:omi|device|hardware)\b/i.test(question)) {
+    variants.push('Omi device buying guide parts list choose hardware');
+  }
+  if (isSingleItemDeletionQuestion(question)) {
+    variants.push('Omi app delete individual conversation memory recording from list');
+  }
   const hasVoiceInput = /\b(?:transcri\w*|voice|spoken|ask(?:ed|ing)?|question)\b/i.test(text);
   const hasMissingOutput = /\b(?:answer\w*|response\w*|repl(?:y|ies|ied)|respond\w*|silent|nothing)\b/i.test(text);
   if (hasVoiceInput && hasMissingOutput) {
@@ -260,8 +278,10 @@ function mergeRanked(resultSets, limit = 8) {
   return diverseTop(ranked, limit);
 }
 
-function rankLocalChunks(queries, rows, limit = 8) {
+function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '' } = {}) {
   const wanted = (queries || []).map((query) => new Set(queryTerms(query, 20)));
+  const consumerQuestion = !/\b(?:api|sdk|webhook|endpoint|developer|programmatic(?:ally)?|curl)\b/i.test(customerQuestion || queries?.[0] || '');
+  const singleItemDeletion = consumerQuestion && isSingleItemDeletionQuestion(customerQuestion || queries?.[0] || '');
   const ranked = (rows || [])
     .map((row) => {
       const title = String(row.title || '').toLowerCase();
@@ -280,6 +300,11 @@ function rankLocalChunks(queries, rows, limit = 8) {
         }
         if (terms.size && covered === terms.size) score += 5;
       }
+      if (consumerQuestion && (row.source || sourceKind(row.url)) === 'help') score += 4;
+      if (consumerQuestion && /\/api-reference\//i.test(String(row.url || ''))) score -= 8;
+      if (singleItemDeletion && (row.source || sourceKind(row.url)) === 'help' &&
+          /\b(?:delete|remove|erase)\b/i.test(body) &&
+          /\b(?:individual|single|one)\s+(?:conversations?|memories|memory|recordings?|transcripts?)\b/i.test(body)) score += 16;
       return { ...row, authority: sourceAuthority(row.source || sourceKind(row.url)), rank: score };
     })
     .filter((row) => row.rank > 0)
@@ -336,6 +361,7 @@ module.exports = {
   chunkDocument,
   queryTerms,
   uniqueQueries,
+  isSingleItemDeletionQuestion,
   supportQueries,
   mergeRanked,
   rankLocalChunks,

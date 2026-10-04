@@ -311,6 +311,17 @@ test('failed handoff overrides issue and conversation copy with an honest email 
   assert.match(out, /help@omi\.me/);
 });
 
+test('an incomplete locale map cannot suppress a delivered or failed handoff next step', () => {
+  const footers = { thread: '', failed: '', pending: '' };
+  assert.match(escalateReply('A person needs to review this.', {
+    pinged: true, replyInThread: true, footers,
+  }), /will reply in this thread/i);
+  assert.match(escalateReply('A person needs to review this.', {
+    deliveryFailed: true, footers,
+  }), /help@omi\.me/i);
+  assert.match(escalateReply('A person needs to review this.', { footers }), /have not pinged anyone yet/i);
+});
+
 test('reused tickets from the parent channel keep the duplicate footer', () => {
   const out = escalateReply('You wrote about the phone app.', {
     pinged: true,
@@ -740,6 +751,17 @@ test('a light-color fact is kept when a later step is stripped', () => {
   );
   assert.match(out, /Blue light means the necklace is on and connected/);
   assert.equal(/set it aside/i.test(out), false);
+});
+
+test('a kept clause is capitalized after an unsafe opening step is removed', () => {
+  const { stripUnsupportedClaims } = require('../honesty');
+  const reply = stripUnsupportedClaims(
+    'Please restart the phone, the app still closes when memories open.',
+    'tech',
+    'The app closes when memories open'
+  );
+  assert.match(reply, /^The app still closes/);
+  assert.doesNotMatch(reply, /restart the phone/i);
 });
 
 test('formatDiscordReply turns LED pipe lists into bullets', () => {

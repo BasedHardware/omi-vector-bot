@@ -8,6 +8,7 @@ const {
   queryTerms,
   rankLocalChunks,
   supportQueries,
+  isSingleItemDeletionQuestion,
 } = require('./retrieval');
 let indexCache = { at: 0, text: '' };
 
@@ -25,12 +26,26 @@ function pagesFromIndex(text) {
   return pages;
 }
 
-function topPages(question, pages, limit = 2) {
+function compatibleDevicePage(question, page) {
+  const developerQuestion = /\b(?:api|sdk|webhook|endpoint|developer|programmatic(?:ally)?|curl|build|building|compil\w*|source|repos?itor\w*|repos?|github|flutter|npm|firmware|flash\w*|dev\s*kit|devkit|integrations?|plugins?|oauth)\b/i.test(question);
+  if (!developerQuestion && /\/api-reference\//i.test(String(page.url || ''))) return false;
+  if (!developerQuestion && isSingleItemDeletionQuestion(question) &&
+      /\/(?:doc\/(?:developer|assembly|hardware)\/|get_started\/Flash_device)/i.test(String(page.url || ''))) return false;
+  const consumerControls = /\b(?:button|tap|press|hold|turn|power|light|led|pair|reset)\b/i.test(question) &&
+    /\b(?:omi|necklace)\b/i.test(question) && !/\bdev\s*kit\b|devkit/i.test(question);
+  return !consumerControls || !/\bdev\s*kit\b|devkit/i.test(`${page.title || ''} ${page.url || ''}`);
+}
+
+function topPages(question, pages, limit = 2, compatibilityQuestion = question) {
   const wanted = new Set(words(question));
+  const deviceControl = /\b(?:button|tap|press|hold|turn|power|light|led|pair|reset)\b/i.test(question) &&
+    /\b(?:omi|device|necklace)\b/i.test(question);
   return pages
+    .filter((page) => compatibleDevicePage(compatibilityQuestion, page))
     .map((page) => ({
       page,
-      score: words(`${page.title} ${page.blurb} ${page.url}`).filter((word) => wanted.has(word)).length,
+      score: words(`${page.title} ${page.blurb} ${page.url}`).filter((word) => wanted.has(word)).length +
+        (deviceControl && /\bomi\b/i.test(page.title) && /\bsetup\b/i.test(page.title) ? 1 : 0),
     }))
     .filter((hit) => hit.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -72,9 +87,9 @@ async function storedDocs(question, store, plannedQueries = []) {
         ])
       )
     );
-    const allSets = batches.map((batch) => batch[0]);
-    const helpSets = batches.map((batch) => batch[1]);
-    const githubSets = batches.map((batch) => batch[2]);
+    const allSets = batches.map((batch) => batch[0].filter((row) => compatibleDevicePage(question, row)));
+    const helpSets = batches.map((batch) => batch[1].filter((row) => compatibleDevicePage(question, row)));
+    const githubSets = batches.map((batch) => batch[2].filter((row) => compatibleDevicePage(question, row)));
     const ranked = mergeRanked([...allSets, ...helpSets, ...githubSets], 12);
     const required = [mergeRanked(helpSets, 1)[0], mergeRanked(githubSets, 1)[0]].filter(Boolean);
     const rows = [];
@@ -110,7 +125,7 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
     const picked = [];
     const seen = new Set();
     for (const query of queries) {
-      for (const page of topPages(query, allPages, 3)) {
+      for (const page of topPages(query, allPages, 3, question)) {
         if (seen.has(page.url)) continue;
         seen.add(page.url);
         picked.push(page);
@@ -130,7 +145,7 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
       chunks.push(...chunkDocument({ url: page.url, title: page.title, body: excerpt }));
     }
     await rememberPages(saved, pages);
-    return formatEvidence(rankLocalChunks(queries, chunks, 8));
+    return formatEvidence(rankLocalChunks(queries, chunks, 8, { customerQuestion: question }));
   } catch (err) {
     console.error('[Docs] lookup failed:', err.message);
     return '';

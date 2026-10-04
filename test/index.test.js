@@ -42,6 +42,13 @@ let modelReply = {};
 let modelDown = false;
 let searchPlanQueries = [];
 const plannerCalls = [];
+let plannerSupportKind = 'other';
+let plannerMessageKind = 'question';
+let plannerStandaloneQuestion = '';
+let plannerReplyLanguage = 'en';
+let plannerHandoffAcknowledgment = '';
+let plannerWantsPerson = false;
+let plannerDataLossRisk = false;
 let reviewerResponse = null;
 const reviewCalls = [];
 commandcode.queryAgent = async (args) => {
@@ -62,11 +69,16 @@ commandcode.queryAgent = async (args) => {
 commandcode.understandQuestion = async ({ question }) => {
   plannerCalls.push(question);
   return {
-    standaloneQuestion: question,
+    standaloneQuestion: plannerStandaloneQuestion || question,
     customerGoal: question,
     mustAnswer: [question],
     customerFacts: [],
-    supportKind: 'other',
+    supportKind: plannerSupportKind,
+    messageKind: plannerMessageKind,
+    replyLanguage: plannerReplyLanguage,
+    handoffAcknowledgment: plannerHandoffAcknowledgment,
+    wantsPerson: plannerWantsPerson,
+    dataLossRisk: plannerDataLossRisk,
     queries: searchPlanQueries,
   };
 };
@@ -351,6 +363,13 @@ test.beforeEach(() => {
   modelDown = false;
   searchPlanQueries = [];
   plannerCalls.length = 0;
+  plannerSupportKind = 'other';
+  plannerMessageKind = 'question';
+  plannerStandaloneQuestion = '';
+  plannerReplyLanguage = 'en';
+  plannerHandoffAcknowledgment = '';
+  plannerWantsPerson = false;
+  plannerDataLossRisk = false;
   reviewerResponse = null;
   reviewCalls.length = 0;
   pulls = [];
@@ -411,6 +430,297 @@ test('the planner runs for a short first customer question', async () => {
   try {
     await ask('How do I pair Omi?');
     assert.deepEqual(plannerCalls, ['How do I pair Omi?']);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('planner-classified order, account and exception requests reach a person in any language', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  const cases = [
+    ['Onde está meu pedido? Comprei há um mês', 'order_lookup', 'Where is my order? I bought it a month ago.'],
+    ['Quiero un reembolso, el dispositivo no funciona', 'exception_request', 'I want a refund; the device does not work.'],
+    ['Comment supprimer mes données ?', 'account_action', 'How do I delete my data?'],
+    ['我的订单什么时候发货？', 'order_lookup', 'When will my order ship?'],
+    ["is there any way to get my money back if I don't like it?", 'exception_request', 'I want to know whether a refund is possible.'],
+    ['warranty claim, the button fell off', 'exception_request', 'The button fell off and I need a warranty claim.'],
+    ['my device arrived broken, need a replacement', 'exception_request', 'My device arrived broken and I need a replacement.'],
+  ];
+  try {
+    for (const [question, kind, standalone] of cases) {
+      plannerSupportKind = kind;
+      plannerStandaloneQuestion = standalone;
+      const result = await ask(question);
+      assert.ok(result.thread, question);
+      assert.doesNotMatch(result.reply, /Hold the center button|will arrive (?:on|by|tomorrow|next)|refund approved|replacement approved|has shipped/i, question);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('planner-detected account action keeps a grounded answer and still reaches staff', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'account_action';
+  plannerStandaloneQuestion = 'How can I delete my Omi account?';
+  plannerReplyLanguage = 'fr';
+  plannerHandoffAcknowledgment = "Une personne doit examiner votre demande en privé.";
+  modelReply = {
+    final_answer: "Dans l'application, ouvrez les paramètres de confidentialité pour demander la suppression. Source: https://help.omi.me/en/articles/13162549-omi-privacy-policy",
+    escalate: false,
+  };
+  const result = await ask('Comment supprimer mon compte Omi ?');
+  assert.equal(result.modelCalled, true);
+  assert.match(result.reply, /paramètres de confidentialité/i);
+  assert.equal(staff.length, 1);
+  assert.doesNotMatch(result.reply, /I can't change your account|A person on the team/i);
+});
+
+test('person-kind policy question in #help keeps a reviewed answer and hands off', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'exception_request';
+  modelReply = { final_answer: 'The return policy is described here. Source: https://help.omi.me/en/articles/returns', escalate: false };
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Return policy' });
+  const result = await ask('What is the return policy for Omi?', { channel: post });
+  assert.equal(result.modelCalled, true);
+  assert.match(result.reply, /return policy is described here/i);
+  assert.equal(staff.length, 1);
+});
+
+test('blank transcript after a completed recording warns and reaches staff', async (t) => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'I understand the recording happened but the transcript is blank.', escalate: false };
+  for (const question of [
+    'I recorded my whole lecture and the transcript is blank',
+    "The app shows an empty transcript for yesterday's two hour call",
+  ]) {
+    const result = await ask(question);
+    assert.match(result.reply, /Do not reinstall the app/i);
+    assert.equal(staff.length, question.startsWith('I recorded') ? 1 : 2);
+  }
+});
+
+test('handoff log records signal names without customer wording or order details', async (t) => {
+  const originalLog = console.log;
+  const lines = [];
+  console.log = (...items) => lines.push(items.map(String).join(' '));
+  t.after(() => { console.log = originalLog; });
+  await ask('Where is order #22777? My email is jane@example.com.');
+  const line = lines.find((item) => item.startsWith('[Bot] Escalating'));
+  assert.ok(line);
+  assert.match(line, /signals=/);
+  assert.doesNotMatch(line, /#22777|jane@example\.com|topic=|Where is order/i);
+});
+
+test('a multilingual planner data-loss signal hands off without an English warning', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerDataLossRisk = true;
+  plannerReplyLanguage = 'es';
+  modelReply = { final_answer: 'No se guardó el audio de la reunión.', escalate: false };
+  const result = await ask('Hablé toda la reunión y no aparece ninguna transcripción');
+  assert.equal(staff.length, 1);
+  assert.doesNotMatch(result.reply, /Recordings may still be unsynced|Do not reinstall/i);
+});
+
+test('person-kind request with private details in #help holds the public answer', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'exception_request';
+  modelReply = { final_answer: 'The return policy is described here. Source: https://help.omi.me/en/articles/returns', escalate: false };
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Private return request' });
+  const result = await ask('Can you return order #22777? My email is jane@example.com.', { channel: post });
+  assert.equal(result.modelCalled, false);
+  assert.doesNotMatch(result.reply, /jane@example\.com|#22777|return policy is described here/i);
+  assert.equal(staff.length, 1);
+});
+
+test('order lookup with an approved sourced draft keeps that policy answer and hands off', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'order_lookup';
+  modelReply = { final_answer: 'The delivery policy says to contact the shop team for a missing package. Source: https://help.omi.me/en/articles/delivery', escalate: false };
+  const result = await ask('Tracking says delivered but I never got it');
+  assert.equal(result.modelCalled, true);
+  assert.match(result.reply, /delivery policy says/i);
+  assert.doesNotMatch(result.reply, /Order lookup in chat is not live yet/i);
+  assert.equal(staff.length, 1);
+});
+
+test('planner-detected billing request keeps the sourced answer instead of a data-removal line', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'money';
+  plannerStandaloneQuestion = 'What does my invoice cover?';
+  plannerReplyLanguage = 'es';
+  modelReply = { final_answer: 'La factura muestra el cargo del plan. Fuente: https://help.omi.me/en/articles/billing', escalate: false };
+  const result = await ask('¿Qué incluye el cargo de mi factura?');
+  assert.equal(result.modelCalled, true);
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /factura muestra el cargo/i);
+  assert.doesNotMatch(result.reply, /remove your data|replacement or warranty/i);
+});
+
+test('English canned refund uses the router reply without a planner or model call', async (t) => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  const result = await ask('I want a refund for my order.');
+  assert.equal(plannerCalls.length, 0);
+  assert.equal(result.modelCalled, false);
+  assert.match(result.reply, /refund/i);
+  assert.ok(result.thread);
+});
+
+test('off-topic chatter stays silent but asking for a person still routes to staff', async (t) => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerMessageKind = 'off_topic';
+  const chatter = await ask('What time is it where your team is based?');
+  assert.equal(chatter.message.replies.length, 0);
+  assert.equal(chatter.thread, null);
+  assert.equal(modelCalls.length, 0);
+  const human = await ask('Can I talk to a person?');
+  assert.ok(human.message.replies.length > 0);
+  assert.ok(human.thread);
+});
+
+test('a Spanish request to speak with a person uses the planner flag to hand off', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerWantsPerson = true;
+  plannerReplyLanguage = 'es';
+  plannerMessageKind = 'off_topic';
+  modelReply = { final_answer: 'Necesito que una persona revise tu pregunta.', escalate: false };
+  const result = await ask('Quiero hablar con una persona');
+  assert.ok(result.message.replies.length);
+  assert.equal(staff.length, 1);
+});
+
+test('a delivered Spanish handoff adds no English footer or extra email instruction', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'exception_request';
+  plannerStandaloneQuestion = 'I want a refund for a broken device.';
+  plannerReplyLanguage = 'es';
+  plannerHandoffAcknowledgment = 'Una persona debe revisar la solicitud en privado.';
+  modelReply = { final_answer: 'Una persona debe revisar el reembolso. Fuente: https://help.omi.me/en/articles/13162549-omi-privacy-policy', escalate: false };
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Consulta de reembolso' });
+  const result = await ask('Quiero un reembolso, el dispositivo no funciona.', { channel });
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /responderá en este hilo/i);
+  assert.doesNotMatch(result.reply, /A person on the team|Source:|Email help@omi\.me/i);
+});
+
+test('romanized Hindi handoff and failed Spanish delivery never append English templates', async (t) => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerSupportKind = 'exception_request';
+  plannerReplyLanguage = 'hi';
+  plannerHandoffAcknowledgment = 'टीम को यह देखना होगा।';
+  modelReply = { final_answer: 'Team ko refund request dekhni hogi.', escalate: true };
+  const hindi = await ask('Mujhe refund chahiye.');
+  assert.doesNotMatch(hindi.reply, /\p{Script=Devanagari}/u);
+  assert.doesNotMatch(hindi.reply, /A person on the team|I could not deliver/i);
+
+  plannerReplyLanguage = 'es';
+  plannerHandoffAcknowledgment = 'Una persona debe revisar esto.';
+  modelReply = { final_answer: 'Una persona debe revisar el reembolso.', escalate: true };
+  const spanish = await ask('Quiero un reembolso.');
+  assert.match(spanish.reply, /help@omi\.me/);
+  assert.doesNotMatch(spanish.reply, /I could not deliver|A person on the team/i);
+});
+
+test('planner acknowledgment stays silent, but a new symptom after thanks is answered', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  try {
+    plannerMessageKind = 'acknowledgment';
+    for (const question of ['Gracias, ya funciona', 'fixed it thanks']) {
+      const result = await ask(question);
+      assert.equal(result.message.replies.length, 0, question);
+      assert.equal(result.thread, null, question);
+    }
+    plannerMessageKind = 'new_symptom';
+    plannerSupportKind = 'technical_problem';
+    plannerStandaloneQuestion = 'Battery drains fast after the earlier issue was fixed.';
+    const followup = await ask('thanks that fixed it but now the battery drains fast');
+    assert.ok(followup.message.replies.length > 0);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('an unpunctuated fix-status question and a new symptom survive acknowledgment misclassification', async (t) => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  });
+  const delivered = enableStaffDelivery(t);
+  plannerMessageKind = 'acknowledgment';
+  plannerSupportKind = 'technical_problem';
+  for (const question of [
+    'Has the error been fixed in the new version',
+    'Resolved the pairing, now transcripts are empty',
+  ]) {
+    const sentBefore = delivered.length;
+    const result = await ask(question);
+    assert.ok(result.message.replies.length > 0, question);
+    assert.ok(delivered.length > sentBefore, `staff handoff: ${question}`);
+  }
+});
+
+test('an acknowledgment in an existing order case stays silent without a planner call', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  plannerMessageKind = 'acknowledgment';
+  try {
+    const result = await ask('Order #12345 is resolved, merci');
+    assert.equal(result.message.replies.length, 0);
+    assert.equal(result.thread, null);
+    assert.equal(plannerCalls.length, 0);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('an unknown route with technical planner classification gets the tech answer path', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  plannerSupportKind = 'technical_problem';
+  plannerStandaloneQuestion = 'Omi keeps disconnecting from my phone every few minutes.';
+  try {
+    const result = await ask('omi keeps disconnecting from my phone every few minutes');
+    assert.equal(modelCalls.at(-1)?.route?.lane, 'tech');
+    assert.equal(reviewCalls.at(-1)?.lane, 'tech');
+    assert.ok(result.thread);
   } finally {
     if (previous === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previous;
@@ -1074,6 +1384,33 @@ test('review may clear a grounded self-serve FAQ handoff but not a tech handoff'
   assert.equal(faq.thread, null);
   const tech = await ask('The Android app crashes every time I open a conversation.');
   assert.ok(tech.thread);
+});
+
+test('review failure with a cited FAQ still delivers one staff handoff and a thread next step', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const db = require('../db');
+  const previousSearch = db.searchDocPages;
+  const previousUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = 'test-only-database';
+  db.searchDocPages = async (_query, _limit, sources) =>
+    sources && !sources.includes('help') ? [] : [{
+      url: 'https://help.omi.me/en/articles/123-update-omi',
+      title: 'Conversations in the app',
+      body: 'Conversations and memories can be managed in the app.',
+      source: 'help',
+      chunk_index: 0,
+    }];
+  t.after(() => {
+    db.searchDocPages = previousSearch;
+    process.env.DATABASE_URL = previousUrl;
+  });
+  reviewerResponse = () => { throw new Error('test reviewer unavailable'); };
+  modelReply = { final_answer: 'Open the app to review the stored conversation.', confidence: 0.95, escalate: false };
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'storage question' });
+  const result = await ask('why does omi save two copies of my conversation?', { channel });
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /couldn't verify a safe answer/i);
+  assert.match(result.reply.trim(), /will reply in this thread\.$/i);
 });
 
 test('an escalated how-to whose Handoff cannot be posted says nobody was pinged', async () => {

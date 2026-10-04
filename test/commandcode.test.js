@@ -42,6 +42,73 @@ test('CommandCode uses its own key, model and endpoint without a legacy session 
   }
 });
 
+test('planner, answer and review redact customer identifiers before the provider sees them', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  const privateText = 'Email ada@example.com; phone: 612 345 678; address: 12 Main Street; Order #22777; token user_123456789012345678901234.';
+  const sent = [];
+  const post = (content) => async (_url, body) => {
+    sent.push(JSON.stringify(body.messages));
+    return { data: { choices: [{ message: { content } }] } };
+  };
+  try {
+    await planSearch({ question: privateText, threadHistory: [{ author: 'customer', content: privateText }], post: post('{"standalone_question":"Where is my order?","support_kind":"order_lookup"}') });
+    await queryAgent({ question: privateText, threadHistory: [{ author: 'customer', content: privateText }], toolFacts: privateText, post: post('{"final_answer":"A person needs to check this.","confidence":0.8,"escalate":true}') });
+    await reviewAnswer({ question: privateText, threadHistory: [{ author: 'customer', content: privateText }], draft: privateText, sources: privateText, understanding: { customerFacts: [privateText] }, lane: 'shop', post: post('{"final_answer":"A person needs to check this.","grounded":true,"relevant":true,"confidence":0.8,"sources_used":[]}') });
+    assert.equal(sent.length, 3);
+    for (const payload of sent) {
+      assert.doesNotMatch(payload, /ada@example\.com|612 345 678|12 Main Street|#22777|user_123456789012345678901234/);
+      assert.match(payload, /\[email\]/);
+      assert.match(payload, /\[order number\]/);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('provider redaction retains Omi’s public support address but not a customer email', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  let sent = '';
+  try {
+    await queryAgent({
+      question: 'My email is ada@example.com and my phone is 612 345 678',
+      toolFacts: 'Official support contacts: help@omi.me and team@basedhardware.com.',
+      post: async (_url, body) => {
+        sent = JSON.stringify(body.messages);
+        return { data: { choices: [{ message: { content: '{"final_answer":"Contact support","confidence":0.8,"escalate":false}' } }] } };
+      },
+    });
+    assert.match(sent, /help@omi\.me/);
+    assert.match(sent, /team@basedhardware\.com/);
+    assert.doesNotMatch(sent, /ada@example\.com/);
+    assert.doesNotMatch(sent, /612 345 678/);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('each provider response records model and token usage without logging content', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  const events = [];
+  const listener = (event) => events.push(event);
+  process.on('omiSupportModelUsage', listener);
+  try {
+    await planSearch({ question: 'How do I pair Omi?', post: async () => ({ data: {
+      model: 'test-model', usage: { prompt_tokens: 123, completion_tokens: 45, completion_tokens_details: { reasoning_tokens: 12 } },
+      choices: [{ message: { content: '{"standalone_question":"How do I pair Omi?","support_kind":"official_information"}' } }],
+    } }) });
+    assert.deepEqual(events, [{ stage: 'planner', model: 'test-model', promptTokens: 123, completionTokens: 45, reasoningTokens: 12 }]);
+  } finally {
+    process.off('omiSupportModelUsage', listener);
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
 test('technical reviewer allows only cited official, reversible checks', () => {
   const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/13154278-omi-necklace-issues\nRestart the app and phone.';
   const feedback = '[S2 | Omi Feedback portal]\nhttps://feedback.omi.me/p/example\nA customer suggested restarting.';
@@ -51,6 +118,14 @@ test('technical reviewer allows only cited official, reversible checks', () => {
   assert.equal(technicalReviewSafety('Reinstall the app, then try again.', 'tech', help, ['S1']).safe, false);
   assert.equal(technicalReviewSafety('Clear Pending recordings.', 'firmware', help, ['S1']).safe, false);
   assert.equal(technicalReviewSafety('Flash firmware.', 'firmware', help, ['S1']).safe, false);
+});
+
+test('technical safety gate does not append an English data warning to a non-English reply', () => {
+  const result = technicalReviewSafety('Reinstall the app.', 'tech', '', [], {
+    question: 'No se guardó el audio de mi reunión', language: 'es', dataLossRisk: true,
+  });
+  assert.equal(result.escalate, true);
+  assert.doesNotMatch(result.answer, /Recordings may still be unsynced|Do not reinstall/i);
 });
 
 test('technical safety checks instruction structure, not stray action words', () => {
@@ -370,6 +445,16 @@ test('the review gate rejects a grounded but irrelevant answer', async () => {
   }
 });
 
+test('planner parses an explicit human-request flag without treating text as truthy', () => {
+  assert.equal(parseSearchPlan('{"standalone_question":"Help","wants_person":true}', 'Help').wantsPerson, true);
+  assert.equal(parseSearchPlan('{"standalone_question":"Help","wants_person":"false"}', 'Help').wantsPerson, false);
+});
+
+test('planner parses data-loss risk only from a boolean true', () => {
+  assert.equal(parseSearchPlan('{"standalone_question":"No audio was saved","data_loss_risk":true}', 'No audio was saved').dataLossRisk, true);
+  assert.equal(parseSearchPlan('{"standalone_question":"How do I record?","data_loss_risk":"false"}', 'How do I record?').dataLossRisk, false);
+});
+
 test('parseSearchPlan clips and deduplicates unsafe output shape', () => {
   const parsed = parseSearchPlan(
     '{"standalone_question":"Pair Omi","customer_goal":"Pair the device","must_answer":["first","first","second"],"customer_facts":["has Omi"],"support_kind":"official_information","search_queries":["pairing","bluetooth","device setup","fourth","fifth"]}',
@@ -398,6 +483,58 @@ test('source formatting removes inline model citations and emits each chosen URL
   );
   assert.equal((answer.match(/Source:/g) || []).length, 1);
   assert.equal((answer.match(/https:\/\/help\.omi\.me\/reset/g) || []).length, 1);
+});
+
+test('localized source labels stay localized and never gain an English Source line', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/reset\nReset instructions.';
+  for (const [language, label] of [['es', 'Fuente'], ['de', 'Quelle'], ['pt', 'Fonte'], ['tr', 'Kaynak']]) {
+    const answer = groundedSourceLine(`Respuesta útil.\n\n${label}: https://help.omi.me/reset`, evidence, ['S1'], language);
+    assert.equal((answer.match(/https:\/\/help\.omi\.me\/reset/g) || []).length, 1, language);
+    assert.match(answer, new RegExp(`\\b${label}:`), language);
+    assert.doesNotMatch(answer, /\bSource:/i, language);
+  }
+});
+
+test('Chinese, Korean, and Russian replies retain exactly one localized source line', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/delete-one\nDelete one item.';
+  for (const [language, label] of [['zh', '来源'], ['ko', '출처'], ['ru', 'Источник']]) {
+    const answer = groundedSourceLine(`这里是回答。\n\n${label}: https://help.omi.me/en/articles/delete-one`, evidence, ['S1'], language);
+    assert.equal((answer.match(/https:\/\/help\.omi\.me\/en\/articles\/delete-one/g) || []).length, 1, language);
+    assert.equal((answer.match(new RegExp(`${label}:`, 'g')) || []).length, 1, language);
+    assert.doesNotMatch(answer, /\bSource:/i, language);
+  }
+});
+
+test('an unfamiliar localized source label is replaced instead of duplicated', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/delete-one\nDelete one item.';
+  const answer = groundedSourceLine('Risposta utile.\n\nRiferimenti: https://help.omi.me/en/articles/delete-one', evidence, ['S1'], 'it');
+  assert.equal((answer.match(/Riferimenti:/g) || []).length, 1);
+  assert.equal((answer.match(/https:\/\/help\.omi\.me\/en\/articles\/delete-one/g) || []).length, 1);
+});
+
+test('FAQ review may use lower-ranked team product facts without treating them as tech troubleshooting', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-key';
+  try {
+    const reply = await reviewAnswer({
+      question: 'Does 24 hours mean recording with the app closed?',
+      draft: 'The 24-hour figure is battery life, not standalone recording time.',
+      lane: 'faq',
+      sources: '[Static fallback | lower priority than Help Center and docs]\nThe 24-hour figure is battery life, not standalone recording time.',
+      post: async (_url, body) => {
+        assert.match(body.messages[0].content, /static product facts are usable below the Help Center and docs/i);
+        return { data: { choices: [{ message: { content: JSON.stringify({
+          final_answer: 'The 24-hour figure is battery life, not standalone recording time.',
+          grounded: true, relevant: true, escalate: false, confidence: 0.9, sources_used: [],
+        }) } }] } };
+      },
+    });
+    assert.equal(reply.grounded, true);
+    assert.match(reply.final_answer, /battery life, not standalone recording time/);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
 });
 
 test('a bad model JSON is tried once more, and a usage limit is not', async () => {

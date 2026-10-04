@@ -13,7 +13,6 @@ const {
   claimMessage,
   claimAsker,
   releaseAsker,
-  shouldEscalate,
   typingDelay,
   stripSupportRedirect,
   clipForDiscord,
@@ -45,6 +44,8 @@ const knowledge = require('./knowledge');
 const shopify = require('./shopify');
 const shopifyBind = require('./shopifyBind');
 const router = require('./router');
+const plannerPolicy = require('./plannerPolicy');
+const { decideEscalation } = require('./escalationPolicy');
 const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts, OFFICIAL } = require('./prompt');
@@ -52,7 +53,7 @@ const { relevantDocs } = require('./docs');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
-const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning } = require('./answerPipeline');
+const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk } = require('./answerPipeline');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -591,11 +592,44 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const contextRoute = router.classify(routeText);
     // History preserves the ticket topic, but only the newest customer message
     // decides whether they are currently asking for a human.
-    const route = {
+    let route = {
       ...contextRoute,
       wantHuman: Boolean(currentRoute.wantHuman),
       escalate: Boolean(contextRoute.escalate || currentRoute.escalate),
     };
+    if (plannerPolicy.suppressAcknowledgment(null, asked || question)) return;
+    const cannedEnglish = plannerPolicy.skipPlannerForCanned(currentRoute, asked || question);
+    let searchPlan = {
+      standaloneQuestion: caseQuestion,
+      customerGoal: asked || question,
+      mustAnswer: [asked || question],
+      customerFacts: [],
+      supportKind: 'other',
+      queries: [],
+    };
+    if (!cannedEnglish && process.env.CMD_API_KEY) {
+      const stageStart = performance.now();
+      try {
+        searchPlan = await understandQuestion({
+          question: asked || question,
+          threadHistory: contextHistory,
+          route,
+          sessionId: `discord-${channel.id}-search`,
+        });
+      } catch (err) {
+        console.error('[Bot] search planning failed:', err.message);
+      } finally {
+        stageMs.planner += Math.round(performance.now() - stageStart);
+      }
+    }
+    if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
+    if (plannerPolicy.suppressOffTopic(searchPlan, currentRoute)) return;
+    const plannedPersonKind = cannedEnglish ? '' : plannerPolicy.personKind(searchPlan);
+    route = cannedEnglish
+      ? currentRoute
+      : plannerPolicy.routeWithUnderstanding(route, searchPlan, asked || question);
+    const forceGroundedPersonAnswer = Boolean(plannedPersonKind);
+    const cannedEnglishReply = cannedEnglish ? router.cannedReply(route, asked || question) : '';
     const supportFollowup =
       Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
     const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
@@ -617,6 +651,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     let threadHistory = [];
     let cleanAnswer;
     let skipModel = false;
+    let reviewedGrounded = false;
     let snippets = [];
 
     if (useShopify) {
@@ -638,7 +673,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         ].join('\n')
       : '';
 
-    if (holdPublicCopy || !router.requiresGroundedAnswer(route)) {
+    if (holdPublicCopy || cannedEnglishReply ||
+      (!forceGroundedPersonAnswer && !router.requiresGroundedAnswer(route))) {
       skipModel = true;
       aiResponse = {
         final_answer: '',
@@ -646,7 +682,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         escalate: true,
         reason: router.staffReason(route, asked || question),
       };
-      cleanAnswer = clipForDiscord(router.cannedReply(route, asked || question) || '');
+      cleanAnswer = clipForDiscord(cannedEnglishReply || router.cannedReply(route, asked || question) || '');
       if (shopifyLookup?.reason) {
         aiResponse.reason = aiResponse.reason || shopify.staffReason(shopifyLookup, asked || question);
       }
@@ -662,29 +698,6 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       const shopifyText = shopifyLookup
         ? shopify.buildUserReply(shopifyLookup, asked || question)
         : '';
-      let searchPlan = {
-        standaloneQuestion: caseQuestion,
-        customerGoal: asked || question,
-        mustAnswer: [asked || question],
-        customerFacts: [],
-        supportKind: 'other',
-        queries: [],
-      };
-      if (process.env.CMD_API_KEY) {
-        const stageStart = performance.now();
-        try {
-          searchPlan = await understandQuestion({
-            question: asked || question,
-            threadHistory,
-            route,
-            sessionId: `discord-${channel.id}-search`,
-          });
-        } catch (err) {
-          console.error('[Bot] search planning failed:', err.message);
-        } finally {
-          stageMs.planner += Math.round(performance.now() - stageStart);
-        }
-      }
       const sourceQuestion = contextualQuestion(
         searchPlan.standaloneQuestion || asked || question,
         threadHistory
@@ -708,7 +721,12 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         releaseText,
       });
 
-      try {
+      const verifiedCanned = plannerPolicy.verifiedCannedReply(route, asked || question, retrievedEvidence);
+      if (verifiedCanned) {
+        skipModel = true;
+        aiResponse = { final_answer: verifiedCanned, confidence: 0.95, escalate: false, reason: '' };
+        cleanAnswer = verifiedCanned;
+      } else try {
         const answerStart = performance.now();
         try {
           aiResponse = await queryAgent({
@@ -758,6 +776,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               stageMs.review += Math.round(performance.now() - reviewStart);
             }
             const approved = checked.relevant && checked.grounded && String(checked.final_answer || '').trim();
+            reviewedGrounded = Boolean(approved);
             aiResponse.final_answer = approved
               ? github.reviewedPullMention(checked.final_answer, relatedPull)
               : checked.safeHandoff
@@ -812,6 +831,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
     }
 
+    if (plannedPersonKind) {
+      aiResponse.escalate = true;
+      aiResponse.reason = plannerPolicy.personReason(plannedPersonKind);
+      if (!reviewedGrounded) {
+        aiResponse.final_answer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
+      }
+    }
+
     const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
     if (!skipModel) {
       cleanAnswer = presentReviewedAnswer(aiResponse.final_answer);
@@ -820,7 +847,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         prepareDraftForReview(cleanAnswer || '', triaged.lane, caseQuestion)
       );
     }
-    if (threadHasKnownIssueTag(channel)) {
+    if (plannedPersonKind && !reviewedGrounded) {
+      cleanAnswer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
+    }
+    if (!plannedPersonKind && threadHasKnownIssueTag(channel)) {
       cleanAnswer = router.knownIssueReply();
       aiResponse.reason = 'Already tagged Known issue.';
     } else {
@@ -837,7 +867,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
     }
     let changeSentence = '';
-    if (changes[0]) {
+    if (changes[0] && !plannedPersonKind) {
       const lookup = changes[0] === relatedPull
         ? relatedPullLookup
         : await github.lookupChange(changes[0]);
@@ -850,7 +880,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
 
     if (holdPublicCopy) {
       cleanAnswer = clipForDiscord(
-        router.cannedReply(route, asked || question) ||
+        (plannedPersonKind ? plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan) : router.cannedReply(route, asked || question)) ||
           "I can't share account or order details in this public post."
       );
       const publicText = String(cleanAnswer || '').replace(/help@omi\.me/gi, '');
@@ -863,7 +893,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         cleanAnswer = "I can't share account or order details in this public post.";
       }
     }
-    cleanAnswer = ensureNonEmptyAnswer(addUnsyncedDataWarning(cleanAnswer, caseQuestion));
+    const dataLossRisk = hasUnsyncedDataRisk(caseQuestion) || searchPlan.dataLossRisk === true;
+    cleanAnswer = ensureNonEmptyAnswer(addUnsyncedDataWarning(cleanAnswer, caseQuestion, {
+      dataLossRisk,
+      language: searchPlan.replyLanguage,
+    }));
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
     const nameMeta = {
@@ -878,17 +912,17 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const stayInPost = inHandoff || continuingPost;
     const handoffFollowup = continuingPost && supportFollowup;
     const pingAuthor = wantsAuthorPing(caption);
-    const docsQuiet =
-      route.lane === 'faq' &&
-      (router.looksLikeDocs(asked || question) ||
-        router.looksLikeRecordingHow(asked || question) ||
-        router.looksLikeDeviceReset(asked || question)) &&
-      !route.wantHuman &&
-      !aiResponse.escalate;
-    const escalate =
-      holdPublicCopy ||
-      (!docsQuiet &&
-        (shouldEscalate(aiResponse, caption) || route.escalate || triaged.escalate));
+    const localizedFooters = plannerPolicy.handoffFooters(searchPlan, asked || question);
+    const { escalate, signals: escalationSignals } = decideEscalation({
+      route,
+      question: asked || question,
+      answer: cleanAnswer,
+      agent: aiResponse,
+      caption,
+      triaged,
+      holdPublicCopy,
+      dataLossRisk,
+    });
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,
       labels: triaged.labels,
@@ -903,7 +937,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (escalate) {
-      console.log(`[Bot] Escalating ${channel.id} area=${triaged.area} topic=${triaged.topic}`);
+      console.log(`[Bot] Escalating channel=${channel.id} area=${triaged.area} signals=${escalationSignals.join(',')}`);
       const techLane = router.isTechLane({ lane: triaged.lane, area: triaged.area });
       if (github.isConfigured() && techLane && !githubHit?.duplicate) {
         fileIssueId = github.stashDraft(draft);
@@ -924,7 +958,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         if (existing) {
           try {
             await existing.send({
-              content: rewriteUserMentions(escalateReply(cleanAnswer, { conversation: true }), message),
+              content: rewriteUserMentions(escalateReply(cleanAnswer, { conversation: true, footers: localizedFooters }), message),
               allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
             });
             reused = true;
@@ -1012,6 +1046,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         pingAuthor,
         deliveryFailed,
         replyInThread: pinged && Boolean(channel.isThread?.() || handoffThread?.id),
+        footers: localizedFooters,
       });
       if (movedToThread) {
         const threadLink = `<#${handoffThread.id}>`;

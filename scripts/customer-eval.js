@@ -39,7 +39,7 @@ const scenarios = [
     ask: 'How do I turn the Omi necklace off?',
     lane: 'faq',
     must: [/3 second/i],
-    mustNot: [/press once to turn (it |the device )?off/i],
+    mustNot: [/not document|can.t verify|couldn.t find|not sure|help@omi\.me/i, /press once to turn (it |the device )?off/i],
   },
   {
     id: 'delete',
