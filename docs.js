@@ -13,6 +13,22 @@ const {
   isDeveloperPageCompatibleQuestion,
 } = require('./retrieval');
 let indexCache = { at: 0, text: '' };
+let indexLookup = null;
+
+async function docsIndexText(fetchFn) {
+  const now = Date.now();
+  if (indexCache.text && now - indexCache.at <= 60 * 60 * 1000) return indexCache.text;
+  if (!indexLookup) {
+    indexLookup = (async () => {
+      const response = await fetchFn(INDEX_URL);
+      if (!response.ok) return '';
+      const text = await response.text();
+      indexCache = { at: Date.now(), text };
+      return text;
+    })().finally(() => { indexLookup = null; });
+  }
+  return indexLookup;
+}
 
 function newDocsLookupCache() {
   return { fetches: new Map(), searches: new Map(), saves: new Map() };
@@ -65,6 +81,30 @@ function pagesFromIndex(text) {
     pages.push({ title: match[1], url: match[2], blurb: match[3] || '' });
   }
   return pages;
+}
+
+function githubDocsPath(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.toLowerCase() !== 'github.com') return '';
+    const match = decodeURIComponent(parsed.pathname).match(/^\/BasedHardware\/omi\/blob\/[^/]+\/docs\/(.+\.(?:md|mdx))$/i);
+    return match ? match[1].replace(/\.mdx?$/i, '.md').toLowerCase() : '';
+  } catch {
+    return '';
+  }
+}
+
+function canonicalizeGithubDocsEvidence(evidence, { indexText, fetchImpl } = {}) {
+  const text = String(evidence || '');
+  if (!/github\.com\/BasedHardware\/omi\/blob\/[^/]+\/docs\//i.test(text)) return Promise.resolve(text);
+  return Promise.resolve(indexText || docsIndexText(fetchImpl || fetch)).then((index) => {
+    if (!index) return text;
+    const official = new Map(pagesFromIndex(index).map((page) => [
+      decodeURIComponent(new URL(page.url).pathname).slice(1).toLowerCase(), page.url,
+    ]));
+    return text.replace(/https:\/\/github\.com\/BasedHardware\/omi\/blob\/[^\s)>]+/gi, (url) =>
+      official.get(githubDocsPath(url)) || url);
+  }).catch(() => text);
 }
 
 function compatibleDevicePage(question, page) {
@@ -161,13 +201,9 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
   const stored = await storedDocs(question, saved, plannedQueries);
   if (stored) return stored;
   try {
-    const now = Date.now();
-    if (!indexCache.text || now - indexCache.at > 60 * 60 * 1000) {
-      const indexRes = await fetchFn(INDEX_URL);
-      if (!indexRes.ok) return '';
-      indexCache = { at: now, text: await indexRes.text() };
-    }
-    const allPages = pagesFromIndex(indexCache.text);
+    const indexText = await docsIndexText(fetchFn);
+    if (!indexText) return '';
+    const allPages = pagesFromIndex(indexText);
     const picked = [];
     const seen = new Set();
     for (const query of queries) {
@@ -198,4 +234,4 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
   }
 }
 
-module.exports = { relevantDocs, storedDocs, pagesFromIndex, topPages, clipPage, newDocsLookupCache };
+module.exports = { relevantDocs, storedDocs, pagesFromIndex, topPages, clipPage, newDocsLookupCache, canonicalizeGithubDocsEvidence };

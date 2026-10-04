@@ -1,7 +1,23 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { relevantDocs, storedDocs, topPages } = require('../docs');
+const { relevantDocs, storedDocs, topPages, canonicalizeGithubDocsEvidence } = require('../docs');
 const { pages: developerPages, store: developerStore } = require('./fixtures/developer-docs');
+
+test('GitHub docs citations use the exact page published in the official docs index', async () => {
+  const indexText = '- [Omi Setup](https://docs.omi.me/onboarding/omi.md): Get started';
+  const githubUrl = 'https://github.com/BasedHardware/omi/blob/abc123/docs/onboarding/omi.mdx';
+  const missingUrl = 'https://github.com/BasedHardware/omi/blob/abc123/docs/onboarding/unpublished.mdx';
+  const sourceUrl = 'https://github.com/BasedHardware/omi/blob/abc123/app/lib/main.dart';
+  const evidence = `[S1 | GitHub]\n${githubUrl}\nSetup\n[S2 | GitHub]\n${missingUrl}\nUnpublished\n[S3 | GitHub]\n${sourceUrl}\nCode`;
+  const mapped = await canonicalizeGithubDocsEvidence(evidence, { indexText });
+  assert.match(mapped, /https:\/\/docs\.omi\.me\/onboarding\/omi\.md/);
+  assert.doesNotMatch(mapped, /github\.com\/BasedHardware\/omi\/blob\/abc123\/docs\/onboarding\/omi\.mdx/);
+  assert.ok(mapped.includes(missingUrl));
+  assert.ok(mapped.includes(sourceUrl));
+  assert.equal(await canonicalizeGithubDocsEvidence(sourceUrl, {
+    fetchImpl: async () => { throw new Error('non-doc links must not fetch the index'); },
+  }), sourceUrl);
+});
 
 test('app-building questions keep API pages and prioritize them through stored retrieval', async () => {
   const question = 'I want to make my own Omi app that pulls my memories, where do I start?';

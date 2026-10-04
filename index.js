@@ -48,7 +48,7 @@ const { decideEscalation } = require('./escalationPolicy');
 const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts, OFFICIAL } = require('./prompt');
-const { relevantDocs } = require('./docs');
+const { relevantDocs, canonicalizeGithubDocsEvidence } = require('./docs');
 const { startDocsRetrieval } = require('./retrievalSession');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
@@ -730,7 +730,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         matchingRelease(sourceQuestion),
       ]);
       stageMs.retrieval += Math.round(performance.now() - retrievalStart);
-      const retrievedEvidence = combineEvidence(docsText, feedbackText, officialCodeText);
+      const retrievedEvidence = await canonicalizeGithubDocsEvidence(
+        combineEvidence(docsText, feedbackText, officialCodeText)
+      );
       const toolFacts = buildToolFacts({
         route,
         shopifyText,
