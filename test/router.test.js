@@ -71,6 +71,28 @@ test('an order customer asking for a human gets a handoff answer, not another /o
   assert.doesNotMatch(reply, /\/order\b|order status from here/i);
 });
 
+test('direct human-contact requests route to staff without misreading ordinary conversation', () => {
+  for (const question of [
+    'I want to talk to someone',
+    'Connect me with the team please',
+    'Can someone from sales contact me?',
+    'Is there a live agent?',
+    'Can I speak with an actual human?',
+    'I would like to chat with a representative',
+    'Put me in touch with support',
+    'Help me get in touch with a human',
+  ]) {
+    assert.equal(router.classify(question).wantHuman, true, question);
+  }
+  for (const question of [
+    'Does Omi keep recording when I talk to someone on a call?',
+    "Can it tell who I'm speaking with?",
+    'Can I share a conversation with someone?',
+  ]) {
+    assert.equal(router.classify(question).wantHuman, false, question);
+  }
+});
+
 test('a customer nudge is recognized without treating arbitrary questions as nudges', () => {
   assert.equal(router.looksLikeSupportNudge("anyone? even a bot's answer will be appreciated."), true);
   assert.equal(router.looksLikeSupportNudge('Can anyone explain how pairing works?'), false);

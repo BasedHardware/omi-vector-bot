@@ -47,6 +47,7 @@ let plannerMessageKind = 'question';
 let plannerStandaloneQuestion = '';
 let plannerReplyLanguage = 'en';
 let plannerHandoffAcknowledgment = '';
+let plannerWantsPerson = false;
 let reviewerResponse = null;
 const reviewCalls = [];
 commandcode.queryAgent = async (args) => {
@@ -75,6 +76,7 @@ commandcode.understandQuestion = async ({ question }) => {
     messageKind: plannerMessageKind,
     replyLanguage: plannerReplyLanguage,
     handoffAcknowledgment: plannerHandoffAcknowledgment,
+    wantsPerson: plannerWantsPerson,
     queries: searchPlanQueries,
   };
 };
@@ -364,6 +366,7 @@ test.beforeEach(() => {
   plannerStandaloneQuestion = '';
   plannerReplyLanguage = 'en';
   plannerHandoffAcknowledgment = '';
+  plannerWantsPerson = false;
   reviewerResponse = null;
   reviewCalls.length = 0;
   pulls = [];
@@ -570,6 +573,20 @@ test('off-topic chatter stays silent but asking for a person still routes to sta
   const human = await ask('Can I talk to a person?');
   assert.ok(human.message.replies.length > 0);
   assert.ok(human.thread);
+});
+
+test('a Spanish request to speak with a person uses the planner flag to hand off', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  plannerWantsPerson = true;
+  plannerReplyLanguage = 'es';
+  plannerMessageKind = 'off_topic';
+  modelReply = { final_answer: 'Necesito que una persona revise tu pregunta.', escalate: false };
+  const result = await ask('Quiero hablar con una persona');
+  assert.ok(result.message.replies.length);
+  assert.equal(staff.length, 1);
 });
 
 test('a delivered Spanish handoff adds no English footer or extra email instruction', async (t) => {

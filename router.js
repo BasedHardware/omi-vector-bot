@@ -135,12 +135,14 @@ const ACCOUNT = [
 ];
 
 const WANT_HUMAN = [
-  /\btalk to (a )?(human|person)\b/i,
-  /\bspeak to (a )?(human|person)\b/i,
-  /\bneed (a )?(human|person|someone)\b/i,
-  /\breal person\b/i,
-  /\b(?:help me )?(?:get|put) (?:me )?in touch with (?:a |the )?(?:human|person|team|staff)\b/i,
-  /\bcontact (?:a |the )?(?:human|person|support|shop|shipping)(?: team)?\b/i,
+  /\b(?:talk|speak|chat)\s+(?:to|with)\s+(?:(?:an?|the|actual|real|live)\s+)*(?:human|person|agent|representative|someone\s+from\s+(?:the\s+)?(?:team|sales|support))\b/i,
+  /\b(?:i want to|i['’]d like to|can i|let me|need to)\s+(?:talk|speak|chat)\s+(?:to|with)\s+someone\b/i,
+  /\b(?:need|want)\s+(?:an?\s+)?(?:human|person|agent|representative)\b/i,
+  /\b(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
+  /\b(?:connect me with|(?:help me )?(?:get|put)(?: me)? in touch with)\s+(?:(?:an?|the)\s+)?(?:human|person|agent|representative|team|staff|sales|support)\b/i,
+  /\bcontact\s+(?:an?\s+|the\s+)?(?:human|person|agent|representative|support|shop|shipping)(?:\s+team)?\b/i,
+  /\bcan\s+someone(?:\s+from\s+(?:the\s+)?(?:team|sales|support))?\s+(?:contact|call|email)\s+me\b/i,
+  /\bis\s+there\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
 ];
 
 const SUPPORT_NUDGE = [

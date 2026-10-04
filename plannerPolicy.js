@@ -27,6 +27,7 @@ function isPlainAcknowledgment(question) {
 
 function suppressOffTopic(understanding, route) {
   return understanding?.messageKind === 'off_topic' &&
+    understanding?.wantsPerson !== true &&
     !route?.wantHuman && !route?.escalate &&
     !CANNED_LANES.has(route?.lane) && !router.isTechLane(route);
 }
@@ -37,7 +38,10 @@ function personKind(understanding) {
 }
 
 function routeWithUnderstanding(route, understanding, originalQuestion = '') {
-  const current = route || { area: 'unknown', lane: 'unknown' };
+  const base = route || { area: 'unknown', lane: 'unknown' };
+  const current = understanding?.wantsPerson === true
+    ? { ...base, wantHuman: true, escalate: true }
+    : base;
   const kind = String(understanding?.supportKind || '').trim();
   const translated = router.classify(understanding?.standaloneQuestion || '');
   // A checkout quote needs a human decision, but it is not a tracking lookup.

@@ -437,6 +437,11 @@ test('the review gate rejects a grounded but irrelevant answer', async () => {
   }
 });
 
+test('planner parses an explicit human-request flag without treating text as truthy', () => {
+  assert.equal(parseSearchPlan('{"standalone_question":"Help","wants_person":true}', 'Help').wantsPerson, true);
+  assert.equal(parseSearchPlan('{"standalone_question":"Help","wants_person":"false"}', 'Help').wantsPerson, false);
+});
+
 test('parseSearchPlan clips and deduplicates unsafe output shape', () => {
   const parsed = parseSearchPlan(
     '{"standalone_question":"Pair Omi","customer_goal":"Pair the device","must_answer":["first","first","second"],"customer_facts":["has Omi"],"support_kind":"official_information","search_queries":["pairing","bluetooth","device setup","fourth","fifth"]}',

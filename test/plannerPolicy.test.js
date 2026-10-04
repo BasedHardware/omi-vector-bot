@@ -18,6 +18,13 @@ test('a checkout quote keeps its distinct shop route and reply', () => {
   assert.match(policy.personReply('order_lookup', route, 'Shipping cost at checkout is €145'), /checkout shipping quote/i);
 });
 
+test('planner human request reaches staff even when language routing is otherwise a FAQ', () => {
+  const route = { area: 'unknown', lane: 'faq', escalate: false, wantHuman: false };
+  const plan = { supportKind: 'official_information', wantsPerson: true, standaloneQuestion: 'I want to speak with a person' };
+  assert.deepEqual(policy.routeWithUnderstanding(route, plan), { ...route, escalate: true, wantHuman: true });
+  assert.equal(policy.suppressOffTopic({ ...plan, messageKind: 'off_topic' }, route), false);
+});
+
 test('order and account handoffs retain useful next steps without inventing status', () => {
   const order = policy.personReply('order_lookup', { lane: 'shop' }, 'Where is my order?');
   assert.match(order, /\/order|help@omi\.me/i);
