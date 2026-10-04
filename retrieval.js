@@ -204,12 +204,17 @@ function uniqueQueries(question, planned = []) {
   return out;
 }
 
+function isSingleItemDeletionQuestion(question) {
+  const text = String(question || '');
+  return /\b(?:delete|remove|erase)\b/i.test(text) &&
+    /\b(?:memory|memories|recording|conversation|transcript)s?\b/i.test(text) &&
+    /\b(?:one|single|individual|from my list)\b/i.test(text);
+}
+
 function supportQueries(question, planned = []) {
   const text = [question, ...(planned || [])].filter(Boolean).join(' ');
   const variants = [];
-  if (/\b(?:delete|remove|erase)\b/i.test(question) &&
-      /\b(?:memory|memories|recording|conversation|transcript)s?\b/i.test(question) &&
-      /\b(?:one|single|individual|just one|from my list)\b/i.test(question)) {
+  if (isSingleItemDeletionQuestion(question)) {
     variants.push('Omi app delete individual conversation memory recording from list');
   }
   const hasVoiceInput = /\b(?:transcri\w*|voice|spoken|ask(?:ed|ing)?|question)\b/i.test(text);
@@ -268,9 +273,7 @@ function mergeRanked(resultSets, limit = 8) {
 function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '' } = {}) {
   const wanted = (queries || []).map((query) => new Set(queryTerms(query, 20)));
   const consumerQuestion = !/\b(?:api|sdk|webhook|endpoint|developer|programmatic(?:ally)?|curl)\b/i.test(customerQuestion || queries?.[0] || '');
-  const singleItemDeletion = consumerQuestion &&
-    /\b(?:delete|remove|erase)\b/i.test(customerQuestion || queries?.[0] || '') &&
-    /\b(?:one|single|individual|from my list)\b/i.test(customerQuestion || queries?.[0] || '');
+  const singleItemDeletion = consumerQuestion && isSingleItemDeletionQuestion(customerQuestion || queries?.[0] || '');
   const ranked = (rows || [])
     .map((row) => {
       const title = String(row.title || '').toLowerCase();
@@ -350,6 +353,7 @@ module.exports = {
   chunkDocument,
   queryTerms,
   uniqueQueries,
+  isSingleItemDeletionQuestion,
   supportQueries,
   mergeRanked,
   rankLocalChunks,
