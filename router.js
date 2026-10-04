@@ -1,4 +1,3 @@
-const AREAS = ['shop', 'app', 'desktop', 'firmware', 'privacy', 'unknown'];
 
 // Refunds and charges always beat a product bug. "billing reasons" in a
 // desktop 402 report is not a Shopify refund.
@@ -194,51 +193,6 @@ function isPublicForumSafe(text) {
   return true;
 }
 
-function parseAreaOwners(raw) {
-  const src = raw === undefined ? process.env.AREA_OWNERS : raw;
-  const map = {};
-  const text = String(src || '').trim();
-  if (!text) return map;
-  if (text.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(text);
-      for (const [key, value] of Object.entries(parsed || {})) {
-        if ((AREAS.includes(key) || key === 'default') && value) map[key] = String(value).trim();
-      }
-      return map;
-    } catch {
-      return map;
-    }
-  }
-  for (const part of text.split(',')) {
-    const idx = part.indexOf(':');
-    if (idx <= 0) continue;
-    const area = part.slice(0, idx).trim();
-    const rest = part.slice(idx + 1).trim();
-    if ((!AREAS.includes(area) && area !== 'default') || !rest) continue;
-    map[area] = rest;
-  }
-  return map;
-}
-
-function ownerRef(area, owners) {
-  const configured = owners || parseAreaOwners();
-  for (const key of [area, 'default']) {
-    const raw = Object.hasOwn(configured, key) ? String(configured[key] || '') : '';
-    const role = raw.match(/^role:(\d{5,})$/i);
-    if (role) return { kind: 'role', id: role[1] };
-    const user = raw.match(/^(\d{5,})$/);
-    if (user) return { kind: 'user', id: user[1] };
-  }
-  return null;
-}
-
-function ownerMention(area, owners) {
-  const ref = ownerRef(area, owners);
-  if (!ref) return '';
-  return ref.kind === 'role' ? `<@&${ref.id}>` : `<@${ref.id}>`;
-}
-
 function namesBothApps(text) {
   const s = String(text || '');
   const desktop = /\b(desktop|macos|mac\s?os|computer app)\b/i.test(s);
@@ -345,17 +299,11 @@ function isTechLane(route) {
 }
 
 function specialistNames(area, lane) {
-  if (lane === 'faq') return '';
   if (area === 'shop' || area === 'app') return 'Mohsin';
   if (area === 'desktop') return 'Aryan';
   if (area === 'firmware') return 'TuEmb';
   if (area === 'privacy') return 'David';
   return 'Aryan, David, undivisible';
-}
-
-function shouldPingOwner(route) {
-  if (!route || route.lane === 'faq') return false;
-  return Boolean(route.escalate) && route.area !== 'unknown';
 }
 
 function skipModel(route) {
@@ -711,15 +659,10 @@ function describe(route) {
 }
 
 module.exports = {
-  AREAS,
   classify,
   looksLikePii,
   isPublicForumSafe,
-  parseAreaOwners,
-  ownerRef,
-  ownerMention,
   isTechLane,
-  shouldPingOwner,
   specialistNames,
   skipModel,
   requiresGroundedAnswer,

@@ -94,7 +94,7 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
   });
   assert.equal(ticket.discord.content, undefined);
   assert.equal(/<@123456789012345678>/.test(JSON.stringify(ticket.discord.embeds)), false);
-  const specialist = ticket.discord.embeds[0].fields.find((f) => f.name === 'Specialist');
+  const specialist = ticket.discord.embeds[0].fields.find((f) => f.name === 'Owner');
   assert.equal(specialist.value, 'Mohsin');
   assert.equal(ticket.discord.embeds[0].title, 'Needs a human');
   assert.match(ticket.discord.embeds[0].description, /Where is my order/);
@@ -156,6 +156,19 @@ test('staff ticket is a scannable Discord embed, not a wall', () => {
   assert.equal(staffMentions(), '');
 });
 
+test('staff card text cannot contain an active Discord mention', () => {
+  const card = formatStaffTicket({
+    message: { url: 'https://discord.com/channels/1/2/3', author: { id: '123456789012345678' }, channel: { id: '2' } },
+    question: 'Please ask <@123456789012345678> about this',
+    reason: 'Check with <@&987654321098765432>',
+    area: 'unknown', lane: 'faq', staffOnly: true,
+  }).discord;
+  assert.equal(card.content, undefined);
+  assert.deepEqual(card.allowedMentions, { parse: [], users: [], roles: [] });
+  assert.doesNotMatch(JSON.stringify(card), /<@(?:&|!)?\d+>/);
+  assert.ok(card.embeds[0].fields.find((field) => field.name === 'Owner')?.value);
+});
+
 test('staff ticket infers shop/account labels from fair-use text', () => {
   const ticket = formatStaffTicket({
     message: {
@@ -215,7 +228,7 @@ test('staff card quote redacts email, phone, and street address', () => {
   assert.equal(description.includes('415-555-0199'), false);
   assert.equal(description.includes('12 King Street'), false);
   assert.match(description, /#20716/);
-  const specialist = ticket.discord.embeds[0].fields.find((field) => field.name === 'Specialist');
+  const specialist = ticket.discord.embeds[0].fields.find((field) => field.name === 'Owner');
   assert.equal(specialist.value.includes('@'), false);
 });
 
@@ -256,7 +269,7 @@ test('staff card quote drops leftover discord chrome', () => {
   assert.equal(/SEPTEMBER 14/i.test(description), false);
   assert.equal(/AUGUST 11:/i.test(description), false);
   assert.equal(/embaixo/i.test(description), false);
-  const specialist = ticket.discord.embeds[0].fields.find((field) => field.name === 'Specialist');
+  const specialist = ticket.discord.embeds[0].fields.find((field) => field.name === 'Owner');
   assert.equal(specialist.value.includes('@'), false);
 });
 
@@ -448,14 +461,12 @@ test('a customer-visible channel card is not a delivered handoff', async () => {
   resetHandoffMemory();
 });
 
-test('staff-only ticket pings only the configured area owner', async () => {
+test('staff-only cards show plain owner names and never mention users or roles', async () => {
   resetHandoffMemory();
   const prevThread = process.env.HANDOFF_THREADS;
   const prevStaff = process.env.STAFF_ALERT_CHANNEL_ID;
-  const prevOwners = process.env.AREA_OWNERS;
   process.env.HANDOFF_THREADS = '0';
   process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
-  process.env.AREA_OWNERS = 'shop:555555555555555555,privacy:role:666666666666666666,default:777777777777777777';
 
   const sent = [];
   const message = {
@@ -486,11 +497,9 @@ test('staff-only ticket pings only the configured area owner', async () => {
     skipDedupe: true,
   });
   assert.equal(userResult.via, 'staff-channel');
-  assert.equal(sent[0].content, '<@555555555555555555>');
-  assert.deepEqual(sent[0].allowedMentions, {
-    parse: [], users: ['555555555555555555'], roles: [],
-  });
-  const specialist = sent[0].embeds[0].fields.find((f) => f.name === 'Specialist');
+  assert.equal(sent[0].content, undefined);
+  assert.deepEqual(sent[0].allowedMentions, { parse: [], users: [], roles: [] });
+  const specialist = sent[0].embeds[0].fields.find((f) => f.name === 'Owner');
   assert.equal(specialist.value, 'Mohsin');
   const roleResult = await notifyStaff({
     client,
@@ -502,10 +511,8 @@ test('staff-only ticket pings only the configured area owner', async () => {
     skipDedupe: true,
   });
   assert.equal(roleResult.via, 'staff-channel');
-  assert.equal(sent[1].content, '<@&666666666666666666>');
-  assert.deepEqual(sent[1].allowedMentions, {
-    parse: [], users: [], roles: ['666666666666666666'],
-  });
+  assert.equal(sent[1].content, undefined);
+  assert.deepEqual(sent[1].allowedMentions, { parse: [], users: [], roles: [] });
   const defaultResult = await notifyStaff({
     client,
     message,
@@ -516,30 +523,35 @@ test('staff-only ticket pings only the configured area owner', async () => {
     skipDedupe: true,
   });
   assert.equal(defaultResult.via, 'staff-channel');
-  assert.equal(sent[2].content, '<@777777777777777777>');
-  assert.deepEqual(sent[2].allowedMentions, {
-    parse: [], users: ['777777777777777777'], roles: [],
+  assert.equal(sent[2].content, undefined);
+  assert.deepEqual(sent[2].allowedMentions, { parse: [], users: [], roles: [] });
+  const faqResult = await notifyStaff({
+    client, message, question: 'Get me a real human please', reason: 'Human requested',
+    area: 'unknown', route: { area: 'unknown', lane: 'faq', escalate: true }, skipDedupe: true,
   });
+  assert.equal(faqResult.via, 'staff-channel');
+  assert.equal(sent[3].embeds[0].fields.find((f) => f.name === 'Owner').value, 'Aryan, David, undivisible');
+  for (const card of sent) {
+    assert.doesNotMatch(JSON.stringify(card), /<@(?:&|!)?\d+>/);
+    assert.deepEqual(card.allowedMentions, { parse: [], users: [], roles: [] });
+    assert.ok(card.embeds[0].fields.find((f) => f.name === 'Owner')?.value);
+  }
 
   if (prevThread !== undefined) process.env.HANDOFF_THREADS = prevThread;
   else delete process.env.HANDOFF_THREADS;
   if (prevStaff !== undefined) process.env.STAFF_ALERT_CHANNEL_ID = prevStaff;
   else delete process.env.STAFF_ALERT_CHANNEL_ID;
-  if (prevOwners !== undefined) process.env.AREA_OWNERS = prevOwners;
-  else delete process.env.AREA_OWNERS;
   resetHandoffMemory();
 });
 
-test('customer-visible card has no owner mentions even when AREA_OWNERS is set', async () => {
+test('customer-visible card has no mentions', async () => {
   resetHandoffMemory();
   const before = {
     staff: process.env.STAFF_ALERT_CHANNEL_ID,
     threads: process.env.HANDOFF_THREADS,
-    owners: process.env.AREA_OWNERS,
   };
   delete process.env.STAFF_ALERT_CHANNEL_ID;
   process.env.HANDOFF_THREADS = '0';
-  process.env.AREA_OWNERS = 'default:555555555555555555';
   const sent = [];
   try {
     const result = await notifyStaff({
@@ -560,9 +572,9 @@ test('customer-visible card has no owner mentions even when AREA_OWNERS is set',
     assert.equal(sent.length, 1);
     assert.equal(sent[0].content, undefined);
     assert.deepEqual(sent[0].allowedMentions, { parse: [], users: [], roles: [] });
-    assert.doesNotMatch(JSON.stringify(sent[0]), /<@(?:&)?555555555555555555>/);
+    assert.doesNotMatch(JSON.stringify(sent[0]), /<@(?:&|!)?\d+>/);
   } finally {
-    for (const [key, name] of [['staff', 'STAFF_ALERT_CHANNEL_ID'], ['threads', 'HANDOFF_THREADS'], ['owners', 'AREA_OWNERS']]) {
+    for (const [key, name] of [['staff', 'STAFF_ALERT_CHANNEL_ID'], ['threads', 'HANDOFF_THREADS']]) {
       if (before[key] === undefined) delete process.env[name];
       else process.env[name] = before[key];
     }
@@ -955,7 +967,7 @@ test('help forum card does not repeat the customer post', async () => {
       false
     );
     const area = embed.fields.find((field) => field.name === 'Area');
-    const specialist = embed.fields.find((field) => field.name === 'Specialist');
+    const specialist = embed.fields.find((field) => field.name === 'Owner');
     const labels = embed.fields.find((field) => field.name === 'Labels');
     assert.equal(area.value, 'shop');
     assert.equal(specialist.value, 'Mohsin');

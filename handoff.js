@@ -9,7 +9,6 @@ const {
   looksLikeTranscription,
   looksLikeShippingQuote,
   specialistNames,
-  ownerRef,
 } = require('./router');
 
 const DEDUPE_MS = 15 * 60_000;
@@ -631,11 +630,10 @@ function formatStaffTicket({
 }) {
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
-  const from = message?.author?.id ? `<@${message.author.id}>` : 'unknown user';
+  const from = message?.author?.id ? `Discord user ${message.author.id}` : 'unknown user';
   const channel = message?.channel?.id ? `<#${message.channel.id}>` : '';
   const cleanDraft = stripPingNarration(draft || '');
   const resolved = resolveRoute({ area, lane, question });
-  const owner = staffOnly ? ownerRef(resolved.area) : null;
   const why = clipForDiscord(
     pickStaffReason(resolved, reason, question) || "I can't finish this from chat.",
     200
@@ -664,9 +662,7 @@ function formatStaffTicket({
     embed.fields.push({ name: 'Area', value: String(areaValue), inline: true });
   }
   const specialist = specialistNames(resolved.area, resolved.lane);
-  if (specialist) {
-    embed.fields.push({ name: 'Specialist', value: specialist, inline: true });
-  }
+  embed.fields.push({ name: 'Owner', value: specialist, inline: true });
   const shopifyFacts = clipForDiscord(String(shopify || '').trim(), 500);
   if (shopifyFacts) {
     embed.fields.push({ name: 'Shopify', value: shopifyFacts, inline: false });
@@ -690,14 +686,17 @@ function formatStaffTicket({
       : 'Reply here. If this card is in the customer thread, they can read it.\nIf they did not name the device and the app version, ask for both.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
     inline: false,
   });
+  embed.description = embed.description.replace(/<@(?:&|!)?\d+>/g, '[Discord user]');
+  for (const field of embed.fields) {
+    field.value = field.value.replace(/<@(?:&|!)?\d+>/g, '[Discord user]');
+  }
 
   const discord = {
-    content: owner ? (owner.kind === 'role' ? `<@&${owner.id}>` : `<@${owner.id}>`) : undefined,
     embeds: [embed],
     allowedMentions: {
       parse: [],
-      users: owner?.kind === 'user' ? [owner.id] : [],
-      roles: owner?.kind === 'role' ? [owner.id] : [],
+      users: [],
+      roles: [],
     },
   };
   if (fileIssueId) {
@@ -790,13 +789,13 @@ const PUBLIC_HELP_CARD_DESCRIPTION =
 
 function publicHandoffDiscord(discord) {
   const embed = discord?.embeds?.[0] || {};
-  const keep = new Set(['Area', 'Specialist', 'Labels']);
+  const keep = new Set(['Area', 'Owner', 'Labels']);
   const fields = (embed.fields || [])
     .filter((field) => keep.has(field?.name))
     .map((field) => ({
       name: field.name,
       value:
-        field.name === 'Specialist' ? String(field.value || '').replace(/@/g, '') : field.value,
+        field.name === 'Owner' ? String(field.value || '').replace(/@/g, '') : field.value,
       inline: field.inline,
     }));
   const payload = {

@@ -368,38 +368,15 @@ test('money, privacy, and shop skip the model; crash, firmware, and pairing do n
   assert.equal(router.skipModel(router.classify('it powers off by itself at 100% battery')), false);
 });
 
-test('AREA_OWNERS parses users and roles; empty means no ping', () => {
-  const map = router.parseAreaOwners('shop:123456789012345678,firmware:role:987654321098765432');
-  assert.equal(router.ownerMention('shop', map), '<@123456789012345678>');
-  assert.equal(router.ownerMention('firmware', map), '<@&987654321098765432>');
-  assert.equal(router.ownerMention('app', map), '');
-  assert.equal(router.shouldPingOwner(router.classify('Where is my order?')), true);
-  assert.equal(router.shouldPingOwner(router.classify('How do I pair my Omi?')), false);
+test('staff owner names are plain text for every lane', () => {
   assert.equal(router.specialistNames('shop', 'money'), 'Mohsin');
   assert.equal(router.specialistNames('app', 'tech'), 'Mohsin');
   assert.equal(router.specialistNames('desktop', 'tech'), 'Aryan');
   assert.equal(router.specialistNames('firmware', 'firmware'), 'TuEmb');
   assert.equal(router.specialistNames('privacy', 'privacy'), 'David');
   assert.equal(router.specialistNames('unknown', 'unknown'), 'Aryan, David, undivisible');
-  assert.equal(router.specialistNames('unknown', 'faq'), '');
+  assert.equal(router.specialistNames('unknown', 'faq'), 'Aryan, David, undivisible');
   assert.equal(/@/.test(router.specialistNames('shop', 'money')), false);
-});
-
-test('AREA_OWNERS default covers unknown and unassigned areas without overriding named owners', () => {
-  const owners = router.parseAreaOwners(
-    'shop:123456789012345678,default:role:987654321098765432'
-  );
-  assert.equal(router.ownerMention('shop', owners), '<@123456789012345678>');
-  assert.equal(router.ownerMention('unknown', owners), '<@&987654321098765432>');
-  assert.equal(router.ownerMention('desktop', owners), '<@&987654321098765432>');
-  assert.equal(
-    router.ownerMention('app', router.parseAreaOwners('app:MOHSIN_ID,default:111111111111111111')),
-    '<@111111111111111111>'
-  );
-  assert.equal(router.ownerMention('unknown', router.parseAreaOwners('default:111111111111111111')), '<@111111111111111111>');
-  assert.equal(router.ownerMention('unknown', router.parseAreaOwners('shop:123456789012345678')), '');
-  const json = router.parseAreaOwners('{"default":"role:987654321098765432"}');
-  assert.equal(router.ownerMention('app', json), '<@&987654321098765432>');
 });
 
 test('device not capturing stays with transcription and does not become a firmware repair', () => {
