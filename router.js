@@ -317,8 +317,13 @@ function specialistNames(area, lane) {
 function needsGroundedShopAnswer(question) {
   const text = String(question || '');
   if (looksLikeShippingQuote(text)) return false;
-  if (!/\b(?:order|package|parcel|shipment|shipping|delivery|tracking)\b/i.test(text)) return false;
-  return /\b(?:where\s+(?:is|are)\s+(?:my|the)\s+(?:order|package|parcel|shipment)|(?:order|shipment|shipping|delivery|tracking)\s+status|status\s+of\s+(?:my|the)\s+(?:order|shipment|delivery)|when\s+(?:will|does|is)\s+(?:my|the)\s+(?:order|package|parcel|shipment)\b.{0,40}\b(?:ship|arrive|deliver)|tracking\b.{0,60}\b(?:stuck|not\s+updat\w*|no\s+updat\w*|not\s+mov\w*|delivered|lost|missing)|(?:order|package|parcel|shipment|delivery)\b.{0,60}\b(?:lost|missing|not\s+received|never\s+arrived|hasn['’]?t\s+arrived|delivered\b.{0,40}\b(?:not|nothing|missing|never))|(?:lost|missing|not\s+received|never\s+arrived)\b.{0,60}\b(?:order|package|parcel|shipment|delivery))\b/i.test(text);
+  if (/\bstuck\s+(?:in|at)\s+customs\b/i.test(text)) return true;
+  const shippingContext = /\b(?:order|package|parcel|shipment|shipping|delivery)\b/i.test(text);
+  const trackingObject = /\btracking\s+(?:number|link|page)\b/i.test(text);
+  if (!shippingContext && !trackingObject) return false;
+  const deliveryProblem = /\b(?:where\s+(?:is|are)\s+(?:my|the)\s+(?:order|package|parcel|shipment)|(?:order|shipment|shipping|delivery)\s+status|status\s+of\s+(?:my|the)\s+(?:order|shipment|delivery)|when\s+(?:will|does|is)\s+(?:my|the)\s+(?:order|package|parcel|shipment)\b.{0,40}\b(?:ship|arrive|deliver)|(?:order|package|parcel|shipment|delivery)\b.{0,60}\b(?:lost|missing|not\s+received|never\s+arrived|hasn['’]?t\s+arrived|delivered\b.{0,40}\b(?:not|nothing|missing|never))|(?:lost|missing|not\s+received|never\s+arrived)\b.{0,60}\b(?:order|package|parcel|shipment|delivery))\b/i.test(text);
+  const trackingProblem = /\btracking\b.{0,60}\b(?:stuck|not\s+updat\w*|no\s+updat\w*|not\s+mov\w*|delivered|lost|missing)\b|\btracking\s+status\b/i.test(text);
+  return deliveryProblem || trackingProblem;
 }
 
 function skipModel(route) {

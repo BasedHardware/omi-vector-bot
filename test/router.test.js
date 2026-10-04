@@ -47,13 +47,17 @@ test('delivery problems and status questions use grounded shop answers, not chec
   for (const question of [
     'My tracking page says delivered but the parcel never arrived',
     'The package is missing',
-    'Tracking has been stuck and is not updating',
+    'My tracking page has been stuck and is not updating',
+    'My shipment is stuck in customs',
+    'It is stuck in customs',
     'Where is my order?',
     'When will my shipment arrive?',
   ]) assert.equal(router.needsGroundedShopAnswer(question), true, question);
   for (const question of [
     'Shipping costs 145 euros at checkout',
     'How do I use tracking notifications?',
+    'Does Omi have sleep tracking? It seems missing',
+    'Tracking has been stuck and is not updating',
     'Can I order 50 units for my company?',
   ]) assert.equal(router.needsGroundedShopAnswer(question), false, question);
 });
