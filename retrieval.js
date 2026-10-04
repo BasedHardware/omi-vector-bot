@@ -213,20 +213,19 @@ function isSingleItemDeletionQuestion(question) {
 
 function isDeveloperIntent(question) {
   const text = String(question || '');
-  if (/\b(?:api|sdk|webhook|endpoint|developer|programmatic(?:ally)?|curl|oauth)\b/i.test(text)) return true;
-  return /\b(?:build|building|make|making|create|creating|develop|developing|write|writing|code|coding)\b[^.!?]{0,90}\b(?:apps?|integrations?|plugins?)\b|\b(?:apps?|integrations?|plugins?)\b[^.!?]{0,90}\b(?:build|building|make|making|create|creating|develop|developing|write|writing|code|coding)\b|\b(?:pull|fetch|read|access)\b[^.!?]{0,80}\b(?:memories|conversations|data)\b[^.!?]{0,80}\b(?:from|with|through)\s+(?:my\s+)?(?:own\s+)?(?:app|integration|plugin)\b/i.test(text);
+  if (/\b(?:api|sdk|webhook|endpoint|oauth|curl|programmatic(?:ally)?)\b|\bdeveloper\s+(?:docs?|guides?|api)\b/i.test(text)) return true;
+  return /\b(?:build|building|make|making|create|creating|develop|developing|write|writing|code|coding|publish|publishing)\s+(?:(?:a|an)(?:\s+(?:custom|new))?|(?:my|our|your)\s+own|custom|new)\s+(?:omi\s+)?(?:app|integration|plugin)s?\b/i.test(text);
 }
 
 function isDeveloperPageCompatibleQuestion(question) {
   return isDeveloperIntent(question) ||
-    /\b(?:firmware|flash\w*|dev\s*kit|devkit|compil\w*|source|repos?itor\w*|repos?|github|npm|flutter)\b/i.test(String(question || ''));
+    /\b(?:firmware|flash\w*|dev\s*kit|devkit|developer|compil\w*|source|repos?itor\w*|repos?|github|npm|flutter)\b/i.test(String(question || ''));
 }
 
 function supportQueries(question, planned = []) {
   const text = [question, ...(planned || [])].filter(Boolean).join(' ');
   const variants = [];
-  if (/\b(?:build|building|create|make|develop)\b/i.test(question) &&
-      /\bapps?\b/i.test(question) && /\bomi\b/i.test(question)) {
+  if (isDeveloperIntent(question) && /\bapps?\b/i.test(question) && /\bomi\b/i.test(question)) {
     variants.push('Omi building apps developer integrations conversations memory');
   }
   if (/\b(?:buy|buying|purchase|which\s+(?:omi|device)|choose\s+(?:an?\s+)?(?:omi|device))\b/i.test(question) &&

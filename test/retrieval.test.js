@@ -23,6 +23,10 @@ test('developer intent is shared across building apps and programmatic data acce
     'Creating an integration that reads conversations',
     'Can I fetch memories programmatically?',
     'How do I use the Omi API?',
+    'Can I build a custom Omi app?',
+    'We are publishing a new plugin',
+    'I want to code our own integration',
+    'Where are the developer docs?',
   ]) assert.equal(isDeveloperIntent(question), true, question);
   for (const question of [
     'How do I use an Omi app?',
@@ -32,7 +36,21 @@ test('developer intent is shared across building apps and programmatic data acce
     'how do I update the firmware on my omi?',
     'the build quality feels cheap',
     'Where is the Omi source?',
+    'how do I create a new memory in the app?',
+    'how do I make the app keep recording in the background?',
+    'can I write a note in the app?',
+    'Does the developer kit need my phone nearby?',
   ]) assert.equal(isDeveloperIntent(question), false, question);
+});
+
+test('in-app creation does not expand into app-development searches', () => {
+  for (const question of [
+    'How do I create a new memory in the Omi app?',
+    'How do I make the Omi app keep recording in the background?',
+  ]) {
+    assert.equal(isDeveloperIntent(question), false, question);
+    assert.doesNotMatch(supportQueries(question).join(' '), /Omi building apps developer integrations/i);
+  }
 });
 
 test('broad page compatibility does not grant developer ranking boosts', () => {

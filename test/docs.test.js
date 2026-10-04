@@ -41,6 +41,8 @@ test('ordinary firmware and hardware questions do not sort developer docs ahead 
     'my omi light keeps flashing red',
     'how do I update the firmware on my omi?',
     'the build quality feels cheap',
+    'how do I create a new memory in the app?',
+    'how do I make the app keep recording in the background?',
   ]) {
     const developer = { title: 'Developer hardware guide', url: 'https://docs.omi.me/doc/developer/hardware.md', body: question, source: 'docs', rank: 0.7, chunk_index: 0 };
     const help = { title: 'Omi device help', url: 'https://help.omi.me/en/articles/device-help', body: question, source: 'help', rank: 0.7, chunk_index: 0 };
