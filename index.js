@@ -1003,6 +1003,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             skipDedupe: (isTestChannel(channel) && !inHandoff) || reuseFailed,
             topic: nameMeta.topic,
             labels: triaged.labels,
+            dataLossRisk,
           });
           pinged = Boolean(handoff.ok);
           deliveryFailed = !handoff.ok;

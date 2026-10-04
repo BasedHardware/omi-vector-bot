@@ -169,6 +169,25 @@ test('staff card text cannot contain an active Discord mention', () => {
   assert.ok(card.embeds[0].fields.find((field) => field.name === 'Owner')?.value);
 });
 
+test('staff cards request details appropriate to the ticket and flag possible data loss', () => {
+  const base = { message: { url: 'https://discord.com/channels/1/2/3', author: { id: '99' }, channel: { id: '2' } }, staffOnly: true };
+  const cases = [
+    [{ area: 'shop', lane: 'shop', question: 'Tracking says delivered but nothing arrived' }, /order number and the delivery date tracking shows/i],
+    [{ area: 'shop', lane: 'money', question: 'I was charged twice' }, /purchase email/i],
+    [{ area: 'shop', lane: 'shop', question: 'Ordering 50 units for our company' }, /company and quantity/i],
+    [{ area: 'app', lane: 'tech', question: 'My app crashes' }, /device and the app version/i],
+    [{ area: 'privacy', lane: 'privacy', question: 'Delete my data' }, /account email.*privately/i],
+    [{ area: 'unknown', lane: 'faq', question: 'Get me a person' }, /what they need help with/i],
+  ];
+  for (const [route, details] of cases) {
+    const card = formatStaffTicket({ ...base, ...route }).discord.embeds[0];
+    assert.match(card.fields.find((field) => field.name === 'Staff').value, details, route.question);
+  }
+  const loss = formatStaffTicket({ ...base, area: 'app', lane: 'tech', question: 'The completed meeting recording is missing', dataLossRisk: true }).discord.embeds[0];
+  assert.match(loss.fields.find((field) => field.name === 'Labels').value, /`data-loss`/);
+  assert.match(loss.fields.find((field) => field.name === 'Why').value, /^Possible data loss: they should not reinstall, log out or clear storage\./);
+});
+
 test('staff ticket infers shop/account labels from fair-use text', () => {
   const ticket = formatStaffTicket({
     message: {

@@ -403,6 +403,29 @@ function ticketLabels({ area, lane, question } = {}) {
   return labels;
 }
 
+function staffDetailsRequest(route, question) {
+  const text = String(question || '');
+  if (route.area === 'privacy' || route.lane === 'privacy') {
+    return 'If they did not provide the account email, ask for it privately.';
+  }
+  if (/\b(?:bulk|wholesale|sales|business|enterprise|company|corporate|\d+\s+(?:units|devices|omis))\b/i.test(text) &&
+      (route.area === 'shop' || route.lane === 'shop')) {
+    return 'If they did not provide the company and quantity, ask for both.';
+  }
+  if (route.lane === 'money' || route.lane === 'account' ||
+      /\b(?:refund|charg(?:e|ed)|bill(?:ing)?|payment|purchase|subscription|invoice)\b/i.test(text)) {
+    return 'If they did not provide the purchase email, ask for it privately.';
+  }
+  if (route.area === 'shop' || route.lane === 'shop') {
+    if (looksLikeShippingQuote(text)) return 'Ask for the checkout destination and quoted shipping cost, not private address details.';
+    return 'If they did not provide the order number and the delivery date tracking shows, ask for both.';
+  }
+  if (['app', 'desktop', 'firmware'].includes(route.area) || route.lane === 'tech') {
+    return 'If they did not name the device and the app version, ask for both.';
+  }
+  return 'Ask what they need help with and which Omi product is involved.';
+}
+
 function isThreadNoise(line) {
   const part = String(line || '').trim();
   if (!part || part.length < 8) return true;
@@ -627,6 +650,7 @@ function formatStaffTicket({
   fileIssueId,
   staffOnly = false,
   labels: labelOverride,
+  dataLossRisk = false,
 }) {
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
@@ -634,15 +658,19 @@ function formatStaffTicket({
   const channel = message?.channel?.id ? `<#${message.channel.id}>` : '';
   const cleanDraft = stripPingNarration(draft || '');
   const resolved = resolveRoute({ area, lane, question });
+  const whyReason = pickStaffReason(resolved, reason, question) || "I can't finish this from chat.";
   const why = clipForDiscord(
-    pickStaffReason(resolved, reason, question) || "I can't finish this from chat.",
-    200
+    dataLossRisk
+      ? `Possible data loss: they should not reinstall, log out or clear storage.\n${whyReason}`
+      : whyReason,
+    300
   );
   const labels =
     Array.isArray(labelOverride) && labelOverride.length
       ? labelOverride.filter((label) => label && label !== 'needs-human')
       : ticketLabels({ area: resolved.area, lane: resolved.lane, question });
   if (!labels.length) labels.push('needs-human');
+  if (dataLossRisk && !labels.includes('data-loss')) labels.push('data-loss');
 
   const embed = {
     title: 'Needs a human',
@@ -682,8 +710,8 @@ function formatStaffTicket({
   embed.fields.push({
     name: 'Staff',
     value: staffOnly
-      ? "Reply in the customer's thread using the Jump link above (or to the linked message if it is not in a thread); replies in #vector-staff do not reach the customer.\nIf they did not name the device and the app version, ask for both.\nUse `/done` in the customer's forum or Handoff thread when resolved. Use `faq: short true sentence` in a Handoff thread to save a fact."
-      : 'Reply here. If this card is in the customer thread, they can read it.\nIf they did not name the device and the app version, ask for both.\nTo save a fact for next time: `faq: short true sentence`\n`/done` when it is resolved.',
+      ? `Reply in the customer's thread using the Jump link above (or to the linked message if it is not in a thread); replies in #vector-staff do not reach the customer.\n${staffDetailsRequest(resolved, question)}\nUse \`/done\` in the customer's forum or Handoff thread when resolved. Use \`faq: short true sentence\` in a Handoff thread to save a fact.`
+      : `Reply here. If this card is in the customer thread, they can read it.\n${staffDetailsRequest(resolved, question)}\nTo save a fact for next time: \`faq: short true sentence\`\n\`/done\` when it is resolved.`,
     inline: false,
   });
   embed.description = embed.description.replace(/<@(?:&|!)?\d+>/g, '[Discord user]');
@@ -833,6 +861,7 @@ async function notifyStaff({
   skipDedupe = false,
   topic,
   labels,
+  dataLossRisk = false,
 }) {
   const channelId = message?.channel?.id;
   const userId = message?.author?.id;
@@ -852,6 +881,7 @@ async function notifyStaff({
     fileIssueId,
     staffOnly: true,
     labels,
+    dataLossRisk,
   });
   const errors = [];
   let visibleCard = null;

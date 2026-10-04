@@ -525,6 +525,9 @@ test('blank transcript after a completed recording warns and reaches staff', asy
     const result = await ask(question);
     assert.match(result.reply, /Do not reinstall the app/i);
     assert.equal(staff.length, question.startsWith('I recorded') ? 1 : 2);
+    const card = staff.at(-1).embeds[0];
+    assert.match(card.fields.find((field) => field.name === 'Labels').value, /`data-loss`/);
+    assert.match(card.fields.find((field) => field.name === 'Why').value, /^Possible data loss:/);
   }
 });
 
@@ -551,6 +554,7 @@ test('a multilingual planner data-loss signal hands off without an English warni
   const result = await ask('Hablé toda la reunión y no aparece ninguna transcripción');
   assert.equal(staff.length, 1);
   assert.doesNotMatch(result.reply, /Recordings may still be unsynced|Do not reinstall/i);
+  assert.match(staff[0].embeds[0].fields.find((field) => field.name === 'Labels').value, /`data-loss`/);
 });
 
 test('person-kind request with private details in #help holds the public answer', async (t) => {
