@@ -213,8 +213,13 @@ function isSingleItemDeletionQuestion(question) {
 
 function isDeveloperIntent(question) {
   const text = String(question || '');
-  if (/\b(?:api|sdk|webhook|endpoint|developer|programmatic(?:ally)?|curl|build|building|compil\w*|source|repos?itor\w*|repos?|github|flutter|npm|firmware|flash\w*|dev\s*kit|devkit|oauth)\b/i.test(text)) return true;
+  if (/\b(?:api|sdk|webhook|endpoint|developer|programmatic(?:ally)?|curl|oauth)\b/i.test(text)) return true;
   return /\b(?:build|building|make|making|create|creating|develop|developing|write|writing|code|coding)\b[^.!?]{0,90}\b(?:apps?|integrations?|plugins?)\b|\b(?:apps?|integrations?|plugins?)\b[^.!?]{0,90}\b(?:build|building|make|making|create|creating|develop|developing|write|writing|code|coding)\b|\b(?:pull|fetch|read|access)\b[^.!?]{0,80}\b(?:memories|conversations|data)\b[^.!?]{0,80}\b(?:from|with|through)\s+(?:my\s+)?(?:own\s+)?(?:app|integration|plugin)\b/i.test(text);
+}
+
+function isDeveloperPageCompatibleQuestion(question) {
+  return isDeveloperIntent(question) ||
+    /\b(?:firmware|flash\w*|dev\s*kit|devkit|compil\w*|source|repos?itor\w*|repos?|github|npm|flutter)\b/i.test(String(question || ''));
 }
 
 function supportQueries(question, planned = []) {
@@ -370,6 +375,7 @@ module.exports = {
   uniqueQueries,
   isSingleItemDeletionQuestion,
   isDeveloperIntent,
+  isDeveloperPageCompatibleQuestion,
   supportQueries,
   mergeRanked,
   rankLocalChunks,

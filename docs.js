@@ -10,6 +10,7 @@ const {
   supportQueries,
   isSingleItemDeletionQuestion,
   isDeveloperIntent,
+  isDeveloperPageCompatibleQuestion,
 } = require('./retrieval');
 let indexCache = { at: 0, text: '' };
 
@@ -28,7 +29,7 @@ function pagesFromIndex(text) {
 }
 
 function compatibleDevicePage(question, page) {
-  const developerQuestion = isDeveloperIntent(question);
+  const developerQuestion = isDeveloperPageCompatibleQuestion(question);
   if (!developerQuestion && /\/api-reference\//i.test(String(page.url || ''))) return false;
   if (!developerQuestion && isSingleItemDeletionQuestion(question) &&
       /\/(?:doc\/(?:developer|assembly|hardware)\/|get_started\/Flash_device)/i.test(String(page.url || ''))) return false;

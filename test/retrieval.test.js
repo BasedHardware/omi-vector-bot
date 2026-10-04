@@ -12,6 +12,7 @@ const {
   supportQueries,
   uniqueQueries,
   isDeveloperIntent,
+  isDeveloperPageCompatibleQuestion,
 } = require('../retrieval');
 const { pages: developerPages } = require('./fixtures/developer-docs');
 
@@ -21,13 +22,34 @@ test('developer intent is shared across building apps and programmatic data acce
     'How can I build a plugin for Omi?',
     'Creating an integration that reads conversations',
     'Can I fetch memories programmatically?',
-    'Where is the Omi source?',
+    'How do I use the Omi API?',
   ]) assert.equal(isDeveloperIntent(question), true, question);
   for (const question of [
     'How do I use an Omi app?',
     'How do I connect my Google Calendar integration?',
     'How do I delete one memory from the app?',
+    'my omi light keeps flashing red',
+    'how do I update the firmware on my omi?',
+    'the build quality feels cheap',
+    'Where is the Omi source?',
   ]) assert.equal(isDeveloperIntent(question), false, question);
+});
+
+test('broad page compatibility does not grant developer ranking boosts', () => {
+  for (const question of [
+    'how do I update the firmware on my omi?',
+    'does the devkit 2 keep recording when the app is closed',
+    'Where is the Omi source?',
+  ]) {
+    assert.equal(isDeveloperPageCompatibleQuestion(question), true, question);
+    assert.equal(isDeveloperIntent(question), false, question);
+  }
+  const question = 'how do I update the firmware on my omi?';
+  const rows = rankLocalChunks([question], [
+    { title: 'Firmware update', body: 'Update Omi firmware in the app', source: 'help', url: 'https://help.omi.me/firmware' },
+    { title: 'Firmware update', body: 'Update Omi firmware in the app', source: 'docs', url: 'https://docs.omi.me/doc/developer/firmware' },
+  ], 2, { customerQuestion: question });
+  assert.equal(rows[0].source, 'help');
 });
 
 test('an app-builder question ranks developer docs before consumer guides', () => {

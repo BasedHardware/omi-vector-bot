@@ -36,6 +36,21 @@ test('developer and hardware questions retain their pages despite app-related pl
   }
 });
 
+test('ordinary firmware and hardware questions do not sort developer docs ahead of Help Center', async () => {
+  for (const question of [
+    'my omi light keeps flashing red',
+    'how do I update the firmware on my omi?',
+    'the build quality feels cheap',
+  ]) {
+    const developer = { title: 'Developer hardware guide', url: 'https://docs.omi.me/doc/developer/hardware.md', body: question, source: 'docs', rank: 0.7, chunk_index: 0 };
+    const help = { title: 'Omi device help', url: 'https://help.omi.me/en/articles/device-help', body: question, source: 'help', rank: 0.7, chunk_index: 0 };
+    const evidence = await storedDocs(question, {
+      searchDocPages: async (_query, _limit, sources = []) => sources.includes('github') ? [] : [help, developer],
+    });
+    assert.ok(evidence.indexOf(help.url) < evidence.indexOf(developer.url), question);
+  }
+});
+
 test('single-item in-app deletion keeps Help Center and excludes developer pages', async () => {
   for (const question of [
     'How do I remove just one memory without clearing the rest?',
