@@ -614,8 +614,9 @@ function cannedReply(route, question) {
   if (/\bblue\b/i.test(String(question || '')) && /\blight\b/i.test(String(question || ''))) {
     return 'A solid blue light means the Omi is on and connected to your phone.';
   }
-  if (/\bhow do i turn\b/i.test(String(question || '')) && /\boff\b/i.test(String(question || ''))) {
-    return "The official Omi Help Center documents how to turn the necklace on and reset it, but it does not document a power-off button sequence. I can't verify how to switch it off, so please ask help@omi.me rather than trying an unconfirmed hold. Source: https://help.omi.me/en/articles/13154278-omi-necklace-issues";
+  if (/\bhow do i turn\b/i.test(String(question || '')) && /\boff\b/i.test(String(question || '')) &&
+      /\bnecklace\b/i.test(String(question || '')) && !/\bdev\s*kit\b|devkit/i.test(String(question || ''))) {
+    return 'On the necklace, hold the button for about 3 seconds to turn it off. Press once to turn it back on. Source: https://docs.omi.me/onboarding/omi';
   }
   if (/\bdelete\b/i.test(String(question || '')) && /\bconversation\b/i.test(String(question || ''))) {
     return 'Open that conversation and delete it from its detail view. That deletes the transcript and any stored audio for it.';

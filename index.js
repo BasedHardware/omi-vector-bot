@@ -614,7 +614,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
     if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
     const plannedPersonKind = plannerPolicy.personKind(searchPlan);
-    route = plannerPolicy.routeWithUnderstanding(route, searchPlan);
+    route = plannerPolicy.routeWithUnderstanding(route, searchPlan, asked || question);
     const supportFollowup =
       Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
     const holdPublicCopy = isHelpThread(channel) &&
@@ -705,7 +705,12 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         releaseText,
       });
 
-      try {
+      const verifiedCanned = plannerPolicy.verifiedCannedReply(route, asked || question, retrievedEvidence);
+      if (verifiedCanned) {
+        skipModel = true;
+        aiResponse = { final_answer: verifiedCanned, confidence: 0.95, escalate: false, reason: '' };
+        cleanAnswer = verifiedCanned;
+      } else try {
         const answerStart = performance.now();
         try {
           aiResponse = await queryAgent({

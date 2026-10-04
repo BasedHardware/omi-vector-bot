@@ -25,12 +25,22 @@ function pagesFromIndex(text) {
   return pages;
 }
 
+function compatibleDevicePage(question, page) {
+  const consumerControls = /\b(?:button|tap|press|hold|turn|power|light|led|pair|reset)\b/i.test(question) &&
+    /\b(?:omi|necklace)\b/i.test(question) && !/\bdev\s*kit\b|devkit/i.test(question);
+  return !consumerControls || !/\bdev\s*kit\b|devkit/i.test(`${page.title || ''} ${page.url || ''}`);
+}
+
 function topPages(question, pages, limit = 2) {
   const wanted = new Set(words(question));
+  const deviceControl = /\b(?:button|tap|press|hold|turn|power|light|led|pair|reset)\b/i.test(question) &&
+    /\b(?:omi|device|necklace)\b/i.test(question);
   return pages
+    .filter((page) => compatibleDevicePage(question, page))
     .map((page) => ({
       page,
-      score: words(`${page.title} ${page.blurb} ${page.url}`).filter((word) => wanted.has(word)).length,
+      score: words(`${page.title} ${page.blurb} ${page.url}`).filter((word) => wanted.has(word)).length +
+        (deviceControl && /\bomi\b/i.test(page.title) && /\bsetup\b/i.test(page.title) ? 1 : 0),
     }))
     .filter((hit) => hit.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -72,9 +82,9 @@ async function storedDocs(question, store, plannedQueries = []) {
         ])
       )
     );
-    const allSets = batches.map((batch) => batch[0]);
-    const helpSets = batches.map((batch) => batch[1]);
-    const githubSets = batches.map((batch) => batch[2]);
+    const allSets = batches.map((batch) => batch[0].filter((row) => compatibleDevicePage(question, row)));
+    const helpSets = batches.map((batch) => batch[1].filter((row) => compatibleDevicePage(question, row)));
+    const githubSets = batches.map((batch) => batch[2].filter((row) => compatibleDevicePage(question, row)));
     const ranked = mergeRanked([...allSets, ...helpSets, ...githubSets], 12);
     const required = [mergeRanked(helpSets, 1)[0], mergeRanked(githubSets, 1)[0]].filter(Boolean);
     const rows = [];

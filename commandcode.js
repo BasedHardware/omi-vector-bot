@@ -3,6 +3,7 @@ const { buildSystemPrompt, buildUserPrompt } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING } = require('./answerPipeline');
 const { isInstructionSentence } = require('./supportSteps');
+const { redactSensitive } = require('./privacy');
 
 function providerConfig() {
   const key = String(process.env.CMD_API_KEY || '').trim();
@@ -22,6 +23,34 @@ function providerHeaders(provider) {
     'Content-Type': 'application/json',
     'User-Agent': 'omi-vector-bot/1.0',
   };
+}
+
+function privateProviderBody(body) {
+  const publicSupportEmail = 'OMI_PUBLIC_SUPPORT_CONTACT';
+  return {
+    ...body,
+    messages: (body.messages || []).map((message) => ({
+      ...message,
+      content: typeof message.content === 'string'
+        ? redactSensitive(message.content.replace(/help@omi\.me/gi, publicSupportEmail), { issue: true })
+          .replaceAll(publicSupportEmail, 'help@omi.me')
+        : message.content,
+    })),
+  };
+}
+
+function recordModelUsage(data, stage, requestedModel) {
+  const usage = data?.usage || {};
+  const count = (value) => value === undefined || value === null || !Number.isFinite(Number(value))
+    ? null
+    : Math.max(0, Number(value));
+  process.emit('omiSupportModelUsage', {
+    stage,
+    model: String(data?.model || requestedModel || '').slice(0, 120),
+    promptTokens: count(usage.prompt_tokens ?? usage.input_tokens),
+    completionTokens: count(usage.completion_tokens ?? usage.output_tokens),
+    reasoningTokens: count(usage.completion_tokens_details?.reasoning_tokens ?? usage.output_tokens_details?.reasoning_tokens ?? usage.reasoning_tokens),
+  });
 }
 
 function jsonObject(raw) {
@@ -195,7 +224,7 @@ async function understandQuestion({ question, threadHistory = [], route, post })
     .slice(-8_000);
   const { data } = await send(
     provider.url,
-    {
+    privateProviderBody({
       model: provider.model,
       temperature: 0.1,
       messages: [
@@ -209,12 +238,13 @@ async function understandQuestion({ question, threadHistory = [], route, post })
           content: `Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,
         },
       ],
-    },
+    }),
     {
       timeout: provider.timeout,
       headers: providerHeaders(provider),
     }
   );
+  recordModelUsage(data, 'planner', provider.model);
   const content = data?.choices?.[0]?.message?.content;
   if (!content) throw new Error('CommandCode search plan was empty');
   return parseSearchPlan(content, question);
@@ -241,7 +271,7 @@ async function queryAgent({
       const send = post || axios.post.bind(axios);
       const { data } = await send(
         provider.url,
-        {
+        privateProviderBody({
           model: provider.model,
           temperature: 0.4,
           messages: [
@@ -258,12 +288,13 @@ async function queryAgent({
               }),
             },
           ],
-        },
+        }),
         {
           timeout: provider.timeout,
           headers: providerHeaders(provider),
         }
       );
+      recordModelUsage(data, 'answer', provider.model);
 
       const content = data?.choices?.[0]?.message?.content;
       if (!content) throw new Error('CommandCode response empty');
@@ -376,7 +407,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     try {
       ({ data } = await send(
     provider.url,
-    {
+    privateProviderBody({
       model: provider.reviewModel,
       temperature: 0.2,
       messages: [
@@ -397,12 +428,13 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
           )}\n\nSource pages:\n${String(sources || '').slice(0, compact ? 6000 : 10000)}`,
         },
       ],
-    },
+    }),
     {
       timeout: provider.timeout,
       headers: providerHeaders(provider),
     }
       ));
+      recordModelUsage(data, 'review', provider.reviewModel);
       if (data?.choices?.[0]?.message?.content) break;
       console.error(`[Provider] empty review response finish=${String(data?.choices?.[0]?.finish_reason || 'unknown')} output_tokens=${Number(data?.usage?.completion_tokens || 0)} reasoning_tokens=${Number(data?.usage?.completion_tokens_details?.reasoning_tokens || 0)}`);
       if (compact) throw new Error('Provider review was empty after retry');

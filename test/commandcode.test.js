@@ -42,6 +42,71 @@ test('CommandCode uses its own key, model and endpoint without a legacy session 
   }
 });
 
+test('planner, answer and review redact customer identifiers before the provider sees them', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  const privateText = 'Email ada@example.com; phone: 612 345 678; address: 12 Main Street; Order #22777; token user_123456789012345678901234.';
+  const sent = [];
+  const post = (content) => async (_url, body) => {
+    sent.push(JSON.stringify(body.messages));
+    return { data: { choices: [{ message: { content } }] } };
+  };
+  try {
+    await planSearch({ question: privateText, threadHistory: [{ author: 'customer', content: privateText }], post: post('{"standalone_question":"Where is my order?","support_kind":"order_lookup"}') });
+    await queryAgent({ question: privateText, threadHistory: [{ author: 'customer', content: privateText }], toolFacts: privateText, post: post('{"final_answer":"A person needs to check this.","confidence":0.8,"escalate":true}') });
+    await reviewAnswer({ question: privateText, threadHistory: [{ author: 'customer', content: privateText }], draft: privateText, sources: privateText, understanding: { customerFacts: [privateText] }, lane: 'shop', post: post('{"final_answer":"A person needs to check this.","grounded":true,"relevant":true,"confidence":0.8,"sources_used":[]}') });
+    assert.equal(sent.length, 3);
+    for (const payload of sent) {
+      assert.doesNotMatch(payload, /ada@example\.com|612 345 678|12 Main Street|#22777|user_123456789012345678901234/);
+      assert.match(payload, /\[email\]/);
+      assert.match(payload, /\[order number\]/);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('provider redaction retains Omi’s public support address but not a customer email', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  let sent = '';
+  try {
+    await queryAgent({
+      question: 'My email is ada@example.com',
+      toolFacts: 'Official support contact: help@omi.me',
+      post: async (_url, body) => {
+        sent = JSON.stringify(body.messages);
+        return { data: { choices: [{ message: { content: '{"final_answer":"Contact support","confidence":0.8,"escalate":false}' } }] } };
+      },
+    });
+    assert.match(sent, /help@omi\.me/);
+    assert.doesNotMatch(sent, /ada@example\.com/);
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('each provider response records model and token usage without logging content', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  const events = [];
+  const listener = (event) => events.push(event);
+  process.on('omiSupportModelUsage', listener);
+  try {
+    await planSearch({ question: 'How do I pair Omi?', post: async () => ({ data: {
+      model: 'test-model', usage: { prompt_tokens: 123, completion_tokens: 45, completion_tokens_details: { reasoning_tokens: 12 } },
+      choices: [{ message: { content: '{"standalone_question":"How do I pair Omi?","support_kind":"official_information"}' } }],
+    } }) });
+    assert.deepEqual(events, [{ stage: 'planner', model: 'test-model', promptTokens: 123, completionTokens: 45, reasoningTokens: 12 }]);
+  } finally {
+    process.off('omiSupportModelUsage', listener);
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
 test('technical reviewer allows only cited official, reversible checks', () => {
   const help = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/13154278-omi-necklace-issues\nRestart the app and phone.';
   const feedback = '[S2 | Omi Feedback portal]\nhttps://feedback.omi.me/p/example\nA customer suggested restarting.';

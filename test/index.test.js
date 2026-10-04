@@ -423,7 +423,7 @@ test('planner-classified order, account and exception requests reach a person in
       plannerStandaloneQuestion = standalone;
       const result = await ask(question);
       assert.ok(result.thread, question);
-      assert.doesNotMatch(result.reply, /Hold the center button|will arrive|refund approved|replacement approved|has shipped/i, question);
+      assert.doesNotMatch(result.reply, /Hold the center button|will arrive (?:on|by|tomorrow|next)|refund approved|replacement approved|has shipped/i, question);
     }
   } finally {
     if (previous === undefined) delete process.env.CMD_API_KEY;

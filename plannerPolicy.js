@@ -7,7 +7,7 @@ function personKind(understanding) {
   return PERSON_KINDS.has(kind) ? kind : '';
 }
 
-function routeWithUnderstanding(route, understanding) {
+function routeWithUnderstanding(route, understanding, originalQuestion = '') {
   const current = route || { area: 'unknown', lane: 'unknown' };
   const kind = String(understanding?.supportKind || '').trim();
   const translated = router.classify(understanding?.standaloneQuestion || '');
@@ -25,7 +25,8 @@ function routeWithUnderstanding(route, understanding) {
     return { ...current, area: 'shop', lane: money ? 'money' : 'shop', escalate: true };
   }
   const weakRoute = current.lane === 'unknown' ||
-    (current.lane === 'faq' && current.area === 'unknown' && router.isTechLane(translated));
+    (current.lane === 'faq' && current.area === 'unknown' && router.isTechLane(translated) &&
+      !router.looksLikeProductQuestion(originalQuestion));
   if (kind === 'technical_problem' && weakRoute) {
     const area = ['app', 'desktop', 'firmware'].includes(translated.area) ? translated.area : 'unknown';
     return { ...current, area, lane: area === 'firmware' ? 'firmware' : 'tech', escalate: true };
@@ -52,7 +53,7 @@ function personReply(kind, route, question, understanding) {
   const acknowledgment = safeHandoffAcknowledgment(understanding);
   let reply;
   if (kind === 'order_lookup') {
-    reply = "I can't verify this order's status or tracking from chat. A person needs to check privately. Keep your order number handy; you can also email help@omi.me with it if needed.";
+    reply = router.cannedReply({ ...route, area: 'shop', lane: 'shop', wantHuman: false }, question);
   } else if (kind === 'account_action') {
     reply = route?.lane === 'privacy'
       ? router.cannedReply(route, question)
@@ -75,10 +76,27 @@ function isGroundedHowTo(route, question, answer) {
   return true;
 }
 
+function verifiedCannedReply(route, question, evidence) {
+  if (route?.lane !== 'faq' || route?.wantHuman || route?.escalate ||
+      !router.looksLikeProductQuestion(question)) return '';
+  const reply = String(router.cannedReply(route, question) || '');
+  const cited = /\bSource:\s*(https:\/\/(?:help|docs)\.omi\.me\/[^\s)]+)/i.exec(reply);
+  if (!cited) return '';
+  const normalize = (url) => String(url || '').replace(/\.md\/?$/i, '').replace(/\/$/, '');
+  const source = normalize(cited[1]);
+  const block = String(evidence || '').split(/(?=\[S\d+\s*\|)/).find((part) =>
+    [...part.matchAll(/https:\/\/(?:help|docs)\.omi\.me\/[^\s)]+/gi)]
+      .some((match) => normalize(match[0]) === source));
+  if (!block) return '';
+  const numbers = (reply.slice(0, cited.index).match(/\b\d+\b/g) || []);
+  if (numbers.some((number) => !new RegExp(`\\b${number}\\b`).test(block))) return '';
+  return reply;
+}
+
 function personReason(kind) {
   if (kind === 'order_lookup') return 'Order lookup requires a verified staff check';
   if (kind === 'account_action') return 'Account or data action requires staff access';
   return 'Exception request requires staff review';
 }
 
-module.exports = { personKind, routeWithUnderstanding, suppressAcknowledgment, personReply, personReason, isGroundedHowTo };
+module.exports = { personKind, routeWithUnderstanding, suppressAcknowledgment, personReply, personReason, isGroundedHowTo, verifiedCannedReply };

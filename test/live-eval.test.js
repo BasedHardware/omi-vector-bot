@@ -1,6 +1,12 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { parseCaseLine, loadCasesFile, judge, summarize } = require('../scripts/live-eval');
+const { parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage } = require('../scripts/live-eval');
+
+test('live-eval keeps per-call model usage next to stage timings', () => {
+  const state = { timings: { planner: 10 }, modelCalls: [] };
+  captureModelUsage(state, { stage: 'planner', model: 'test-model', promptTokens: 30, completionTokens: 12, reasoningTokens: 4 });
+  assert.deepEqual(state.modelCalls, [{ stage: 'planner', model: 'test-model', promptTokens: 30, completionTokens: 12, reasoningTokens: 4 }]);
+});
 const { hasTroubleshootingStep } = require('../supportSteps');
 const fs = require('node:fs');
 const os = require('node:os');
