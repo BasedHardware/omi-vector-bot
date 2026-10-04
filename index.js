@@ -913,7 +913,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const handoffFollowup = continuingPost && supportFollowup;
     const pingAuthor = wantsAuthorPing(caption);
     const localizedFooters = plannerPolicy.handoffFooters(searchPlan, asked || question);
-    const { escalate } = decideEscalation({
+    const { escalate, signals: escalationSignals } = decideEscalation({
       route,
       question: asked || question,
       answer: cleanAnswer,
@@ -937,7 +937,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (escalate) {
-      console.log(`[Bot] Escalating ${channel.id} area=${triaged.area} topic=${triaged.topic}`);
+      console.log(`[Bot] Escalating channel=${channel.id} area=${triaged.area} signals=${escalationSignals.join(',')}`);
       const techLane = router.isTechLane({ lane: triaged.lane, area: triaged.area });
       if (github.isConfigured() && techLane && !githubHit?.duplicate) {
         fileIssueId = github.stashDraft(draft);

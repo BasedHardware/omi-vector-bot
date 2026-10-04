@@ -44,3 +44,33 @@ test('data-loss risk forces a handoff even when the FAQ answer is grounded', () 
   assert.equal(decision('Open the app and check the transcript.', { dataLossRisk: true }).escalate, true);
   assert.equal(decision('Open the app and check the transcript.', { dataLossRisk: false }).escalate, false);
 });
+
+test('handoff decision returns only the safe names of every firing signal', () => {
+  const result = decision('A person needs to check this.', {
+    route: { ...route, wantHuman: true, escalate: true },
+    agent: { confidence: 0.2, escalate: true },
+    triaged: { escalate: true },
+    dataLossRisk: true,
+    holdPublicCopy: true,
+  });
+  assert.equal(result.escalate, true);
+  assert.deepEqual(result.signals, [
+    'model_review', 'want_human', 'route', 'triage', 'data_loss',
+    'answer_person', 'public_copy', 'low_confidence',
+  ]);
+  assert.equal(decision('Open the app and select the conversation.').signals.length, 0);
+});
+
+test('low confidence and caption fallback are named without logging the caption', () => {
+  const uncertain = decideEscalation({
+    route: { lane: 'unknown' }, question: 'A neutral question', answer: 'I am unsure.',
+    agent: { confidence: 0.1, escalate: false }, caption: 'A neutral question',
+  });
+  assert.deepEqual(uncertain.signals, ['low_confidence']);
+  const caption = decideEscalation({
+    route: { lane: 'unknown' }, question: 'A neutral question', answer: 'I can explain.',
+    agent: { confidence: 0.9, escalate: false }, caption: 'I need a refund for order 12345',
+  });
+  assert.deepEqual(caption.signals, ['caption']);
+  assert.equal(caption.escalate, true);
+});

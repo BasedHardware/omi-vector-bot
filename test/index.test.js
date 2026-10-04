@@ -509,6 +509,18 @@ test('blank transcript after a completed recording warns and reaches staff', asy
   }
 });
 
+test('handoff log records signal names without customer wording or order details', async (t) => {
+  const originalLog = console.log;
+  const lines = [];
+  console.log = (...items) => lines.push(items.map(String).join(' '));
+  t.after(() => { console.log = originalLog; });
+  await ask('Where is order #22777? My email is jane@example.com.');
+  const line = lines.find((item) => item.startsWith('[Bot] Escalating'));
+  assert.ok(line);
+  assert.match(line, /signals=/);
+  assert.doesNotMatch(line, /#22777|jane@example\.com|topic=|Where is order/i);
+});
+
 test('a multilingual planner data-loss signal hands off without an English warning', async (t) => {
   const staff = enableStaffDelivery(t);
   const previous = process.env.CMD_API_KEY;
