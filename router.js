@@ -145,6 +145,9 @@ const WANT_HUMAN = [
   /\bis\s+there\s+(?:an?\s+|the\s+)?(?:real|actual|live)\s+(?:human|person|agent|representative)\b/i,
   /\b(?:get|give|connect|put)\s+me\s+(?:(?:in\s+touch\s+)?with\s+)?(?:(?:an?|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?|(?:the\s+)?(?:team|support|sales))\b/i,
   /\b(?:(?:i|we)\s+(?:really\s+)?)?(?:need|want)\s+(?:(?:an?|the|real|actual|live)\s+)*(?:someone|human|person|agent|representative)(?:\s+from\s+(?:the\s+)?(?:team|support|sales))?\s+to\s+(?:help|check|look(?:\s+at)?|review|contact|reply|call|email)\b/i,
+  /\bput\s+me\s+through\s+to\s+(?:(?:your|the|a|an)\s+)?(?:team|support|sales|human|person|agent|representative)\b/i,
+  /\bis\s+(?:(?:a|an|the)\s+)?(?:(?:real|actual|live)\s+)?(?:human|person|agent|representative|someone)\s+available\b/i,
+  /\b(?:please\s+)?have\s+(?:(?:someone|a\s+person|an?\s+(?:human|agent|representative))|(?:the|your)\s+(?:team|support|sales))\s+(?:contact|call|email)\s+me\b/i,
 ];
 
 function wantsHumanSupport(text) {

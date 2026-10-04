@@ -125,6 +125,12 @@ test('direct human-contact requests route to staff without misreading ordinary c
     'I want someone from support to reply',
     'Is a live representative available?',
     'I need a real person to talk to about billing',
+    'Put me through to your team',
+    'Is a human available?',
+    'Is someone available?',
+    'Please have the team contact me',
+    'Have a person call me',
+    'Have your support email me',
   ]) assert.equal(router.classify(question).wantHuman, true, question);
   for (const question of [
     'Does Omi need a person to be close to the mic?',
