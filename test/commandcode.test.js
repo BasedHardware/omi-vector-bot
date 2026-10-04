@@ -42,6 +42,34 @@ test('CommandCode uses its own key, model and endpoint without a legacy session 
   }
 });
 
+test('planned staff handoff tells both answer and review to keep the customer in this thread', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  try {
+    await queryAgent({
+      question: 'Where is my shipment?', route: { area: 'shop', lane: 'shop', escalate: true },
+      post: async (_url, body) => {
+        assert.match(body.messages[0].content, /person from the Omi team will reply in this thread/i);
+        assert.match(body.messages[0].content, /Don't tell the customer to contact support, email, use a contact form or post in another channel/i);
+        return { data: { choices: [{ message: { content: '{"final_answer":"Check the tracking link.","confidence":0.8,"escalate":true}' } }] } };
+      },
+    });
+    await reviewAnswer({
+      question: 'Where is my shipment?', draft: 'Check the tracking link.',
+      sources: '[S1 | Help]\nhttps://help.omi.me/shipping\nCheck the carrier tracking link.',
+      lane: 'shop', handoffPlanned: true,
+      post: async (_url, body) => {
+        assert.match(body.messages[0].content, /person from the Omi team will reply in this thread/i);
+        assert.match(body.messages[0].content, /Don't tell the customer to contact support, email, use a contact form or post in another channel/i);
+        return { data: { choices: [{ message: { content: '{"final_answer":"Check the tracking link.","grounded":true,"relevant":true,"sources_used":["S1"]}' } }] } };
+      },
+    });
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
 test('planner, answer and review redact customer identifiers before the provider sees them', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';

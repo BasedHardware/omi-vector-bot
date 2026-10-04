@@ -147,12 +147,12 @@ function sanitizeReply(text) {
 
 function stripSupportRedirect(text) {
   const isRedirect = (sentence) => {
-    const contactAction = /\b(?:email|e-mail|contact|reach|write|message|ask|post|submit|open|use|visit|go|head|browse|find|request|talk|speak|join|try|look)\b/i;
-    const externalChannel = /(?:help@omi\.me|discord\.omi\.me|#help\b|help channel\b|help\.omi\.me\b)/i;
-    const supportDestination = /\b(?:contact\s+(?:omi\s+)?support|support\s+(?:contact|form|page|option|request|ticket)|(?:help|support)\s+(?:center|desk|team)|(?:real\s+)?person\s+(?:at|through|via)\s+(?:the\s+)?(?:help|support))\b/i;
-    return (/help@omi\.me/i.test(sentence) && /\b(?:email|e-mail|contact|reach|write|send)\b/i.test(sentence)) ||
-      (externalChannel.test(sentence) && contactAction.test(sentence)) ||
-      (supportDestination.test(sentence) && contactAction.test(sentence));
+    const supportTarget = '(?:omi\\s+support|support(?:\\s+team)?|(?:the|our|your)\\s+team|(?:a|an|the|real|live)\\s+(?:person|human|agent)|help@omi\\.me|discord\\.omi\\.me|#help\\b|(?:the\\s+)?help\\s+channel|(?:the\\s+)?contact\\s+(?:form|option|page)|(?:the\\s+)?support\\s+(?:form|page|ticket))';
+    const directContact = new RegExp(`\\b(?:email|e-mail|contact|reach(?:\\s+out\\s+to)?|write\\s+to|message|drop\\s+a\\s+line\\s+to|get\\s+in\\s+touch\\s+with)\\s+(?:(?:the|a|an|omi|our|your)\\s+)?${supportTarget}`, 'i');
+    const supportForm = /\b(?:submit\s+(?:a\s+|the\s+)?(?:support\s+)?(?:request|ticket|contact\s+form)|open\s+(?:a\s+|the\s+)?(?:support\s+)?ticket)\b/i;
+    const supportChannel = /\b(?:join|post\s+(?:in|on|to)|ask\s+(?:in|on))\s+(?:(?:the|a)\s+)?(?:discord\.omi\.me|#help\b|help\s+channel\b)/i;
+    const contactControl = /\b(?:use|select|choose|click|tap)\s+(?:the\s+)?(?:contact\s+(?:omi\s+)?support|contact\s+(?:form|option|page)|support\s+(?:form|page|ticket))\b/i;
+    return directContact.test(sentence) || supportForm.test(sentence) || supportChannel.test(sentence) || contactControl.test(sentence);
   };
   return String(text || '')
     .split('\n')
@@ -160,6 +160,7 @@ function stripSupportRedirect(text) {
       line
         .split(/(?<=[.!?])\s+/)
         .flatMap((sentence) => {
+          if (/^\s*(?:source|fuente|quelle|fonte|источник|来源|출처)\s*:/i.test(sentence)) return [sentence];
           if (/^\s*(?:use\s+\/order\b|include (?:the )?order (?:number|#)|we email a code\b|keep (?:your|the) order number handy\b)/i.test(sentence)) return [];
           if (!isRedirect(sentence)) return [sentence];
           const details = sentence.match(/\b(?:please\s+)?include\b.+$/i);

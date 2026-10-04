@@ -637,6 +637,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const cannedEnglishReply = cannedEnglish ? router.cannedReply(route, asked || question) : '';
     const supportFollowup =
       Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
+    const handoffPlanned = Boolean(route.escalate || forceGroundedPersonAnswer ||
+      searchPlan.dataLossRisk || hasUnsyncedDataRisk(asked || question));
     const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
     if (holdPublicCopy) {
       console.log('[Bot] PII/order/privacy stays off the public help copy');
@@ -741,6 +743,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             route,
             toolFacts,
             understanding: searchPlan,
+            handoffPlanned,
             sessionId: `discord-${channel.id}`,
             canNotifyStaff: canNotifyStaff({ discordReady: true }),
           });
@@ -767,6 +770,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 understanding: searchPlan,
                 policy: toolFacts,
                 lane: draftLane,
+                handoffPlanned: handoffPlanned || aiResponse.escalate === true,
                 sources: [
                   retrievedEvidence,
                   releaseText ? `[S99 | Official release note]\n${releaseText}` : '',

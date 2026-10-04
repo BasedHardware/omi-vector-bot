@@ -441,7 +441,7 @@ test('delivered handoffs remove alternate contact routes, including Help Center 
   const answer = [
     'The way to reach Omi Support is through the Help Center at help.omi.me — browse the guides there and use the contact Support option.',
     'You can request a person on the help.omi.me contact page, or email help@omi.me.',
-    'Try the #help channel or discord.omi.me for a support agent.',
+    'Post in #help or join discord.omi.me for a support agent.',
     'Contact support with the details below.',
     'Please include the app version and the exact error.',
   ].join('\n');
@@ -449,6 +449,17 @@ test('delivered handoffs remove alternate contact routes, including Help Center 
   assert.doesNotMatch(delivered, /help\.omi\.me|help@omi\.me|discord\.omi\.me|#help|contact support/i);
   assert.match(delivered, /Please include the app version and the exact error/);
   assert.match(delivered, /will reply in this thread/i);
+});
+
+test('handoff redirect cleanup preserves sourced delivery steps and carrier contact', () => {
+  const answer = [
+    "What Omi's Help Center does suggest is to open the tracking link from your shipping email.",
+    'Contact the carrier if the tracking page lists the parcel as delivered.',
+    'Per the Help Center, use the tracking page to check the latest carrier scan.',
+    'Source: https://help.omi.me/en/articles/contact-support',
+  ].join('\n');
+  assert.equal(stripSupportRedirect(answer), answer);
+  assert.equal(stripSupportRedirect('The way to reach Omi Support is through the Help Center at help.omi.me — browse the guides there and use the contact Support option.'), '');
 });
 
 test('clipThreadHistory drops empty lines and caps length', () => {
