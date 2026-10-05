@@ -210,7 +210,38 @@ const SOURCE_LABELS = {
   es: 'Fuente', de: 'Quelle', pt: 'Fonte', tr: 'Kaynak', id: 'Sumber',
   fr: 'Source', hi: 'Srot', ja: '出典', zh: '来源', ko: '출처', ru: 'Источник',
 };
-const SOURCE_LABEL = /(?:^|\s)(?:Sources?|Fuentes?|Quellen?|Fonte|Fontes|Sumber|Kaynak|Srot|स्रोत|出典)\s*:/iu;
+const SOURCE_LABEL_NAME = '(?:Sources?|Fuentes?|Quellen?|Fonte|Fontes|Sumber|Kaynak|Srot|स्रोत|出典|来源|출처|Источник|Riferimenti)';
+const SOURCE_LABEL = new RegExp(`(?:^|\\s)${SOURCE_LABEL_NAME}\\s*:`, 'iu');
+const SOURCE_LINE = new RegExp(`^\\s*(${SOURCE_LABEL_NAME})\\s*:\\s*(.+?)\\s*$`, 'iu');
+const INLINE_EVIDENCE_GROUP = /[ \t]*(?:\((?:S\d+(?:[ \t,;|/+&-]+S\d+)*)\)|\[(?:S\d+(?:[ \t,;|/+&-]+S\d+)*)\])/gi;
+
+function citationOnlySourceLabel(line) {
+  const match = String(line || '').match(SOURCE_LINE);
+  if (!match) return '';
+  const remainder = match[2]
+    .replace(/https?:\/\/[^\s,;|)]+/gi, '')
+    .replace(/\bS\d+\b/gi, '')
+    .replace(/[\s[\](),;|+&/\-–—]+/g, '');
+  return remainder ? '' : match[1];
+}
+
+function stripInlineEvidenceGroups(text, sources) {
+  const evidenceIds = new Set([...String(sources || '').matchAll(/^\[(S\d+)\b[^\n]*\]\s*$/gm)].map((match) => match[1]));
+  return String(text || '').replace(INLINE_EVIDENCE_GROUP, (group) => {
+    const ids = [...group.matchAll(/\bS\d+\b/gi)].map((match) => match[0].toUpperCase());
+    return ids.length && ids.every((id) => evidenceIds.has(id)) ? '' : group;
+  });
+}
+
+function cleanupEvidenceIdCitations(answer, sources) {
+  const withoutSourceIds = String(answer || '').split('\n').filter((line) => {
+    const sourceLine = line.match(SOURCE_LINE);
+    if (!sourceLine || !citationOnlySourceLabel(line)) return true;
+    const withoutUrls = sourceLine[2].replace(/https?:\/\/[^\s,;|)]+/gi, '');
+    return !/\bS\d+\b/i.test(withoutUrls);
+  }).join('\n');
+  return stripInlineEvidenceGroups(withoutSourceIds, sources);
+}
 
 function trailingSourceLabel(line) {
   const match = String(line || '').trim().match(/^([\p{L}\p{M}][\p{L}\p{M}\s-]{0,32})\s*:\s*((?:https:\/\/[^\s]+)(?:\s+https:\/\/[^\s]+)*)\s*$/iu);
@@ -228,6 +259,8 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
   ].slice(0, 2);
   const text = String(answer || '');
   const modelLabel = text.split('\n').map((line) => {
+    const citationOnly = citationOnlySourceLabel(line);
+    if (citationOnly) return citationOnly;
     const trailing = trailingSourceLabel(line);
     if (trailing) return trailing;
     const marker = SOURCE_LABEL.exec(line);
@@ -235,9 +268,10 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
       ? marker[0].trim().replace(/:$/, '')
       : '';
   }).find(Boolean);
-  const body = text
+  const body = cleanupEvidenceIdCitations(text, sources)
     .split('\n')
     .map((line) => {
+      if (citationOnlySourceLabel(line)) return '';
       if (trailingSourceLabel(line)) return '';
       const marker = line.search(SOURCE_LABEL);
       return marker >= 0 && /https:\/\//i.test(line.slice(marker))
@@ -542,5 +576,6 @@ module.exports = {
   evidenceUrls,
   officialHandoffLinks,
   groundedSourceLine,
+  cleanupEvidenceIdCitations,
   technicalReviewSafety,
 };

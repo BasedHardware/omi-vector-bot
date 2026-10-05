@@ -568,6 +568,39 @@ test('an unfamiliar localized source label is replaced instead of duplicated', (
   assert.equal((answer.match(/https:\/\/help\.omi\.me\/en\/articles\/delete-one/g) || []).length, 1);
 });
 
+test('source cleanup removes citation-only lines in recognized languages', () => {
+  const evidence = [1, 2, 3].map((number) =>
+    `[S${number} | Official Help Center]\nhttps://help.omi.me/article-${number}\nOfficial text.`
+  ).join('\n\n');
+  const examples = [
+    ['en', 'Source: S1, [S2] | https://help.omi.me/article-3'],
+    ['de', 'Quelle: (S1); S2'],
+    ['zh', '来源: S1 / S3'],
+    ['hi', 'स्रोत: S1, S2'],
+  ];
+  for (const [language, modelCitation] of examples) {
+    const answer = groundedSourceLine(`Useful answer.\n${modelCitation}`, evidence, ['S1'], language);
+    assert.doesNotMatch(answer, new RegExp(modelCitation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), language);
+    assert.equal((answer.match(/https:\/\/help\.omi\.me\/article-1/g) || []).length, 1, language);
+    assert.equal(answer.split('\n').filter((line) => /:\s*(?:S\d|\[S\d|\(S\d)/.test(line)).length, 0, language);
+  }
+});
+
+test('source cleanup removes only bracketed evidence ids present in the evidence', () => {
+  const evidence = [1, 2, 3, 4].map((number) =>
+    `[S${number} | Official docs]\nhttps://docs.omi.me/article-${number}\nOfficial text.`
+  ).join('\n\n');
+  const answer = groundedSourceLine(
+    'The app keeps the note (S1, S2) and syncs it [S3][S4]. Galaxy S21 is a phone model; S2 is a bare id, and [S20] is not in evidence.\nSource: S1, S2',
+    evidence,
+    ['S1']
+  );
+  assert.match(answer, /note and syncs it\./);
+  assert.match(answer, /Galaxy S21 is a phone model; S2 is a bare id, and \[S20\] is not in evidence/);
+  assert.doesNotMatch(answer, /\(S1, S2\)|\[S3\]|\[S4\]|Source: S1, S2/);
+  assert.equal((answer.match(/Source:/g) || []).length, 1);
+});
+
 test('FAQ review may use lower-ranked team product facts without treating them as tech troubleshooting', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-key';
