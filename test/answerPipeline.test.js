@@ -10,6 +10,15 @@ const {
   stripUnverifiedOrderClaims,
 } = require('../answerPipeline');
 
+test('reviewed answers preserve legitimate conjunctions and link lines', () => {
+  const answer = 'Or you can open Settings → Profile and pick your language.\nAnd if it still fails, send us the app version.\n[Omi guide](https://help.omi.me/guide)';
+  const presented = presentReviewedAnswer(answer);
+  assert.match(presented, /Or you can open Settings → Profile and pick your language\./);
+  assert.match(presented, /And if it still fails, send us the app version\./);
+  assert.match(presented, /\[Omi guide\]\(https:\/\/help\.omi\.me\/guide\)/);
+  assert.match(presentReviewedAnswer(`There's a related change on GitHub; I can't confirm it fixes your case. https://github.com/BasedHardware/omi/pull/4500`), /omi\/pull\/4500/);
+});
+
 test('order replies remove unsupported customer-specific status but retain carrier steps', () => {
   const answer = [
     'Your order was delivered yesterday. It will arrive by Friday. The package is at the depot.',
@@ -23,6 +32,7 @@ test('order replies remove unsupported customer-specific status but retain carri
   assert.match(safe, /Source: https:\/\/help\.omi\.me/i);
   assert.equal(stripUnverifiedOrderClaims(answer, { verifiedLookup: true }), answer);
   assert.match(stripUnverifiedOrderClaims('If tracking shows delivered, contact the carrier.'), /contact the carrier/i);
+  assert.equal(stripUnverifiedOrderClaims('Your Omi was delivered yesterday. Open the tracking link from the shipping email.'), 'Open the tracking link from the shipping email.');
 });
 
 test('unverified delivery status variants are removed but general and conditional advice remains', () => {

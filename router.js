@@ -326,6 +326,9 @@ function needsGroundedShopAnswer(question) {
   const text = String(question || '');
   if (looksLikeShippingQuote(text)) return false;
   if (/\bstuck\s+(?:in|at)\s+customs\b/i.test(text)) return true;
+  const deliveredDevice = /\bmy\s+(?:omi|device|necklace|glasses)\b[^.!?]{0,100}\bdelivered\b/i.test(text);
+  const notReceived = /\b(?:isn['’]?t|is\s+not|aren['’]?t|are\s+not|wasn['’]?t|was\s+not|weren['’]?t|were\s+not|not)\s+here\b|\b(?:never|hasn['’]?t|has\s+not|didn['’]?t|did\s+not)\s+arriv(?:e|ed)\b/i.test(text);
+  if (deliveredDevice && notReceived) return true;
   const shippingContext = /\b(?:order|package|parcel|shipment|shipping|delivery)\b/i.test(text);
   const trackingObject = /\btracking\s+(?:number|link|page)\b/i.test(text);
   if (!shippingContext && !trackingObject) return false;

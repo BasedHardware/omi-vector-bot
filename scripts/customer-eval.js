@@ -4,6 +4,7 @@ const { relevantDocs } = require('../docs');
 const { relevantFeedback } = require('../feedback');
 const { buildToolFacts, OFFICIAL } = require('../prompt');
 const { planSearch, queryAgent, reviewAnswer } = require('../commandcode');
+const { approvedReview, reviewWithSecondLook } = require('../reviewDecision');
 const triage = require('../triage');
 const { prepareDraftForReview, presentReviewedAnswer } = require('../answerPipeline');
 const github = require('../github');
@@ -214,7 +215,7 @@ async function replyFor(scene, route) {
       sessionId: `eval-${scene.id}`,
     });
     const draftLane = triage.merge(route, agent, scene.ask).lane;
-    const checked = await reviewAnswer({
+    const checked = await reviewWithSecondLook({
       question: scene.ask,
       draft: prepareDraftForReview(agent.final_answer, draftLane, scene.ask),
       understanding: searchPlan,
@@ -226,11 +227,12 @@ async function replyFor(scene, route) {
         .filter(Boolean)
         .join('\n\n'),
       sessionId: `eval-${scene.id}-review`,
-    });
-    agent.final_answer = checked.relevant
+    }, { review: reviewAnswer });
+    const approved = approvedReview(checked);
+    agent.final_answer = approved || checked.safeHandoff
       ? checked.final_answer
       : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
-    agent.escalate = Boolean(agent.escalate || checked.escalate);
+    agent.escalate = Boolean(agent.escalate || checked.escalate || !approved);
     agent.confidence = Math.min(Number(agent.confidence) || 0.4, Number(checked.confidence) || 0.4);
     return { answer: presentReviewedAnswer(agent.final_answer), agent, from: 'model+review' };
   } catch (err) {

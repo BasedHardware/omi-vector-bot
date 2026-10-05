@@ -427,7 +427,7 @@ function stripFalseCertainty(text) {
     .split('\n')
     .map((line) =>
       line
-        .split(/(?<=[.!?])\s+|\s+[—–]\s+/)
+        .split(/(?<=[.!?])\s+/)
         .filter((sentence) => sentence.trim() && !looksLikeFalseCertainty(sentence))
         .join(' ')
     )

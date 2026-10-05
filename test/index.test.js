@@ -48,11 +48,14 @@ let plannerReplyLanguage = 'en';
 let plannerHandoffAcknowledgment = '';
 let plannerWantsPerson = false;
 let plannerDataLossRisk = false;
+let plannerBarrier = null;
 let reviewerResponse = null;
 const reviewCalls = [];
+let emitTestUsage = false;
 commandcode.queryAgent = async (args) => {
   modelCalls.push(args);
   if (modelDown) throw new Error('model unavailable');
+  if (emitTestUsage) args.onUsage?.({ stage: 'answer', completionTokens: 40, reasoningTokens: 12 });
   return {
     final_answer: 'Hold the center button for ten seconds, then pair it again from the app.',
     confidence: 0.9,
@@ -65,8 +68,10 @@ commandcode.queryAgent = async (args) => {
     ...modelReply,
   };
 };
-commandcode.understandQuestion = async ({ question }) => {
+commandcode.understandQuestion = async ({ question, onUsage }) => {
   plannerCalls.push(question);
+  if (emitTestUsage) onUsage?.({ stage: 'planner', completionTokens: 20, reasoningTokens: 5 });
+  if (plannerBarrier) await plannerBarrier;
   return {
     standaloneQuestion: plannerStandaloneQuestion || question,
     customerGoal: question,
@@ -83,6 +88,7 @@ commandcode.understandQuestion = async ({ question }) => {
 };
 commandcode.reviewAnswer = async (args) => {
   reviewCalls.push(args);
+  if (emitTestUsage) args.onUsage?.({ stage: 'review', completionTokens: 30, reasoningTokens: 7 });
   if (reviewerResponse) return reviewerResponse(args);
   const hasDraft = Boolean(String(args.draft || '').trim());
   return {
@@ -156,6 +162,10 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 
 const knowledge = require('../knowledge');
+const docs = require('../docs');
+const originalRelevantDocs = docs.relevantDocs;
+let docsObserver = null;
+docs.relevantDocs = (...args) => docsObserver ? docsObserver(...args) : originalRelevantDocs(...args);
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
@@ -402,16 +412,158 @@ test('/health reports missing staff delivery without revealing IDs', () => {
 
 test('answer path emits per-stage timing metrics without customer text', async () => {
   let metric;
+  const timingLines = [];
+  const originalLog = console.log;
+  const previousKey = process.env.CMD_API_KEY;
   const onMetric = (value) => { metric = value; };
   process.on('omiSupportTimings', onMetric);
   try {
+    process.env.CMD_API_KEY = 'test-only-key';
+    emitTestUsage = true;
+    console.log = (...parts) => {
+      if (String(parts[0]).startsWith('[Timing]')) timingLines.push(String(parts[0]));
+      else originalLog(...parts);
+    };
     await ask('How do I pair my Omi?');
     assert.ok(metric);
     assert.deepEqual(Object.keys(metric.stages).sort(), ['answer', 'planner', 'retrieval', 'review', 'total']);
     assert.ok(metric.stages.total >= 0);
     assert.equal(JSON.stringify(metric).includes('How do I pair'), false);
+    assert.equal(timingLines.length, 1);
+    assert.match(timingLines[0], /planner_completion_tokens=20 planner_reasoning_tokens=5/);
+    assert.match(timingLines[0], /answer_completion_tokens=40 answer_reasoning_tokens=12/);
+    assert.match(timingLines[0], /review_completion_tokens=30 review_reasoning_tokens=7/);
+    assert.doesNotMatch(timingLines[0], /How do I pair/);
+    await ask('Perfect, thank you!');
+    assert.equal(timingLines.length, 1, 'suppressed acknowledgments do not log a reply');
   } finally {
+    console.log = originalLog;
+    emitTestUsage = false;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
     process.off('omiSupportTimings', onMetric);
+  }
+});
+
+test('an approved second look supplies the reply and counts both reviews in timing', async () => {
+  const previousKey = process.env.CMD_API_KEY;
+  const originalLog = console.log;
+  const secondLookLines = [];
+  const timingLines = [];
+  let metric;
+  const onMetric = (value) => { metric = value; };
+  process.on('omiSupportTimings', onMetric);
+  try {
+    process.env.CMD_API_KEY = 'test-only-key';
+    emitTestUsage = true;
+    console.log = (...parts) => {
+      if (String(parts[0]).startsWith('[Review]')) secondLookLines.push(String(parts[0]));
+      else if (String(parts[0]).startsWith('[Timing]')) timingLines.push(String(parts[0]));
+      else originalLog(...parts);
+    };
+    reviewerResponse = ({ draft }) => reviewCalls.length === 1
+      ? { final_answer: 'Unrelated reply.', grounded: false, relevant: false, confidence: 0.2, escalate: true }
+      : { final_answer: draft, grounded: true, relevant: true, confidence: 0.9, escalate: false };
+    const response = await ask('How do I pair my Omi?');
+    assert.equal(reviewCalls.length, 2);
+    assert.equal(reviewCalls[1].reasoningEffort, null);
+    assert.match(response.reply, /center button/i);
+    assert.doesNotMatch(response.reply, /couldn't verify a direct answer/i);
+    assert.ok(metric.stages.review >= 0);
+    assert.equal(timingLines.length, 1);
+    assert.match(timingLines[0], /review_completion_tokens=60 review_reasoning_tokens=14/);
+    assert.deepEqual(secondLookLines, ['[Review] second look approved=true']);
+  } finally {
+    console.log = originalLog;
+    emitTestUsage = false;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+    process.off('omiSupportTimings', onMetric);
+  }
+});
+
+test('a failed second look keeps the existing review-error handoff', async (t) => {
+  const staff = enableStaffDelivery(t);
+  reviewerResponse = () => {
+    if (reviewCalls.length === 1) {
+      return { final_answer: 'Unrelated reply.', grounded: true, relevant: false, confidence: 0.2 };
+    }
+    throw new Error('test second review unavailable');
+  };
+  const response = await ask('How do I pair my Omi?');
+  assert.equal(reviewCalls.length, 2);
+  assert.match(response.reply, /couldn't verify a safe answer/i);
+  assert.equal(staff.length, 1);
+});
+
+test('two rejected reviews use the existing direct-answer fallback', async (t) => {
+  const staff = enableStaffDelivery(t);
+  reviewerResponse = () => ({
+    final_answer: 'Unrelated reply.', grounded: false, relevant: false, confidence: 0.2, escalate: true,
+  });
+  const response = await ask('How do I pair my Omi?');
+  assert.equal(reviewCalls.length, 2);
+  assert.match(response.reply, /couldn't verify a direct answer/i);
+  assert.equal(staff.length, 1);
+});
+
+test('official docs retrieval waits for the planner and runs once with its queries', async () => {
+  const previousKey = process.env.CMD_API_KEY;
+  const previousQueries = searchPlanQueries;
+  let releasePlanner;
+  const calls = [];
+  try {
+    process.env.CMD_API_KEY = 'test-only-key';
+    searchPlanQueries = ['Omi Bluetooth pairing guide'];
+    plannerBarrier = new Promise((resolve) => { releasePlanner = resolve; });
+    docsObserver = async (question, options) => {
+      calls.push({ question, options });
+      return '';
+    };
+    const pending = ask('How do I pair my Omi?');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.length, 0, 'no speculative lookup before planning');
+    releasePlanner();
+    await pending;
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].options.queries.includes('Omi Bluetooth pairing guide'));
+  } finally {
+    if (releasePlanner) releasePlanner();
+    docsObserver = null;
+    plannerBarrier = null;
+    searchPlanQueries = previousQueries;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+  }
+});
+
+test('large docs evidence still passes later Help Center blocks to the answer stage', async () => {
+  const previousKey = process.env.CMD_API_KEY;
+  const previousQueries = searchPlanQueries;
+  const calls = [];
+  const docsBlocks = Array.from({ length: 7 }, (_, index) =>
+    `[S${index + 1} | Official documentation | authoritative]\nOmi guide ${index}\nhttps://docs.omi.me/guide-${index}\n${'D'.repeat(1160)}`);
+  const helpBlocks = Array.from({ length: 7 }, (_, index) =>
+    `[S${index + 8} | Official Help Center | authoritative]\nOmi setting ${index}\nhttps://help.omi.me/en/articles/setting-${index}\n${'H'.repeat(1170)}`);
+  const evidence = [...docsBlocks, ...helpBlocks].join('\n\n');
+  assert.ok(evidence.length > 16_000);
+  try {
+    process.env.CMD_API_KEY = 'test-only-key';
+    searchPlanQueries = ['official Omi settings guide'];
+    docsObserver = async (question, options) => {
+      calls.push({ question, options });
+      return evidence;
+    };
+    const result = await ask('How do I find settings in Omi?');
+    assert.equal(result.modelCalled, true);
+    assert.ok(modelCalls.at(-1).toolFacts.includes('https://help.omi.me/en/articles/setting-0'), 'the first Help Center block reaches the answer');
+    assert.ok(modelCalls.at(-1).toolFacts.includes('https://help.omi.me/en/articles/setting-6'), 'the last Help Center block reaches the answer');
+    assert.equal(calls.length, 1, 'one planned lookup, not two merged lookups');
+  } finally {
+    docsObserver = null;
+    searchPlanQueries = previousQueries;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
   }
 });
 
@@ -440,6 +592,23 @@ test('missing delivery gets a grounded answer, no invented status, and a staff h
   assert.doesNotMatch(result.reply, /Your order was delivered yesterday/i);
   assert.match(result.reply, /tracking link in the shipping email/i);
   assert.match(result.reply, /contact the carrier/i);
+  assert.equal(staff.length, 1);
+});
+
+test('a delivered Omi that never arrived gets grounded delivery handling without a package noun', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { process.env.CMD_API_KEY = previous; });
+  modelReply = {
+    final_answer: 'Your Omi was delivered yesterday. Open the tracking link from the shipping email and contact the carrier about the missing delivery.',
+    escalate: false,
+  };
+  const result = await ask("UPS says my Omi was delivered yesterday but it isn't here");
+  assert.equal(result.modelCalled, true);
+  assert.match(result.reply, /^I can't see order status from here/i);
+  assert.doesNotMatch(result.reply, /Your Omi was delivered yesterday/i);
+  assert.match(result.reply, /tracking link from the shipping email/i);
   assert.equal(staff.length, 1);
 });
 

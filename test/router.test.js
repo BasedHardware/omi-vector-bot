@@ -52,6 +52,9 @@ test('delivery problems and status questions use grounded shop answers, not chec
     'It is stuck in customs',
     'Where is my order?',
     'When will my shipment arrive?',
+    "UPS says my Omi was delivered yesterday but it isn't here",
+    "My device was delivered, but it never arrived",
+    "My glasses were delivered and still aren't here",
   ]) assert.equal(router.needsGroundedShopAnswer(question), true, question);
   for (const question of [
     'Shipping costs 145 euros at checkout',
@@ -59,6 +62,8 @@ test('delivery problems and status questions use grounded shop answers, not chec
     'Does Omi have sleep tracking? It seems missing',
     'Tracking has been stuck and is not updating',
     'Can I order 50 units for my company?',
+    'My Omi was delivered yesterday and is working well',
+    "My Omi isn't here because I left it at home",
   ]) assert.equal(router.needsGroundedShopAnswer(question), false, question);
 });
 

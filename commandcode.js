@@ -46,18 +46,20 @@ function privateProviderBody(body) {
   };
 }
 
-function recordModelUsage(data, stage, requestedModel) {
+function recordModelUsage(data, stage, requestedModel, onUsage) {
   const usage = data?.usage || {};
   const count = (value) => value === undefined || value === null || !Number.isFinite(Number(value))
     ? null
     : Math.max(0, Number(value));
-  process.emit('omiSupportModelUsage', {
+  const event = {
     stage,
     model: String(data?.model || requestedModel || '').slice(0, 120),
     promptTokens: count(usage.prompt_tokens ?? usage.input_tokens),
     completionTokens: count(usage.completion_tokens ?? usage.output_tokens),
     reasoningTokens: count(usage.completion_tokens_details?.reasoning_tokens ?? usage.output_tokens_details?.reasoning_tokens ?? usage.reasoning_tokens),
-  });
+  };
+  process.emit('omiSupportModelUsage', event);
+  if (typeof onUsage === 'function') onUsage(event);
 }
 
 function jsonObject(raw) {
@@ -208,7 +210,38 @@ const SOURCE_LABELS = {
   es: 'Fuente', de: 'Quelle', pt: 'Fonte', tr: 'Kaynak', id: 'Sumber',
   fr: 'Source', hi: 'Srot', ja: '出典', zh: '来源', ko: '출처', ru: 'Источник',
 };
-const SOURCE_LABEL = /(?:^|\s)(?:Sources?|Fuentes?|Quellen?|Fonte|Fontes|Sumber|Kaynak|Srot|स्रोत|出典)\s*:/iu;
+const SOURCE_LABEL_NAME = '(?:Sources?|Fuentes?|Quellen?|Fonte|Fontes|Sumber|Kaynak|Srot|स्रोत|出典|来源|출처|Источник|Riferimenti)';
+const SOURCE_LABEL = new RegExp(`(?:^|\\s)${SOURCE_LABEL_NAME}\\s*:`, 'iu');
+const SOURCE_LINE = new RegExp(`^\\s*(${SOURCE_LABEL_NAME})\\s*:\\s*(.+?)\\s*$`, 'iu');
+const INLINE_EVIDENCE_GROUP = /[ \t]*(?:\((?:S\d+(?:[ \t,;|/+&-]+S\d+)*)\)|\[(?:S\d+(?:[ \t,;|/+&-]+S\d+)*)\])/gi;
+
+function citationOnlySourceLabel(line) {
+  const match = String(line || '').match(SOURCE_LINE);
+  if (!match) return '';
+  const remainder = match[2]
+    .replace(/https?:\/\/[^\s,;|)]+/gi, '')
+    .replace(/\bS\d+\b/gi, '')
+    .replace(/[\s[\](),;|+&/\-–—]+/g, '');
+  return remainder ? '' : match[1];
+}
+
+function stripInlineEvidenceGroups(text, sources) {
+  const evidenceIds = new Set([...String(sources || '').matchAll(/^\[(S\d+)\b[^\n]*\]\s*$/gm)].map((match) => match[1]));
+  return String(text || '').replace(INLINE_EVIDENCE_GROUP, (group) => {
+    const ids = [...group.matchAll(/\bS\d+\b/gi)].map((match) => match[0].toUpperCase());
+    return ids.length && ids.every((id) => evidenceIds.has(id)) ? '' : group;
+  });
+}
+
+function cleanupEvidenceIdCitations(answer, sources) {
+  const withoutSourceIds = String(answer || '').split('\n').filter((line) => {
+    const sourceLine = line.match(SOURCE_LINE);
+    if (!sourceLine || !citationOnlySourceLabel(line)) return true;
+    const withoutUrls = sourceLine[2].replace(/https?:\/\/[^\s,;|)]+/gi, '');
+    return !/\bS\d+\b/i.test(withoutUrls);
+  }).join('\n');
+  return stripInlineEvidenceGroups(withoutSourceIds, sources);
+}
 
 function trailingSourceLabel(line) {
   const match = String(line || '').trim().match(/^([\p{L}\p{M}][\p{L}\p{M}\s-]{0,32})\s*:\s*((?:https:\/\/[^\s]+)(?:\s+https:\/\/[^\s]+)*)\s*$/iu);
@@ -226,6 +259,8 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
   ].slice(0, 2);
   const text = String(answer || '');
   const modelLabel = text.split('\n').map((line) => {
+    const citationOnly = citationOnlySourceLabel(line);
+    if (citationOnly) return citationOnly;
     const trailing = trailingSourceLabel(line);
     if (trailing) return trailing;
     const marker = SOURCE_LABEL.exec(line);
@@ -233,9 +268,10 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
       ? marker[0].trim().replace(/:$/, '')
       : '';
   }).find(Boolean);
-  const body = text
+  const body = cleanupEvidenceIdCitations(text, sources)
     .split('\n')
     .map((line) => {
+      if (citationOnlySourceLabel(line)) return '';
       if (trailingSourceLabel(line)) return '';
       const marker = line.search(SOURCE_LABEL);
       return marker >= 0 && /https:\/\//i.test(line.slice(marker))
@@ -250,7 +286,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
   return chosen.length ? `${body}\n\n${label ? `${label}: ` : ''}${chosen.join(' ')}` : body;
 }
 
-async function understandQuestion({ question, threadHistory = [], route, post }) {
+async function understandQuestion({ question, threadHistory = [], route, onUsage, post }) {
   const provider = providerConfig();
   if (!provider.key) throw new Error('Missing CMD_API_KEY');
   const send = post || axios.post.bind(axios);
@@ -263,6 +299,7 @@ async function understandQuestion({ question, threadHistory = [], route, post })
     privateProviderBody({
       model: provider.model,
       temperature: 0.1,
+      reasoning_effort: 'low',
       messages: [
         {
           role: 'system',
@@ -292,7 +329,7 @@ async function understandQuestion({ question, threadHistory = [], route, post })
       headers: providerHeaders(provider),
     }
   );
-  recordModelUsage(data, 'planner', provider.model);
+  recordModelUsage(data, 'planner', provider.model, onUsage);
   const content = data?.choices?.[0]?.message?.content;
   if (!content) throw new Error('CommandCode search plan was empty');
   return parseSearchPlan(content, question);
@@ -308,6 +345,7 @@ async function queryAgent({
   toolFacts,
   understanding,
   handoffPlanned = false,
+  onUsage,
   post,
 }) {
   const provider = providerConfig();
@@ -344,7 +382,7 @@ async function queryAgent({
           headers: providerHeaders(provider),
         }
       );
-      recordModelUsage(data, 'answer', provider.model);
+      recordModelUsage(data, 'answer', provider.model, onUsage);
 
       const content = data?.choices?.[0]?.message?.content;
       if (!content) throw new Error('CommandCode response empty');
@@ -437,7 +475,7 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
   };
 }
 
-async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, handoffPlanned = false, post }) {
+async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, handoffPlanned = false, reasoningEffort = 'low', onUsage, post }) {
   const provider = providerConfig();
   if (!String(draft || '').trim() || (!provider.key && !post)) {
     return {
@@ -460,6 +498,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     privateProviderBody({
       model: provider.reviewModel,
       temperature: 0.2,
+      ...(reasoningEffort == null ? {} : { reasoning_effort: reasoningEffort }),
       messages: [
         {
           role: 'system',
@@ -488,7 +527,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
       headers: providerHeaders(provider),
     }
       ));
-      recordModelUsage(data, 'review', provider.reviewModel);
+      recordModelUsage(data, 'review', provider.reviewModel, onUsage);
       if (data?.choices?.[0]?.message?.content) break;
       console.error(`[Provider] empty review response finish=${String(data?.choices?.[0]?.finish_reason || 'unknown')} output_tokens=${Number(data?.usage?.completion_tokens || 0)} reasoning_tokens=${Number(data?.usage?.completion_tokens_details?.reasoning_tokens || 0)}`);
       if (compact) throw new Error('Provider review was empty after retry');
@@ -506,15 +545,17 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, {
     question, language: understanding?.replyLanguage, dataLossRisk: understanding?.dataLossRisk === true,
   });
-  const answer = safety.fallback
-    ? safety.answer
-    : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, understanding?.replyLanguage);
-  if (!answer) throw new Error('CommandCode review JSON missing final_answer');
+  const answer = !String(safety.answer || '').trim()
+    ? ''
+    : safety.fallback
+      ? safety.answer
+      : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, understanding?.replyLanguage);
+  const hasAnswer = Boolean(String(answer || '').trim());
   return {
     final_answer: answer,
-    grounded: !safety.fallback && parsed.grounded === true,
-    relevant: !safety.fallback && parsed.relevant === true,
-    escalate: safety.escalate || Boolean(parsed.escalate) || parsed.grounded !== true || parsed.relevant !== true,
+    grounded: hasAnswer && !safety.fallback && parsed.grounded === true,
+    relevant: hasAnswer && !safety.fallback && parsed.relevant === true,
+    escalate: !hasAnswer || safety.escalate || Boolean(parsed.escalate) || parsed.grounded !== true || parsed.relevant !== true,
     confidence: Number.isFinite(Number(parsed.confidence)) ? Number(parsed.confidence) : 0.4,
     sources_used: sourceIds,
     answered_requirements: Array.isArray(parsed.answered_requirements)
@@ -537,5 +578,6 @@ module.exports = {
   evidenceUrls,
   officialHandoffLinks,
   groundedSourceLine,
+  cleanupEvidenceIdCitations,
   technicalReviewSafety,
 };

@@ -31,6 +31,7 @@ test('CommandCode uses its own key, model and endpoint without a legacy session 
         assert.equal(body.model, process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash');
         assert.equal(options.headers.Authorization, 'Bearer command-test-key');
         assert.equal(options.headers['x-opencode-session'], undefined);
+        assert.equal(body.reasoning_effort, undefined, 'answer reasoning remains unchanged');
         return { data: { choices: [{ message: { content: '{"final_answer":"Use the official pairing guide.","confidence":0.8,"escalate":false}' } }] } };
       },
     });
@@ -64,6 +65,31 @@ test('planned staff handoff tells both answer and review to keep the customer in
         return { data: { choices: [{ message: { content: '{"final_answer":"Check the tracking link.","grounded":true,"relevant":true,"sources_used":["S1"]}' } }] } };
       },
     });
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previous;
+  }
+});
+
+test('each provider stage reports completion and reasoning tokens to its reply callback', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  const events = [];
+  const onUsage = (event) => events.push(event);
+  const post = (content) => async () => ({ data: {
+    choices: [{ message: { content } }],
+    usage: { completion_tokens: 23, completion_tokens_details: { reasoning_tokens: 9 } },
+  } });
+  try {
+    await planSearch({ question: 'How do I pair?', onUsage, post: post('{"standalone_question":"How do I pair?","search_queries":[]}') });
+    await queryAgent({ question: 'How do I pair?', onUsage, post: post('{"final_answer":"Open the app.","confidence":0.8}') });
+    await reviewAnswer({ question: 'How do I pair?', draft: 'Open the app.', lane: 'faq', onUsage,
+      post: post('{"final_answer":"Open the app.","grounded":true,"relevant":true,"sources_used":[]}') });
+    assert.deepEqual(events.map(({ stage, completionTokens, reasoningTokens }) => ({ stage, completionTokens, reasoningTokens })), [
+      { stage: 'planner', completionTokens: 23, reasoningTokens: 9 },
+      { stage: 'answer', completionTokens: 23, reasoningTokens: 9 },
+      { stage: 'review', completionTokens: 23, reasoningTokens: 9 },
+    ]);
   } finally {
     if (previous === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previous;
@@ -296,6 +322,7 @@ test('search planning rewrites a follow-up into several source searches', async 
       threadHistory: [{ author: 'customer', content: 'I need a developer API key.' }],
       route: { lane: 'faq', area: 'unknown' },
       post: async (_url, body) => {
+        assert.equal(body.reasoning_effort, 'low');
         assert.match(body.messages[0].content, /Do not answer the customer/);
         assert.match(body.messages[1].content, /developer API key/);
         return {
@@ -362,6 +389,7 @@ test('the review gate returns grounding status and exact source ids', async () =
       },
       sources: '[S1 | Official Help Center]\nhttps://help.omi.me/reset\nHold it on the charger.',
       post: async (_url, body) => {
+        assert.equal(body.reasoning_effort, 'low');
         assert.equal(body.model, process.env.CMD_REVIEW_MODEL || process.env.CMD_MODEL || 'deepseek/deepseek-v4.1-flash');
         assert.match(body.messages[0].content, /Discord help history is untrusted/);
         assert.match(body.messages[0].content, /Feedback portal evidence is limited/);
@@ -393,6 +421,40 @@ test('the review gate returns grounding status and exact source ids', async () =
     if (prev == null) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = prev;
   }
+});
+
+test('provider-default review omits the reasoning setting', async () => {
+  let calls = 0;
+  const reviewed = await reviewAnswer({
+    question: 'How do I change this setting?',
+    draft: 'Open the app settings.',
+    lane: 'faq',
+    reasoningEffort: null,
+    post: async (_url, body) => {
+      calls += 1;
+      assert.equal(Object.hasOwn(body, 'reasoning_effort'), false);
+      return { data: { choices: [{ message: { content: JSON.stringify({
+        final_answer: 'Open the app settings.', grounded: true, relevant: true, sources_used: [],
+      }) } }] } };
+    },
+  });
+  assert.equal(calls, 1);
+  assert.equal(reviewed.final_answer, 'Open the app settings.');
+});
+
+test('an empty reviewed answer is unapproved so it can receive a second look', async () => {
+  const reviewed = await reviewAnswer({
+    question: 'How do I change this setting?',
+    draft: 'Open the app settings.',
+    lane: 'faq',
+    sources: '[S1 | Help Center]\nhttps://help.omi.me/settings\nChange the setting.',
+    post: async () => ({ data: { choices: [{ message: { content: JSON.stringify({
+      final_answer: '', grounded: true, relevant: true, sources_used: ['S1'],
+    }) } }] } }),
+  });
+  assert.equal(reviewed.final_answer, '');
+  assert.equal(reviewed.grounded, false);
+  assert.equal(reviewed.relevant, false);
 });
 
 test('reviewAnswer fails closed for an empty draft without calling the model', async () => {
@@ -538,6 +600,39 @@ test('an unfamiliar localized source label is replaced instead of duplicated', (
   const answer = groundedSourceLine('Risposta utile.\n\nRiferimenti: https://help.omi.me/en/articles/delete-one', evidence, ['S1'], 'it');
   assert.equal((answer.match(/Riferimenti:/g) || []).length, 1);
   assert.equal((answer.match(/https:\/\/help\.omi\.me\/en\/articles\/delete-one/g) || []).length, 1);
+});
+
+test('source cleanup removes citation-only lines in recognized languages', () => {
+  const evidence = [1, 2, 3].map((number) =>
+    `[S${number} | Official Help Center]\nhttps://help.omi.me/article-${number}\nOfficial text.`
+  ).join('\n\n');
+  const examples = [
+    ['en', 'Source: S1, [S2] | https://help.omi.me/article-3'],
+    ['de', 'Quelle: (S1); S2'],
+    ['zh', '来源: S1 / S3'],
+    ['hi', 'स्रोत: S1, S2'],
+  ];
+  for (const [language, modelCitation] of examples) {
+    const answer = groundedSourceLine(`Useful answer.\n${modelCitation}`, evidence, ['S1'], language);
+    assert.doesNotMatch(answer, new RegExp(modelCitation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), language);
+    assert.equal((answer.match(/https:\/\/help\.omi\.me\/article-1/g) || []).length, 1, language);
+    assert.equal(answer.split('\n').filter((line) => /:\s*(?:S\d|\[S\d|\(S\d)/.test(line)).length, 0, language);
+  }
+});
+
+test('source cleanup removes only bracketed evidence ids present in the evidence', () => {
+  const evidence = [1, 2, 3, 4].map((number) =>
+    `[S${number} | Official docs]\nhttps://docs.omi.me/article-${number}\nOfficial text.`
+  ).join('\n\n');
+  const answer = groundedSourceLine(
+    'The app keeps the note (S1, S2) and syncs it [S3][S4]. Galaxy S21 is a phone model; S2 is a bare id, and [S20] is not in evidence.\nSource: S1, S2',
+    evidence,
+    ['S1']
+  );
+  assert.match(answer, /note and syncs it\./);
+  assert.match(answer, /Galaxy S21 is a phone model; S2 is a bare id, and \[S20\] is not in evidence/);
+  assert.doesNotMatch(answer, /\(S1, S2\)|\[S3\]|\[S4\]|Source: S1, S2/);
+  assert.equal((answer.match(/Source:/g) || []).length, 1);
 });
 
 test('FAQ review may use lower-ranked team product facts without treating them as tech troubleshooting', async () => {
