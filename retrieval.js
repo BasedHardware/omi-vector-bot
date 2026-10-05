@@ -361,22 +361,6 @@ function combineEvidence(...values) {
     .join('\n\n');
 }
 
-function mergeEvidenceUnique(...values) {
-  const seen = new Set();
-  const blocks = [];
-  let used = 0;
-  for (const value of values.flat()) {
-    for (const block of String(value || '').split(/\n\n(?=\[S\d+\s*\|)/).map((part) => part.trim()).filter(Boolean)) {
-      const key = block.replace(/^\[S\d+\s*\|/, '[S |');
-      if (seen.has(key) || used + block.length > 9_000) continue;
-      seen.add(key);
-      blocks.push(block);
-      used += block.length;
-    }
-  }
-  return combineEvidence(blocks);
-}
-
 module.exports = {
   MAX_DOCUMENT,
   CHUNK_SIZE,
@@ -396,5 +380,4 @@ module.exports = {
   rankLocalChunks,
   formatEvidence,
   combineEvidence,
-  mergeEvidenceUnique,
 };

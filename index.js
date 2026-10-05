@@ -49,7 +49,6 @@ const github = require('./github');
 const commands = require('./commands');
 const { buildToolFacts, OFFICIAL } = require('./prompt');
 const { relevantDocs, canonicalizeGithubDocsEvidence } = require('./docs');
-const { startDocsRetrieval } = require('./retrievalSession');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
@@ -609,9 +608,6 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     if (plannerPolicy.suppressAcknowledgment(null, asked || question)) return;
     const cannedEnglish = plannerPolicy.skipPlannerForCanned(currentRoute, asked || question);
     const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
-    const completeDocsRetrieval = !cannedEnglish && !holdPublicCopy && process.env.CMD_API_KEY
-      ? startDocsRetrieval(asked || question, relevantDocs)
-      : null;
     let searchPlan = {
       standaloneQuestion: caseQuestion,
       customerGoal: asked || question,
@@ -720,9 +716,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       );
       const retrievalStart = performance.now();
       const [docsText, officialCodeText, feedbackText, releaseText] = await Promise.all([
-        completeDocsRetrieval
-          ? completeDocsRetrieval(sourceQuestion, searchPlan.queries)
-          : relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
+        relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
         route.area === 'shop' ? '' : github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
         router.isTechLane(route) || route.lane === 'unknown'
           ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })

@@ -445,12 +445,10 @@ test('answer path emits per-stage timing metrics without customer text', async (
   }
 });
 
-test('official docs retrieval begins before the planner resolves and adds its new queries afterward', async () => {
+test('official docs retrieval waits for the planner and runs once with its queries', async () => {
   const previousKey = process.env.CMD_API_KEY;
   const previousQueries = searchPlanQueries;
   let releasePlanner;
-  let signalFirstLookup;
-  const firstLookup = new Promise((resolve) => { signalFirstLookup = resolve; });
   const calls = [];
   try {
     process.env.CMD_API_KEY = 'test-only-key';
@@ -458,21 +456,49 @@ test('official docs retrieval begins before the planner resolves and adds its ne
     plannerBarrier = new Promise((resolve) => { releasePlanner = resolve; });
     docsObserver = async (question, options) => {
       calls.push({ question, options });
-      if (calls.length === 1) signalFirstLookup();
       return '';
     };
     const pending = ask('How do I pair my Omi?');
-    await firstLookup;
-    assert.equal(calls.length, 1);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.length, 0, 'no speculative lookup before planning');
     releasePlanner();
     await pending;
-    assert.equal(calls.length, 2);
-    assert.ok(calls[1].options.queries.includes('Omi Bluetooth pairing guide'));
-    assert.equal(calls[0].options.lookupCache, calls[1].options.lookupCache);
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].options.queries.includes('Omi Bluetooth pairing guide'));
   } finally {
     if (releasePlanner) releasePlanner();
     docsObserver = null;
     plannerBarrier = null;
+    searchPlanQueries = previousQueries;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+  }
+});
+
+test('large docs evidence still passes later Help Center blocks to the answer stage', async () => {
+  const previousKey = process.env.CMD_API_KEY;
+  const previousQueries = searchPlanQueries;
+  const calls = [];
+  const docsBlocks = Array.from({ length: 7 }, (_, index) =>
+    `[S${index + 1} | Official documentation | authoritative]\nOmi guide ${index}\nhttps://docs.omi.me/guide-${index}\n${'D'.repeat(1160)}`);
+  const helpBlocks = Array.from({ length: 7 }, (_, index) =>
+    `[S${index + 8} | Official Help Center | authoritative]\nOmi setting ${index}\nhttps://help.omi.me/en/articles/setting-${index}\n${'H'.repeat(1170)}`);
+  const evidence = [...docsBlocks, ...helpBlocks].join('\n\n');
+  assert.ok(evidence.length > 16_000);
+  try {
+    process.env.CMD_API_KEY = 'test-only-key';
+    searchPlanQueries = ['official Omi settings guide'];
+    docsObserver = async (question, options) => {
+      calls.push({ question, options });
+      return evidence;
+    };
+    const result = await ask('How do I find settings in Omi?');
+    assert.equal(result.modelCalled, true);
+    assert.ok(modelCalls.at(-1).toolFacts.includes('https://help.omi.me/en/articles/setting-0'), 'the first Help Center block reaches the answer');
+    assert.ok(modelCalls.at(-1).toolFacts.includes('https://help.omi.me/en/articles/setting-6'), 'the last Help Center block reaches the answer');
+    assert.equal(calls.length, 1, 'one planned lookup, not two merged lookups');
+  } finally {
+    docsObserver = null;
     searchPlanQueries = previousQueries;
     if (previousKey === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previousKey;

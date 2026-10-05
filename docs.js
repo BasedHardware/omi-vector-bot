@@ -30,45 +30,6 @@ async function docsIndexText(fetchFn) {
   return indexLookup;
 }
 
-function newDocsLookupCache() {
-  return { fetches: new Map(), searches: new Map(), saves: new Map() };
-}
-
-function memoizedDocsFetch(fetchFn, cache) {
-  if (!cache) return fetchFn;
-  return async (url, options) => {
-    const key = String(url);
-    if (!cache.fetches.has(key)) {
-      cache.fetches.set(key, Promise.resolve().then(async () => {
-        const response = await fetchFn(url, options);
-        return { ok: response.ok, status: response.status, body: response.ok ? await response.text() : '' };
-      }));
-    }
-    const snapshot = await cache.fetches.get(key);
-    return { ok: snapshot.ok, status: snapshot.status, text: async () => snapshot.body };
-  };
-}
-
-function memoizedDocsStore(store, cache) {
-  if (!cache || !store?.searchDocPages) return store;
-  return {
-    searchDocPages: (query, limit, sources = []) => {
-      const key = JSON.stringify([query, limit, sources]);
-      if (!cache.searches.has(key)) {
-        cache.searches.set(key, Promise.resolve().then(() => store.searchDocPages(query, limit, sources)));
-      }
-      return cache.searches.get(key);
-    },
-    saveDocPage: store.saveDocPage && ((page) => {
-      const key = String(page.url || '');
-      if (!cache.saves.has(key)) {
-        cache.saves.set(key, Promise.resolve().then(() => store.saveDocPage(page)));
-      }
-      return cache.saves.get(key);
-    }),
-  };
-}
-
 function words(text) {
   return queryTerms(text, 30);
 }
@@ -194,9 +155,9 @@ async function storedDocs(question, store, plannedQueries = []) {
   }
 }
 
-async function relevantDocs(question, { fetchImpl, store, queries: plannedQueries = [], lookupCache } = {}) {
-  const fetchFn = memoizedDocsFetch(fetchImpl || fetch, lookupCache);
-  const saved = memoizedDocsStore(activeStore(store), lookupCache);
+async function relevantDocs(question, { fetchImpl, store, queries: plannedQueries = [] } = {}) {
+  const fetchFn = fetchImpl || fetch;
+  const saved = activeStore(store);
   const queries = supportQueries(question, plannedQueries);
   const stored = await storedDocs(question, saved, plannedQueries);
   if (stored) return stored;
@@ -237,4 +198,4 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
   }
 }
 
-module.exports = { relevantDocs, storedDocs, pagesFromIndex, topPages, clipPage, newDocsLookupCache, canonicalizeGithubDocsEvidence };
+module.exports = { relevantDocs, storedDocs, pagesFromIndex, topPages, clipPage, canonicalizeGithubDocsEvidence };
