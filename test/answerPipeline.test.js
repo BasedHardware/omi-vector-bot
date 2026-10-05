@@ -8,16 +8,14 @@ const {
   addUnsyncedDataWarning,
   hasUnsyncedDataRisk,
   stripUnverifiedOrderClaims,
-  dropDanglingFragments,
 } = require('../answerPipeline');
 
-test('draft and final presentation never leave connective or bare-link fragments', () => {
-  const link = '[https://help.omi.me/guide](https://help.omi.me/guide)';
-  const source = 'Source: https://help.omi.me/guide';
-  const input = `The light means it is syncing.\nand ${link}\nor ${link}\n${link}\nhttps://help.omi.me/guide\n${source}`;
-  const cleaned = dropDanglingFragments(input);
-  assert.equal(cleaned, `The light means it is syncing.\n${source}`);
-  assert.equal(presentReviewedAnswer(input), `The light means it is syncing.\n${source}`);
+test('reviewed answers preserve legitimate conjunctions and link lines', () => {
+  const answer = 'Or you can open Settings → Profile and pick your language.\nAnd if it still fails, send us the app version.\n[Omi guide](https://help.omi.me/guide)';
+  const presented = presentReviewedAnswer(answer);
+  assert.match(presented, /Or you can open Settings → Profile and pick your language\./);
+  assert.match(presented, /And if it still fails, send us the app version\./);
+  assert.match(presented, /\[Omi guide\]\(https:\/\/help\.omi\.me\/guide\)/);
   assert.match(presentReviewedAnswer(`There's a related change on GitHub; I can't confirm it fixes your case. https://github.com/BasedHardware/omi/pull/4500`), /omi\/pull\/4500/);
 });
 

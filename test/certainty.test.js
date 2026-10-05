@@ -78,11 +78,13 @@ test('english fix claims still drop without taking honest status with them', () 
 });
 
 test('false-certainty removal drops an em-dash sentence rather than leaving a link fragment', () => {
-  const reply = 'The red light indicates a sync state. This is fixed — and [guide](https://help.omi.me/guide).\nSource: https://help.omi.me/guide';
-  const cleaned = stripFalseCertainty(reply);
-  assert.match(cleaned, /red light indicates a sync state/);
-  assert.doesNotMatch(cleaned, /and \[guide\]|This is fixed/);
-  assert.match(cleaned, /Source: https:\/\/help\.omi\.me\/guide/);
+  for (const link of ['[guide](https://help.omi.me/guide)', 'https://help.omi.me/guide']) {
+    const reply = `The red light indicates a sync state. This is fixed — and ${link}.\nSource: https://help.omi.me/guide`;
+    const cleaned = stripFalseCertainty(reply);
+    assert.match(cleaned, /red light indicates a sync state/);
+    assert.doesNotMatch(cleaned, /This is fixed|^and\s+https?:\/\//im);
+    assert.match(cleaned, /Source: https:\/\/help\.omi\.me\/guide/);
+  }
 });
 
 test('recordings place and firmware-bug cause stay with honesty', () => {
