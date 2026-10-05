@@ -54,6 +54,7 @@ const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
 const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk, stripUnverifiedOrderClaims } = require('./answerPipeline');
 const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
+const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const triage = require('./triage');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -770,7 +771,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             const reviewStart = performance.now();
             let checked;
             try {
-              checked = await reviewAnswer({
+              checked = await reviewWithSecondLook({
                 question,
                 threadHistory,
                 draft: aiResponse.final_answer,
@@ -789,11 +790,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                   .filter(Boolean)
                   .join('\n\n'),
                 sessionId: `discord-${channel.id}-review`,
-              });
+              }, { review: reviewAnswer });
             } finally {
               stageMs.review += Math.round(performance.now() - reviewStart);
             }
-            const approved = checked.relevant && checked.grounded && String(checked.final_answer || '').trim();
+            const approved = approvedReview(checked);
             reviewedGrounded = Boolean(approved);
             aiResponse.final_answer = approved
               ? github.reviewedPullMention(checked.final_answer, relatedPull)

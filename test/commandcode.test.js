@@ -423,6 +423,40 @@ test('the review gate returns grounding status and exact source ids', async () =
   }
 });
 
+test('provider-default review omits the reasoning setting', async () => {
+  let calls = 0;
+  const reviewed = await reviewAnswer({
+    question: 'How do I change this setting?',
+    draft: 'Open the app settings.',
+    lane: 'faq',
+    reasoningEffort: null,
+    post: async (_url, body) => {
+      calls += 1;
+      assert.equal(Object.hasOwn(body, 'reasoning_effort'), false);
+      return { data: { choices: [{ message: { content: JSON.stringify({
+        final_answer: 'Open the app settings.', grounded: true, relevant: true, sources_used: [],
+      }) } }] } };
+    },
+  });
+  assert.equal(calls, 1);
+  assert.equal(reviewed.final_answer, 'Open the app settings.');
+});
+
+test('an empty reviewed answer is unapproved so it can receive a second look', async () => {
+  const reviewed = await reviewAnswer({
+    question: 'How do I change this setting?',
+    draft: 'Open the app settings.',
+    lane: 'faq',
+    sources: '[S1 | Help Center]\nhttps://help.omi.me/settings\nChange the setting.',
+    post: async () => ({ data: { choices: [{ message: { content: JSON.stringify({
+      final_answer: '', grounded: true, relevant: true, sources_used: ['S1'],
+    }) } }] } }),
+  });
+  assert.equal(reviewed.final_answer, '');
+  assert.equal(reviewed.grounded, false);
+  assert.equal(reviewed.relevant, false);
+});
+
 test('reviewAnswer fails closed for an empty draft without calling the model', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-key';

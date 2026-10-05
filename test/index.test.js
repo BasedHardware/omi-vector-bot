@@ -445,6 +445,68 @@ test('answer path emits per-stage timing metrics without customer text', async (
   }
 });
 
+test('an approved second look supplies the reply and counts both reviews in timing', async () => {
+  const previousKey = process.env.CMD_API_KEY;
+  const originalLog = console.log;
+  const secondLookLines = [];
+  const timingLines = [];
+  let metric;
+  const onMetric = (value) => { metric = value; };
+  process.on('omiSupportTimings', onMetric);
+  try {
+    process.env.CMD_API_KEY = 'test-only-key';
+    emitTestUsage = true;
+    console.log = (...parts) => {
+      if (String(parts[0]).startsWith('[Review]')) secondLookLines.push(String(parts[0]));
+      else if (String(parts[0]).startsWith('[Timing]')) timingLines.push(String(parts[0]));
+      else originalLog(...parts);
+    };
+    reviewerResponse = ({ draft }) => reviewCalls.length === 1
+      ? { final_answer: 'Unrelated reply.', grounded: false, relevant: false, confidence: 0.2, escalate: true }
+      : { final_answer: draft, grounded: true, relevant: true, confidence: 0.9, escalate: false };
+    const response = await ask('How do I pair my Omi?');
+    assert.equal(reviewCalls.length, 2);
+    assert.equal(reviewCalls[1].reasoningEffort, null);
+    assert.match(response.reply, /center button/i);
+    assert.doesNotMatch(response.reply, /couldn't verify a direct answer/i);
+    assert.ok(metric.stages.review >= 0);
+    assert.equal(timingLines.length, 1);
+    assert.match(timingLines[0], /review_completion_tokens=60 review_reasoning_tokens=14/);
+    assert.deepEqual(secondLookLines, ['[Review] second look approved=true']);
+  } finally {
+    console.log = originalLog;
+    emitTestUsage = false;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+    process.off('omiSupportTimings', onMetric);
+  }
+});
+
+test('a failed second look keeps the existing review-error handoff', async (t) => {
+  const staff = enableStaffDelivery(t);
+  reviewerResponse = () => {
+    if (reviewCalls.length === 1) {
+      return { final_answer: 'Unrelated reply.', grounded: true, relevant: false, confidence: 0.2 };
+    }
+    throw new Error('test second review unavailable');
+  };
+  const response = await ask('How do I pair my Omi?');
+  assert.equal(reviewCalls.length, 2);
+  assert.match(response.reply, /couldn't verify a safe answer/i);
+  assert.equal(staff.length, 1);
+});
+
+test('two rejected reviews use the existing direct-answer fallback', async (t) => {
+  const staff = enableStaffDelivery(t);
+  reviewerResponse = () => ({
+    final_answer: 'Unrelated reply.', grounded: false, relevant: false, confidence: 0.2, escalate: true,
+  });
+  const response = await ask('How do I pair my Omi?');
+  assert.equal(reviewCalls.length, 2);
+  assert.match(response.reply, /couldn't verify a direct answer/i);
+  assert.equal(staff.length, 1);
+});
+
 test('official docs retrieval waits for the planner and runs once with its queries', async () => {
   const previousKey = process.env.CMD_API_KEY;
   const previousQueries = searchPlanQueries;

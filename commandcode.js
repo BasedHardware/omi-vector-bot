@@ -475,7 +475,7 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
   };
 }
 
-async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, handoffPlanned = false, onUsage, post }) {
+async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, handoffPlanned = false, reasoningEffort = 'low', onUsage, post }) {
   const provider = providerConfig();
   if (!String(draft || '').trim() || (!provider.key && !post)) {
     return {
@@ -498,7 +498,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     privateProviderBody({
       model: provider.reviewModel,
       temperature: 0.2,
-      reasoning_effort: 'low',
+      ...(reasoningEffort == null ? {} : { reasoning_effort: reasoningEffort }),
       messages: [
         {
           role: 'system',
@@ -545,15 +545,17 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, {
     question, language: understanding?.replyLanguage, dataLossRisk: understanding?.dataLossRisk === true,
   });
-  const answer = safety.fallback
-    ? safety.answer
-    : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, understanding?.replyLanguage);
-  if (!answer) throw new Error('CommandCode review JSON missing final_answer');
+  const answer = !String(safety.answer || '').trim()
+    ? ''
+    : safety.fallback
+      ? safety.answer
+      : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, understanding?.replyLanguage);
+  const hasAnswer = Boolean(String(answer || '').trim());
   return {
     final_answer: answer,
-    grounded: !safety.fallback && parsed.grounded === true,
-    relevant: !safety.fallback && parsed.relevant === true,
-    escalate: safety.escalate || Boolean(parsed.escalate) || parsed.grounded !== true || parsed.relevant !== true,
+    grounded: hasAnswer && !safety.fallback && parsed.grounded === true,
+    relevant: hasAnswer && !safety.fallback && parsed.relevant === true,
+    escalate: !hasAnswer || safety.escalate || Boolean(parsed.escalate) || parsed.grounded !== true || parsed.relevant !== true,
     confidence: Number.isFinite(Number(parsed.confidence)) ? Number(parsed.confidence) : 0.4,
     sources_used: sourceIds,
     answered_requirements: Array.isArray(parsed.answered_requirements)
