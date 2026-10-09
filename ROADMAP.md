@@ -34,7 +34,8 @@ These capabilities remain subject to answer-quality checks. Existing functionali
 - [x] Put empathetic, action-first, truthful communication into both answer/reviewer instructions and deterministic reply paths. Application-confirmed delivery chooses the single thread/email next step.
 - [x] Add unit regressions and an isolated SQL integration check for schema, claims, queue, case isolation, verification and revocation.
 - [x] Add PR checks with no provider/Discord secrets, and a disposable Postgres integration job.
-- [ ] Complete hosted CI and the focused three-run live evaluation after the final code settles.
+- [x] Complete hosted CI for runtime head `3960f24`: rules on Node 20/24 and the disposable Postgres job pass.
+- [x] Run a focused three-run communication evaluation: eight cases meet the pass threshold, one is flaky, none fail the threshold. This is not the 81-case held-out gate or a production smoke test.
 - [ ] Deploy through the existing smoke-test and rollback gates; verify real private delivery, restart behavior and deployment overlap.
 
 ## Milestone 2 Complete case handling and delivery recovery
@@ -68,6 +69,10 @@ Recovery, reprocessing, refunds, deletion and account mutations remain separate 
 - [ ] Continue speed work after quality holds. Never cut useful evidence to manufacture a faster score.
 
 ## Validation and operating rules
+
+Validation recorded on October 9, 2026: 593 unit/regression tests pass, the offline customer check is 8/8, and the isolated SQL check passes. Hosted CI passes on runtime head `3960f24`. The communication probe used snapshot `4d643e3`: 23/24 replies passed, with the voice-question/no-answer case missing part of the requested explanation on one run; later interaction-deadline and public-order privacy changes have separate regressions and CI coverage. Do not hide that remaining answer-quality inconsistency or call this a full held-out approval.
+
+Production has not been redeployed. The customer confirmed that the existing PR #24 smoke-test messages have not yet been posted; the approved readiness rollout and foundation release remain pending that verification.
 
 Run `npm test`, the offline customer check and the isolated database check for foundation changes. Customer-facing changes also need focused live evaluation. Held-out files stay unopened and must never become tuning inputs. Record failed checks and remaining limitations instead of marking work complete prematurely.
 
