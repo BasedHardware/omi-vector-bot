@@ -2,7 +2,7 @@ const axios = require('axios');
 const { buildSystemPrompt, buildUserPrompt, SUPPORT_COMMUNICATION_POLICY } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING, hasUnsyncedDataRisk } = require('./answerPipeline');
-const { isInstructionSentence } = require('./supportSteps');
+const { isInstructionSentence, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 const { redactSensitive } = require('./privacy');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
@@ -210,18 +210,20 @@ const SOURCE_LABELS = {
   es: 'Fuente', de: 'Quelle', pt: 'Fonte', tr: 'Kaynak', id: 'Sumber',
   fr: 'Source', hi: 'Srot', ja: '出典', zh: '来源', ko: '출처', ru: 'Источник',
 };
-const SOURCE_LABEL_NAME = '(?:Sources?|Fuentes?|Quellen?|Fonte|Fontes|Sumber|Kaynak|Srot|स्रोत|出典|来源|출처|Источник|Riferimenti)';
-const SOURCE_LABEL = new RegExp(`(?:^|\\s)${SOURCE_LABEL_NAME}\\s*:`, 'iu');
-const SOURCE_LINE = new RegExp(`^\\s*(${SOURCE_LABEL_NAME})\\s*:\\s*(.+?)\\s*$`, 'iu');
-const INLINE_EVIDENCE_GROUP = /[ \t]*(?:\((?:S\d+(?:[ \t,;|/+&-]+S\d+)*)\)|\[(?:S\d+(?:[ \t,;|/+&-]+S\d+)*)\])/gi;
+const SOURCE_LABEL = new RegExp(`(?:^|\\s)${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}`, 'iu');
+const SOURCE_LINE = new RegExp(`^\\s*(${SOURCE_LABEL_NAME})\\s*${SOURCE_LABEL_SEPARATOR}\\s*(.+?)\\s*$`, 'iu');
+const EVIDENCE_GROUP_CONTENT = 'S\\d+(?:[ \\t,;|/+&，、；｜-]+S\\d+)*';
+const INLINE_EVIDENCE_GROUP = new RegExp(`[ \\t]*(?:\\(${EVIDENCE_GROUP_CONTENT}\\)|\\[${EVIDENCE_GROUP_CONTENT}\\]|（${EVIDENCE_GROUP_CONTENT}）|［${EVIDENCE_GROUP_CONTENT}］|【${EVIDENCE_GROUP_CONTENT}】)`, 'gi');
 
 function citationOnlySourceLabel(line) {
   const match = String(line || '').match(SOURCE_LINE);
   if (!match) return '';
   const remainder = match[2]
+    .replace(/\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)/gi, '')
     .replace(/https?:\/\/[^\s,;|)]+/gi, '')
+    .replace(new RegExp(SOURCE_LABEL.source, 'giu'), '')
     .replace(/\bS\d+\b/gi, '')
-    .replace(/[\s[\](),;|+&/\-–—]+/g, '');
+    .replace(/[\s\p{P}+&/|＋｜]+/gu, '');
   return remainder ? '' : match[1];
 }
 
@@ -244,7 +246,7 @@ function cleanupEvidenceIdCitations(answer, sources) {
 }
 
 function trailingSourceLabel(line) {
-  const match = String(line || '').trim().match(/^([\p{L}\p{M}][\p{L}\p{M}\s-]{0,32})\s*:\s*((?:https:\/\/[^\s]+)(?:\s+https:\/\/[^\s]+)*)\s*$/iu);
+  const match = String(line || '').trim().match(/^([\p{L}\p{M}][\p{L}\p{M}\s-]{0,32})\s*[:：]\s*((?:https:\/\/[^\s]+)(?:\s+https:\/\/[^\s]+)*)\s*$/iu);
   if (!match) return '';
   const urls = match[2].split(/\s+/);
   return urls.every((url) => /^https:\/\/(?:help|docs|feedback)\.omi\.me\/|^https:\/\/(?:www\.)?omi\.me\/|^https:\/\/github\.com\/BasedHardware\//i.test(url))
@@ -265,7 +267,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
     if (trailing) return trailing;
     const marker = SOURCE_LABEL.exec(line);
     return marker && /https?:\/\//i.test(line.slice(marker.index))
-      ? marker[0].trim().replace(/:$/, '')
+      ? marker[0].trim().replace(/[:：]$/, '').trim()
       : '';
   }).find(Boolean);
   const body = cleanupEvidenceIdCitations(text, sources)
@@ -274,7 +276,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
       if (citationOnlySourceLabel(line)) return '';
       if (trailingSourceLabel(line)) return '';
       const marker = line.search(SOURCE_LABEL);
-      return marker >= 0 && /https:\/\//i.test(line.slice(marker))
+      return marker >= 0 && citationOnlySourceLabel(line.slice(marker).trimStart())
         ? line.slice(0, marker).trimEnd()
         : line;
     })
@@ -430,7 +432,7 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
   const published = [...new Set(sourceIds.map((id) => urls.get(String(id))).filter(Boolean))].slice(0, 2);
   const hasOfficialCitation = published.some((url) => OFFICIAL_STEP_URL.test(url));
   const hasReleaseCitation = published.some((url) => OFFICIAL_RELEASE_URL.test(url));
-  const withoutSources = original.replace(/\bSources?:\s*https:\/\/[^\s\n]+(?:\s+https:\/\/[^\s\n]+)*/gi, '');
+  const withoutSources = original.replace(new RegExp(`(^|\\s)${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}\\s*https:\\/\\/[^\\s\\n]+(?:\\s+https:\\/\\/[^\\s\\n]+)*`, 'giu'), '$1');
   let kept = '';
   let blankLines = 0;
   const dropped = [];
