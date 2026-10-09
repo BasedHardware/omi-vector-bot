@@ -79,6 +79,7 @@ test('hasRecentOrderForEmail is false without a matching order', async () => {
 });
 
 const LIVE_ENV = {
+  DATABASE_URL: '',
   SHOPIFY_STORE: 'omi-test',
   SHOPIFY_ACCESS_TOKEN: 'shpua_test',
   DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
@@ -276,4 +277,16 @@ test('releaseAttempt gives back the send it was handed, not a later one', () => 
   } finally {
     Date.now = now;
   }
+});
+
+test('/unlink revokes pending verification even when Shopify and email delivery are unavailable', async () => {
+  await withLiveShop(async () => {
+    const code = await orderFlow.verification.create('u1', 'owner@example.com');
+    await shopifyBind.set('u1', 'owner@example.com');
+    delete process.env.SHOPIFY_ACCESS_TOKEN;
+    delete process.env.RESEND_API_KEY;
+    assert.deepEqual(await send(slash('unlink')), ['Your Shopify order-email link was removed.']);
+    assert.equal(await shopifyBind.get('u1'), null);
+    assert.equal((await orderFlow.verification.verify('u1', code)).ok, false);
+  });
 });

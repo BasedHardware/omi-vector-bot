@@ -11,9 +11,9 @@ const {
 const shopify = require('./shopify');
 const shopifyBind = require('./shopifyBind');
 const shopifyEmail = require('./shopifyEmail');
-const { VerificationService, normalizeEmail } = require('./verification');
+const { PersistentVerificationService, normalizeEmail } = require('./verification');
 
-const verification = new VerificationService();
+const verification = new PersistentVerificationService();
 const ephemeral = { flags: MessageFlags.Ephemeral };
 
 const orderCommand = new SlashCommandBuilder()
@@ -124,16 +124,16 @@ async function handleOrderInteraction(interaction) {
   try {
     if (interaction.isChatInputCommand?.()) {
       if (!['order', 'orders', 'unlink'].includes(interaction.commandName)) return false;
-      if (!isLive()) {
-        await interaction.reply(notLiveReply());
-        return true;
-      }
       if (interaction.commandName === 'unlink') {
         const removed = await shopifyBind.remove(interaction.user.id);
         await interaction.reply({
           content: removed ? 'Your Shopify order-email link was removed.' : 'No Shopify email was linked.',
           ...ephemeral,
         });
+        return true;
+      }
+      if (!isLive()) {
+        await interaction.reply(notLiveReply());
         return true;
       }
       const binding = await shopifyBind.get(interaction.user.id);
@@ -169,7 +169,7 @@ async function handleOrderInteraction(interaction) {
         await interaction.reply({ content: 'That does not look like a valid email address.', ...ephemeral });
         return true;
       }
-      const reservedAt = verification.reserveAttempt(interaction.user.id, email);
+      const reservedAt = await verification.reserveAttempt(interaction.user.id, email);
       if (!reservedAt) {
         await say(interaction, 'Too many verification requests. Try again later.');
         return true;
@@ -179,11 +179,11 @@ async function handleOrderInteraction(interaction) {
       try {
         exists = await shopify.hasRecentOrderForEmail(email);
       } catch (err) {
-        verification.releaseAttempt(interaction.user.id, email, reservedAt);
+        await verification.releaseAttempt(interaction.user.id, email, reservedAt);
         throw err;
       }
       if (exists) {
-        const code = verification.create(interaction.user.id, email);
+        const code = await verification.create(interaction.user.id, email);
         const sent = await shopifyEmail.sendVerificationCode(email, code);
         if (!sent.ok) {
           await say(interaction, 'Could not send a verification email. Email help@omi.me with your Order ID.');
@@ -208,12 +208,12 @@ async function handleOrderInteraction(interaction) {
     }
 
     if (interaction.isModalSubmit?.() && interaction.customId === 'verify_code') {
-      const result = verification.verify(interaction.user.id, interaction.fields.getTextInputValue('code'));
+      const result = await verification.verify(interaction.user.id, interaction.fields.getTextInputValue('code'));
       if (!result.ok) {
         await interaction.reply({ content: result.reason, ...ephemeral });
         return true;
       }
-      await shopifyBind.set(interaction.user.id, result.email);
+      // Verification stores the link and consumes its challenge in one transaction.
       await hold(interaction);
       let orders;
       try {

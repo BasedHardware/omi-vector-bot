@@ -48,7 +48,7 @@ const STRONG_SHOP = [
 const WEAK_SHOP = [/\border\s*(#|number|id|num)\b/i, /\border\s*no\.?\s*#?\d{3,}/i];
 
 const SHOP = [...STRONG_SHOP, ...WEAK_SHOP];
-const ORDER_STATUS_OPENING = "I can't see order status from here, so I can't tell you where that order is or when it will arrive.";
+const ORDER_STATUS_OPENING = 'Let’s work through your delivery question.';
 
 const FIRMWARE = [
   /\bfirmware\b/i,
@@ -454,11 +454,11 @@ function batteryReadingReply(question) {
     lines.push(
       `You already ${hasTicket ? 'opened a support ticket' : 'contacted support'}${
         sentDiagnostics ? ' and sent diagnostics or screenshots' : ''
-      }, so I won't ask you to repeat those steps. I can't see the support queue or the device data from here; the existing case needs a person to review it.`
+      }, so you should not need to repeat those steps. The existing case needs a review of the battery readings and diagnostics.`
     );
   } else {
     lines.push(
-      "I can't verify the cause or the real battery level from chat, so I won't guess a reset or charging step. This needs a person to review as a device fault."
+      'The battery readings need a device review before the cause or a charging step can be confirmed.'
     );
   }
   lines.push('Source: https://github.com/BasedHardware/omi/issues/5653');
@@ -503,7 +503,7 @@ function whenModelDown(route, question) {
         escalate: true,
         reason: 'Question is not in English.',
       },
-      reply: "I can't answer that language from chat right now. A person will take it.",
+      reply: 'Your question needs support in your language. Automated answers are temporarily unavailable.',
     };
   }
   const known = cannedReply(route, question);
@@ -515,64 +515,53 @@ function whenModelDown(route, question) {
       escalate: !canAnswer,
       reason: canAnswer ? '' : staffReason(route, question),
     },
-    reply: known || "I can't finish this from chat right now.",
+    reply: canAnswer ? known : [known || 'You still need help with this question.', 'Automated answers are temporarily unavailable.'].join('\n\n'),
   };
-}
-
-function orderLookupLive() {
-  try {
-    return require('./orderFlow').isLive();
-  } catch {
-    return false;
-  }
 }
 
 function shopStatusReply(route, question) {
   if (route?.wantHuman || looksLikeSupportNudge(question)) {
     return [
-      "You're asking for a person from the shop team to check this shipment.",
-      "I can't provide the tracking or expected delivery date myself.",
+      "You’re asking for a person from the shop team to check this shipment.",
+      'Tracking and an expected delivery date need a verified order check.',
       "Please don't post your address or payment details here.",
     ].join(' ');
   }
-  const head = `${ORDER_STATUS_OPENING} That needs someone with access to the order system, and I'm not going to guess a date.`;
-  if (orderLookupLive()) {
-    return `${head}\n\nUse /order to check your own orders. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.`;
-  }
-  return `${head}\n\nEmail help@omi.me with the order number. Keep your order number handy.`;
+  return `${ORDER_STATUS_OPENING} An order status or delivery date needs a verified order check. Please keep your address and payment details private.`;
 }
 
 function shippingQuoteReply() {
   return [
-    'That is a checkout shipping quote, not an order-status question.',
-    "I can't override the rate or confirm a special shipping route from chat. The shop team needs to check whether another shipping option is available for your destination.",
+    'You want another option for the checkout shipping quote.',
+    'The shop team needs to check whether another shipping option is available for your destination; no different rate or route is confirmed yet.',
     "Keep a screenshot of the checkout quote ready, but don't post your full address here.",
   ].join(' ');
-}
-
-function orderNote(question) {
-  const order = String(question || '').match(/\border\s*#\s*([A-Z0-9-]{4,})/i);
-  if (!order) return ' Include the order number.';
-  return ` Include order #${order[1]}.`;
 }
 
 function cannedReply(route, question) {
   const lane = route?.lane;
   if (lane === 'money') {
     if (looksLikeTax(question)) {
-      return "This is about tax or duties on an order. I can't change that from chat.";
+      return 'You need help with tax or duties on an order. The charge needs a team review before any adjustment can be confirmed.';
     }
     if (looksLikePlan(question)) {
-      return "This is about a paid plan or a redemption code. I can't change your account from chat.";
+      return 'You need help with your paid plan or redemption code. The account needs a team review before any change can be confirmed.';
     }
-    return `I can't issue a refund, cancel an order, or change a payment from chat. Email help@omi.me and ask for the refund to the original payment method.${orderNote(question)} I can't promise the refund or a date.`;
+    const text = String(question || '');
+    if (/\brefunds?\b/i.test(text)) return 'You’re asking for a refund. The request needs a team review before a refund or timing can be confirmed.';
+    if (/\bcancel\b/i.test(text)) return 'You want to cancel your order. The request needs a team review before cancellation can be confirmed.';
+    if (/\b(?:address|shipping details)\b/i.test(text)) return 'You want to change the shipping address. The request needs a team review before an address change can be confirmed.';
+    return 'You need help with a payment or charge. The account or order needs a team review before any adjustment can be confirmed.';
   }
   if (lane === 'privacy') {
-    return "This is about deleting your account or what Omi saved. I can't do that from chat.";
+    return 'You’re asking about your account or saved data. Any account change or data deletion needs a verified privacy review.';
+  }
+  if (lane === 'account') {
+    return 'You need clarification about your account limits or plan. The account needs a team review before a limit or plan change can be confirmed.';
   }
   if (lane === 'shop') {
     if (looksLikeTax(question)) {
-      return "This is about tax or duties on an order. I can't change that from chat.";
+      return 'You need help with tax or duties on an order. The charge needs a team review before any adjustment can be confirmed.';
     }
     if (route?.intent === 'shipping_quote' || looksLikeShippingQuote(question)) {
       return shippingQuoteReply();
@@ -586,16 +575,16 @@ function cannedReply(route, question) {
   const batteryReply = batteryReadingReply(question);
   if (batteryReply) return batteryReply;
   if (lane === 'firmware') {
-    return "This looks like a problem with the Omi device itself. I can't see your device from here, so I won't guess what's wrong.";
+    return 'Your Omi device isn’t working as expected. A device review is needed to identify the cause and a safe next step.';
   }
   if (lane === 'tech' && route?.area === 'desktop') {
-    return "You wrote about the computer app. I can't open that app from here, so I won't guess a fix.";
+    return 'The computer app isn’t working as expected. A closer review is needed to find a safe next step without repeating checks you’ve already tried.';
   }
   if (lane === 'tech' && route?.area === 'unknown') {
-    return "This looks like a technical problem. I can't inspect your app or device from here, so I won't guess a fix.";
+    return 'You’re running into a technical problem. A closer review is needed to identify the cause and a safe next step.';
   }
   if (lane === 'tech') {
-    return "You wrote about the phone app. I can't open that app from here, so I won't guess a fix.";
+    return 'The phone app isn’t working as expected. A closer review is needed to find a safe next step without repeating checks you’ve already tried.';
   }
   if (/\bblue\b/i.test(String(question || '')) && /\blight\b/i.test(String(question || ''))) {
     return 'A solid blue light means the Omi is on and connected to your phone.';
@@ -665,7 +654,7 @@ function pickStaffReason(route, modelReason, question) {
 }
 
 function knownIssueReply() {
-  return "This is already marked as a known issue. I can't see the app or the device from here, so I won't add a new diagnosis. A person has to confirm it.";
+  return 'This is already marked as a known issue. A person has to confirm whether it matches your report before a cause or fix can be stated.';
 }
 
 function describe(route) {

@@ -1,4 +1,6 @@
-# AGENTS.md: omi-vector-bot
+# AGENTS.md: Omi Support Bot
+
+Read ROADMAP.md, docs/ARCHITECTURE.md and docs/RUNBOOK.md before changing support workflows. Keep the roadmap current: distinguish code implemented, tests passed, rollout pending and production verified. Do not present plans as implementation or implementation as deployment.
 
 ## Purpose
 Omi Support answers Omi customers in Discord. Every customer message must end one of two ways: a correct answer from official Omi sources that solves the problem, or a handoff to a person who receives the full case. Be fast and honest, and never expose anything private. A smaller bot that works end to end beats a bigger one that doesn't.
@@ -6,7 +8,7 @@ Omi Support answers Omi customers in Discord. Every customer message must end on
 ## Paths that must always work
 1. How-to question: a correct answer from official Omi pages, with the link.
 2. Something is broken: safe, reversible steps from a cited Help Center or docs page first, then a person if they don't fix it.
-3. "Is it fixed yet?": only the status an official source supports, otherwise "not sure". Never claim a fix shipped without a release note or merged change.
+3. "Is it fixed yet?": only the status an official source supports, otherwise "not sure". A merged change alone is not proof a fix shipped; require release/deployment evidence.
 4. Orders, refunds, replacements, warranty, account or data deletion, in any language: a verified lookup or a person. Never a promise, status or date we can't see.
 5. Needs a person: staff get the full ticket in a staff-only place, and the customer is told honestly what happens next.
 6. Real bug: one GitHub issue with no private data, linked to the Discord thread.
@@ -21,6 +23,8 @@ Omi Support answers Omi customers in Discord. Every customer message must end on
 - Never put customer text, emails, order data or attachments anywhere public. Use privacy.js.
 - Never log or commit keys or customer data. .env stays local.
 - Follow CONTRIBUTING.md for source ranking and handoff policy.
+- Be empathetic, precise and action-first. Preserve earlier attempts and give one useful next step; never invent access, completed checks, delivery, acceptance, recovery, deadlines or guaranteed outcomes.
+- Production coordination and identity state use Postgres. Never silently fall back to local memory on a database error. Keep private capabilities customer-scoped and enforced outside the model.
 - An optional feature that can't work end to end gets switched off. Core paths always keep an honest human fallback.
 
 ## Commands

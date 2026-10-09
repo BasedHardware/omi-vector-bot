@@ -150,7 +150,8 @@ test('user prompt tells the model to use staff-saved knowledge words', () => {
     knowledgeSnippets: [],
     route: { lane: 'tech', area: 'app' },
   });
-  assert.match(asked, /may still be on the watch or phone/i);
+  assert.match(asked, /Without verified diagnostic evidence, do not infer where the audio is stored/i);
+  assert.doesNotMatch(asked, /may still be on the watch or phone/i);
   const notAsked = buildUserPrompt({
     question: 'Keep getting transcription unavailable',
     threadHistory: [],

@@ -2,12 +2,13 @@
 
 Discord support agent for Omi. Customers see it as **Omi Support**. It answers product questions from retrieved Omi sources, verifies model-written answers against those sources, and hands account or device-specific work to a person without inventing a status or a ping.
 
-## Architecture planning
+## Architecture and implementation
 
-The proposed next phase is documented in [Architecture](docs/ARCHITECTURE.md) and
-[Implementation Checklist](docs/IMPLEMENTATION_PLAN.md): durable support cases,
-reliable delivery, verified metadata-only diagnostics, and empathetic communication
-backed by real actions. These documents describe planned work, not deployed access.
+The living [Roadmap](ROADMAP.md) records implemented work and pending rollout.
+[Architecture](docs/ARCHITECTURE.md), [Implementation Checklist](docs/IMPLEMENTATION_PLAN.md)
+and [Operations Runbook](docs/RUNBOOK.md) cover durable support cases, shared worker
+claims, private verification and truthful, action-first communication. The backend
+recording-diagnostics gateway remains planned, not an enabled capability.
 
 ## Answer pipeline
 
@@ -124,7 +125,10 @@ An authenticated Telegram escalation reply may also include `KB: short support n
 
 Technical handoffs can show a minimal proposed issue card. The bot searches existing issues and pull requests first, but it does not open a public issue by itself. Staff must press **File**. Filing redacts contacts, addresses, order numbers, Discord identities, and secrets from the public issue; attachments are represented only by a count and the Discord thread link. Only threads linked by the bot receive signed GitHub webhook updates, and later customer messages are redacted before any GitHub comment.
 
-Repository contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). CI is intentionally deferred until the scored answer-quality set is a release gate.
+Repository contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). PR CI runs the
+rules suite, offline customer checks and an isolated Postgres integration check
+without customer, Discord or provider credentials. Live answer quality remains a
+separate release gate.
 
 ## HTTP endpoints
 

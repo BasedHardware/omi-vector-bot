@@ -10,9 +10,6 @@ const {
   markReplied,
   wasRecentlyAnsweredText,
   markAnsweredText,
-  claimMessage,
-  claimAsker,
-  releaseAsker,
   typingDelay,
   clipForDiscord,
   clipThreadHistory,
@@ -56,6 +53,8 @@ const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAn
 const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
 const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const triage = require('./triage');
+const supportCases = require('./supportCases');
+const { SupportRuntime, PostgresRuntimeStore, MemoryRuntimeStore, questionFingerprint, assertCurrentOwnership, markCurrentReplySent, isLeaseLost } = require('./supportRuntime');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
 const VECTOR_TEST_CHANNEL_ID = process.env.VECTOR_TEST_CHANNEL_ID;
@@ -63,6 +62,11 @@ const PORT = process.env.PORT || 3000;
 const KNOWLEDGE_REFRESH_MS = 6 * 60 * 60 * 1000;
 const telegramReady = Boolean(process.env.TELEGRAM_TOKEN && process.env.TELEGRAM_CHAT_ID);
 const dbReady = Boolean(process.env.DATABASE_URL);
+const runtime = new SupportRuntime({ store: dbReady ? new PostgresRuntimeStore(db.pool) : new MemoryRuntimeStore() });
+let coordinationReady = !dbReady;
+let httpServer;
+let shutdownPromise;
+let recoveryTimer;
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
 const botReplyOwners = new Map();
@@ -76,10 +80,13 @@ const client = new Client({
 });
 
 const app = express();
-app.get('/health', (_req, res) => res.json({
-  status: 'ok',
-  staffHandoff: process.env.STAFF_ALERT_CHANNEL_ID || telegram.isReady() ? 'configured' : 'missing',
-}));
+app.get('/health', (_req, res) => {
+  const ready = coordinationReady && !runtime.stopping;
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ok' : 'not_ready',
+    staffHandoff: process.env.STAFF_ALERT_CHANNEL_ID || telegram.isReady() ? 'configured' : 'missing',
+  });
+});
 app.get('/ratings', async (_req, res) => {
   const { ratingCounts } = require('./ratings');
   const counts = await ratingCounts();
@@ -136,6 +143,7 @@ function rememberBotReply(sent, message) {
 }
 
 async function replySafe(message, content, { pingAuthor = false } = {}) {
+  await assertCurrentOwnership();
   let text = ensureNonEmptyAnswer(rewriteUserMentions(ensureNonEmptyAnswer(content), message));
   if (pingAuthor) text = attachAuthorMention(text, message);
   const payload = {
@@ -147,6 +155,7 @@ async function replySafe(message, content, { pingAuthor = false } = {}) {
       ...payload,
       allowedMentions: replyMentions(message, { pingAuthor, repliedUser: true }),
     });
+    markCurrentReplySent();
     rememberBotReply(sent, message);
     return sent;
   } catch (err) {
@@ -155,6 +164,7 @@ async function replySafe(message, content, { pingAuthor = false } = {}) {
     }
     console.error('[Bot] reply reference missing, sending in channel:', err.message);
     const sent = await message.channel.send(payload);
+    markCurrentReplySent();
     rememberBotReply(sent, message);
     return sent;
   }
@@ -434,8 +444,10 @@ async function postIssueCard(channel, draft, githubHit) {
   if (!channel?.send || !draft) return;
   const url = githubHit?.duplicate?.url || '';
   try {
+    await assertCurrentOwnership();
     await channel.send({ embeds: [github.formatIssueCard(draft, { url })] });
   } catch (err) {
+    if (isLeaseLost(err)) throw err;
     console.error('[Bot] issue card failed:', err.message);
   }
 }
@@ -443,6 +455,7 @@ async function postIssueCard(channel, draft, githubHit) {
 async function postShopTicketCard(channel, triaged) {
   if (!channel?.send || !triaged) return;
   try {
+    await assertCurrentOwnership();
     await channel.send({
       embeds: [
         github.formatShopTicketCard({
@@ -452,6 +465,7 @@ async function postShopTicketCard(channel, triaged) {
       ],
     });
   } catch (err) {
+    if (isLeaseLost(err)) throw err;
     console.error('[Bot] shop ticket card failed:', err.message);
   }
 }
@@ -479,29 +493,25 @@ function redactStaffQuestion(text) {
 }
 
 async function handleMessage(message) {
+  if (runtime.stopping || !coordinationReady) return { status: 'stopping' };
   if (
     !directlyMentionsBot(message.content) &&
     (isHelpThread(message.channel) || isTrustedHandoffThread(message.channel)) &&
     (await repliesToDifferentHuman(message))
   ) {
-    return;
+    return { status: 'ignored' };
   }
   let directHistory = [];
   if (!shouldHandle(message)) {
     directHistory = await directContinuationHistory(message);
-    if (!directHistory.length) return;
+    if (!directHistory.length) return { status: 'ignored' };
   }
   if (
     message.channel?.isThread?.() &&
     wasRecentlyAnsweredText(message.channel.id, message.author?.id, message.content)
   ) {
-    return;
+    return { status: 'ignored' };
   }
-  if (!claimMessage(message.id)) {
-    console.log(`[Bot] already handling ${message.id}`);
-    return;
-  }
-
   const channel = message.channel;
   const replyCooldownKey = `${channel.id}:${message.author.id}`;
   // In ordinary channels, rate-limit each customer independently. A direct
@@ -513,17 +523,49 @@ async function handleMessage(message) {
     !channel.isThread?.()
   ) {
     console.log(`[Bot] Cooldown active for ${channel.id}, skipping`);
-    return;
-  }
-  const asker = `${channel.id}:${message.author.id}`;
-  if (!isTestChannel(channel) && !claimAsker(asker)) {
-    console.log(`[Bot] Still answering this customer in ${channel.id}, skipping`);
-    return;
+    return { status: 'ignored' };
   }
   try {
-    await answerMessage(message, { directHistory });
-  } finally {
-    releaseAsker(asker);
+    return await runtime.run({
+      messageId: message.id,
+      caseKey: replyCooldownKey,
+      fingerprint: channel.isThread?.() ? questionFingerprint(message.content) : null,
+    }, () => {
+      // A concurrently queued ordinary-channel question must observe the
+      // reply cooldown established by the preceding job, not its arrival time.
+      if (!directHistory.length && !isTestChannel(channel) && !channel.isThread?.() && isOnCooldown(replyCooldownKey)) return false;
+      return answerMessage(message, { directHistory });
+    });
+  } catch (err) {
+    console.error('[SupportRuntime] request coordination failed');
+    // Never let a stale worker send after its lease has been taken by another copy.
+    if (err.message === 'support lease lost' || err.replyAlreadySent) return { status: 'failed' };
+    try {
+      await message.reply({
+        content: 'I am having trouble saving this support request. Please email help@omi.me so the team can receive it.',
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    } catch { console.error('[SupportRuntime] fallback delivery failed'); }
+    return { status: 'failed' };
+  }
+}
+
+async function recoverQueuedRequest(input) {
+  const [channelId, customerId] = input.caseKey.split(':');
+  try {
+    const channel = await client.channels.fetch(channelId);
+    const message = await channel?.messages?.fetch?.(input.messageId);
+    if (!message || String(message.author?.id) !== customerId || !shouldHandle(message)) {
+      // Direct-reply continuations also require their original customer proof.
+      if (!message || String(message.author?.id) !== customerId || !(await directContinuationHistory(message)).length) {
+        await runtime.store.discard(input); return;
+      }
+    }
+    const result = await handleMessage(message);
+    if (['ignored', 'duplicate'].includes(result?.status)) await runtime.store.discard(input);
+  } catch (err) {
+    if ([10003, 10008, 50001, 50013].includes(Number(err.code))) await runtime.store.discard(input);
+    else console.error('[SupportRuntime] queued request recovery failed');
   }
 }
 
@@ -533,6 +575,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
   const stageUsage = newUsageCounters();
   const onUsage = (event) => addStageUsage(stageUsage, event);
   let didReply = false;
+  let answered = false;
   const channel = message.channel;
   const caption = messageCaption(message.content);
   const files = await fetchTextAttachments(message.attachments);
@@ -559,6 +602,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
   const changes = github.linkedChanges(question);
   if (question.length < 5) {
     if (unreadMedia && !changes.length) {
+      await assertCurrentOwnership();
       await message.reply({
         content: unreadMediaSentence(),
         allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
@@ -920,7 +964,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     if (groundedShop && !holdPublicCopy) {
       const verifiedLookup = Boolean(shopifyLookup?.order);
       cleanAnswer = stripUnverifiedOrderClaims(cleanAnswer, { verifiedLookup });
-      if (!verifiedLookup && !/^I can't see order status from here\b/i.test(cleanAnswer)) {
+      if (!verifiedLookup && !cleanAnswer.startsWith(router.ORDER_STATUS_OPENING)) {
         cleanAnswer = `${router.ORDER_STATUS_OPENING}\n\n${cleanAnswer}`;
       }
     }
@@ -963,6 +1007,19 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (escalate) {
+      await assertCurrentOwnership();
+      const previousCase = await supportCases.getCaseByThread(channel.id, message.author.id);
+      let supportCase = await supportCases.getOrCreateCase({
+        channelId: previousCase?.channelId || channel.id, customerId: message.author.id,
+        customerThreadId: channel.isThread?.() ? channel.id : undefined,
+        context: { area: triaged.area, lane: triaged.lane, dataLossRisk, needsPerson: true,
+          attachmentCount: message.attachments?.size || 0, reasonCodes: dataLossRisk ? ['data_loss_risk'] : ['needs_person'] },
+        sources: cleanAnswer.match(/https:\/\/[^\s)>]+/g) || [],
+      });
+      if (dbReady && !supportCase.escalationId) {
+        supportCase = await supportCases.linkHandoff(supportCase.id, { escalationId: await db.createEscalation(channel.id) });
+      }
+      const deliveredCase = ['delivered', 'accepted'].includes(supportCase.status);
       console.log(`[Bot] Escalating channel=${channel.id} area=${triaged.area} signals=${escalationSignals.join(',')}`);
       const techLane = router.isTechLane({ lane: triaged.lane, area: triaged.area });
       if (github.isConfigured() && techLane && !githubHit?.duplicate) {
@@ -975,7 +1032,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       let cardHere = false;
       let deliveryFailed = false;
       let handoffThread = inHandoff ? channel : null;
-      if (!inHandoff && shouldReuseOpenHandoff(channel)) {
+      if (deliveredCase && !inHandoff && shouldReuseOpenHandoff(channel)) {
         const existing = await findOpenHandoff(channel, {
           userId: message.author?.id,
           question: asked,
@@ -983,6 +1040,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         });
         if (existing) {
           try {
+            await assertCurrentOwnership();
             await existing.send({
               content: rewriteUserMentions(escalateReply(cleanAnswer, { pinged: true, conversation: true, footers: localizedFooters }), message),
               allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
@@ -994,14 +1052,17 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             await applyThreadName(existing, nameMeta);
             console.log(`[Bot] Reusing Handoff ${existing.id} for ${channel.id}`);
           } catch (err) {
+            if (isLeaseLost(err)) throw err;
             reuseFailed = true;
             console.error('[Bot] reuse thread reply failed:', err.message);
           }
         }
       }
-      if (!reused && (!stayInPost || handoffFollowup)) {
+      if (!reused && (!stayInPost || handoffFollowup || !deliveredCase)) {
         try {
+          await assertCurrentOwnership();
           const handoff = await notifyStaff({
+            caseId: supportCase.id,
             client,
             message,
             question: staffQuestion,
@@ -1024,6 +1085,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           cardHere = handoff.via === 'channel' && Boolean(channel.isThread?.());
           duplicate = Boolean(handoff.duplicate);
           handoffThread = handoff.thread || handoffThread;
+          if (handoff.threadId) await supportCases.linkHandoff(supportCase.id, { handoffThreadId: handoff.threadId });
+          if (handoff.ok) await supportCases.markDelivered(supportCase.id, {
+            confirmed: true, destination: handoff.deliveredVia || handoff.via,
+          });
           if (handoff.thread && handoff.ok) {
             rememberOpenHandoff(channel.id, message.author?.id, handoff.thread);
             await applyThreadName(handoff.thread, nameMeta);
@@ -1035,7 +1100,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             `[Bot] Handoff ${channel.id} via=${handoff.via || 'none'} ok=${pinged}`
           );
         } catch (err) {
-          deliveryFailed = true;
+          if (isLeaseLost(err)) throw err;
+          deliveryFailed = !pinged;
           console.error('[Bot] Handoff failed:', err.message);
         }
       }
@@ -1060,7 +1126,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
       const movedToThread = !inHandoff && Boolean(handoffThread?.id);
       let parentReply = escalateReply(cleanAnswer, {
-        pinged: pinged || inHandoff,
+        pinged: pinged || deliveredCase,
         duplicate,
         conversation: stayInPost && !handoffFollowup,
         issue:
@@ -1080,12 +1146,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
       await replySafe(message, parentReply, { pingAuthor });
       didReply = true;
-      if (dbReady) {
-        await db.createEscalation(channel.id);
-      }
+      answered = true;
     } else {
       await replySafe(message, cleanAnswer, { pingAuthor });
       didReply = true;
+      answered = true;
     }
 
     if (stayInPost) await noteCustomerLead(channel, message);
@@ -1095,8 +1160,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       await db.upsertThread(channel.id, message.id);
     }
   } catch (err) {
+    if (isLeaseLost(err)) throw err;
     console.error(`[Bot] Error in ${channel.id}:`, err.message);
-    try {
+    if (!didReply) try {
       await replySafe(
         message,
         'Something broke on my side. I have not pinged anyone. Try that again in a moment.'
@@ -1110,6 +1176,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     if (didReply) console.log(timingLogLine({ ...stageMs, total }, stageUsage));
     process.emit('omiSupportTimings', { messageId: message.id, stages: { ...stageMs, total } });
   }
+  return answered ? 'answered' : didReply ? 'failed' : 'ignored';
 }
 
 client.on(Events.ThreadCreate, async (thread) => {
@@ -1132,7 +1199,9 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
-  commands.handleInteraction(interaction);
+  return runtime.track(() => commands.handleInteraction(interaction)).catch(() => {
+    console.error('[Bot] interaction handling failed');
+  });
 });
 
 commands.setTestQuestionHandler(async (interaction, question) => {
@@ -1164,6 +1233,10 @@ async function nickOmiSupport(client) {
 }
 
 client.once(Events.ClientReady, async () => {
+  recoveryTimer = setInterval(() => {
+    runtime.track(() => runtime.recoverQueued(recoverQueuedRequest)).catch(() => console.error('[SupportRuntime] queued request lookup failed'));
+  }, 1000);
+  recoveryTimer.unref();
   console.log(`[Bot] Logged in as ${client.user.tag}`);
   await nickOmiSupport(client);
   if (VECTOR_TEST_CHANNEL_ID) {
@@ -1207,19 +1280,22 @@ async function start() {
   if (dbReady) {
     try {
       await db.initSchema();
+      await require('./supportIdentityStore').getStore().pruneExpired();
+      coordinationReady = true;
       await github.hydrateIssueThreads();
       const { fillIfEmpty } = require('./scripts/fill-db');
       fillIfEmpty().catch((err) => console.error('[DB] fill failed:', err.message));
       const refresh = setInterval(() => {
         fillIfEmpty().catch((err) => console.error('[DB] refresh failed:', err.message));
+        require('./supportIdentityStore').getStore().pruneExpired().catch(() => console.error('[DB] support identity cleanup failed'));
       }, KNOWLEDGE_REFRESH_MS);
       refresh.unref();
     } catch (err) {
-      console.error('[DB] schema failed:', err.message);
+      throw new Error('Support database initialization failed');
     }
   }
 
-  app.listen(PORT, () => {
+  httpServer = app.listen(PORT, () => {
     console.log(`[Health] Listening on port ${PORT}`);
   });
 
@@ -1232,13 +1308,20 @@ async function start() {
 }
 
 async function shutdown(signal) {
-  console.log(`[Bot] Received ${signal}, shutting down...`);
-  telegram.stopPolling();
-  client.destroy();
-  if (dbReady) {
-    await db.shutdown();
-  }
-  process.exit(0);
+  if (shutdownPromise) return shutdownPromise;
+  shutdownPromise = (async () => {
+    console.log(`[Bot] Received ${signal}, draining replies...`);
+    runtime.stopAccepting();
+    clearInterval(recoveryTimer);
+    telegram.stopPolling();
+    const [drained, telegramDrained] = await Promise.all([runtime.drain(), telegram.drainPolling()]);
+    console.log(`[SupportRuntime] drain completed=${drained} telegram_completed=${telegramDrained}`);
+    client.destroy();
+    if (dbReady) await db.shutdown();
+    httpServer?.close();
+    process.exit(0);
+  })();
+  return shutdownPromise;
 }
 
 if (require.main === module) {
@@ -1254,4 +1337,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, client, handleMessage, shouldHandle };
+module.exports = { app, client, handleMessage, shouldHandle, runtime };

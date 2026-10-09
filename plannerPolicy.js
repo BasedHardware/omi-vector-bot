@@ -127,17 +127,17 @@ function personReply(kind, route, question, understanding) {
   } else if (kind === 'account_action') {
     reply = route?.lane === 'privacy'
       ? router.cannedReply(route, question)
-      : "I can't change your account from chat. A person needs to review this privately.";
+      : router.cannedReply({ ...route, lane: 'account' }, question);
   } else if (kind === 'privacy') {
-    reply = "I can't delete your data from chat. A person needs to review this privately.";
+    reply = router.cannedReply({ ...route, lane: 'privacy' }, question);
   } else if (kind === 'money') {
-    reply = "I can't change billing from chat. A person needs to review the request.";
+    reply = router.cannedReply({ ...route, lane: 'money' }, question);
   } else if (route?.wantHuman) {
     reply = 'A person needs to review your request.';
   } else if (route?.lane === 'money') {
-    reply = "I can't issue or promise a refund from chat. A person needs to review the request.";
+    reply = router.cannedReply(route, question);
   } else if (/\b(?:replacement|warranty)\b/i.test(String(question || ''))) {
-    reply = "I can't approve a replacement or warranty exception from chat. A person needs to review this request.";
+    reply = 'You need help with a replacement or warranty request. Coverage or a replacement needs a team review before it can be confirmed.';
   } else {
     reply = 'A person needs to review this request.';
   }

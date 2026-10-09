@@ -171,6 +171,7 @@ const github = require('../github');
 const commands = require('../commands');
 const { app, client, handleMessage, shouldHandle } = require('../index');
 const router = require('../router');
+const supportCases = require('../supportCases');
 const { unreadMediaSentence } = require('../attachments');
 
 client.user = new User(client, { id: BOT_ID, username: 'vector', bot: true });
@@ -367,6 +368,7 @@ function enableStaffDelivery(t) {
 }
 
 test.beforeEach(() => {
+  supportCases.setStoreForTests(supportCases.createMemoryStore());
   modelCalls.length = 0;
   modelReply = {};
   modelDown = false;
@@ -401,10 +403,11 @@ test.beforeEach(() => {
 test('/health reports missing staff delivery without revealing IDs', () => {
   const health = app._router.stack.find((layer) => layer.route?.path === '/health').route.stack[0].handle;
   let body;
-  health({}, { json: (value) => { body = value; } });
+  const response = { status: (value) => { assert.equal(value, 200); return response; }, json: (value) => { body = value; } };
+  health({}, response);
   assert.equal(body.staffHandoff, 'missing');
   process.env.STAFF_ALERT_CHANNEL_ID = 'private-staff-room';
-  health({}, { json: (value) => { body = value; } });
+  health({}, response);
   assert.equal(body.staffHandoff, 'configured');
   assert.equal(JSON.stringify(body).includes('private-staff-room'), false);
   delete process.env.STAFF_ALERT_CHANNEL_ID;
@@ -588,7 +591,7 @@ test('missing delivery gets a grounded answer, no invented status, and a staff h
   const result = await ask(question);
   assert.equal(result.modelCalled, true);
   assert.ok(plannerCalls.includes(question));
-  assert.match(result.reply, /^I can't see order status from here/i);
+  assert.ok(result.reply.startsWith(router.ORDER_STATUS_OPENING));
   assert.doesNotMatch(result.reply, /Your order was delivered yesterday/i);
   assert.match(result.reply, /tracking link in the shipping email/i);
   assert.match(result.reply, /contact the carrier/i);
@@ -606,7 +609,7 @@ test('a delivered Omi that never arrived gets grounded delivery handling without
   };
   const result = await ask("UPS says my Omi was delivered yesterday but it isn't here");
   assert.equal(result.modelCalled, true);
-  assert.match(result.reply, /^I can't see order status from here/i);
+  assert.ok(result.reply.startsWith(router.ORDER_STATUS_OPENING));
   assert.doesNotMatch(result.reply, /Your Omi was delivered yesterday/i);
   assert.match(result.reply, /tracking link from the shipping email/i);
   assert.equal(staff.length, 1);
@@ -1062,7 +1065,7 @@ test('an order status question checks sources, keeps email fallback when undeliv
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('Where is my order? I still have no tracking email.');
   assert.equal(r.modelCalled, true);
-  assert.match(r.reply, /^I can't see order status from here/i);
+  assert.ok(r.reply.startsWith(router.ORDER_STATUS_OPENING));
   assert.match(r.reply, /help@omi\.me/);
   assert.equal(/\/order/.test(r.reply), false);
   assert.ok(r.thread);
@@ -1289,7 +1292,8 @@ test('a later no-chat follow-up does not repeat notification advice or restart t
   assert.equal(modelCalls.length, models + 1);
   assert.match(reply, /rules out.*notification-permission/i);
   assert.match(reply, /no AI message appears in Chat/i);
-  assert.doesNotMatch(reply, /check.*notifications?|help@omi\.me|try.*reconnect/i);
+  assert.doesNotMatch(reply, /check.*notifications?|try.*reconnect/i);
+  assert.match(reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.equal(follow.threads.length, 0);
 });
 

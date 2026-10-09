@@ -84,7 +84,7 @@ test('money tickets with an order key still look up Shopify', async () => {
       return {
         status: 200,
         ok: true,
-        json: async () => ({ orders: [SAMPLE] }),
+        json: async () => ({ orders: [{ ...SAMPLE, name: '#20716' }] }),
       };
     };
     const blocked = await shopify.lookupOrder(taxQ, { fetchImpl });
@@ -141,15 +141,15 @@ test('staff facts include city and country, not street', () => {
   assert.equal(/hidden@example/.test(facts), false);
 });
 
-test('buildUserReply asks for keys, reports a miss, and does not refund', () =>
+test('buildUserReply keeps verification private, reports an exact miss, and does not promise a refund', () =>
   withShopifyEnv(() => {
     assert.match(
       shopify.buildUserReply({ reason: 'unverified' }, 'Where is my order #1042?'),
-      /can't look up Shopify/i
+      /use \/order and verify the email/i
     );
     assert.match(
       shopify.buildUserReply({ reason: 'no-key' }, 'Where is my order?'),
-      /order number or the email on the order/
+      /verify the email on your order/i
     );
     const miss = shopify.buildUserReply({ reason: 'miss' }, 'Where is my order #1042?');
     assert.match(miss, /did not find/);
@@ -159,7 +159,7 @@ test('buildUserReply asks for keys, reports a miss, and does not refund', () =>
       { ok: true, order: shopify.summarizeOrder(SAMPLE) },
       'I want a refund on order #1042'
     );
-    assert.match(refund, /can't issue a refund/i);
+    assert.match(refund, /needs a team review/i);
     assert.match(refund, /paid/);
     assert.equal(/issued a refund/i.test(refund), false);
   }));
@@ -238,6 +238,105 @@ test('lookupOrder does not return another customer order for a guessed number', 
     });
     assert.equal(result.ok, false);
     assert.equal(result.reason, 'miss');
+  });
+});
+
+test('an exact order miss never falls back to another order for the verified email', async () => {
+  await withShopifyEnv(async () => {
+    const calls = [];
+    const result = await shopify.lookupOrder('Please check order #9999', {
+      verifiedEmail: 'hidden@example.com',
+      fetchImpl: async (url) => {
+        calls.push(new URL(url));
+        return { status: 200, ok: true, json: async () => ({
+          orders: new URL(url).searchParams.has('name') ? [] : [SAMPLE],
+        }) };
+      },
+    });
+    assert.deepEqual(result, { ok: false, reason: 'miss' });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].searchParams.get('name'), '#9999');
+    assert.equal(calls[0].searchParams.has('email'), false);
+  });
+});
+
+test('a name-filter response must match both the requested number and verified email', async () => {
+  await withShopifyEnv(async () => {
+    for (const raw of [SAMPLE, { ...SAMPLE, name: '#9999', email: 'other@example.com' }]) {
+      let calls = 0;
+      const result = await shopify.lookupOrder('order #9999', {
+        verifiedEmail: 'hidden@example.com',
+        fetchImpl: async () => {
+          calls += 1;
+          return { status: 200, ok: true, json: async () => ({ orders: [raw] }) };
+        },
+      });
+      assert.deepEqual(result, { ok: false, reason: 'miss' });
+      assert.equal(calls, 1);
+    }
+    const matching = await shopify.lookupOrder('order #9999', {
+      verifiedEmail: 'HIDDEN@example.com',
+      fetchImpl: async () => ({ status: 200, ok: true, json: async () => ({
+        orders: [SAMPLE, { ...SAMPLE, name: '#9999' }],
+      }) }),
+    });
+    assert.equal(matching.ok, true);
+    assert.equal(matching.order.name, '#9999');
+  });
+});
+
+test('email-filter results are independently ownership-checked for lookup and listing', async () => {
+  await withShopifyEnv(async () => {
+    const fetchImpl = async () => ({ status: 200, ok: true, json: async () => ({
+      orders: [{ ...SAMPLE, email: 'other@example.com' }],
+    }) });
+    assert.deepEqual(await shopify.lookupOrder('Where is my order?', {
+      verifiedEmail: 'hidden@example.com', fetchImpl,
+    }), { ok: false, reason: 'miss' });
+    assert.deepEqual(await shopify.ordersForVerifiedEmail('hidden@example.com', { fetchImpl }), {
+      ok: true, orders: [],
+    });
+  });
+});
+
+test('order requests pin a supported API version and reject a silently changed response contract', async () => {
+  await withShopifyEnv(async () => {
+    assert.equal(shopify.API_VERSION, '2026-10');
+    for (const servedVersion of ['2026-10', '2027-01']) {
+      const warnings = [];
+      const previousWarn = console.warn;
+      console.warn = (line) => warnings.push(line);
+      try {
+        const result = await shopify.lookupOrder('order #1042', {
+          verifiedEmail: 'hidden@example.com',
+          fetchImpl: async (url) => {
+            assert.match(String(url), /\/admin\/api\/2026-10\/orders\.json/);
+            return { status: 200, ok: true, headers: new Headers({ 'X-Shopify-API-Version': servedVersion }),
+              json: async () => ({ orders: [SAMPLE] }) };
+          },
+        });
+        assert.equal(result.ok, servedVersion === shopify.API_VERSION);
+        assert.equal(warnings.length, servedVersion === shopify.API_VERSION ? 0 : 1);
+        assert.doesNotMatch(warnings.join(' '), /hidden@example|shpua|1042/);
+      } finally { console.warn = previousWarn; }
+    }
+  });
+});
+
+test('lookup errors do not log private request or credential details', async () => {
+  await withShopifyEnv(async () => {
+    const logs = [];
+    const previousError = console.error;
+    console.error = (...parts) => logs.push(parts.join(' '));
+    try {
+      const result = await shopify.lookupOrder('order #1042', {
+        verifiedEmail: 'hidden@example.com',
+        fetchImpl: async () => { throw new Error('Request failed email=hidden@example.com token=private-test-value order=1042'); },
+      });
+      assert.deepEqual(result, { ok: false, reason: 'error' });
+      assert.equal(logs.length, 1);
+      assert.doesNotMatch(logs.join(' '), /hidden@example|private-test-value|1042/);
+    } finally { console.error = previousError; }
   });
 });
 

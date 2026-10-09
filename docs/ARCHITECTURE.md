@@ -1,17 +1,19 @@
-# Omi Support Bot Architecture Proposal
+# Omi Support Bot Architecture
 
-Omi Support Bot should solve documented problems, investigate verified customer issues through narrowly scoped checks, and keep unresolved cases moving toward a person. Customer reassurance must describe actions and evidence the system can verify. This is a proposed design, not a record of newly granted access or deployed features. The existing official-source answer and review pipeline remains in place.
+Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. The workflow foundation described below is implemented on the working branch; production rollout is tracked separately in [the roadmap](../ROADMAP.md). The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
 
 ## Current capabilities and gaps
 
 The bot already retrieves official knowledge, checks answers, reads verified Shopify orders, sends private staff cards, and supports staff-approved GitHub filing. It has no customer recording-diagnostics integration. Personal access to GCP does not authorize the bot.
 
-Several workflow gaps need attention before private-data access expands:
+The implemented foundation addresses these audited workflow gaps:
 
-- Message claims, customer locks, order verification, and verification throttles live in process memory. Restarts lose that state, and overlapping copies cannot coordinate it (`utils.js`, `verification.js`, `shopifyBind.js`).
-- Escalation records contain a thread, status, and creation time, not a complete case. `/done` closes Discord without resolving that database record. Telegram can resolve it after a failed customer delivery (`db.js`, `commands.js`, `telegram.js`).
-- Shutdown destroys the Discord connection without waiting for replies in progress. There is no global worker cap or durable delivery queue (`index.js`).
-- An explicit order-number miss can fall back to another order for the verified email. Order listing is bounded to five by default (`shopify.js`, `orderFlow.js`).
+- Postgres now holds shared claims, case leases, repeat fingerprints and encrypted verification/throttle state. Memory remains a development/evaluation mode only (`supportRuntime.js`, `supportIdentityStore.js`).
+- Durable cases distinguish delivery, actual staff acceptance and closure. `/done` and Telegram resolve only after customer delivery; customer-authorized reopening protects newer cases (`supportCases.js`, `commands.js`, `telegram.js`).
+- Three leased worker slots bound execution. Excess requests persist metadata-only references for recovery; shutdown drains accepted work and queues work that has not started. Started requests with uncertain delivery are not blindly replayed (`supportRuntime.js`, `index.js`).
+- An explicit order miss no longer substitutes another order; returned facts must match both the requested number and verified owner. Historical-order pagination/access remains follow-up work (`shopify.js`, `orderFlow.js`).
+
+A complete delivery outbox, retained cumulative case summary, staff queue and customer diagnostic gateway remain implementation work, not guarantees of this foundation.
 
 A bounded October 6–9, 2026 sample contained ten timed replies and ten escalation log lines. Three of nine sampled bot-authored help-thread messages contained inability/access wording. The sample excluded archived threads and was not a census or answer-quality grade; it does not establish that most replies have this problem.
 
@@ -68,7 +70,7 @@ Use the exact verified order privately when available. Refund, replacement, bill
 
 ### Human handoff and closure
 
-Persist `awaiting_customer`, `queued_for_staff`, `delivered_to_staff`, `accepted_by_staff`, `resolved`, and `closed` states, with an explicit reopening transition. Delivery failure is an attempt outcome, not case resolution. Staff receive one cumulative private case and a link to the customer conversation. Reminders and target response times belong to a real staffed queue; do not publish an SLA before an owner commits to it.
+The current case states are `queued`, `delivered`, `accepted`, `resolved`, and `closed`, with an explicit reopening transition. An authenticated staff acceptance records its actor and time; delivery alone does not count. Delivery failure is an attempt outcome, not resolution. Staff get the current intake and a link to the conversation; a retained cumulative summary and a distinct `awaiting_customer` state are follow-up work. Reminders and target response times belong to a real staffed queue; do not publish an SLA before an owner commits to it.
 
 ## Communication policy
 

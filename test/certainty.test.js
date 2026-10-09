@@ -136,13 +136,16 @@ test('a user line cannot rewrite the tool facts', () => {
   assert.equal(prompt.includes('order shipped yesterday'), false);
 });
 
-test('a follow-up keeps a merged pull request already in the thread', () => {
+test('a follow-up preserves merged-PR context without treating it as a deployed fix', () => {
   const prompt = buildUserPrompt({
     question: 'so if this is the wrong pr bring a support guy',
     threadHistory: [{ author: 'bot', content: 'Pull request #12473 has been merged.' }],
     route: { lane: 'tech', area: 'desktop' },
   });
-  assert.match(prompt, /If an earlier message says a pull request has been merged, keep that/);
+  assert.match(prompt, /bot: Pull request #12473 has been merged\./);
+  assert.match(prompt, /useful context, not proof that a fix was released or deployed/i);
+  assert.match(prompt, /verify status against official evidence before making a claim/i);
+  assert.doesNotMatch(prompt, /Do not say the cause is still unknown/i);
 });
 
 test('the draft prompt carries the interpreted goal and answer requirements', () => {

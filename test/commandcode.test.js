@@ -71,6 +71,38 @@ test('planned staff handoff tells both answer and review to keep the customer in
   }
 });
 
+test('answer and reviewer share the action-first truthful communication contract', async (t) => {
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+  });
+  const { SUPPORT_COMMUNICATION_POLICY } = require('../prompt');
+  const captured = [];
+  const post = async (_url, body) => {
+    captured.push(body.messages[0].content);
+    return { data: { choices: [{ message: { content: JSON.stringify({
+      final_answer: 'You want a refund. The request needs a team review.',
+      grounded: true, relevant: true, confidence: 0.8, escalate: true, sources_used: [],
+    }) } }] } };
+  };
+  await queryAgent({ question: 'Please refund my purchase', route: { lane: 'money', area: 'shop' }, post });
+  const reviewed = await reviewAnswer({ question: 'Please refund my purchase',
+    draft: 'You want a refund. The request needs a team review.', lane: 'money', handoffPlanned: true, post });
+  assert.equal(captured.length, 2);
+  for (const system of captured) {
+    assert.ok(system.includes(SUPPORT_COMMUNICATION_POLICY));
+    assert.match(system, /before delivery is confirmed/i);
+    assert.match(system, /Never guarantee a refund, replacement, recovery/i);
+  }
+  assert.equal(reviewed.grounded, true);
+  assert.equal(reviewed.relevant, true);
+  assert.equal(reviewed.escalate, true);
+  assert.deepEqual(reviewed.sources_used, []);
+  assert.doesNotMatch(reviewed.final_answer, /will reply|approved|refund issued/i);
+});
+
 test('each provider stage reports completion and reasoning tokens to its reply callback', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';

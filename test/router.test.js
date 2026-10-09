@@ -33,11 +33,11 @@ test('order and tracking are shop', () => {
   assert.equal(numbered.lane, 'shop');
   assert.equal(router.skipModel(numbered), true);
   const canned = router.cannedReply(numbered, 'where is order #1042');
-  assert.match(canned, /help@omi\.me/);
+  assert.match(canned, /verified order check/i);
   assert.doesNotMatch(canned, /Order lookup in chat is not live yet/);
   const delivered = require('../utils').stripSupportRedirect(canned);
-  assert.match(delivered, /can't see order status from here/i);
-  assert.match(delivered, /needs someone with access to the order system/i);
+  assert.ok(delivered.startsWith(router.ORDER_STATUS_OPENING));
+  assert.match(delivered, /verified order check/i);
   assert.doesNotMatch(delivered, /Email help@omi\.me/);
   assert.equal(/\/order/.test(canned), false);
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
@@ -214,7 +214,7 @@ test('paid plan / redemption is money, not shipping, even if they mention Order 
   assert.equal(router.skipModel(route), true);
   assert.equal(router.isTechLane(route), false);
   const canned = router.cannedReply(route, q);
-  assert.match(canned, /paid plan or a redemption code/i);
+  assert.match(canned, /paid plan or redemption code/i);
   assert.equal(/\/order|where that order is|guess a date/i.test(canned), false);
   assert.match(router.staffReason(route, q), /plan or redemption/i);
 });
@@ -585,13 +585,13 @@ test('a refund written in another language still reaches a person', () => {
   assert.equal(route.escalate, true);
 });
 
-test('a refund names help@omi.me on the first reply and keeps the order number', () => {
+test('a refund draft stays on the requested action and leaves the next step to confirmed delivery', () => {
   const q = 'Please refund Order #RUFKREEIX. We do not want the replacement.';
   const route = router.classify(q);
   assert.equal(route.lane, 'money');
   const reply = router.cannedReply(route, q);
-  assert.match(reply, /help@omi\.me/);
-  assert.match(reply, /RUFKREEIX/);
+  assert.match(reply, /refund.*needs a team review/i);
+  assert.doesNotMatch(reply, /help@omi\.me|RUFKREEIX|replacement/i);
   assert.equal(/order made right/i.test(reply), false);
 });
 
