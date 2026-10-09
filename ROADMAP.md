@@ -4,7 +4,7 @@ This is the living implementation record. A checked implementation item means co
 
 ## Current milestone
 
-**The workflow foundation is in PR #26; the next milestone adds durable engineering approvals and destination privacy checks. Both are implementation work awaiting production rollout.** No GCP permissions or customer-content access have been granted. The follow-up branch builds on #26, not on a separately deployed foundation.
+**The workflow foundation is in [PR #26](https://github.com/BasedHardware/omi-vector-bot/pull/26); durable engineering approvals and destination privacy checks are in [PR #28](https://github.com/BasedHardware/omi-vector-bot/pull/28).** Both are implemented and awaiting production rollout. The independent citation cleanup is [PR #27](https://github.com/BasedHardware/omi-vector-bot/pull/27). No GCP permissions or customer-content access have been granted. Both follow-ups build on #26, not on a separately deployed foundation.
 
 The existing PR #24 smoke-test prerequisite still applies to the approved PR #25 readiness rollout. Do not redeploy over an unfinished smoke test or claim the new foundation is live before deployment and end-to-end checks succeed.
 
@@ -76,7 +76,7 @@ Recovery, reprocessing, refunds, deletion and account mutations remain separate 
 
 Validation recorded on October 9, 2026: 593 unit/regression tests pass, the offline customer check is 8/8, and the isolated SQL check passes. Hosted CI passes on runtime head `3960f24`. The communication probe used snapshot `4d643e3`: 23/24 replies passed, with the voice-question/no-answer case missing part of the requested explanation on one run; later interaction-deadline and public-order privacy changes have separate regressions and CI coverage. Do not hide that remaining answer-quality inconsistency or call this a full held-out approval.
 
-Next-milestone validation: the combined engineering-workflow and citation working tree passes 674 tests and the offline check is 8/8. Isolated SQL passes encrypted drafts, canonical repository identity, single dispatch, preserved legacy ciphertext, private links and migration refusal without deleting conflicting records. A focused three-run live check passes 12/12 replies across deletion how-to, developer-key how-to, Spanish refund and pure thanks. Its staff delivery is stubbed; this is neither a real delivery/ACL smoke test nor a held-out gate. The changes are being published as separate PRs on top of #26; record hosted CI and individual branch counts before rollout.
+Next-milestone validation: PR #28 independently passes 668 tests; PR #27 independently passes 599. Their combined working tree passes 674 tests and the offline check is 8/8. Isolated SQL passes encrypted drafts, canonical repository identity, single dispatch, preserved legacy ciphertext, private links and migration refusal without deleting conflicting records. A focused three-run live check passes 12/12 replies across deletion how-to, developer-key how-to, Spanish refund and pure thanks. Its staff delivery is stubbed; this is neither a real delivery/ACL smoke test nor a held-out gate. Hosted CI is a separate required check on each PR.
 
 Production has not been redeployed. The customer confirmed that the existing PR #24 smoke-test messages have not yet been posted; the approved readiness rollout and foundation release remain pending that verification.
 
