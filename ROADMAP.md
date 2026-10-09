@@ -2,6 +2,29 @@
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
+## Priority 0: N12 exposed credential rotation
+
+- [ ] Rotate/revoke the exposed Discord token, GitHub App private key, webhook secret and CommandCode key; revoke the old OpenCode key. Rotation is not confirmed.
+- [ ] Handle `DATA_ENCRYPTION_KEY` through a data-preserving migration before replacement. Do not make retained encrypted records unreadable or reset state to hide a failure.
+
+This is the first security priority and the only currently identified open P0. Never print or paste replacement values into chat, logs or GitHub. Record completion through provider-side revocation and successful authorized use, not merely a variable being present. No credential or Railway variable changes are authorized as a side effect of the release work below.
+
+## Release-only mode and merge gates
+
+Feature work is frozen. Do not extend Milestone 2, add diagnostics code or make further feature commits to #28–#30. Ship the reviewed work in the following order; only #25 currently has merge/deploy approval.
+
+1. Complete and report Aryan's four #24 smoke tests, their exact timing lines, second-look lines and errors, and the private staff card. Screenshots received on October 9 confirm the four replies and replacement card. Totals: deletion 24.760 s, replacement 30.631 s, Spanish 31.251 s, developer 53.540 s; no second looks or model/staff-delivery failures in that window. Functional checks pass, but do not convert this into a blanket answer-quality signoff: the Undo wording overpromises recovery and the replacement intake asks for tracking details.
+2. Release approved #25 with a merge commit, deploy main, verify HTTP 200/status `ok`/staff handoff `configured`, and record a real successful rollback target. Read but do not change overlap/draining variables. Set only Healthcheck Path `/health`, leave timeout default, verify the health-gated deployment and measure new Discord login versus old SIGTERM. If overlap exceeds ten seconds, tell Aryan before any further deployments.
+3. Standalone citation fix [#31](https://github.com/BasedHardware/omi-vector-bot/pull/31) replaces #27, on main after #25. Only the original four-file citation commit is applied; 512 tests and offline 8/8 pass. #27 is superseded, with its branch retained. Stop for review; no citation merge/deploy is approved. Hosted CI is not available on this standalone branch because the workflow is still in unmerged #26. This replacement avoids force-pushing, squash merging and importing #26's ancestry.
+4. Evaluate #26 with the standalone citation fix applied. Use the protected 81-case file, two runs and concurrency three, as in round 12d; do not open the cases or tune code to results. Gate: at least 70 cases pass both runs, unsafe advice zero, duplicate source labels zero (recognize both `:` and `：`), handoff promises without a handoff zero, total p50 at most 43 s and p95 at most 70 s. Provide the JSON and wait for the verification/order-code review and explicit merge/deploy approval, then deploy and smoke-test.
+5. After #26 is deployed, release #28, then #29, then #30 separately, each only after approval and with its own deploy/health/Discord smoke test: staff-authored GitHub preview/approval (#28), forced duplicate-send check in #vector-test (#29), and `/done` close/reopen (#30). No further feature commits. These existing delivery-only changes do not need the held-out test under the approved release plan.
+
+Any change to answer/reviewer prompts or canned customer-answer replies must pass the full **81-case held-out gate before merge**. A focused live probe is additional evidence, never a substitute. Keep held-out questions unopened, preserve distinct checkout/commit provenance and do not alter code based on protected-case results. Merge commits only; no generated authorship trailers, model names in commit messages, force-pushes or direct pushes to main.
+
+Product decision confirmed by Aryan: **keep** optional honest App Store/Google Play review buttons in #26, shown regardless of feedback. Their implementation is complete; release remains pending #26's gates. Store clicks are not internal support votes or verified review submissions.
+
+Customer-impacting follow-ups take priority over deferred plumbing: Chinese duplicate source labels; developer pages cited for consumer questions; deletion how-to escalating unnecessarily; and speed. Record any failures without adding fixes during this release-only turn. Milestone 3 stays parked until Omi backend-team agreement and privacy review, before any implementation.
+
 ## Current milestone
 
 **Workflow foundation is implemented on the working branch; production rollout is pending.** The earlier documentation-only proposal is now being extended with actual runtime changes. No GCP permissions or customer-content access have been granted.
@@ -40,14 +63,17 @@ These capabilities remain subject to answer-quality checks. Existing functionali
 
 ## Milestone 2 Complete case handling and delivery recovery
 
-- [ ] Persist staff-approved GitHub drafts across restarts and make later approved customer evidence reach linked engineering work.
-- [ ] Add a delivery outbox with accepted-send identifiers, retries for known failures and reconciliation of unknown outcomes. Do not blindly replay a request that may already have replied.
-- [ ] Preserve an encrypted/minimized case summary of attempted steps and missing details, with an approved retention/deletion policy. Current durable case context is categories and sources, not raw conversation content.
-- [ ] Provide staff queue views, committed response targets, reminders and operational inspection of expired started claims.
-- [ ] Enforce cross-identity verification abuse limits and validate destination privacy/permissions beyond the presence of configuration.
-- [ ] Add capability checks and monitoring for stale knowledge, provider outages, lookup failures, backlog and missed staff delivery.
+Frozen for release, not further feature development. Completed work exists in the held #28 (durable engineering approvals/destination checks), #29 (Discord receipt ledger) and #30 (tracked closure/reopening) branches. That is not production deployment.
+
+- [ ] **Deferred:** complete delivery outbox, remaining adapters, bounded retries and uncertain-outcome reconciliation. Never blindly replay a request that may already have replied.
+- [ ] **Deferred:** encrypted/minimized cumulative case summaries and attempted steps, pending an approved retention/deletion policy. Current durable context is operational categories and sources, not raw conversation content.
+- [ ] **Deferred:** staff queue views, committed response targets, reminders and additional operational inspection.
+- [ ] **Deferred:** cross-identity verification abuse controls and remaining destination verification. Discord audience checks are already in #28; Telegram verification remains unfinished.
+- [ ] **Deferred:** additional capability checks/monitoring for stale knowledge, outages, failed lookups, backlog and missed staff delivery.
 
 ## Milestone 3 Verified recording diagnostics
+
+Parked. Omi backend-team agreement and privacy review are prerequisites before writing diagnostics/sign-in code or granting access.
 
 - [ ] Add private Omi sign-in and a short-lived, revocable diagnostic grant bound to the customer and case. Shopify OTP is not Omi account authorization.
 - [ ] Implement a backend-owned, pure-read diagnostic projection for capture/upload/sync/finalization/storage availability. Existing backend GET endpoints are not automatically safe to proxy.
@@ -72,9 +98,13 @@ Recovery, reprocessing, refunds, deletion and account mutations remain separate 
 
 Validation recorded on October 9, 2026: 593 unit/regression tests pass, the offline customer check is 8/8, and the isolated SQL check passes. Hosted CI passes on runtime head `3960f24`. The communication probe used snapshot `4d643e3`: 23/24 replies passed, with the voice-question/no-answer case missing part of the requested explanation on one run; later interaction-deadline and public-order privacy changes have separate regressions and CI coverage. Do not hide that remaining answer-quality inconsistency or call this a full held-out approval.
 
-Production has not been redeployed. The customer confirmed that the existing PR #24 smoke-test messages have not yet been posted; the approved readiness rollout and foundation release remain pending that verification.
+The #24 smoke test is now posted and reported. #25 is merged as `4f7d7a1` and live: initial deployment `73760501-ddd2-4b49-a21d-7e383840b5d8`, then health-gated deployment `75e41379-2bad-46a4-b130-04bd52382504`, both SUCCESS. `/health` returns HTTP 200, status `ok` and staff handoff `configured`. Only Healthcheck Path `/health` changed; timeout remains default, overlap/draining variables remain unset, and no credential variables changed.
 
-Run `npm test`, the offline customer check and the isolated database check for foundation changes. Customer-facing changes also need focused live evaluation. Held-out files stay unopened and must never become tuning inputs. Record failed checks and remaining limitations instead of marking work complete prematurely.
+Railway healthcheck evidence (UTC): started 15:14:45.671, new Discord login 15:14:46.451, healthcheck passed 15:14:46.871. The old bot's own `Received SIGTERM` line is missing; platform stop is 15:14:53.151 (+6.7 s) and npm SIGTERM is 15:15:02.638 (+16.2 s). The npm time is a termination proxy, not proof of exact dual-connection duration. This possible over-ten-second window was reported to Aryan; **further deployments are paused for review**, without changing teardown/window settings. No Missing env, model failed or Staff delivery failed lines were found since the health-gated deployment.
+
+The pre-release code rollback target is `701f3d34-be16-4228-a537-b402866978b6` (#24); the prior healthy #25 deployment is `73760501-ddd2-4b49-a21d-7e383840b5d8`. #26, #28, #29, #30 and standalone #31 remain unmerged/unreleased. The protected #26 gate has not been run; work stops at #31 review. No feature commits were made to #28–#30 during this release-only work.
+
+Run `npm test`, the offline customer check and relevant isolated database checks. Answer/reviewer prompt or canned-answer changes require the full 81-case held-out gate before merge, not just a focused live probe. Held-out files stay unopened and must never become tuning inputs. Record failed checks and remaining limitations instead of marking work complete prematurely.
 
 No production settings or credentials change as a side effect of coding. Previously exposed secrets still need confirmed rotation/revocation; encryption-key rotation needs a data-preserving migration. Omi Support Bot is the product name; technical repository/domain/channel names are not renamed without an explicit migration.
 
