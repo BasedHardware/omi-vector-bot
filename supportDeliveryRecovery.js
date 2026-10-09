@@ -1,10 +1,12 @@
 // Repair local projections from accepted Discord receipts, never replay a send.
 function createReceiptRecovery({ deliveries, cases, fetchChannel, botUserId,
   staffChannelId, validateDestination, getApproval, bindCard, rememberAnswer,
+  repairClosure,
   log = (line) => console.error(line) }) {
   async function repair(row, observedMessage = null) {
     if (!row || row.state !== 'accepted' || !row.messageId || row.botUserId !== String(botUserId())) return false;
     try {
+      if (row.kind === 'closure') return typeof repairClosure === 'function' ? await repairClosure(row) : false;
       if (row.kind === 'answer') {
         rememberAnswer({ id: row.messageId }, { author: { id: row.customerId }, channel: { id: row.channelId } });
         await deliveries.markProjected(row.id);
