@@ -290,3 +290,203 @@ test('/unlink revokes pending verification even when Shopify and email delivery 
     assert.equal((await orderFlow.verification.verify('u1', code)).ok, false);
   });
 });
+
+function pendingResult() {
+  let resolve; let reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
+function acknowledgedInteraction(kind, extra = {}) {
+  const events = [];
+  const interaction = fakeInteraction(kind, {
+    events, deferred: false, replied: false,
+    isButton: () => kind === 'button',
+    async deferReply(payload) {
+      assert.equal(payload.flags, require('discord.js').MessageFlags.Ephemeral);
+      assert.equal(this.deferred || this.replied, false);
+      events.push({ kind: 'defer', payload });
+      this.deferred = true;
+    },
+    async reply(payload) {
+      assert.equal(this.deferred || this.replied, false);
+      events.push({ kind: 'reply', payload });
+      this.replied = true;
+    },
+    async editReply(payload) {
+      assert.equal(this.deferred || this.replied, true);
+      events.push({ kind: 'edit', payload });
+      this.replied = true;
+    },
+    async showModal(modal) {
+      assert.equal(this.deferred || this.replied, false);
+      events.push({ kind: 'modal', payload: modal.toJSON() });
+      this.replied = true;
+    },
+    async followUp() { assert.fail('An error must finish the original deferred response'); },
+    ...extra,
+  });
+  return interaction;
+}
+
+async function settle() {
+  for (let count = 0; count < 8; count++) await Promise.resolve();
+}
+
+test('/unlink acknowledges privately before pending storage and finishes the original response', async (t) => {
+  const pending = pendingResult();
+  const interaction = acknowledgedInteraction('command', { commandName: 'unlink' });
+  t.mock.method(shopifyBind, 'remove', (userId) => {
+    assert.equal(userId, 'u1');
+    assert.equal(interaction.deferred, true);
+    return pending.promise;
+  });
+  const work = orderFlow.handleOrderInteraction(interaction);
+  await settle();
+  assert.deepEqual(interaction.events.map((event) => event.kind), ['defer']);
+  pending.resolve(true);
+  await work;
+  assert.deepEqual(interaction.events.map((event) => event.kind), ['defer', 'edit']);
+  assert.match(interaction.events[1].payload.content, /link was removed/);
+});
+
+test('email modal acknowledges before its limiter and keeps the rejection private', async (t) => {
+  await withLiveShop(async (shop) => {
+    const pending = pendingResult();
+    const interaction = acknowledgedInteraction('modal', { customId: 'link_email', fields: { getTextInputValue: () => 'owner@example.com' } });
+    t.mock.method(orderFlow.verification, 'reserveAttempt', () => {
+      assert.equal(interaction.deferred, true);
+      return pending.promise;
+    });
+    const work = orderFlow.handleOrderInteraction(interaction);
+    await settle();
+    assert.deepEqual(interaction.events.map((event) => event.kind), ['defer']);
+    assert.equal(shop.calls, 0);
+    pending.resolve(false);
+    await work;
+    assert.match(interaction.events[1].payload.content, /Too many verification requests/);
+    assert.doesNotMatch(interaction.events[1].payload.content, /owner@example\.com/);
+    assert.equal(shop.calls, 0);
+  });
+});
+
+test('code modal acknowledges before verification and edits the invalid-code result', async (t) => {
+  const pending = pendingResult();
+  const interaction = acknowledgedInteraction('modal', { customId: 'verify_code', fields: { getTextInputValue: () => '123456' } });
+  t.mock.method(orderFlow.verification, 'verify', (userId, code) => {
+    assert.equal(userId, 'u1');
+    assert.equal(code, '123456');
+    assert.equal(interaction.deferred, true);
+    return pending.promise;
+  });
+  const work = orderFlow.handleOrderInteraction(interaction);
+  await settle();
+  assert.deepEqual(interaction.events.map((event) => event.kind), ['defer']);
+  pending.resolve({ ok: false, reason: 'Incorrect code.' });
+  await work;
+  assert.deepEqual(interaction.events.map((event) => event.kind), ['defer', 'edit']);
+  assert.equal(interaction.events[1].payload.content, 'Incorrect code.');
+});
+
+test('storage failures after defer finish the original response instead of leaving a spinner', async (t) => {
+  await withLiveShop(async () => {
+    t.mock.method(shopifyBind, 'remove', async () => { throw new Error('storage unavailable'); });
+    t.mock.method(orderFlow.verification, 'reserveAttempt', async () => { throw new Error('storage unavailable'); });
+    t.mock.method(orderFlow.verification, 'verify', async () => { throw new Error('storage unavailable'); });
+    for (const interaction of [
+      acknowledgedInteraction('command', { commandName: 'unlink' }),
+      acknowledgedInteraction('modal', { customId: 'link_email', fields: { getTextInputValue: () => 'owner@example.com' } }),
+      acknowledgedInteraction('modal', { customId: 'verify_code', fields: { getTextInputValue: () => '123456' } }),
+    ]) {
+      await orderFlow.handleOrderInteraction(interaction);
+      assert.deepEqual(interaction.events.map((event) => event.kind), ['defer', 'edit']);
+      assert.equal(interaction.events[1].payload.content, 'Order lookup failed. Try again in a moment.');
+    }
+  });
+});
+
+test('fast unbound order lookup still opens its modal directly and cancels the early-defer timer', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await withLiveShop(async () => {
+    const interaction = acknowledgedInteraction('command', { commandName: 'order' });
+    await orderFlow.handleOrderInteraction(interaction);
+    assert.deepEqual(interaction.events.map((event) => event.kind), ['modal']);
+    assert.equal(interaction.events[0].payload.custom_id, 'link_email');
+    t.mock.timers.tick(3000);
+    await settle();
+    assert.equal(interaction.events.length, 1);
+  });
+});
+
+test('slow unbound order commands defer before three seconds and offer a fresh-interaction email modal', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await withLiveShop(async (shop) => {
+    for (const commandName of ['order', 'orders']) {
+      const pending = pendingResult();
+      const mocked = t.mock.method(shopifyBind, 'get', (userId) => {
+        assert.equal(userId, 'u1');
+        return pending.promise;
+      });
+      const interaction = acknowledgedInteraction('command', { commandName });
+      const work = orderFlow.handleOrderInteraction(interaction);
+      t.mock.timers.tick(1199);
+      await settle();
+      assert.equal(interaction.events.length, 0);
+      t.mock.timers.tick(1);
+      await settle();
+      assert.deepEqual(interaction.events.map((event) => event.kind), ['defer']);
+      pending.resolve(null);
+      await work;
+      assert.deepEqual(interaction.events.map((event) => event.kind), ['defer', 'edit']);
+      const button = interaction.events[1].payload.components[0].toJSON().components[0];
+      assert.equal(button.custom_id, 'start_order_verification');
+      assert.equal(shop.calls, 0);
+      const fresh = acknowledgedInteraction('button', { customId: button.custom_id });
+      await orderFlow.handleOrderInteraction(fresh);
+      assert.equal(fresh.events[0].kind, 'modal');
+      assert.equal(fresh.events[0].payload.custom_id, 'link_email');
+      mocked.mock.restore();
+    }
+  });
+});
+
+test('slow bound order commands defer once and use only the requesting customer binding', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await withLiveShop(async (shop) => {
+    for (const commandName of ['order', 'orders']) {
+      const pending = pendingResult(); let lookups = 0;
+      const mocked = t.mock.method(shopifyBind, 'get', (userId) => {
+        assert.equal(userId, 'u1'); lookups++;
+        return pending.promise;
+      });
+      const interaction = acknowledgedInteraction('command', { commandName, memberPermissions: { has: () => true } });
+      const work = orderFlow.handleOrderInteraction(interaction);
+      t.mock.timers.tick(1200);
+      await settle();
+      assert.equal(interaction.events[0].kind, 'defer');
+      pending.resolve({ email: 'owner@example.com' });
+      await work;
+      assert.deepEqual(interaction.events.map((event) => event.kind), ['defer', 'edit']);
+      assert.match(interaction.events[1].payload.content, /#1001/);
+      assert.equal(lookups, 1);
+      mocked.mock.restore();
+    }
+    assert.equal(shop.calls, 2);
+  });
+});
+
+test('a failed slow binding lookup edits its acknowledged response', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await withLiveShop(async () => {
+    const pending = pendingResult();
+    t.mock.method(shopifyBind, 'get', () => pending.promise);
+    const interaction = acknowledgedInteraction('command', { commandName: 'order' });
+    const work = orderFlow.handleOrderInteraction(interaction);
+    t.mock.timers.tick(1200);
+    await settle();
+    pending.reject(new Error('storage unavailable'));
+    await work;
+    assert.deepEqual(interaction.events.map((event) => event.kind), ['defer', 'edit']);
+    assert.equal(interaction.events[1].payload.content, 'Order lookup failed. Try again in a moment.');
+  });
+});
