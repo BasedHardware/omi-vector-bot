@@ -15,6 +15,8 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [ ] Add a retained cumulative context summary, attempted steps and missing details with an approved retention/deletion policy.
 - [x] Move message claims, per-case locks, duplicate-answer state, verification bindings and verification throttles to durable storage. Add expiries, revocation and encryption; do not persist raw verification codes.
 - [x] Add bounded leased workers and a metadata-only queue for unstarted requests.
+- [x] Add a metadata-only receipt ledger and isolated bounded Discord sender for ordinary answers and private full staff cards; uncertain outcomes block fallback/reposting, and accepted message IDs are durable.
+- [x] Repair accepted case/card projections with fresh destination checks, generation fences and bounded backoff; reconcile exact own-bot Gateway receipts and restore owned answer references. Add private read-only receipt inspection.
 - [ ] Add the complete delivery outbox with attempt tracking, reconciliation and retries. Use backoff and an overall deadline, not unlimited retries.
 - [x] Stop new work on shutdown; drain accepted work and queue unstarted requests. Coordinate overlapping copies through Postgres claims. Started requests with uncertain delivery remain an operator-reconciliation task.
 - [x] Make `/done`, ratings/reopening and Telegram delivery operate on the same case state. Failed customer delivery must not resolve a case.
@@ -29,6 +31,8 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [ ] Add bounded historical-order pagination and explain accessible history privately.
 
 Acceptance: restart during OTP, overlapping copies, provider slowdown, failed/uncertain sends, repeated webhooks, staff-button use after restart and termination during a reply produce neither false completion nor uncontrolled duplicate work. Existing customer routing/privacy regressions stay green.
+
+The receipt slice is not this complete acceptance claim. Uncertain sends without a captured receipt remain manual; reused-thread answers, closure cards, Telegram, ephemeral commands and other notifications are not ledgered yet. No queued payload replay or new customer-content retention is introduced. Approve metadata/payload retention before the complete outbox and its production rollout.
 
 ## Phase 2 Verified metadata diagnostics
 

@@ -56,6 +56,10 @@ const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const triage = require('./triage');
 const supportCases = require('./supportCases');
 const supportIssueLinks = require('./supportIssueLinks');
+const supportDeliveries = require('./supportDeliveries');
+const { sendDiscordMessage } = require('./supportDiscordTransport');
+const { createReceiptRecovery } = require('./supportDeliveryRecovery');
+const { validateStaffDestination } = require('./discordPrivacy');
 const githubFlow = require('./githubFlow').createGithubFlow();
 const { SupportRuntime, PostgresRuntimeStore, MemoryRuntimeStore, questionFingerprint, assertCurrentOwnership, markCurrentReplySent, isLeaseLost } = require('./supportRuntime');
 
@@ -70,6 +74,7 @@ let coordinationReady = !dbReady;
 let httpServer;
 let shutdownPromise;
 let recoveryTimer;
+let deliveryRecoveryTimer;
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
 const botReplyOwners = new Map();
@@ -81,6 +86,38 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
   ],
 });
+
+const receiptRecovery = createReceiptRecovery({
+  deliveries: {
+    pendingReceipts: (limit) => supportDeliveries.getService().pendingReceipts(limit),
+    markProjected: (id) => supportDeliveries.getService().markProjected(id),
+    deferProjection: (id) => supportDeliveries.getService().deferProjection(id),
+  },
+  cases: supportCases,
+  fetchChannel: (id) => client.channels.fetch(id, { force: true }),
+  botUserId: () => client.user?.id,
+  staffChannelId: () => process.env.STAFF_ALERT_CHANNEL_ID,
+  validateDestination: (channel) => {
+    const { users, roles } = staffMentionIds();
+    return validateStaffDestination(channel, { botUserId: client.user?.id, staffUsers: users, staffRoleIds: roles }).ok;
+  },
+  getApproval: (id) => github.getScopedApproval(id),
+  bindCard: (approval, sent) => githubFlow.bindCard(approval, sent),
+  rememberAnswer: rememberBotReply,
+});
+
+async function reconcileDeliveryReceipt(message) {
+  if (String(message.author?.id || '') !== String(client.user?.id || '')) return false;
+  try {
+    const row = await supportDeliveries.getService().acceptGatewayReceipt(message);
+    if (!row) return false;
+    await receiptRecovery.repair(row, message);
+    return true;
+  } catch {
+    console.error('[Delivery] Gateway receipt reconciliation unavailable');
+    return false;
+  }
+}
 
 const app = express();
 app.get('/health', (_req, res) => {
@@ -159,10 +196,15 @@ async function replySafe(message, content, { pingAuthor = false } = {}) {
     allowedMentions: replyMentions(message, { pingAuthor, repliedUser: false }),
   };
   try {
-    const sent = await message.reply({
-      ...payload,
-      allowedMentions: replyMentions(message, { pingAuthor, repliedUser: true }),
-    });
+    const scope = { operationKey: `answer:${message.id}`, kind: 'answer',
+      sourceMessageId: String(message.id), customerId: String(message.author.id),
+      channelId: String(message.channel.id), botUserId: String(client.user.id),
+      caseId: null, referenceMessageId: String(message.id) };
+    const sent = await supportDeliveries.getService().send(scope, (nonceOptions) =>
+      sendDiscordMessage(client, message.channel, {
+        ...payload, ...nonceOptions,
+        allowedMentions: replyMentions(message, { pingAuthor, repliedUser: true }),
+      }, { replyToMessageId: String(message.id) }));
     markCurrentReplySent();
     rememberBotReply(sent, message);
     return sent;
@@ -170,8 +212,13 @@ async function replySafe(message, content, { pingAuthor = false } = {}) {
     if (!isUnknownMessageRef(err) || typeof message.channel?.send !== 'function') {
       throw err;
     }
-    console.error('[Bot] reply reference missing, sending in channel:', err.message);
-    const sent = await message.channel.send(payload);
+    console.error('[Bot] reply reference unavailable; using the known-rejection fallback');
+    const sent = await supportDeliveries.getService().send({
+      operationKey: `answer-without-reference:${message.id}`, kind: 'answer',
+      sourceMessageId: String(message.id), customerId: String(message.author.id),
+      channelId: String(message.channel.id), botUserId: String(client.user.id),
+      caseId: null, referenceMessageId: null,
+    }, (nonceOptions) => sendDiscordMessage(client, message.channel, { ...payload, ...nonceOptions }));
     markCurrentReplySent();
     rememberBotReply(sent, message);
     return sent;
@@ -563,7 +610,8 @@ async function handleMessage(message) {
   } catch (err) {
     console.error('[SupportRuntime] request coordination failed');
     // Never let a stale worker send after its lease has been taken by another copy.
-    if (err.message === 'support lease lost' || err.replyAlreadySent) return { status: 'failed' };
+    if (err.message === 'support lease lost' || err.replyAlreadySent || supportDeliveries.isDeliveryUncertain(err) ||
+        err.deliveryBlocked || err.deliveryRejected) return { status: 'failed' };
     try {
       await message.reply({
         content: 'I am having trouble saving this support request. Please email help@omi.me so the team can receive it.',
@@ -1058,6 +1106,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       let reuseFailed = false;
       let cardHere = false;
       let deliveryFailed = false;
+      let deliveryUnknown = false;
       let handoffThread = inHandoff ? channel : null;
       if (deliveredCase && !inHandoff && shouldReuseOpenHandoff(channel)) {
         const existing = await findOpenHandoff(channel, {
@@ -1090,6 +1139,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           await assertCurrentOwnership();
           const handoff = await notifyStaff({
             caseId: supportCase.id,
+            caseGeneration: supportCase.generation,
             onStaffSent: fileIssueId ? async (sent) => {
               const approval = await github.getScopedApproval(fileIssueId);
               await githubFlow.bindCard(approval, sent);
@@ -1113,12 +1163,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           });
           pinged = Boolean(handoff.ok);
           deliveryFailed = !handoff.ok;
+          deliveryUnknown = Boolean(handoff.unknown);
           cardHere = handoff.via === 'channel' && Boolean(channel.isThread?.());
           duplicate = Boolean(handoff.duplicate);
           handoffThread = handoff.thread || handoffThread;
           if (handoff.threadId) await supportCases.linkHandoff(supportCase.id, { handoffThreadId: handoff.threadId });
           if (handoff.ok) await supportCases.markDelivered(supportCase.id, {
-            confirmed: true, destination: handoff.deliveredVia || handoff.via,
+            confirmed: true, destination: handoff.deliveredVia || handoff.via, messageId: handoff.messageId,
+            expectedGeneration: supportCase.generation,
           });
           if (handoff.thread && handoff.ok) {
             rememberOpenHandoff(channel.id, message.author?.id, handoff.thread);
@@ -1132,7 +1184,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         } catch (err) {
           if (isLeaseLost(err)) throw err;
           deliveryFailed = !pinged;
-          console.error('[Bot] Handoff failed:', err.message);
+          deliveryUnknown = supportDeliveries.isDeliveryUncertain(err);
+          console.error('[Bot] Handoff delivery unavailable');
         }
       }
       if (
@@ -1167,6 +1220,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           (Boolean(handoffThread) || cardHere),
         pingAuthor,
         deliveryFailed,
+        deliveryUnknown,
         replyInThread: pinged && Boolean(channel.isThread?.() || handoffThread?.id),
         footers: localizedFooters,
       });
@@ -1191,6 +1245,12 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
   } catch (err) {
     if (isLeaseLost(err)) throw err;
+    if (supportDeliveries.isDeliveryUncertain(err) || err.deliveryBlocked || err.deliveryRejected) {
+      console.error(supportDeliveries.isDeliveryUncertain(err)
+        ? '[Delivery] customer send held for receipt reconciliation'
+        : '[Delivery] customer send blocked or rejected; automatic resend withheld');
+      throw err;
+    }
     console.error(`[Bot] Error in ${channel.id}:`, err.message);
     if (!didReply) try {
       await replySafe(
@@ -1224,8 +1284,23 @@ client.on(Events.ThreadCreate, async (thread) => {
 });
 
 client.on(Events.MessageCreate, async (message) => {
+  if (message.author?.bot) {
+    await runtime.track(() => reconcileDeliveryReceipt(message), { acceptedReceipt: true });
+    return;
+  }
   if (await handleFaqSave(message)) return;
   await handleMessage(message);
+});
+
+// Consume only this bot's send metadata before SDK cache handling can omit a
+// packet nonce. Unrelated packets and customer messages are discarded here.
+client.on(Events.Raw, (packet) => {
+  const data = packet?.d;
+  if (packet?.t !== 'MESSAGE_CREATE' || !data ||
+      String(data.author?.id || '') !== String(client.user?.id || '') ||
+      !/^[a-f0-9]{24}$/.test(String(data.nonce || ''))) return;
+  return runtime.track(() => reconcileDeliveryReceipt(data), { acceptedReceipt: true })
+    .catch(() => console.error('[Delivery] raw receipt reconciliation unavailable'));
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
@@ -1263,11 +1338,23 @@ async function nickOmiSupport(client) {
 }
 
 client.once(Events.ClientReady, async () => {
+  // Keep this timestamp at connection, not after database/card recovery; it is
+  // used to measure deployment overlap against the old copy's SIGTERM.
+  console.log(`[Bot] Logged in as ${client.user.tag}`);
   recoveryTimer = setInterval(() => {
     runtime.track(() => runtime.recoverQueued(recoverQueuedRequest)).catch(() => console.error('[SupportRuntime] queued request lookup failed'));
   }, 1000);
   recoveryTimer.unref();
-  console.log(`[Bot] Logged in as ${client.user.tag}`);
+  deliveryRecoveryTimer = setInterval(() => {
+    runtime.track(() => receiptRecovery.recover(20)).catch(() => console.error('[Delivery] receipt recovery unavailable'));
+  }, 30_000);
+  deliveryRecoveryTimer.unref();
+  try {
+    for (const row of await supportDeliveries.getService().recentAnswers({ limit: BOT_REPLY_MEMORY_MAX, since: Date.now() - BOT_REPLY_MEMORY_MS })) {
+      rememberBotReply({ id: row.messageId }, { author: { id: row.customerId }, channel: { id: row.channelId } });
+    }
+    await receiptRecovery.recover(20);
+  } catch { console.error('[Delivery] startup receipt recovery unavailable'); }
   await nickOmiSupport(client);
   if (VECTOR_TEST_CHANNEL_ID) {
     console.log(`[Bot] Test channel ${VECTOR_TEST_CHANNEL_ID}`);
@@ -1343,6 +1430,7 @@ async function shutdown(signal) {
     console.log(`[Bot] Received ${signal}, draining replies...`);
     runtime.stopAccepting();
     clearInterval(recoveryTimer);
+    clearInterval(deliveryRecoveryTimer);
     telegram.stopPolling();
     const [drained, telegramDrained] = await Promise.all([runtime.drain(), telegram.drainPolling()]);
     console.log(`[SupportRuntime] drain completed=${drained} telegram_completed=${telegramDrained}`);
@@ -1367,4 +1455,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, client, handleMessage, shouldHandle, runtime, noteCustomerLead };
+module.exports = { app, client, handleMessage, shouldHandle, runtime, noteCustomerLead, reconcileDeliveryReceipt };

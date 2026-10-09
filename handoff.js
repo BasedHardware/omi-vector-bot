@@ -3,6 +3,8 @@ const { ChannelType } = require('discord.js');
 const { clipForDiscord, stripPingNarration } = require('./utils');
 const { redactSensitive } = require('./privacy');
 const { validateStaffDestination } = require('./discordPrivacy');
+const deliveries = require('./supportDeliveries');
+const { sendDiscordMessage } = require('./supportDiscordTransport');
 const {
   classify,
   pickStaffReason,
@@ -826,12 +828,14 @@ async function postHandoffThread(message, payload, meta = {}) {
   return thread;
 }
 
-async function sendToStaffChannel(client, payload, customerChannelId, { onSent } = {}) {
+async function sendToStaffChannel(client, payload, customerChannelId, {
+  onSent, onReceipt, ticket = false, sourceMessageId, customerId, caseId, caseGeneration = 0, approvalId,
+} = {}) {
   const staffId = process.env.STAFF_ALERT_CHANNEL_ID;
   if (!staffId || !client?.channels?.fetch) return false;
   if (String(staffId) === String(customerChannelId || '')) return false;
   const ch = await client.channels.fetch(staffId, { force: true });
-  if (!ch?.isTextBased?.() || typeof ch.send !== 'function') return false;
+  if (!ch?.isTextBased?.() || typeof ch.send !== 'function' || String(ch.id || '') !== String(staffId)) return false;
   const configured = staffMentionIds();
   const privacy = validateStaffDestination(ch, { botUserId: client.user?.id, staffUsers: configured.users, staffRoleIds: configured.roles });
   if (!privacy.ok) {
@@ -839,15 +843,44 @@ async function sendToStaffChannel(client, payload, customerChannelId, { onSent }
     return false;
   }
   await assertCurrentOwnership();
-  const sent = await ch.send(payload);
+  let sent;
+  if (ticket) {
+    const botUserId = String(client.user?.id || '');
+    if (!sourceMessageId || !customerId || !botUserId) {
+      console.error('[Handoff] Staff ticket provenance unavailable; delivery withheld.');
+      return false;
+    }
+    sent = await deliveries.getService().send({
+      kind: 'staff-card',
+      operationKey: `staff-card:${caseId || 'manual'}:${caseGeneration}:${sourceMessageId}`,
+      sourceMessageId: String(sourceMessageId), customerId: String(customerId),
+      channelId: String(ch.id), botUserId, caseId: caseId ? String(caseId) : null,
+      caseGeneration,
+      referenceMessageId: null,
+      approvalId: approvalId ? String(approvalId) : null,
+    }, async (options) => {
+      await assertCurrentOwnership();
+      return sendDiscordMessage(client, ch, { ...payload, ...options });
+    });
+  } else {
+    // Operational notices outside the ticket workflow retain their existing
+    // behavior; a full intake may only use the scoped ticket path above.
+    sent = await ch.send(payload);
+  }
+  if (onReceipt) {
+    try { await onReceipt(sent); }
+    catch { console.error('[Handoff] Accepted staff receipt projection unavailable.'); }
+  }
   if (onSent) {
     try { await onSent(sent); }
     catch {
       console.error('[GitHubFlow] approval card binding unavailable');
       try {
-        await sent?.edit?.({ components: (payload.components || []).map((row) => ({ ...row,
+        const components = (payload.components || []).map((row) => ({ ...row,
           components: (row.components || []).filter((button) => !String(button.custom_id || '').startsWith('file:')),
-        })).filter((row) => row.components.length) });
+        })).filter((row) => row.components.length);
+        if (typeof sent?.edit === 'function') await sent.edit({ components });
+        else if (sent?.id && typeof ch.messages?.edit === 'function') await ch.messages.edit(sent.id, { components });
       } catch { console.error('[GitHubFlow] unbound approval control removal unavailable'); }
     }
   }
@@ -908,6 +941,7 @@ async function notifyStaff({
   labels,
   dataLossRisk = false,
   caseId,
+  caseGeneration = 0,
   onStaffSent,
 }) {
   const channelId = message?.channel?.id;
@@ -933,17 +967,26 @@ async function notifyStaff({
   });
   const errors = [];
   let visibleCard = null;
+  let staffReceipt;
 
   try {
-    if (await sendToStaffChannel(client, ticket.discord, channelId, { onSent: onStaffSent })) {
+    if (await sendToStaffChannel(client, ticket.discord, channelId, {
+      ticket: true, sourceMessageId: message?.id, customerId: userId, caseId, caseGeneration, approvalId: fileIssueId,
+      onSent: onStaffSent, onReceipt: (receipt) => { staffReceipt = receipt; },
+    })) {
       markHandedOff(channelId, userId, true);
       await assertCurrentOwnership();
-      await telegram.sendEscalation(ticket.plain);
-      return { ok: true, via: 'staff-channel' };
+      try { await telegram.sendEscalation(ticket.plain); }
+      catch { console.error('[Handoff] Optional staff mirror unavailable.'); }
+      return { ok: true, via: 'staff-channel', messageId: staffReceipt?.id };
     }
   } catch (err) {
     if (isLeaseLost(err)) throw err;
-    errors.push(`staff-channel: ${err.message}`);
+    if (deliveries.isDeliveryUncertain(err) || err?.deliveryBlocked === true) {
+      console.error('[Handoff] Staff delivery uncertain; other destinations withheld.');
+      return { ok: false, unknown: true, via: 'staff-channel', error: 'staff delivery uncertain' };
+    }
+    errors.push('staff-channel: delivery failed');
   }
 
   if (process.env.HANDOFF_THREADS !== '0') {

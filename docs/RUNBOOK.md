@@ -46,11 +46,25 @@ The worker pool has three globally leased slots. Waiting work is bounded in memo
 
 Review queue/claim states only in an authorized private operations environment. `queued` is safe to dispatch. `processing` with an expired lease or `failed` can have an unknown send outcome. Inspect the original Discord thread and delivery records before deciding whether to retry. Do not reset claim tables, replay all history, or rerun every failed request: that can repeat answers and staff cards. A full delivery outbox/reconciliation interface remains a roadmap item.
 
+Ordinary answers and full Discord staff cards additionally use `support_deliveries`. `accepted` records a verified message ID, not a human acceptance. `unknown` or expired `dispatching` means **do not resend**. Matching own-bot Gateway receipts may repair uncertainty; if the event was missed, absence is not proof the message failed. There is no automatic history search or late POST. A private read-only summary is available:
+
+```sh
+node scripts/inspect-support-deliveries.js --limit 20
+```
+
+Use only the existing private database environment. The command makes no external sends or database writes and prints opaque ledger IDs, kind/state, age, attempt count and receipt/projection presence—not source/customer/channel identifiers, nonce, credentials or content. Use the opaque `[Delivery] id=... kind=... state=...` log entry to correlate a hold. Do not run the command as a public bot action or paste private database rows into chat. Repair an uncertain operation manually only after independent receipt proof; this slice deliberately provides no reset/replay command.
+
+An accepted staff receipt with pending local effects is repaired using the exact saved bot message and fresh staff ACL, not another card. The immutable receipt scope names its approval; if the original binding failure removed its review control, repair can restore it with an idempotent edit of that same private card after binding succeeds. Local repair uses backoff capped at 15 minutes. A changed destination/audience, missing card, mismatched customer or failed approval binding leaves it held for operator investigation. Closed cases and prior generations are retired from projection; they never reopen or deliver a newer case. Recent accepted answer IDs restore scoped continuation ownership after restart. Retention cleanup requires a reviewed policy and must not delete active holds to force retry.
+
+The isolated sender bounds each ledgered POST to 15 seconds, disables hidden transport retries and declines long rate-limit waits. Definite rejection permits at most three deliberate attempts in ten minutes; the bot does not automatically regenerate/repost an answer after access or validation rejection. A missing reply reference can use a distinct same-channel fallback only after that specific rejection is proven. Reused-handoff messages, `/done`, ephemeral commands, Telegram and other notices remain outside this ledger and require their existing manual checks.
+
 A transient coordination error produces a short honest fallback where possible and does not permanently disable later requests. Persistent database failures require the operator to repair the connection/service; there is no silent memory downgrade in production.
 
 ## Provider or staff delivery failure
 
 Keep the existing safe fallback and private staff delivery paths. Only accepted staff delivery permits the “sent to the team” next step. If no private destination accepts the card, use the email fallback; never turn a public card or a customer-thread send into proof that staff received it.
+
+If Discord staff delivery is uncertain, withhold other destination sends to avoid a duplicate case and tell the customer that staff receipt could not be confirmed, with one email next step. A later receipt repair does not automatically send a new customer notice. Do not describe a transport timeout as definite non-delivery or claim someone accepted the case.
 
 Inspect counts and fixed outcome messages rather than request bodies. Escalation signals and timing/token lines are metadata. Do not forward raw exception strings if they may contain provider credentials or private inputs. Fix capability failures independently from answer wording; changing the tone must not hide a broken delivery path.
 

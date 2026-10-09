@@ -152,12 +152,15 @@ function makeChannel(parentId) {
   const sent = [];
   const channel = {
     id: nextId(), parentId, name: 'Evaluation', sent,
+    evalSourceMessages: new Map(),
     isThread: () => true, isTextBased: () => true,
     sendTyping: async () => {},
     send: async (payload) => {
       sent.push(payload);
-      history.push({ id: nextId(), content: payloadText(payload), author: { id: '800000000000000001', username: 'Omi Support', bot: true } });
-      return { id: nextId() };
+      const receipt = { id: nextId(), content: payloadText(payload), channelId: channel.id, channel,
+        nonce: payload?.nonce, reference: null, author: { id: '800000000000000001', username: 'Omi Support', bot: true } };
+      history.push(receipt);
+      return receipt;
     },
     messages: { fetch: async () => new Map(history.slice().reverse().map((item) => [item.id, item])) },
     setName: async (name) => { channel.name = name; },
@@ -173,12 +176,23 @@ function makeMessage(content, channel, history, authorId) {
     attachments: new Map(), embeds: [], mentions: { has: () => false },
     reply: async (payload) => {
       replies.push(payload);
-      history.push({ id: nextId(), content: payloadText(payload), author: { id: '800000000000000001', username: 'Omi Support', bot: true } });
-      return { id: nextId(), content: payloadText(payload) };
+      const receipt = { id: nextId(), content: payloadText(payload), channelId: channel.id, channel,
+        nonce: payload?.nonce, reference: { messageId: message.id, channelId: channel.id },
+        author: { id: '800000000000000001', username: 'Omi Support', bot: true } };
+      history.push(receipt);
+      return receipt;
     },
   };
   history.push(message);
+  channel.evalSourceMessages.set(message.id, message);
   return message;
+}
+
+async function evalDiscordSender(_client, channel, payload, { replyToMessageId = null } = {}) {
+  if (replyToMessageId == null) return channel.send(payload);
+  const source = channel.evalSourceMessages?.get(replyToMessageId);
+  if (!source) throw Object.assign(new Error('Evaluation source unavailable'), { status: 400, code: 10008, referenceMissing: true });
+  return source.reply(payload);
 }
 
 async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () => {} } = {}) {
@@ -239,6 +253,15 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
     state.handoff = true;
     return { ok: true, via: 'staff-channel' };
   };
+  // New checkouts use a receipt-backed REST adapter. Stub that boundary too;
+  // never let a model evaluation use the real bot token to send a message.
+  let deliveryTransport;
+  if (fs.existsSync(path.join(root, 'supportDiscordTransport.js'))) {
+    deliveryTransport = inRoot('supportDiscordTransport.js');
+    deliveryTransport.setTransportForTests(evalDiscordSender);
+    const deliveries = inRoot('supportDeliveries.js');
+    deliveries.setStoreForTests(deliveries.createMemoryStore(), { log: () => {} });
+  }
   const { client, handleMessage } = inRoot('index.js');
   const router = inRoot('router.js');
   const { User } = require('discord.js');
@@ -316,6 +339,7 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
     console.error = originalError;
     process.off('omiSupportTimings', onTiming);
     process.off('omiSupportModelUsage', onModelUsage);
+    deliveryTransport?.setTransportForTests(null);
   }
   rows.sort((a, b) => a.run - b.run || selected.findIndex((scene) => scene.id === a.id) - selected.findIndex((scene) => scene.id === b.id));
   return {
@@ -354,4 +378,4 @@ async function main() {
 
 if (require.main === module) main().catch((err) => { console.error(err.message); process.exitCode = 1; });
 
-module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, makeChannel, makeMessage, run };
+module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, makeChannel, makeMessage, evalDiscordSender, run };

@@ -14,6 +14,7 @@ The implemented foundation addresses these audited workflow gaps:
 - An explicit order miss no longer substitutes another order; returned facts must match both the requested number and verified owner. Historical-order pagination/access remains follow-up work (`shopify.js`, `orderFlow.js`).
 - Encrypted engineering proposals and private case/source/repository links survive restart. Staff author a technical summary, inspect the exact public payload and confirm its revision; atomic claims prevent parallel publication. Unknown remote outcomes stay held for read-only reconciliation, not automatic retries (`supportApprovals.js`, `supportIssueLinks.js`, `githubFlow.js`).
 - Full Discord staff delivery and GitHub controls require a verified staff-only audience and bot send permission. An unknown direct member grant fails closed; no broader member intent or permission is added (`discordPrivacy.js`, `handoff.js`).
+- Ordinary answer sends and full private staff cards now have an application-owned metadata receipt ledger, an isolated no-hidden-retry sender and accepted-receipt projection repair (`supportDeliveries.js`, `supportDiscordTransport.js`, `supportDeliveryRecovery.js`). This is a staged reliability improvement, not a complete outbox.
 
 A complete delivery outbox, retained cumulative case summary, staff queue and customer diagnostic gateway remain implementation work, not guarantees of this foundation.
 
@@ -93,6 +94,18 @@ Lead with acknowledgment and a useful action, not repeated capability disclaimer
 For example, before verification: “Losing a meeting recording is frustrating. Please don't reinstall or clear storage yet. Verify your Omi account privately so we can check its upload and processing status.” This wording is usable only after that verification/check workflow exists. After confirmed delivery: “I've sent the details to the support team. The next update belongs in this thread.” Do not say someone has accepted the case until that acceptance is recorded.
 
 ## Reliability and audit controls
+
+### Discord receipt boundary
+
+Before an ordinary answer or full staff-card POST, atomically reserve an immutable operation/source/customer/destination/bot/case-generation scope and a unique nonce in Postgres. Persist only provenance, attempt status, receipt IDs and projection metadata, never a reply/card body or attachment. Separate `dispatching`, `accepted`, `rejected` and `unknown`; expired dispatching rows remain held. No database-error memory fallback exists in production.
+
+The scoped sender uses an isolated REST client with retries disabled, explicit enforced nonce, rejected rate-limit waits and an overall 15-second deadline. It leaves other Discord adapters unchanged. A definite rejection permits a bounded deliberate retry; timeout, reset, invalid receipt or receipt-save uncertainty cannot trigger a generic second reply or a second handoff destination. An uncertain staff send says receipt could not be confirmed, not that staff definitely received or definitely missed it.
+
+Own-bot Gateway metadata may confirm an exact nonce, author, channel and reply reference. Capturing a receipt does not claim staff acceptance. Every 30 seconds, accepted unprojected receipts can repair local case/card state after fresh private-audience and source/case checks, with exponential retry backoff capped at 15 minutes. Only the exact recorded bot message is fetched; there is no surrounding-history scan or another message POST. A removed review control can be restored by an idempotent PATCH of that same private card after its immutable approval scope is verified and bound. Reopening increments a case generation and clears old delivery/acceptance; conditional transitions reject prior-generation receipts. Recent accepted answer IDs rebuild customer-owned continuation references after restart.
+
+Discord's enforced nonce only deduplicates a recent same-author message; it is not permanent exactly-once delivery or a nonce lookup endpoint. See the official [Create Message contract](https://docs.discord.com/developers/resources/message#create-message). If both the immediate REST receipt and matching Gateway event are missed, hold the operation for private operator investigation. Do not infer non-delivery from absence. The read-only inspection command exposes opaque operation IDs and states, not customers, channels, nonces or payloads.
+
+This slice does not automatically retry late sends, store pending payloads, close cases, or cover reused-handoff answers, Telegram, ephemeral commands, closure cards and other notifications. Metadata cleanup and customer-content retention remain explicit follow-ups; deleting holds prematurely would defeat duplicate protection. The general delivery outbox below remains the target architecture.
 
 Use transactional message claims with leases, per-case ordering, bounded worker concurrency, and a durable delivery outbox. Record accepted sends and identifiers; reconcile uncertain outcomes before retrying. Do not promise exactly-once delivery across Discord and the database without handling that boundary. Shutdown stops new claims and lets accepted work finish or safely resume.
 

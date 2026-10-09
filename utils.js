@@ -260,6 +260,7 @@ function replyMentions(message, { pingAuthor = false, repliedUser = false } = {}
 }
 
 function isUnknownMessageRef(err) {
+  if (err?.referenceMissing === true || Number(err?.code) === 10008) return true;
   const text = `${err?.message || ''} ${err?.code || ''} ${JSON.stringify(err?.rawError || {})}`;
   return /Unknown message|MESSAGE_REFERENCE_UNKNOWN_MESSAGE/i.test(text);
 }
@@ -299,6 +300,8 @@ const ESCALATE_FOOTER =
   'A person on the team needs to take this. I have not pinged anyone yet.';
 const FAILED_HANDOFF_FOOTER =
   'I could not deliver this to the support team from here. Please email help@omi.me with the details; do not post order or account information publicly.';
+const UNKNOWN_HANDOFF_FOOTER =
+  'I could not confirm that this reached the support team. Please email help@omi.me with the details; do not post order or account information publicly.';
 
 const PINGED_FOOTER = 'A person on the team has this now.';
 const THREAD_REPLY_FOOTER = 'A person on the team has this now and will reply in this thread.';
@@ -446,7 +449,11 @@ function escalateReply(answer, opts = {}) {
   const footers = opts.footers;
   let body = dropPingNarration(String(answer || '').trim());
 
-  if (pinged || opts.deliveryFailed) body = stripSupportRedirect(body);
+  if (pinged || opts.deliveryFailed || opts.deliveryUnknown) body = stripSupportRedirect(body);
+
+  if (opts.deliveryUnknown) {
+    return [body, footers?.unknown || UNKNOWN_HANDOFF_FOOTER].filter(Boolean).join('\n\n');
+  }
 
   if (opts.deliveryFailed) {
     return [body, footers?.failed || FAILED_HANDOFF_FOOTER].filter(Boolean).join('\n\n');

@@ -6,6 +6,7 @@ const cases = require('../supportCases');
 const { SupportIdentityStore, initSchema: initIdentity } = require('../supportIdentityStore');
 const approvals = require('../supportApprovals');
 const issueLinks = require('../supportIssueLinks');
+const deliveries = require('../supportDeliveries');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -39,6 +40,7 @@ async function verify(pool) {
   for (let count = 0; count < 2; count++) {
     await runtime.initSchema(pool); await cases.initSchema(pool); await initIdentity(pool);
     await approvals.initSchema(pool); await issueLinks.initSchema(pool);
+    await deliveries.initSchema(pool);
   }
   const prefix = `test-${randomUUID()}`;
   const store = new runtime.PostgresRuntimeStore(pool);
@@ -74,7 +76,63 @@ async function verify(pool) {
   assert.equal(accepted.acceptedBy, `${prefix}-staff`);
   assert.equal((await service.markAccepted(first.id, { staffId: `${prefix}-other-staff` })).acceptedBy, `${prefix}-staff`);
   await service.resolveCase(first.id, { close: true, confirmed: true });
-  assert.equal((await service.reopenByThread(`${prefix}-handoff`, aliceInput.customerId)).status, 'queued');
+  const reopened = await service.reopenByThread(`${prefix}-handoff`, aliceInput.customerId);
+  assert.equal(reopened.status, 'queued'); assert.equal(reopened.generation, 1);
+  assert.equal(reopened.acceptedBy, null); assert.equal(reopened.acceptedAt, null); assert.equal(reopened.deliveryId, null);
+  assert.equal(await service.markDelivered(first.id, { messageId: `${prefix}-old-receipt`, destination: 'staff-channel', expectedGeneration: 0 }), null);
+  assert.equal((await service.markDelivered(first.id, { messageId: `${prefix}-new-receipt`, destination: 'staff-channel', expectedGeneration: 1 })).status, 'delivered');
+
+  let deliveryNow = Date.now();
+  const deliveryStore = deliveries.createPostgresStore(pool);
+  const delivery = deliveries.createDeliveryService(deliveryStore, { now: () => deliveryNow, log: () => {} });
+  const deliveryCopy = deliveries.createDeliveryService(deliveryStore, { now: () => deliveryNow, log: () => {} });
+  const deliveryScope = { operationKey: `${prefix}:answer`, kind: 'answer', sourceMessageId: `${prefix}-source`, customerId: aliceInput.customerId,
+    channelId: aliceInput.channelId, botUserId: `${prefix}-bot`, caseId: first.id, caseGeneration: 1, referenceMessageId: `${prefix}-source` };
+  const makeReceipt = (nonce, id = `${prefix}-message-receipt`) => ({ id, nonce, author: { id: deliveryScope.botUserId, bot: true },
+    channelId: deliveryScope.channelId, reference: { messageId: deliveryScope.referenceMessageId } });
+  let releaseSend; let beganSend;
+  const sendGate = new Promise((resolve) => { releaseSend = resolve; });
+  const began = new Promise((resolve) => { beganSend = resolve; });
+  let deliveryPosts = 0;
+  const activeSend = delivery.send({ ...deliveryScope, payload: 'SYNTHETIC_PRIVATE_PAYLOAD' }, async ({ nonce, enforceNonce }) => {
+    deliveryPosts++; assert.equal(enforceNonce, true); beganSend(); await sendGate; return makeReceipt(nonce);
+  });
+  await began;
+  await assert.rejects(deliveryCopy.send(deliveryScope, async () => { deliveryPosts++; }), deliveries.isDeliveryUncertain);
+  releaseSend(); await activeSend;
+  assert.equal((await deliveryCopy.send(deliveryScope, async () => { deliveryPosts++; })).id, `${prefix}-message-receipt`);
+  assert.equal(deliveryPosts, 1);
+  await assert.rejects(deliveryCopy.send({ ...deliveryScope, customerId: bob.customerId }, async () => assert.fail('wrong customer cannot send')), (error) => error.deliveryBlocked);
+  const storedDelivery = (await pool.query('SELECT * FROM support_deliveries WHERE operation_key=$1', [deliveryScope.operationKey])).rows[0];
+  assert.doesNotMatch(JSON.stringify(storedDelivery), /SYNTHETIC_PRIVATE_PAYLOAD/);
+  assert.equal(storedDelivery.case_generation, 1);
+  const acceptedDelivery = await delivery.get(deliveryScope.operationKey);
+  assert.ok((await delivery.pendingReceipts(100)).some((row) => row.id === acceptedDelivery.id));
+  const projection = await delivery.deferProjection(acceptedDelivery.id);
+  assert.equal(projection.projectionAttempts, 1);
+  assert.equal(new Date(projection.nextProjectionAt).getTime(), deliveryNow + 30_000);
+  assert.equal((await delivery.pendingReceipts(100)).some((row) => row.id === acceptedDelivery.id), false);
+  deliveryNow += 30_000;
+  assert.ok((await delivery.pendingReceipts(100)).some((row) => row.id === acceptedDelivery.id));
+  await delivery.markProjected(acceptedDelivery.id);
+  assert.equal((await delivery.pendingReceipts(100)).some((row) => row.id === acceptedDelivery.id), false);
+  assert.equal(await delivery.deferProjection(acceptedDelivery.id), null);
+  assert.ok((await delivery.recentAnswers({ since: 0 })).some((row) => row.id === acceptedDelivery.id));
+  const unknownScope = { ...deliveryScope, operationKey: `${prefix}:unknown` }; let unknownNonce;
+  await assert.rejects(delivery.send(unknownScope, async ({ nonce }) => { unknownNonce = nonce; throw new Error('SYNTHETIC_PRIVATE_ERROR'); }), deliveries.isDeliveryUncertain);
+  await assert.rejects(deliveryCopy.send(unknownScope, async () => assert.fail('held delivery cannot replay')), deliveries.isDeliveryUncertain);
+  assert.equal(await delivery.acceptGatewayReceipt({ ...makeReceipt(unknownNonce), author: { id: 'wrong-bot' } }), null);
+  const gatewayDelivery = await delivery.acceptGatewayReceipt(makeReceipt(unknownNonce, `${prefix}-gateway`));
+  assert.equal(gatewayDelivery.state, 'accepted'); assert.equal(gatewayDelivery.messageId, `${prefix}-gateway`);
+  const rejectedScope = { ...deliveryScope, operationKey: `${prefix}:rejected` };
+  for (let attempt = 0; attempt < 3; attempt++) await assert.rejects(delivery.send(rejectedScope, async () => { throw { status: 403, code: 50013 }; }), (error) => error.deliveryRejected);
+  await assert.rejects(delivery.send(rejectedScope, async () => assert.fail('retry cap must block')), (error) => error.deliveryBlocked);
+  assert.equal((await delivery.get(rejectedScope.operationKey)).attemptCount, 3);
+  assert.equal((await delivery.pendingReceipts(100)).some((row) => row.operationKey === rejectedScope.operationKey), false);
+  const staffScope = { ...deliveryScope, operationKey: `${prefix}:staff`, kind: 'staff-card', referenceMessageId: null, caseGeneration: 1, approvalId: `${prefix}-approval` };
+  await delivery.send(staffScope, async ({ nonce }) => ({ ...makeReceipt(nonce, `${prefix}-staff-receipt`), reference: null }));
+  assert.equal((await delivery.get(staffScope.operationKey)).approvalId, staffScope.approvalId);
+  await assert.rejects(delivery.send({ ...staffScope, approvalId: `${prefix}-different-approval` }, async () => assert.fail('cannot change bound approval')), (error) => error.deliveryBlocked);
 
   const identity = new SupportIdentityStore({ pool, key: Buffer.alloc(32, 17) });
   const restarted = new SupportIdentityStore({ pool, key: Buffer.alloc(32, 17) });
@@ -160,6 +218,7 @@ async function verify(pool) {
   }
   console.log('Support database integration: schema, claims, queue, case isolation, verification and revocation passed');
   console.log('GitHub approval integration: encrypted drafts, case-insensitive source uniqueness, single dispatch, private links and fail-safe migration passed');
+  console.log('Delivery ledger integration: single dispatch, scope/generation guards, metadata receipts, unknown holds, gateway proof and projection backoff passed');
 }
 
 (async () => {

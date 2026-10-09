@@ -57,7 +57,7 @@ function rowCase(row) {
     customerThreadId: row.customer_thread_id, handoffThreadId: row.handoff_thread_id,
     escalationId: row.escalation_id, status: row.status, context: row.context || {}, sources: row.sources || [],
     deliveryId: row.delivery_id, deliveryDestination: row.delivery_destination,
-    acceptedBy: row.accepted_by, acceptedAt: row.accepted_at,
+    acceptedBy: row.accepted_by, acceptedAt: row.accepted_at, generation: Number(row.generation || 0),
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
 }
@@ -83,6 +83,7 @@ async function initSchema(client) {
     );
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS accepted_by TEXT;
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+    ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS generation INTEGER NOT NULL DEFAULT 0;
     CREATE UNIQUE INDEX IF NOT EXISTS support_cases_active_scope_idx
       ON support_cases(channel_id, customer_id) WHERE status IN ('queued', 'delivered', 'accepted');
     CREATE INDEX IF NOT EXISTS support_cases_customer_thread_idx ON support_cases(customer_thread_id);
@@ -137,12 +138,17 @@ function createPostgresStore(client) {
     async transition(caseId, status, from, delivery = {}) {
       try {
         const { rows } = await client.query(`UPDATE support_cases AS current_case SET status = $2,
-          delivery_id = COALESCE($4, delivery_id), delivery_destination = COALESCE($5, delivery_destination), updated_at = NOW()
+          generation = generation + CASE WHEN $2 = 'queued' AND status IN ('closed', 'resolved') THEN 1 ELSE 0 END,
+          delivery_id = CASE WHEN $2 = 'queued' THEN NULL ELSE COALESCE($4, delivery_id) END,
+          delivery_destination = CASE WHEN $2 = 'queued' THEN NULL ELSE COALESCE($5, delivery_destination) END,
+          accepted_by = CASE WHEN $2 = 'queued' THEN NULL ELSE accepted_by END,
+          accepted_at = CASE WHEN $2 = 'queued' THEN NULL ELSE accepted_at END, updated_at = NOW()
           WHERE current_case.id = $1 AND current_case.status = ANY($3::text[])
+            AND ($6::integer IS NULL OR generation = $6)
             AND ($2 NOT IN ('queued', 'delivered', 'accepted') OR NOT EXISTS (
               SELECT 1 FROM support_cases other WHERE other.channel_id = current_case.channel_id AND other.customer_id = current_case.customer_id
                 AND other.id <> current_case.id AND other.status IN ('queued', 'delivered', 'accepted')
-            )) RETURNING current_case.*`, [caseId, status, from, delivery.messageId || null, delivery.destination || null]);
+            )) RETURNING current_case.*`, [caseId, status, from, delivery.messageId || null, delivery.destination || null, delivery.expectedGeneration ?? null]);
         return rowCase(rows[0]);
       } catch (error) {
         // A concurrent new case can win the unique active-scope index after
@@ -165,7 +171,7 @@ function createMemoryStore(state = { cases: new Map() }) {
         if (input.customerThreadId) existing.customerThreadId = input.customerThreadId;
         return clone(existing);
       }
-      const value = { ...input, handoffThreadId: null, escalationId: null, status: 'queued', deliveryId: null, deliveryDestination: null, acceptedBy: null, acceptedAt: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const value = { ...input, generation: 0, handoffThreadId: null, escalationId: null, status: 'queued', deliveryId: null, deliveryDestination: null, acceptedBy: null, acceptedAt: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       state.cases.set(value.id, value);
       return clone(value);
     },
@@ -200,7 +206,12 @@ function createMemoryStore(state = { cases: new Map() }) {
     async transition(caseId, status, from, delivery = {}) {
       const value = state.cases.get(caseId);
       if (!value || !from.includes(value.status)) return null;
+      if (delivery.expectedGeneration != null && value.generation !== delivery.expectedGeneration) return null;
       if (ACTIVE.includes(status) && [...state.cases.values()].some((other) => other.id !== value.id && other.channelId === value.channelId && other.customerId === value.customerId && ACTIVE.includes(other.status))) return null;
+      if (status === 'queued' && ['closed', 'resolved'].includes(value.status)) {
+        value.generation++;
+        value.deliveryId = value.deliveryDestination = value.acceptedBy = value.acceptedAt = null;
+      }
       value.status = status;
       if (delivery.messageId) value.deliveryId = delivery.messageId;
       if (delivery.destination) value.deliveryDestination = delivery.destination;
@@ -224,8 +235,12 @@ function createCaseService(store) {
     }),
     markDelivered(caseId, delivery = {}) {
       if (!delivery.messageId && delivery.confirmed !== true) throw new Error('Confirmed delivery is required');
+      if (delivery.expectedGeneration != null && (!Number.isSafeInteger(delivery.expectedGeneration) || delivery.expectedGeneration < 0)) {
+        throw new Error('A valid case generation is required');
+      }
       return store.transition(identifier(caseId, true), 'delivered', ['queued', 'delivered'], {
         messageId: identifier(delivery.messageId), destination: identifier(delivery.destination),
+        expectedGeneration: Number.isSafeInteger(delivery.expectedGeneration) && delivery.expectedGeneration >= 0 ? delivery.expectedGeneration : null,
       });
     },
     markAccepted: (caseId, { staffId } = {}) => store.accept(identifier(caseId, true), identifier(staffId, true)),

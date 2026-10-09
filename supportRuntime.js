@@ -213,8 +213,8 @@ class SupportRuntime {
     task.finally(() => this.tasks.delete(task)).catch(() => {});
     return task;
   }
-  track(work) {
-    if (this.stopping) return Promise.resolve({ status: 'stopping' });
+  track(work, { acceptedReceipt = false } = {}) {
+    if (this.stopping && !acceptedReceipt) return Promise.resolve({ status: 'stopping' });
     const task = Promise.resolve().then(work);
     this.tasks.add(task);
     task.finally(() => this.tasks.delete(task)).catch(() => {});
@@ -300,10 +300,14 @@ class SupportRuntime {
     if (!this.tasks.size) return true;
     let timer;
     try {
-      const drained = await Promise.race([
-        Promise.allSettled([...this.tasks]).then(() => true),
-        new Promise((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); }),
-      ]);
+      const expired = new Promise((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); });
+      // Receipt work can arrive while an already accepted send is finishing.
+      // Keep the original deadline while draining each new tracked batch.
+      let drained = true;
+      while (this.tasks.size) {
+        drained = await Promise.race([Promise.allSettled([...this.tasks]).then(() => true), expired]);
+        if (!drained) break;
+      }
       if (!drained) {
         await Promise.all([...this.jobs.values()].filter((job) => !job.started).map((job) => this.store.defer(job)));
       }
