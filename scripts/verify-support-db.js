@@ -7,6 +7,7 @@ const { SupportIdentityStore, initSchema: initIdentity } = require('../supportId
 const approvals = require('../supportApprovals');
 const issueLinks = require('../supportIssueLinks');
 const deliveries = require('../supportDeliveries');
+const caseActions = require('../supportCaseActions');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -41,6 +42,7 @@ async function verify(pool) {
     await runtime.initSchema(pool); await cases.initSchema(pool); await initIdentity(pool);
     await approvals.initSchema(pool); await issueLinks.initSchema(pool);
     await deliveries.initSchema(pool);
+    await caseActions.initSchema(pool);
   }
   const prefix = `test-${randomUUID()}`;
   const store = new runtime.PostgresRuntimeStore(pool);
@@ -81,6 +83,32 @@ async function verify(pool) {
   assert.equal(reopened.acceptedBy, null); assert.equal(reopened.acceptedAt, null); assert.equal(reopened.deliveryId, null);
   assert.equal(await service.markDelivered(first.id, { messageId: `${prefix}-old-receipt`, destination: 'staff-channel', expectedGeneration: 0 }), null);
   assert.equal((await service.markDelivered(first.id, { messageId: `${prefix}-new-receipt`, destination: 'staff-channel', expectedGeneration: 1 })).status, 'delivered');
+
+  const actionStore = caseActions.createPostgresStore(pool);
+  const actionCopyStore = caseActions.createPostgresStore(pool);
+  const actionOwner = `${prefix}-action-owner`;
+  const replacementOwner = `${prefix}-action-replacement`;
+  assert.equal(await actionStore.acquire(first.id, actionOwner, 120_000), true);
+  assert.equal(await actionCopyStore.acquire(first.id, replacementOwner, 120_000), false);
+  assert.equal(await actionStore.owned(first.id, actionOwner), true);
+  assert.equal(await actionStore.renew(first.id, actionOwner, 120_000), true);
+  assert.equal(await actionCopyStore.release(first.id, replacementOwner), false);
+  await pool.query("UPDATE support_case_action_leases SET lease_until=NOW()-INTERVAL '1 second' WHERE case_id=$1 AND owner=$2", [first.id, actionOwner]);
+  assert.equal(await actionStore.renew(first.id, actionOwner, 120_000), false);
+  assert.equal(await actionCopyStore.acquire(first.id, replacementOwner, 120_000), true);
+  assert.equal(await actionStore.release(first.id, actionOwner), false);
+  assert.equal(await actionCopyStore.owned(first.id, replacementOwner), true);
+  assert.equal(await actionCopyStore.release(first.id, replacementOwner), true);
+  const lifecycle = caseActions.createActionService(actionStore, { leaseMs: 1000, heartbeatMs: 25, waitMs: 1000 });
+  const lifecycleCopy = caseActions.createActionService(actionCopyStore, { leaseMs: 1000, heartbeatMs: 25, waitMs: 1000 });
+  let activeActions = 0; let maximumActiveActions = 0;
+  const guardedAction = async (assertOwned) => {
+    await assertOwned(); activeActions++; maximumActiveActions = Math.max(maximumActiveActions, activeActions);
+    await new Promise((resolve) => setTimeout(resolve, 40)); await assertOwned(); activeActions--;
+  };
+  await Promise.all([lifecycle.run(first.id, guardedAction), lifecycleCopy.run(first.id, guardedAction)]);
+  assert.equal(maximumActiveActions, 1);
+  assert.equal(Number((await pool.query('SELECT COUNT(*) AS count FROM support_case_action_leases WHERE case_id=$1', [first.id])).rows[0].count), 0);
 
   let deliveryNow = Date.now();
   const deliveryStore = deliveries.createPostgresStore(pool);
@@ -133,6 +161,56 @@ async function verify(pool) {
   await delivery.send(staffScope, async ({ nonce }) => ({ ...makeReceipt(nonce, `${prefix}-staff-receipt`), reference: null }));
   assert.equal((await delivery.get(staffScope.operationKey)).approvalId, staffScope.approvalId);
   await assert.rejects(delivery.send({ ...staffScope, approvalId: `${prefix}-different-approval` }, async () => assert.fail('cannot change bound approval')), (error) => error.deliveryBlocked);
+
+  const closingThread = `${prefix}-handoff`;
+  const closureScope = { operationKey: `closure:${first.id}:1:${closingThread}`, kind: 'closure',
+    sourceMessageId: closingThread, customerId: aliceInput.customerId, channelId: closingThread,
+    botUserId: deliveryScope.botUserId, caseId: first.id, caseGeneration: 1, referenceMessageId: null, approvalId: null };
+  let closurePosts = 0;
+  const closureReceipt = await delivery.send(closureScope, async ({ nonce }) => {
+    closurePosts++;
+    return { id: `${prefix}-closing-card`, nonce, author: { id: closureScope.botUserId, bot: true }, channelId: closingThread, reference: null };
+  });
+  assert.equal((await deliveryCopy.send(closureScope, async () => assert.fail('an accepted closure cannot post another card'))).id, closureReceipt.id);
+  assert.equal(closurePosts, 1);
+  assert.equal((await service.resolveCase(first.id, { close: true, deliveryId: closureReceipt.id, expectedGeneration: 1 })).status, 'closed');
+  assert.equal((await service.reopenByThread(closingThread, aliceInput.customerId,
+    { expectedCaseId: first.id, expectedGeneration: 1, forceGeneration: true })).generation, 2);
+
+  const pendingClosure = { ...closureScope, operationKey: `closure:${first.id}:2:${closingThread}`, caseGeneration: 2 };
+  let pendingNonce;
+  await assert.rejects(delivery.send(pendingClosure, async ({ nonce }) => { pendingNonce = nonce; throw new Error('Unconfirmed closing receipt'); }), deliveries.isDeliveryUncertain);
+  const visibleCard = { id: `${prefix}-visible-closing-card`, author: { id: pendingClosure.botUserId, bot: true }, channelId: closingThread,
+    components: [{ type: 1, components: [{ type: 2, custom_id: `rate:yes:${pendingNonce}` }, { type: 2, custom_id: `rate:no:${pendingNonce}` }] }] };
+  assert.equal(await delivery.acceptClosureInteractionReceipt({ ...visibleCard, author: { id: 'other-bot' } }, pendingNonce), null);
+  assert.equal(await delivery.acceptClosureInteractionReceipt({ ...visibleCard, webhookId: 'untrusted-webhook' }, pendingNonce), null);
+  assert.equal(await delivery.acceptClosureInteractionReceipt({ ...visibleCard, components: [] }, pendingNonce), null);
+  const closingProof = await delivery.acceptClosureInteractionReceipt(visibleCard, pendingNonce);
+  assert.equal(closingProof.state, 'accepted');
+  assert.equal(closingProof.messageId, visibleCard.id);
+  assert.equal((await delivery.getByNonce(pendingNonce)).caseGeneration, 2);
+  assert.equal(await delivery.acceptClosureInteractionReceipt({ ...visibleCard, id: `${prefix}-different-card` }, pendingNonce), null);
+  const canceledClose = await service.reopenByThread(closingThread, aliceInput.customerId,
+    { expectedCaseId: first.id, expectedGeneration: 2, forceGeneration: true });
+  assert.equal(canceledClose.status, 'queued'); assert.equal(canceledClose.generation, 3);
+  assert.equal(await service.resolveCase(first.id, { close: true, deliveryId: visibleCard.id, expectedGeneration: 2 }), null);
+  assert.equal((await service.getCaseById(first.id)).status, 'queued');
+
+  const uniqueThread = await service.getThreadCaseScope(closingThread);
+  assert.equal(uniqueThread.ambiguous, false); assert.equal(uniqueThread.count, 1); assert.equal(uniqueThread.case.id, first.id);
+  assert.equal((await service.getThreadCaseScope(aliceInput.channelId)).ambiguous, true);
+  assert.deepEqual(await service.getThreadCaseScope(`${prefix}-untracked`), { case: null, ambiguous: false, count: 0 });
+  await service.resolveCase(first.id, { close: true, confirmed: true, expectedGeneration: 3 });
+  const laterCase = await service.getOrCreateCase({ ...aliceInput, customerThreadId: closingThread });
+  const historicalThread = await service.getThreadCaseScope(closingThread);
+  assert.equal(historicalThread.ambiguous, false); assert.equal(historicalThread.count, 2); assert.equal(historicalThread.case.id, laterCase.id);
+  assert.equal(await service.reopenByThread(closingThread, aliceInput.customerId,
+    { expectedCaseId: first.id, expectedGeneration: 3, forceGeneration: true }), null);
+  assert.equal((await service.reopenByThread(closingThread, aliceInput.customerId,
+    { expectedCaseId: laterCase.id, expectedGeneration: 0, forceGeneration: true })).generation, 1);
+  await service.getOrCreateCase({ ...aliceInput, channelId: `${prefix}-another-origin`, customerThreadId: closingThread });
+  const multipleActive = await service.getThreadCaseScope(closingThread);
+  assert.equal(multipleActive.ambiguous, true); assert.equal(multipleActive.case, null); assert.equal(multipleActive.count, 3);
 
   const identity = new SupportIdentityStore({ pool, key: Buffer.alloc(32, 17) });
   const restarted = new SupportIdentityStore({ pool, key: Buffer.alloc(32, 17) });
@@ -219,6 +297,7 @@ async function verify(pool) {
   console.log('Support database integration: schema, claims, queue, case isolation, verification and revocation passed');
   console.log('GitHub approval integration: encrypted drafts, case-insensitive source uniqueness, single dispatch, private links and fail-safe migration passed');
   console.log('Delivery ledger integration: single dispatch, scope/generation guards, metadata receipts, unknown holds, gateway proof and projection backoff passed');
+  console.log('Closure integration: shared renewable lifecycle leases, owner-fenced release, receipt reuse, interaction proof and generation-safe reopening passed');
 }
 
 (async () => {

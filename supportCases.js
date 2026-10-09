@@ -12,6 +12,11 @@ function identifier(value, required = false) {
   return out || null;
 }
 
+function expectedGenerationOf(value) {
+  if (value != null && (!Number.isSafeInteger(value) || value < 0)) throw new Error('A valid case generation is required');
+  return value ?? null;
+}
+
 function safeContext(value = {}) {
   // Persist operational categories only. Free-form questions, summaries,
   // transcripts, order facts and model drafts deliberately have no field here.
@@ -128,6 +133,19 @@ function createPostgresStore(client) {
       // A shared/ambiguous channel can never select an arbitrary customer's case.
       return rows.length === 1 ? rowCase(rows[0]) : null;
     },
+    async getThreadScope(threadId) {
+      const { rows } = await client.query(`WITH matching_cases AS (
+        SELECT * FROM support_cases WHERE channel_id=$1 OR customer_thread_id=$1 OR handoff_thread_id=$1
+      ), scope AS (
+        SELECT COUNT(*)::integer AS count, COUNT(DISTINCT customer_id)::integer AS owner_count,
+          COUNT(*) FILTER (WHERE status IN ('queued','delivered','accepted'))::integer AS active_count FROM matching_cases
+      ) SELECT scope.*, CASE WHEN owner_count=1 AND active_count<=1 THEN (
+        SELECT to_jsonb(candidate) FROM matching_cases candidate
+        ORDER BY (status IN ('queued','delivered','accepted')) DESC, created_at DESC, id DESC LIMIT 1
+      ) ELSE NULL END AS case_row FROM scope`, [threadId]);
+      const scope = rows[0];
+      return { case: rowCase(scope?.case_row), ambiguous: Number(scope?.owner_count || 0) > 1 || Number(scope?.active_count || 0) > 1, count: Number(scope?.count || 0) };
+    },
     async link(caseId, input) {
       const { rows } = await client.query(`UPDATE support_cases SET
         handoff_thread_id = COALESCE($2, handoff_thread_id), customer_thread_id = COALESCE($3, customer_thread_id),
@@ -138,7 +156,7 @@ function createPostgresStore(client) {
     async transition(caseId, status, from, delivery = {}) {
       try {
         const { rows } = await client.query(`UPDATE support_cases AS current_case SET status = $2,
-          generation = generation + CASE WHEN $2 = 'queued' AND status IN ('closed', 'resolved') THEN 1 ELSE 0 END,
+          generation = generation + CASE WHEN $2 = 'queued' AND (status IN ('closed', 'resolved') OR $7::boolean) THEN 1 ELSE 0 END,
           delivery_id = CASE WHEN $2 = 'queued' THEN NULL ELSE COALESCE($4, delivery_id) END,
           delivery_destination = CASE WHEN $2 = 'queued' THEN NULL ELSE COALESCE($5, delivery_destination) END,
           accepted_by = CASE WHEN $2 = 'queued' THEN NULL ELSE accepted_by END,
@@ -148,7 +166,7 @@ function createPostgresStore(client) {
             AND ($2 NOT IN ('queued', 'delivered', 'accepted') OR NOT EXISTS (
               SELECT 1 FROM support_cases other WHERE other.channel_id = current_case.channel_id AND other.customer_id = current_case.customer_id
                 AND other.id <> current_case.id AND other.status IN ('queued', 'delivered', 'accepted')
-            )) RETURNING current_case.*`, [caseId, status, from, delivery.messageId || null, delivery.destination || null, delivery.expectedGeneration ?? null]);
+            )) RETURNING current_case.*`, [caseId, status, from, delivery.messageId || null, delivery.destination || null, delivery.expectedGeneration ?? null, delivery.forceGeneration === true]);
         return rowCase(rows[0]);
       } catch (error) {
         // A concurrent new case can win the unique active-scope index after
@@ -196,6 +214,13 @@ function createMemoryStore(state = { cases: new Map() }) {
         (item.customerThreadId === threadId || item.handoffThreadId === threadId || (customerId && item.channelId === threadId && item.customerId === customerId)));
       return matches.length === 1 ? clone(matches[0]) : null;
     },
+    async getThreadScope(threadId) {
+      const matches = [...state.cases.values()].filter((item) => item.channelId === threadId || item.customerThreadId === threadId || item.handoffThreadId === threadId);
+      const ambiguous = new Set(matches.map((item) => item.customerId)).size > 1 || matches.filter((item) => ACTIVE.includes(item.status)).length > 1;
+      matches.sort((left, right) => Number(ACTIVE.includes(right.status)) - Number(ACTIVE.includes(left.status)) ||
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime() || right.id.localeCompare(left.id));
+      return { case: ambiguous ? null : clone(matches[0]), ambiguous, count: matches.length };
+    },
     async link(caseId, input) {
       const value = state.cases.get(caseId);
       if (!value) return null;
@@ -208,8 +233,8 @@ function createMemoryStore(state = { cases: new Map() }) {
       if (!value || !from.includes(value.status)) return null;
       if (delivery.expectedGeneration != null && value.generation !== delivery.expectedGeneration) return null;
       if (ACTIVE.includes(status) && [...state.cases.values()].some((other) => other.id !== value.id && other.channelId === value.channelId && other.customerId === value.customerId && ACTIVE.includes(other.status))) return null;
-      if (status === 'queued' && ['closed', 'resolved'].includes(value.status)) {
-        value.generation++;
+      if (status === 'queued') {
+        if (['closed', 'resolved'].includes(value.status) || delivery.forceGeneration === true) value.generation++;
         value.deliveryId = value.deliveryDestination = value.acceptedBy = value.acceptedAt = null;
       }
       value.status = status;
@@ -229,36 +254,45 @@ function createCaseService(store) {
     getActiveCase: (channelId, customerId) => store.getActive(identifier(channelId, true), identifier(customerId, true)),
     getCaseById: (caseId) => store.getById(identifier(caseId, true)),
     getCaseByThread: (threadId, customerId) => store.getByThread(identifier(threadId, true), identifier(customerId)),
+    getThreadCaseScope: (threadId) => store.getThreadScope(identifier(threadId, true)),
     linkHandoff: (caseId, input = {}) => store.link(identifier(caseId, true), {
       handoffThreadId: identifier(input.handoffThreadId), customerThreadId: identifier(input.customerThreadId),
       escalationId: Number.isSafeInteger(input.escalationId) && input.escalationId > 0 ? input.escalationId : null,
     }),
     markDelivered(caseId, delivery = {}) {
       if (!delivery.messageId && delivery.confirmed !== true) throw new Error('Confirmed delivery is required');
-      if (delivery.expectedGeneration != null && (!Number.isSafeInteger(delivery.expectedGeneration) || delivery.expectedGeneration < 0)) {
-        throw new Error('A valid case generation is required');
-      }
+      const expectedGeneration = expectedGenerationOf(delivery.expectedGeneration);
       return store.transition(identifier(caseId, true), 'delivered', ['queued', 'delivered'], {
         messageId: identifier(delivery.messageId), destination: identifier(delivery.destination),
-        expectedGeneration: Number.isSafeInteger(delivery.expectedGeneration) && delivery.expectedGeneration >= 0 ? delivery.expectedGeneration : null,
+        expectedGeneration,
       });
     },
     markAccepted: (caseId, { staffId } = {}) => store.accept(identifier(caseId, true), identifier(staffId, true)),
-    resolveCase(caseId, { close = false, deliveryId, confirmed = false } = {}) {
+    resolveCase(caseId, { close = false, deliveryId, confirmed = false, expectedGeneration } = {}) {
       if (!deliveryId && !confirmed) throw new Error('Confirmed customer delivery is required');
-      return store.transition(identifier(caseId, true), close ? 'closed' : 'resolved', STATUSES, { messageId: identifier(deliveryId) });
+      return store.transition(identifier(caseId, true), close ? 'closed' : 'resolved', STATUSES, { messageId: identifier(deliveryId), expectedGeneration: expectedGenerationOf(expectedGeneration) });
     },
-    async resolveByThread(threadId, { customerId, close = false, deliveryId, confirmed = false } = {}) {
+    async resolveByThread(threadId, { customerId, close = false, deliveryId, confirmed = false, expectedGeneration } = {}) {
       if (!deliveryId && !confirmed) throw new Error('Confirmed customer delivery is required');
+      const generation = expectedGenerationOf(expectedGeneration);
       const value = await store.getByThread(identifier(threadId, true), identifier(customerId));
       if (!value) return null;
-      return store.transition(value.id, close ? 'closed' : 'resolved', STATUSES, { messageId: identifier(deliveryId) });
+      return store.transition(value.id, close ? 'closed' : 'resolved', STATUSES, { messageId: identifier(deliveryId), expectedGeneration: generation });
     },
-    async reopenByThread(threadId, customerId) {
-      const value = await store.getByThread(identifier(threadId, true), identifier(customerId, true));
-      if (!value) return null;
-      if (ACTIVE.includes(value.status)) return value;
-      return store.transition(value.id, 'queued', ['resolved', 'closed']);
+    async reopenByThread(threadId, customerId, { expectedGeneration, expectedCaseId, forceGeneration = false } = {}) {
+      const generation = expectedGenerationOf(expectedGeneration);
+      const caseId = identifier(expectedCaseId);
+      if (typeof forceGeneration !== 'boolean' || ((forceGeneration || caseId) && generation == null)) throw new Error('A valid case generation is required');
+      const thread = identifier(threadId, true), customer = identifier(customerId, true);
+      const scope = caseId ? await store.getThreadScope(thread) : null;
+      // Exact receipt-bound feedback may select a unique owner's current case
+      // across history, but never silently retarget an older closing notice.
+      // Legacy unbound callers keep the conservative one-match lookup.
+      const value = caseId ? (scope.ambiguous ? null : scope.case) : await store.getByThread(thread, customer);
+      if (!value || value.customerId !== customer || (caseId && value.id !== caseId)) return null;
+      if (generation != null && value.generation !== generation) return null;
+      if (ACTIVE.includes(value.status) && !forceGeneration) return value;
+      return store.transition(value.id, 'queued', forceGeneration ? STATUSES : ['resolved', 'closed'], { expectedGeneration: generation, forceGeneration });
     },
   };
 }
@@ -276,5 +310,5 @@ function service() {
 module.exports = {
   initSchema, createPostgresStore, createMemoryStore, createCaseService, safeContext, safeSources,
   setStoreForTests: (store) => { injectedStore = store; },
-  ...Object.fromEntries(['getOrCreateCase', 'getActiveCase', 'getCaseById', 'getCaseByThread', 'linkHandoff', 'markDelivered', 'markAccepted', 'resolveCase', 'resolveByThread', 'reopenByThread'].map((name) => [name, (...args) => service()[name](...args)])),
+  ...Object.fromEntries(['getOrCreateCase', 'getActiveCase', 'getCaseById', 'getCaseByThread', 'getThreadCaseScope', 'linkHandoff', 'markDelivered', 'markAccepted', 'resolveCase', 'resolveByThread', 'reopenByThread'].map((name) => [name, (...args) => service()[name](...args)])),
 };

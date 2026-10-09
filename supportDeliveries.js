@@ -44,14 +44,18 @@ function identifier(value, required = true, maximum = 128) {
   return result || null;
 }
 function scopeOf(input) {
-  if (!['answer', 'staff-card'].includes(input?.kind)) throw new DeliveryBlockedError('invalid_delivery_scope');
+  if (!['answer', 'staff-card', 'closure'].includes(input?.kind)) throw new DeliveryBlockedError('invalid_delivery_scope');
   const caseGeneration = input.caseGeneration ?? (input.kind === 'staff-card' ? 0 : null);
   if (caseGeneration != null && (!Number.isSafeInteger(caseGeneration) || caseGeneration < 0)) throw new DeliveryBlockedError('invalid_delivery_scope');
   if (input.kind === 'answer' && input.approvalId != null) throw new DeliveryBlockedError('invalid_delivery_scope');
-  return { operationKey: identifier(input.operationKey, true, 256), kind: input.kind,
+  const scope = { operationKey: identifier(input.operationKey, true, 256), kind: input.kind,
     sourceMessageId: identifier(input.sourceMessageId), customerId: identifier(input.customerId),
     channelId: identifier(input.channelId), botUserId: identifier(input.botUserId),
     caseId: identifier(input.caseId, false), referenceMessageId: identifier(input.referenceMessageId, false), caseGeneration, approvalId: identifier(input.approvalId, false) };
+  if (scope.kind === 'closure' && (!scope.caseId || scope.caseGeneration == null || scope.sourceMessageId !== scope.channelId ||
+    scope.referenceMessageId != null || scope.approvalId != null ||
+    scope.operationKey !== `closure:${scope.caseId}:${scope.caseGeneration}:${scope.channelId}`)) throw new DeliveryBlockedError('invalid_delivery_scope');
+  return scope;
 }
 function sameScope(left, right) { return SCOPE_KEYS.every((key) => left[key] === right[key]); }
 function receiptOf(row) {
@@ -78,7 +82,7 @@ function boundedLimit(value, maximum = 100) {
 
 async function initSchema(client) {
   await client.query(`CREATE TABLE IF NOT EXISTS support_deliveries (
-    id TEXT PRIMARY KEY, operation_key TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK(kind IN ('answer','staff-card')),
+    id TEXT PRIMARY KEY, operation_key TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK(kind IN ('answer','staff-card','closure')),
     source_message_id TEXT NOT NULL, customer_id TEXT NOT NULL, channel_id TEXT NOT NULL, bot_user_id TEXT NOT NULL,
     case_id TEXT, reference_message_id TEXT, case_generation INTEGER, approval_id TEXT,
     nonce TEXT NOT NULL UNIQUE, state TEXT NOT NULL CHECK(state IN ('dispatching','accepted','rejected','unknown')),
@@ -92,6 +96,8 @@ async function initSchema(client) {
   ALTER TABLE support_deliveries ADD COLUMN IF NOT EXISTS projected_at TIMESTAMPTZ;
   ALTER TABLE support_deliveries ADD COLUMN IF NOT EXISTS projection_attempts INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE support_deliveries ADD COLUMN IF NOT EXISTS next_projection_at TIMESTAMPTZ;
+  ALTER TABLE support_deliveries DROP CONSTRAINT IF EXISTS support_deliveries_kind_check;
+  ALTER TABLE support_deliveries ADD CONSTRAINT support_deliveries_kind_check CHECK(kind IN ('answer','staff-card','closure'));
   CREATE INDEX IF NOT EXISTS support_deliveries_nonce_idx ON support_deliveries(nonce);
   CREATE INDEX IF NOT EXISTS support_deliveries_pending_idx ON support_deliveries(state, attempt_expires_at);
   CREATE INDEX IF NOT EXISTS support_deliveries_projection_idx ON support_deliveries(accepted_at) WHERE state='accepted' AND projected_at IS NULL;`);
@@ -199,6 +205,18 @@ function receiptMatches(receipt, value, strict = false) {
   return referenceChannel == null || String(referenceChannel) === value.channelId;
 }
 
+function closureButtonsMatch(message, nonce) {
+  if (!Array.isArray(message?.components)) return false;
+  const buttons = new Set();
+  for (const row of message.components) {
+    if ((row?.type ?? row?.data?.type) !== 1 || !Array.isArray(row.components)) continue;
+    for (const button of row.components) {
+      if ((button?.type ?? button?.data?.type) === 2) buttons.add(button.customId ?? button.custom_id ?? button.data?.custom_id);
+    }
+  }
+  return buttons.has(`rate:yes:${nonce}`) && buttons.has(`rate:no:${nonce}`);
+}
+
 function createDeliveryService(store, { now = () => Date.now(), attemptTtlMs = ATTEMPT_TTL_MS, log = console.log } = {}) {
   const emit = (value, state) => { try { log(`[Delivery] id=${value.id} kind=${value.kind} state=${state}`); } catch { /* Telemetry cannot change delivery. */ } };
   async function markUnknown(value, code = 'delivery_unknown') {
@@ -271,7 +289,23 @@ function createDeliveryService(store, { now = () => Date.now(), attemptTtlMs = A
       if (accepted) emit(accepted, 'accepted');
       return accepted;
     },
+    async acceptClosureInteractionReceipt(message, nonce) {
+      if (!/^[0-9a-f]{24}$/.test(String(nonce || ''))) return null;
+      const value = await store.byNonce(String(nonce));
+      // This is a distinct trusted interaction-message proof: Discord may omit
+      // the original nonce from old messages, so the bot-authored button pair
+      // attests it. Never manufacture a Gateway nonce or accept an answer/card.
+      if (!value || value.kind !== 'closure' || !receiptMatches(message, value) ||
+        message?.reference != null || message?.message_reference != null || !closureButtonsMatch(message, value.nonce)) return null;
+      if (value.state === 'accepted') return value.acceptedMessageId === String(message.id) ? value : null;
+      if (!['dispatching', 'unknown'].includes(value.state)) return null;
+      const accepted = await store.accepted(value.id, value.attemptToken, String(message.id), now());
+      if (accepted) { emit(accepted, 'accepted'); return accepted; }
+      const current = await store.byNonce(value.nonce);
+      return current?.state === 'accepted' && current.acceptedMessageId === String(message.id) && sameScope(current, value) ? current : null;
+    },
     get: (key) => store.get(identifier(key, true, 256)),
+    getByNonce: (nonce) => /^[0-9a-f]{24}$/.test(String(nonce || '')) ? store.byNonce(String(nonce)) : Promise.resolve(null),
     pending: (limit = 20) => store.pending(boundedLimit(limit)),
     listHeld: (limit = 20) => store.listHeld(boundedLimit(limit), now()),
     pendingReceipts: (limit = 20) => store.pendingReceipts(boundedLimit(limit), now()),

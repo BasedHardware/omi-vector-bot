@@ -3,6 +3,11 @@ const { isCloseableThread, canStaffAct, staffMentionIds, markHandoffClosed, send
 const github = require('./github');
 const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
+const supportDeliveries = require('./supportDeliveries');
+const supportCaseActions = require('./supportCaseActions');
+const { sendDiscordMessage } = require('./supportDiscordTransport');
+const { editDiscordThread } = require('./supportThreadTransport');
+const { createClosureWorkflow } = require('./supportClosure');
 const { appReviewButtons } = require('./appReviews');
 const githubFlow = require('./githubFlow').createGithubFlow();
 
@@ -83,7 +88,9 @@ function closeNotice(user) {
   ].join('\n\n');
 }
 
-function closePayload(user) {
+function closePayload(user, { feedbackNonce = '' } = {}) {
+  if (feedbackNonce && !/^[a-f0-9]{24}$/.test(feedbackNonce)) throw new Error('Invalid feedback binding');
+  const feedbackId = (choice) => `rate:${choice}${feedbackNonce ? `:${feedbackNonce}` : ''}`;
   const embed = {
     author: { name: 'Omi Support', iconURL: OMI_LOGO_URL },
     title: 'How did we do?',
@@ -101,8 +108,8 @@ function closePayload(user) {
       {
         type: 1,
         components: [
-          { type: 2, style: 3, label: 'Yes, my issue is resolved', custom_id: 'rate:yes' },
-          { type: 2, style: 2, label: 'Still need help', custom_id: 'rate:no' },
+          { type: 2, style: 3, label: 'Yes, my issue is resolved', custom_id: feedbackId('yes') },
+          { type: 2, style: 2, label: 'Still need help', custom_id: feedbackId('no') },
         ],
       },
       appReviewButtons(),
@@ -117,16 +124,40 @@ async function handleRating(interaction, options = {}) {
   const respond = (content) => deferred
     ? interaction.editReply({ content, allowedMentions: { parse: [] } })
     : interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-  if (!['rate:yes', 'rate:no'].includes(interaction.customId)) {
+  const feedback = /^rate:(yes|no)(?::([a-f0-9]{24}))?$/.exec(String(interaction.customId || ''));
+  if (!feedback) {
     await respond('That is not a support feedback button.');
     return;
   }
-  const helped = interaction.customId === 'rate:yes';
+  const helped = feedback[1] === 'yes';
+  const feedbackNonce = feedback[2] || '';
   const threadId = String(interaction.channelId || interaction.channel?.id || '');
   const cases = options.cases || supportCases;
+  const deliveries = options.deliveries || supportDeliveries.getService();
+  const patchThread = options.patchThread || editDiscordThread;
+  let closingReceipt;
   let storedCase;
   try {
-    storedCase = threadId ? await cases.getCaseByThread(threadId) : null;
+    if (feedbackNonce) {
+      closingReceipt = await deliveries.getByNonce(feedbackNonce);
+      if (!closingReceipt || closingReceipt.kind !== 'closure' || closingReceipt.channelId !== threadId ||
+          closingReceipt.botUserId !== String(interaction.client?.user?.id || '')) {
+        await respond('This closing notice could not be verified. Please use the original closing notice in this thread.');
+        return;
+      }
+      storedCase = await cases.getCaseById(closingReceipt.caseId);
+    } else {
+      const scope = threadId ? await threadCaseScope(cases, threadId) : { case: null, ambiguous: false };
+      if (scope.ambiguous) {
+        await respond('This thread has multiple customer cases. Please use the closing notice in your own case thread.');
+        return;
+      }
+      if (scope.count > 1) {
+        await respond('This older feedback button cannot identify the current case. Please use its latest closing notice.');
+        return;
+      }
+      storedCase = scope.case;
+    }
   } catch {
     console.error('[Bot] rating case lookup failed');
     await respond('I could not check this case just now. Your feedback has not been saved; please try again.');
@@ -152,22 +183,71 @@ async function handleRating(interaction, options = {}) {
     await respond('Only the customer who opened this post can answer that.');
     return;
   }
+  if (closingReceipt && (!storedCase || storedCase.customerId !== closingReceipt.customerId ||
+      storedCase.generation !== closingReceipt.caseGeneration)) {
+    await respond('That notice belongs to an earlier support cycle. Please use the current case’s latest closing notice for feedback.');
+    return;
+  }
+  if (!closingReceipt && storedCase?.id) {
+    let tracked;
+    try { tracked = await deliveries.get(`closure:${storedCase.id}:${storedCase.generation}:${threadId}`); }
+    catch {
+      console.error('[Bot] feedback receipt lookup unavailable');
+      await respond('I could not check this closing notice just now. Your feedback has not been saved; please try again.');
+      return;
+    }
+    if (storedCase.generation > 0 || tracked) {
+      await respond(storedCase.generation > 0 && ['queued', 'delivered', 'accepted'].includes(storedCase.status)
+        ? 'This case is reopened. Continue in this thread; this older button cannot save new feedback or change the current cycle.'
+        : 'Please use the latest closing notice for this support case. This older feedback button cannot reopen it.');
+      return;
+    }
+  }
+  if (closingReceipt) {
+    try {
+      closingReceipt = await deliveries.acceptClosureInteractionReceipt(interaction.message, feedbackNonce);
+    } catch { closingReceipt = null; }
+    if (!closingReceipt) {
+      await respond('This closing notice could not be verified. No feedback or case change has been saved.');
+      return;
+    }
+  }
   let counts = { yes: 0, no: 0 };
   let feedbackSaved = false;
-  try {
-    counts = await (options.recordRating || require('./ratings').recordRating)(threadId, clicker, helped);
-    feedbackSaved = true;
-  } catch (err) {
-    console.error('[Bot] rating save failed');
-  }
   let reopened = false;
   let threadReopened = false;
-  if (!helped && storedCase) {
+  let reopeningComplete = false;
+  let coordinationLost = false;
+  const applyFeedback = async (assertOwned = async () => {}) => {
+    if (storedCase?.id && typeof cases.getCaseById === 'function') {
+      const fresh = await cases.getCaseById(storedCase.id);
+      if (!fresh || fresh.customerId !== clicker || fresh.generation !== storedCase.generation) {
+        throw new Error('Feedback cycle changed');
+      }
+      storedCase = fresh;
+    }
+    await assertOwned();
+    try {
+      counts = await (options.recordRating || require('./ratings').recordRating)(threadId, clicker, helped);
+      feedbackSaved = true;
+    } catch { console.error('[Bot] rating save failed'); }
+    if (helped || !storedCase) return;
     try {
       const active = await cases.getActiveCase(storedCase.channelId, clicker);
       if (active && active.id !== storedCase.id) throw new Error('A newer support case is active');
       const channel = interaction.channel;
-      if (typeof channel?.edit === 'function') {
+      // Persist the customer's new intent before physical thread updates. A
+      // delayed accepted close receipt must never close this new generation.
+      if (closingReceipt) {
+        reopened = Boolean(await cases.reopenByThread(threadId, clicker, {
+          expectedCaseId: closingReceipt.caseId, expectedGeneration: closingReceipt.caseGeneration, forceGeneration: true,
+        }));
+        if (!reopened) throw new Error('Case generation changed');
+      }
+      await assertOwned();
+      if (closingReceipt) {
+        await patchThread(interaction.client, channel, { archived: false, locked: false });
+      } else if (typeof channel?.edit === 'function') {
         await channel.edit({ archived: false, locked: false, reason: 'Customer still needs help' });
       } else if (typeof channel?.setArchived === 'function') {
         if (channel.locked) {
@@ -179,21 +259,37 @@ async function handleRating(interaction, options = {}) {
         throw new Error('Thread cannot be reopened');
       }
       threadReopened = true;
+      await assertOwned();
       require('./handoff').markHandoffReopened?.(channel);
       const tagId = resolvedTagId(channel);
-      if (tagId && typeof channel.setAppliedTags === 'function') {
-        await channel.setAppliedTags((channel.appliedTags || []).map(String).filter((id) => id !== tagId), 'Customer still needs help');
+      if (tagId && (closingReceipt || typeof channel.setAppliedTags === 'function')) {
+        const appliedTags = (channel.appliedTags || []).map(String).filter((id) => id !== tagId);
+        if (closingReceipt) { await assertOwned(); await patchThread(interaction.client, channel, { appliedTags }); }
+        else await channel.setAppliedTags(appliedTags, 'Customer still needs help');
       }
+      if (!closingReceipt) reopened = Boolean(await cases.reopenByThread(threadId, clicker));
+      if (!reopened && ['queued', 'delivered', 'accepted'].includes(storedCase.status) && !channel.archived && !channel.locked) reopened = true;
       const database = options.db || (process.env.DATABASE_URL ? require('./db') : null);
-      if (storedCase.escalationId && database) {
+      if (reopened && storedCase.escalationId && database) {
         if (typeof database.reopenEscalation !== 'function') throw new Error('Escalation cannot be reopened');
+        await assertOwned();
         await database.reopenEscalation(storedCase.escalationId);
       }
-      reopened = Boolean(await cases.reopenByThread(threadId, clicker));
-      if (!reopened && ['queued', 'delivered', 'accepted'].includes(storedCase.status) && !channel.archived && !channel.locked) reopened = true;
+      reopeningComplete = reopened;
     } catch (err) {
       console.error('[Bot] case reopen failed:', err.name);
     }
+  };
+  try {
+    if (storedCase?.id) await (options.actions || supportCaseActions.getService()).run(storedCase.id, applyFeedback);
+    else await applyFeedback();
+  } catch {
+    console.error('[Bot] feedback coordination unavailable or cycle changed');
+    if (!feedbackSaved && !reopened && !threadReopened) {
+      await respond('This case is being updated or that closing notice is outdated. Please use the latest closing notice; no new feedback or case change was saved by this attempt.');
+      return;
+    }
+    coordinationLost = true;
   }
   const where = threadId ? ` <#${threadId}>` : '';
   const totals = feedbackSaved && Number.isFinite(counts?.yes) && Number.isFinite(counts?.no)
@@ -209,7 +305,13 @@ async function handleRating(interaction, options = {}) {
   } catch (err) {
     console.error('[Bot] rating note failed:', err.message);
   }
-  const note = !feedbackSaved
+  const note = coordinationLost
+    ? `${feedbackSaved ? 'Your feedback was saved. ' : 'Your feedback has not been saved. '}I could not confirm the final case/thread state. If you still need help, please open a new Help post.`
+    : reopened && !threadReopened
+    ? `Your case is reopened, but I could not reopen this thread. Please open a new Help post.${feedbackSaved ? ' Your feedback is recorded.' : ' Your feedback has not been saved.'}`
+    : reopened && threadReopened && !reopeningComplete
+    ? `Your case and thread are reopened, but the tracking update is incomplete. You can continue here.${feedbackSaved ? ' Your feedback is recorded.' : ' Your feedback has not been saved.'}`
+    : !feedbackSaved
     ? reopened
       ? 'This case is reopened. You can continue in this thread. Saving your feedback failed; it has not been added to the dashboard.'
       : threadReopened
@@ -229,30 +331,40 @@ function resolvedTagId(channel) {
   return hit?.id ? String(hit.id) : '';
 }
 
-async function applyResolvedTag(channel) {
+async function applyResolvedTag(channel, patchThread = null) {
   const tagId = resolvedTagId(channel);
-  if (!tagId || typeof channel.setAppliedTags !== 'function') return;
+  if (!tagId || (!patchThread && typeof channel.setAppliedTags !== 'function')) return;
   const current = [...(channel.appliedTags || [])].map(String);
   if (current.includes(tagId)) return;
-  await channel.setAppliedTags([...current, tagId], 'Resolved with /done');
+  if (patchThread) await patchThread(channel, { appliedTags: [...current, tagId] });
+  else await channel.setAppliedTags([...current, tagId], 'Resolved with /done');
 }
 
-async function archiveHandoff(channel) {
-  if (typeof channel.edit === 'function') {
+async function archiveHandoff(channel, guard = async () => {}, patchThread = null) {
+  const definitePermissionRejection = (error) => Number(error?.code) === 50013 &&
+    (error?.status == null || Number(error.status) === 403);
+  if (patchThread || typeof channel.edit === 'function') {
+    await guard();
     try {
-      await channel.edit({ archived: true, locked: true, reason: 'Resolved with /done' });
+      if (patchThread) await patchThread(channel, { archived: true, locked: true });
+      else await channel.edit({ archived: true, locked: true, reason: 'Resolved with /done' });
       return;
     } catch (err) {
-      console.error('[Bot] /done lock+archive failed:', err.message);
+      console.error('[Bot] /done lock+archive unconfirmed');
+      if (!definitePermissionRejection(err)) throw err;
     }
+    await guard();
     try {
-      await channel.edit({ archived: true, reason: 'Resolved with /done' });
+      if (patchThread) await patchThread(channel, { archived: true });
+      else await channel.edit({ archived: true, reason: 'Resolved with /done' });
       return;
     } catch (err) {
-      console.error('[Bot] /done archive failed:', err.message);
+      console.error('[Bot] /done archive unconfirmed');
+      throw err;
     }
   }
   if (typeof channel.setArchived === 'function') {
+    await guard();
     await channel.setArchived(true, 'Resolved with /done');
   }
 }
@@ -267,12 +379,19 @@ async function closeHandoff(channel, user, options = {}) {
   let escalation;
   const database = options.db || (process.env.DATABASE_URL ? require('./db') : null);
   try {
-    storedCase = threadId ? await cases.getCaseByThread(threadId) : null;
-    escalation = database && threadId ? await database.getPendingEscalation(threadId) : null;
+    const scope = threadId ? await threadCaseScope(cases, threadId) : { case: null, ambiguous: false, count: 0 };
+    if (scope.ambiguous) return { ok: false, reason: 'This thread has multiple customer cases. Close the exact customer case in its own thread instead.' };
+    storedCase = scope.case;
+    if (!storedCase) escalation = database && threadId ? await database.getPendingEscalation(threadId) : null;
   } catch (err) {
     console.error('[Bot] /done case lookup failed:', err.name);
     return { ok: false, reason: 'Could not read this case. The thread has not been closed.' };
   }
+  if (storedCase) return closureWorkflow({ ...options, client: options.client || channel.client }).close({
+    channel, user, client: options.client || channel.client, customerCase: storedCase, payloadFn: closePayload,
+  });
+  // Untracked legacy threads retain the manual closure path. They never
+  // stand in for an ambiguous durable customer case.
   let delivered;
   try {
     delivered = await channel.send(closePayload(user));
@@ -281,9 +400,8 @@ async function closeHandoff(channel, user, options = {}) {
     return { ok: false, reason: 'Could not post the resolved message.' };
   }
   try {
-    if (storedCase) await cases.resolveByThread(threadId, { customerId: storedCase.customerId, close: true, deliveryId: delivered?.id, confirmed: true });
-    if (database && (storedCase?.escalationId || escalation?.id)) {
-      await database.resolveEscalation(storedCase?.escalationId || escalation.id);
+    if (database && escalation?.id) {
+      await database.resolveEscalation(escalation.id);
     }
   } catch (err) {
     console.error('[Bot] /done case save failed:', err.name);
@@ -301,6 +419,43 @@ async function closeHandoff(channel, user, options = {}) {
     console.error('[Bot] /done archive failed:', err.message);
   }
   return { ok: true };
+}
+
+async function threadCaseScope(cases, threadId) {
+  if (typeof cases.getThreadCaseScope === 'function') return cases.getThreadCaseScope(threadId);
+  // Compatibility for isolated injected test adapters, not a database fallback.
+  const value = await cases.getCaseByThread(threadId);
+  return { case: value, ambiguous: false, count: value ? 1 : 0 };
+}
+
+function closureWorkflow(options = {}) {
+  const database = options.db || (process.env.DATABASE_URL ? require('./db') : null);
+  return createClosureWorkflow({
+    cases: options.cases || supportCases,
+    deliveries: options.deliveries || supportDeliveries.getService(),
+    actions: options.actions || supportCaseActions.getService(),
+    botUserId: () => options.client?.user?.id,
+    sendNotice: options.sendNotice || sendDiscordMessage,
+    finishThread: options.finishThread || (async (channel, guard) => {
+      const patch = (target, changes) => (options.patchThread || editDiscordThread)(options.client, target, changes);
+      await guard();
+      await applyResolvedTag(channel, patch);
+      await guard();
+      await archiveHandoff(channel, guard, patch);
+    }),
+    resolveEscalation: (id) => database ? database.resolveEscalation(id) : Promise.resolve(),
+    markThreadClosed: markHandoffClosed,
+  });
+}
+
+function canCloseCase(interaction) {
+  const staffId = String(interaction.user?.id || '');
+  const { users, roles } = staffMentionIds();
+  const permissions = interaction.memberPermissions || interaction.member?.permissions;
+  return Boolean(staffId && (users.includes(staffId) ||
+    roles.some((id) => interaction.member?.roles?.cache?.has?.(id) ||
+      (Array.isArray(interaction.member?.roles) && interaction.member.roles.map(String).includes(id))) ||
+    permissions?.has?.('ManageThreads') || permissions?.has?.('Administrator')));
 }
 
 async function handleTest(interaction) {
@@ -334,7 +489,7 @@ async function handleTest(interaction) {
 }
 
 async function handleDone(interaction) {
-  if (!canStaffAct(interaction)) {
+  if (!canCloseCase(interaction)) {
     await interaction.reply({
       content: 'Only staff can close a thread.',
       flags: MessageFlags.Ephemeral,
@@ -344,13 +499,13 @@ async function handleDone(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   let result;
   try {
-    result = await closeHandoff(interaction.channel, interaction.user);
+    result = await closeHandoff(interaction.channel, interaction.user, { client: interaction.client });
   } catch (err) {
     console.error('[Bot] /done close failed:', err.message);
     result = { ok: false, reason: 'Could not close the thread.' };
   }
   try {
-    await interaction.editReply(result.ok ? 'Marked resolved.' : result.reason);
+    await interaction.editReply(result.ok ? result.reason || 'Marked resolved.' : result.reason);
   } catch (err) {
     console.error('[Bot] /done ack failed:', err.message);
   }
@@ -509,6 +664,9 @@ module.exports = {
   closeNotice,
   closePayload,
   closeHandoff,
+  canCloseCase,
+  handleDone,
+  repairClosureReceipt: (row, options = {}) => closureWorkflow(options).repair(row),
   handleRating,
   canAcceptCase,
   handleAcceptCase,

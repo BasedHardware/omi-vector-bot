@@ -104,6 +104,7 @@ const receiptRecovery = createReceiptRecovery({
   getApproval: (id) => github.getScopedApproval(id),
   bindCard: (approval, sent) => githubFlow.bindCard(approval, sent),
   rememberAnswer: rememberBotReply,
+  repairClosure: (row) => commands.repairClosureReceipt(row, { client }),
 });
 
 async function reconcileDeliveryReceipt(message) {

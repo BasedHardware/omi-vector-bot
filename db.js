@@ -103,6 +103,7 @@ async function initSchema() {
     await require('./supportApprovals').initSchema(client);
     await require('./supportIssueLinks').initSchema(client);
     await require('./supportDeliveries').initSchema(client);
+    await require('./supportCaseActions').initSchema(client);
     const chunks = await client.query(`SELECT count(*)::int AS n FROM doc_chunks`);
     const pages = await client.query(`SELECT count(*)::int AS n FROM doc_pages`);
     if ((chunks.rows[0]?.n || 0) === 0 && (pages.rows[0]?.n || 0) > 0) {

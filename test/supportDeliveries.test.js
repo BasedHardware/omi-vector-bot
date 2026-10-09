@@ -1,12 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createMemoryStore, createPostgresStore, createDeliveryService, classifyDeliveryError, isDeliveryUncertain } = require('../supportDeliveries');
+const { createMemoryStore, createPostgresStore, createDeliveryService, classifyDeliveryError, isDeliveryUncertain, initSchema } = require('../supportDeliveries');
 const { DiscordTransportError } = require('../supportDiscordTransport');
 
 const scope = (extra = {}) => ({ operationKey: 'answer:source', kind: 'answer', sourceMessageId: 'source', customerId: 'alice',
   channelId: 'customer-channel', botUserId: 'bot', caseId: null, referenceMessageId: 'source', ...extra });
 const receipt = (nonce, extra = {}) => ({ id: 'receipt', nonce, author: { id: 'bot', bot: true }, channelId: 'customer-channel', reference: { messageId: 'source' }, ...extra });
 const gate = () => { let release; const promise = new Promise((resolve) => { release = resolve; }); return { promise, release }; };
+const closureScope = (extra = {}) => scope({ operationKey: 'closure:case:0:customer-channel', kind: 'closure', sourceMessageId: 'customer-channel',
+  caseId: 'case', caseGeneration: 0, referenceMessageId: null, approvalId: null, ...extra });
+const closureMessage = (nonce, extra = {}) => receipt(undefined, { reference: null, components: [{ type: 1, components: [
+  { type: 2, customId: `rate:yes:${nonce}` }, { type: 2, customId: `rate:no:${nonce}` },
+] }], ...extra });
 
 test('only delivery metadata persists, accepted receipts survive restart, and scope conflicts never send', async () => {
   const store = createMemoryStore();
@@ -198,4 +203,106 @@ test('inspection limits are bounded and errors without definite rejection proof 
   assert.deepEqual(classifyDeliveryError({ status: 500, code: 50013 }), { outcome: 'unknown', status: 500, code: 50013 });
   assert.equal(classifyDeliveryError({ status: 408 }).outcome, 'unknown');
   assert.equal(classifyDeliveryError({ code: 'ETIMEDOUT' }).outcome, 'unknown');
+});
+
+test('closure schema migration is repeatable and preserves existing delivery rows', async () => {
+  const calls = [];
+  const client = { query: async (sql) => { calls.push(sql); return { rows: [] }; } };
+  await initSchema(client); await initSchema(client);
+  assert.equal(calls[0], calls[1]);
+  assert.match(calls[0], /DROP CONSTRAINT IF EXISTS support_deliveries_kind_check/);
+  assert.match(calls[0], /ADD CONSTRAINT support_deliveries_kind_check CHECK\(kind IN \('answer','staff-card','closure'\)\)/);
+  assert.doesNotMatch(calls[0], /DELETE|TRUNCATE|DROP TABLE/);
+});
+
+test('closure scope requires the immutable case epoch, thread origin and canonical operation', async () => {
+  const store = createMemoryStore(); const service = createDeliveryService(store, { log: () => {} }); let posts = 0;
+  for (const invalid of [
+    { caseId: null }, { caseGeneration: null }, { caseGeneration: undefined }, { caseGeneration: -1 }, { caseGeneration: 0.5 },
+    { sourceMessageId: 'new-question' }, { referenceMessageId: 'question' }, { approvalId: 'approval' },
+    { operationKey: 'closure:another-case:0:customer-channel' }, { operationKey: 'closure:case:1:customer-channel' },
+  ]) await assert.rejects(service.send(closureScope(invalid), async () => posts++), (error) => error.deliveryBlocked);
+  assert.equal(posts, 0); assert.equal(store.state.deliveries.size, 0);
+  await service.send(closureScope({ content: 'PRIVATE_CUSTOMER_CONTENT' }), async ({ nonce }) => { posts++; return receipt(nonce, { reference: null }); });
+  const row = await service.get('closure:case:0:customer-channel');
+  assert.equal(row.kind, 'closure'); assert.equal(row.caseGeneration, 0); assert.equal(row.sourceMessageId, row.channelId);
+  assert.equal((await service.getByNonce(row.nonce)).id, row.id);
+  assert.equal(await service.getByNonce('not-a-nonce'), null);
+  assert.equal(await service.getByNonce('a'.repeat(24)), null);
+  await service.send(closureScope(), async () => assert.fail('accepted closure must not resend'));
+  assert.equal(posts, 1); assert.doesNotMatch(JSON.stringify([...store.state.deliveries.values()]), /PRIVATE_CUSTOMER_CONTENT|content/);
+});
+
+test('trusted closure feedback can repair a held receipt without manufacturing a Gateway nonce', async () => {
+  const store = createMemoryStore(); const service = createDeliveryService(store, { log: () => {} }); let nonce; let posts = 0;
+  await assert.rejects(service.send(closureScope(), async (options) => { posts++; nonce = options.nonce; throw new Error('timeout'); }), isDeliveryUncertain);
+  const message = closureMessage(nonce);
+  assert.equal(await service.acceptGatewayReceipt(message), null);
+  const restarted = createDeliveryService(createMemoryStore(store.state), { log: () => {} });
+  const accepted = await restarted.acceptClosureInteractionReceipt(closureMessage(nonce, { components: [{ type: 1, components: [
+    { type: 2, custom_id: `rate:yes:${nonce}` }, { type: 2, custom_id: `rate:no:${nonce}` },
+  ] }] }), nonce);
+  assert.equal(accepted.state, 'accepted'); assert.equal(accepted.messageId, 'receipt'); assert.equal(accepted.caseId, 'case');
+  assert.equal(accepted.caseGeneration, 0); assert.equal(accepted.referenceMessageId, null);
+  assert.equal((await restarted.send(closureScope(), async () => assert.fail('feedback repair must not repost'))).id, 'receipt');
+  assert.equal(posts, 1);
+});
+
+test('closure feedback rejects forged authors, channels, controls, references, webhooks and forwards', async () => {
+  const service = createDeliveryService(createMemoryStore(), { log: () => {} }); let nonce;
+  await assert.rejects(service.send(closureScope(), async (options) => { nonce = options.nonce; throw new Error('timeout'); }), isDeliveryUncertain);
+  const badPair = (first, second, type = 2) => [{ type: 1, components: [{ type, customId: first }, { type, customId: second }] }];
+  for (const changes of [
+    { id: '' }, { author: { id: 'alice', bot: false } }, { author: { id: 'other-bot', bot: true } }, { channelId: 'other-thread' },
+    { nonce: 'b'.repeat(24) }, { components: [] },
+    { components: badPair(`rate:yes:${nonce}`, 'rate:no:wrong') },
+    { components: badPair(`rate:yes:${nonce}`, `rate:no:${nonce}`, 3) },
+    { components: [{ type: 2, components: badPair(`rate:yes:${nonce}`, `rate:no:${nonce}`)[0].components }] },
+    { reference: { messageId: 'customer-message' } }, { message_reference: { message_id: 'customer-message' } },
+    { webhookId: 'webhook' }, { webhook_id: 'webhook' }, { reference: { type: 1 } }, { message_reference: { type: 1 } },
+    { messageSnapshots: new Map([['snapshot', {}]]) }, { message_snapshots: [{ message: {} }] },
+  ]) assert.equal(await service.acceptClosureInteractionReceipt(closureMessage(nonce, changes), nonce), null);
+  assert.equal((await service.getByNonce(nonce)).state, 'unknown');
+  assert.equal(await service.acceptClosureInteractionReceipt(closureMessage(nonce), 'invalid'), null);
+  assert.equal((await service.acceptClosureInteractionReceipt(closureMessage(nonce), nonce)).state, 'accepted');
+});
+
+test('closure feedback cannot attest another case nonce or an answer/staff-card operation', async () => {
+  const service = createDeliveryService(createMemoryStore(), { log: () => {} }); const nonces = new Map();
+  const inputs = [closureScope(), closureScope({ caseId: 'other-case', operationKey: 'closure:other-case:0:customer-channel' }),
+    scope(), scope({ kind: 'staff-card', operationKey: 'staff:source', referenceMessageId: null })];
+  for (const input of inputs) await assert.rejects(service.send(input, async ({ nonce }) => { nonces.set(input.operationKey, nonce); throw new Error('timeout'); }), isDeliveryUncertain);
+  const first = nonces.get(inputs[0].operationKey), second = nonces.get(inputs[1].operationKey);
+  assert.equal(await service.acceptClosureInteractionReceipt(closureMessage(second), first), null);
+  for (const input of inputs.slice(2)) {
+    const nonce = nonces.get(input.operationKey);
+    assert.equal(await service.acceptClosureInteractionReceipt(closureMessage(nonce), nonce), null);
+  }
+  assert.equal((await service.getByNonce(first)).state, 'unknown');
+});
+
+test('closure feedback accepted message ID is stable and rejected operations cannot be attested', async () => {
+  const service = createDeliveryService(createMemoryStore(), { log: () => {} }); let nonce;
+  await service.send(closureScope(), async (options) => { nonce = options.nonce; return receipt(nonce, { reference: null }); });
+  const before = await service.getByNonce(nonce);
+  assert.equal((await service.acceptClosureInteractionReceipt(closureMessage(nonce), nonce)).acceptedAt, before.acceptedAt);
+  assert.equal(await service.acceptClosureInteractionReceipt(closureMessage(nonce, { id: 'different-message' }), nonce), null);
+  assert.equal((await service.getByNonce(nonce)).messageId, 'receipt');
+  const rejected = createDeliveryService(createMemoryStore(), { log: () => {} }); let rejectedNonce;
+  await assert.rejects(rejected.send(closureScope(), async (options) => { rejectedNonce = options.nonce; throw { status: 403, code: 50013 }; }), (error) => error.deliveryRejected);
+  assert.equal(await rejected.acceptClosureInteractionReceipt(closureMessage(rejectedNonce), rejectedNonce), null);
+  assert.equal((await rejected.getByNonce(rejectedNonce)).state, 'rejected');
+});
+
+test('closure feedback can win the REST-error race without replay or overwriting the first accepted message', async () => {
+  const service = createDeliveryService(createMemoryStore(), { log: () => {} });
+  const result = await service.send(closureScope(), async ({ nonce }) => {
+    const results = await Promise.all([
+      service.acceptClosureInteractionReceipt(closureMessage(nonce), nonce),
+      service.acceptClosureInteractionReceipt(closureMessage(nonce, { id: 'other-message' }), nonce),
+    ]);
+    assert.equal(results[0].messageId, 'receipt'); assert.equal(results[1], null);
+    throw new Error('timeout');
+  });
+  assert.equal(result.id, 'receipt');
 });
