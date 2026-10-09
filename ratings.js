@@ -7,7 +7,8 @@ async function recordRating(threadId, userId, helped) {
   if (process.env.DATABASE_URL) {
     const db = require('./db');
     await db.saveRating(thread, user, yes);
-    return db.ratingCounts();
+    try { return await db.ratingCounts(); }
+    catch { return { yes: null, no: null }; } // Vote saved; do not invent totals.
   }
   if (thread) memory.set(thread, yes);
   return memoryCounts();
@@ -25,11 +26,7 @@ function memoryCounts() {
 
 async function ratingCounts() {
   if (process.env.DATABASE_URL) {
-    try {
-      return await require('./db').ratingCounts();
-    } catch (err) {
-      console.error('[Bot] rating count failed:', err.message);
-    }
+    return require('./db').ratingCounts();
   }
   return memoryCounts();
 }

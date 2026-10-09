@@ -3,6 +3,7 @@ const { isCloseableThread, canStaffAct, staffMentionIds, markHandoffClosed, send
 const github = require('./github');
 const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
+const { appReviewButtons } = require('./appReviews');
 
 const OMI_LOGO_URL =
   process.env.OMI_LOGO_URL ||
@@ -74,19 +75,24 @@ async function registerSlashCommands(client) {
 function closeNotice(user) {
   const who = user?.id ? `<@${user.id}>` : 'staff';
   return [
-    "If this is still happening, open a new post in Help. We won't see replies here.",
-    `Closed by ${who}.`,
-    'Did this help? Only the person who opened this post can answer.',
+    'Thank you for giving us the chance to help.',
+    'Did we help solve your problem? Your honest feedback helps us improve.',
+    'If you still need help, use the button below. If the thread cannot be reopened, open a new post in Help.',
+    `Marked resolved by ${who}. Only the customer who opened this post can submit support feedback.`,
   ].join('\n\n');
 }
 
 function closePayload(user) {
   const embed = {
-    author: { name: 'Omi', iconURL: OMI_LOGO_URL },
-    title: 'This ticket is closed',
+    author: { name: 'Omi Support', iconURL: OMI_LOGO_URL },
+    title: 'How did we do?',
     color: 0x111111,
     description: closeNotice(user),
     thumbnail: { url: OMI_LOGO_URL },
+    fields: [{
+      name: 'Share an honest app review · optional',
+      value: "We'd appreciate an honest rating or review of the Omi app on your store. It's optional and does not affect your support.\nOn Google Play, choose **Write a review** after opening the page.",
+    }],
   };
   return {
     embeds: [embed],
@@ -94,16 +100,21 @@ function closePayload(user) {
       {
         type: 1,
         components: [
-          { type: 2, style: 3, label: 'Yes, this helped', custom_id: 'rate:yes' },
+          { type: 2, style: 3, label: 'Yes, my issue is resolved', custom_id: 'rate:yes' },
           { type: 2, style: 2, label: 'Still need help', custom_id: 'rate:no' },
         ],
       },
+      appReviewButtons(),
     ],
-    allowedMentions: user?.id ? { users: [String(user.id)] } : { parse: [] },
+    allowedMentions: { parse: [] },
   };
 }
 
 async function handleRating(interaction, options = {}) {
+  if (!['rate:yes', 'rate:no'].includes(interaction.customId)) {
+    await interaction.reply({ content: 'That is not a support feedback button.', flags: MessageFlags.Ephemeral });
+    return;
+  }
   const helped = interaction.customId === 'rate:yes';
   const threadId = String(interaction.channelId || interaction.channel?.id || '');
   const cases = options.cases || supportCases;
@@ -132,10 +143,12 @@ async function handleRating(interaction, options = {}) {
     return;
   }
   let counts = { yes: 0, no: 0 };
+  let feedbackSaved = false;
   try {
     counts = await (options.recordRating || require('./ratings').recordRating)(threadId, clicker, helped);
+    feedbackSaved = true;
   } catch (err) {
-    console.error('[Bot] rating save failed:', err.message);
+    console.error('[Bot] rating save failed');
   }
   let reopened = false;
   if (!helped && storedCase) {
@@ -164,23 +177,31 @@ async function handleRating(interaction, options = {}) {
         await database.reopenEscalation(storedCase.escalationId);
       }
       reopened = Boolean(await cases.reopenByThread(threadId, clicker));
+      if (!reopened && ['queued', 'delivered', 'accepted'].includes(storedCase.status) && !channel.archived && !channel.locked) reopened = true;
       if (reopened) require('./handoff').markHandoffReopened?.(channel);
     } catch (err) {
       console.error('[Bot] case reopen failed:', err.name);
     }
   }
   const where = threadId ? ` <#${threadId}>` : '';
+  const totals = feedbackSaved && Number.isFinite(counts?.yes) && Number.isFinite(counts?.no)
+    ? ` Helpful: ${counts.yes}. Still need help: ${counts.no}.`
+    : ' Feedback totals are temporarily unavailable.';
   try {
     await (options.notifyStaff || sendToStaffChannel)(interaction.client, {
       content: helped
-        ? `A customer said this helped.${where} Helpful: ${counts.yes}. Still need help: ${counts.no}.`
-        : `A customer still needs help.${where} Helpful: ${counts.yes}. Still need help: ${counts.no}.`,
+        ? `A customer said this helped.${where}${totals}`
+        : `A customer still needs help.${where}${totals}`,
       allowedMentions: { parse: [] },
     });
   } catch (err) {
     console.error('[Bot] rating note failed:', err.message);
   }
-  const note = helped ? 'Glad it helped.' : reopened
+  const note = !feedbackSaved
+    ? reopened
+      ? 'This case is reopened. You can continue in this thread. Saving your feedback failed; it has not been added to the dashboard.'
+      : 'Thank you for your feedback. I could not save it just now; please try the feedback button again.'
+    : helped ? 'Glad it helped. Thank you for your honest feedback.' : reopened
     ? 'This case is reopened. You can continue in this thread.'
     : 'Your feedback is recorded. This thread has not been reopened; open a new Help post if you still need help.';
   await interaction.reply({ content: note, flags: MessageFlags.Ephemeral });

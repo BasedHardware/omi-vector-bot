@@ -105,6 +105,9 @@ Without `--force`, each source is refreshed only when its freshness window has e
 - Outside support threads, Omi Support answers only an explicit bot-user mention or a same-customer direct reply to that answer. It never reads surrounding channel conversation for context.
 - Sensitive order, email, address, phone, and privacy content is not repeated publicly.
 - `/done` closes a support thread and asks the original customer whether the answer helped.
+- The `/done` card also offers optional honest App Store/Google Play reviews to
+  all customers, independently of their support-feedback choice. Store links do
+  not record a dashboard vote or tell the bot whether a review was submitted.
 - `/order`, `/orders`, and `/unlink` are public customer commands. Responses are ephemeral, and order access requires a code sent to the email on the Shopify order; Discord staff status is never used as authorization.
 
 ## Human handoff

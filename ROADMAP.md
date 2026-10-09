@@ -58,7 +58,8 @@ Recovery, reprocessing, refunds, deletion and account mutations remain separate 
 
 ## Milestone 4 Answer quality and operations
 
-- [ ] Redesign `/done` closure with internal resolution feedback and optional honest App Store/Google Play review links. Keep the links available regardless of feedback and preserve dashboard semantics.
+- [x] Redesign `/done` closure with internal resolution feedback and optional honest App Store/Google Play review links. Links are shown before any vote, regardless of satisfaction. Store clicks are not dashboard votes or verified review submissions.
+- [x] Keep “Still need help” functional and show feedback-storage failure honestly, without invented dashboard totals or a false “recorded” acknowledgment.
 - [ ] Normalize Chinese citation labels so every language receives exactly one source line.
 - [ ] Improve retrieval coverage and publish missing official support guidance; do not compensate with unverified product facts.
 - [ ] Maintain a reviewed incident/release registry with deployment evidence, affected versions and supported workarounds. Merged does not mean released.

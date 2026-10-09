@@ -413,6 +413,18 @@ test('/health reports missing staff delivery without revealing IDs', () => {
   delete process.env.STAFF_ALERT_CHANNEL_ID;
 });
 
+test('the feedback dashboard reports unavailable storage without showing fake zero totals or private errors', async (t) => {
+  const ratings = require('../ratings');
+  t.mock.method(ratings, 'ratingCounts', async () => { throw new Error('private-storage-details'); });
+  const handler = app._router.stack.find((layer) => layer.route?.path === '/ratings').route.stack[0].handle;
+  let status; let body;
+  const response = { status: (value) => { status = value; return response; }, type: () => response, send: (value) => { body = value; } };
+  await handler({}, response);
+  assert.equal(status, 503);
+  assert.match(body, /temporarily unavailable/);
+  assert.doesNotMatch(body, /private-storage-details|Helpful: 0|needs-help counts: 0/);
+});
+
 test('answer path emits per-stage timing metrics without customer text', async () => {
   let metric;
   const timingLines = [];

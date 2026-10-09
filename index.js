@@ -88,6 +88,7 @@ app.get('/health', (_req, res) => {
   });
 });
 app.get('/ratings', async (_req, res) => {
+  try {
   const { ratingCounts } = require('./ratings');
   const counts = await ratingCounts();
   res.type('html').send(`<!doctype html>
@@ -99,6 +100,10 @@ app.get('/ratings', async (_req, res) => {
 <p style="font-size:32px;">Helpful: ${counts.yes}</p>
 <p style="font-size:32px;">Still need help: ${counts.no}</p>
 </body>`);
+  } catch {
+    console.error('[Bot] support feedback totals unavailable');
+    res.status(503).type('text').send('Support feedback totals are temporarily unavailable.');
+  }
 });
 
 app.post('/github-webhook', express.raw({ type: 'application/json' }), async (req, res) => {

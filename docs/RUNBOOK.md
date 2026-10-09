@@ -24,6 +24,8 @@ An authorized staff member can use **Accept case** in the configured staff chann
 
 Use `/done` in the resolved customer/Handoff thread. The customer notice must send before the database case and linked escalation close. “Still need help” is restricted to the owning customer and reopens the linked case/thread when possible. A newer active case prevents an old rating from replacing it.
 
+The closing card separates internal resolution feedback from an optional honest app review. Both store links are shown to everyone before any feedback selection; never require a positive vote or a particular star rating. App Store opens Omi's review destination. Google Play opens its official listing, where the customer selects “Write a review.” Store link clicks do not change support dashboard counts, and the bot cannot verify that a public review was submitted. If feedback storage fails, the response must say so; unavailable aggregate counts are not zero.
+
 Telegram replies must target an escalation actually sent by this bot. The case reference selects the exact customer case in shared channels. A failed Discord delivery leaves the case open; fix delivery before claiming resolution. Poll shutdown waits for a reply already being delivered instead of cutting it off.
 
 ## Backlog and uncertain delivery

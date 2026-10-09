@@ -110,7 +110,7 @@ test('/done still resolves when Discord refuses archive after lock', async () =>
   const result = await closeHandoff(channel, { id: '99' });
   assert.equal(result.ok, true);
   assert.deepEqual(sent[0], closePayload({ id: '99' }));
-  assert.equal(sent[0].embeds[0].title, 'This ticket is closed');
+  assert.equal(sent[0].embeds[0].title, 'How did we do?');
   assert.match(sent[0].embeds[0].thumbnail.url, /app_launcher_icon\.png/);
   assert.equal(sent[0].files, undefined);
 });
@@ -172,7 +172,7 @@ test('/done archives a Handoff thread and does not file GitHub', async () => {
   const result = await closeHandoff(channel, { id: '99' });
   assert.equal(result.ok, true);
   assert.deepEqual(sent[0], closePayload({ id: '99' }));
-  assert.match(closeText(sent[0]), /This ticket is closed/);
+  assert.match(closeText(sent[0]), /How did we do/);
   assert.match(closeText(sent[0]), /open a new post in Help/);
   assert.equal(channel.archived, true);
 });
