@@ -627,6 +627,25 @@ test('a delivered Omi that never arrived gets grounded delivery handling without
   assert.equal(staff.length, 1);
 });
 
+test('verified order facts enrich staff intake but never enter a public chat answer or its model inputs', async (t) => {
+  const shopify = require('../shopify'); const bind = require('../shopifyBind');
+  const staff = enableStaffDelivery(t);
+  t.mock.method(bind, 'get', async () => ({ email: 'owner@example.test' }));
+  t.mock.method(shopify, 'shouldLookup', () => true);
+  t.mock.method(shopify, 'lookupOrder', async () => ({ ok: true, order: { name: '#998877', fulfillmentStatus: 'fulfilled' } }));
+  t.mock.method(shopify, 'buildUserReply', () => { throw new Error('private facts must not enter model'); });
+  t.mock.method(shopify, 'formatStaffFacts', () => 'PRIVATE STAFF ORDER #998877');
+  modelReply = { final_answer: 'Your order was delivered yesterday. Open the tracking link in your shipping email and contact the carrier.', escalate: false };
+  const result = await ask('My parcel tracking page says delivered but it never arrived.');
+  assert.ok(result.modelCalled);
+  assert.equal(staff.length, 1);
+  assert.match(JSON.stringify(staff), /PRIVATE STAFF ORDER/);
+  assert.doesNotMatch(JSON.stringify(modelCalls), /owner@example\.test|998877|PRIVATE STAFF ORDER/);
+  assert.doesNotMatch(JSON.stringify(reviewCalls), /owner@example\.test|998877|PRIVATE STAFF ORDER/);
+  assert.doesNotMatch(result.reply, /998877|PRIVATE STAFF ORDER|Your order was delivered yesterday/);
+  assert.match(result.reply, /tracking link in your shipping email/);
+});
+
 test('the planner runs for a short first customer question', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';

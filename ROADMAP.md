@@ -30,6 +30,7 @@ These capabilities remain subject to answer-quality checks. Existing functionali
 - [x] Bound in-memory waiting work. Overflow persists only message/channel/customer references and a hash, then fetches the original opted-in Discord message for processing; no raw question is stored in the queue.
 - [x] Stop accepting work on shutdown and wait for support replies, interactions and Telegram polling. Unstarted work is queued for later recovery; uncertain started deliveries are not automatically replayed.
 - [x] Require matching requested order number and verified owner; never substitute another order after an explicit-number miss. Use a supported Shopify API contract and reject unexpected served versions.
+- [x] Keep verified private order facts out of chat-model prompts and public replies; retain them only in authorized ephemeral commands and private staff intake.
 - [x] Put empathetic, action-first, truthful communication into both answer/reviewer instructions and deterministic reply paths. Application-confirmed delivery chooses the single thread/email next step.
 - [x] Add unit regressions and an isolated SQL integration check for schema, claims, queue, case isolation, verification and revocation.
 - [x] Add PR checks with no provider/Discord secrets, and a disposable Postgres integration job.

@@ -757,9 +757,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         shopify.filterKnowledge(knowledgeSnippets),
         route.lane
       );
-      const shopifyText = shopifyLookup
-        ? shopify.buildUserReply(shopifyLookup, asked || question)
-        : '';
+      // Chat replies are not ephemeral. Even a verified customer's order facts
+      // belong in /order or the private staff card, never a public model prompt.
+      const shopifyText = '';
       const sourceQuestion = contextualQuestion(
         searchPlan.standaloneQuestion || asked || question,
         threadHistory
@@ -967,9 +967,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       language: searchPlan.replyLanguage,
     }));
     if (groundedShop && !holdPublicCopy) {
-      const verifiedLookup = Boolean(shopifyLookup?.order);
-      cleanAnswer = stripUnverifiedOrderClaims(cleanAnswer, { verifiedLookup });
-      if (!verifiedLookup && !cleanAnswer.startsWith(router.ORDER_STATUS_OPENING)) {
+      cleanAnswer = stripUnverifiedOrderClaims(cleanAnswer);
+      if (!cleanAnswer.startsWith(router.ORDER_STATUS_OPENING)) {
         cleanAnswer = `${router.ORDER_STATUS_OPENING}\n\n${cleanAnswer}`;
       }
     }
