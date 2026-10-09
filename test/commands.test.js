@@ -598,6 +598,16 @@ test('a definite lock denial permits exactly one guarded archive-only attempt', 
   assert.deepEqual(changes, [{ archived: true, locked: true }, { archived: true }]);
 });
 
+test('a missing-access or generic forbidden thread response does not retry the archive', async () => {
+  for (const failure of [{ status: 403, code: 50001 }, { status: 403 }, { status: 503, code: 50013 }]) {
+    let patches = 0;
+    const f = await closedReceiptFixture({ patchThread: async () => { patches++; throw Object.assign(new Error('forbidden or uncertain'), failure); } });
+    assert.equal(patches, 1);
+    assert.equal(f.result.ok, true);
+    assert.match(f.result.reason, /could not confirm.*archive/i);
+  }
+});
+
 test('a reopened generation between known-denial attempts prevents the archive fallback', async () => {
   let patches = 0;
   const { createCaseService, createMemoryStore } = require('../supportCases');

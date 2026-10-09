@@ -341,7 +341,8 @@ async function applyResolvedTag(channel, patchThread = null) {
 }
 
 async function archiveHandoff(channel, guard = async () => {}, patchThread = null) {
-  const definitePermissionRejection = (error) => Number(error?.status) === 403 || [50001, 50013].includes(Number(error?.code));
+  const definitePermissionRejection = (error) => Number(error?.code) === 50013 &&
+    (error?.status == null || Number(error.status) === 403);
   if (patchThread || typeof channel.edit === 'function') {
     await guard();
     try {
