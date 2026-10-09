@@ -8,6 +8,8 @@ This is the living implementation record. A checked implementation item means co
 
 The existing PR #24 smoke-test prerequisite still applies to the approved PR #25 readiness rollout. Do not redeploy over an unfinished smoke test or claim the new foundation is live before deployment and end-to-end checks succeed.
 
+The next delivery-reliability slice is implemented on `feat/support-delivery-receipts`, based on #28. It adds a metadata-only receipt ledger for the ordinary answer path and full private Discord staff cards. It does not yet provide the complete payload outbox or cover every notification transport. Validation and its PR are recorded below after checks finish.
+
 ## Already working before this milestone
 
 - [x] Official Help Center/docs/source retrieval, interpretation, independent answer review and grounded source links.
@@ -45,11 +47,16 @@ These capabilities remain subject to answer-quality checks. Existing functionali
 - [x] Stage important follow-ups from the owning customer's dedicated thread for a separate staff-approved comment when exactly one engineering target is linked. Shared-channel or ambiguous follow-ups remain manual, not guessed.
 - [x] Hold uncertain GitHub writes without retrying the POST. A staff check uses bounded read-only reconciliation with application provenance and exact payload verification; confirmed receipts can repair private case links without reposting.
 - [x] Validate Discord staff destination privacy and bot permissions before sending a full card or handling publication. Unknown audience permissions fail closed without fetching extra guild members or granting broader intents.
+- [x] Persist scoped attempts and accepted message IDs for ordinary answers and full private Discord staff cards; fence parallel sends and stop generic second replies after uncertain outcomes. No message bodies, attachments or rendered cards are retained in this ledger.
+- [x] Reconcile matching own-bot Gateway receipts and repair accepted staff delivery/approval-card records after restart, without another POST. Restore customer-owned answer continuation references from recent receipts.
+- [x] Fence delayed staff receipts by case generation; reopening clears prior delivery/acceptance and old receipts cannot deliver a reopened case. Provide a read-only, content-free inspection command for held receipts.
 - [ ] Add a delivery outbox with accepted-send identifiers, retries for known failures and reconciliation of unknown outcomes. Do not blindly replay a request that may already have replied.
 - [ ] Preserve an encrypted/minimized case summary of attempted steps and missing details, with an approved retention/deletion policy. Current durable case context is categories and sources, not raw conversation content.
 - [ ] Provide staff queue views, committed response targets, reminders and operational inspection of expired started claims.
 - [ ] Enforce cross-identity verification abuse limits. Discord destination validation is implemented above; Telegram destination verification remains a separate follow-up.
 - [ ] Add capability checks and monitoring for stale knowledge, provider outages, lookup failures, backlog and missed staff delivery.
+
+Receipt-ledger limits: no automatic late send or whole-request replay; a missed Gateway event plus a lost REST receipt remains held. Non-ticket notices, reused-handoff answers, `/done`, ephemeral commands, Telegram and GitHub tracking notices still need their own delivery adapters. Known rejection is eligible for at most three deliberate attempts within ten minutes, not an automatic retry loop. Metadata retention/deletion and durable pending payload retention require an explicit policy; this slice does not silently purge holds or retain customer content.
 
 ## Milestone 3 Verified recording diagnostics
 
@@ -77,6 +84,8 @@ Recovery, reprocessing, refunds, deletion and account mutations remain separate 
 Validation recorded on October 9, 2026: 593 unit/regression tests pass, the offline customer check is 8/8, and the isolated SQL check passes. Hosted CI passes on runtime head `3960f24`. The communication probe used snapshot `4d643e3`: 23/24 replies passed, with the voice-question/no-answer case missing part of the requested explanation on one run; later interaction-deadline and public-order privacy changes have separate regressions and CI coverage. Do not hide that remaining answer-quality inconsistency or call this a full held-out approval.
 
 Next-milestone validation: PR #28 independently passes 668 tests; PR #27 independently passes 599. Their combined working tree passes 674 tests and the offline check is 8/8. Isolated SQL passes encrypted drafts, canonical repository identity, single dispatch, preserved legacy ciphertext, private links and migration refusal without deleting conflicting records. A focused three-run live check passes 12/12 replies across deletion how-to, developer-key how-to, Spanish refund and pure thanks. Its staff delivery is stubbed; this is neither a real delivery/ACL smoke test nor a held-out gate. Hosted CI is a separate required check on each PR.
+
+Receipt slice validation at `4ca5e2f`: 729 tests pass and the offline customer check is 8/8. Isolated SQL passes receipt single-dispatch, immutable source/customer/destination/generation/approval scope, rejected retry bounds, unknown holds, Gateway proof and repair backoff. Unit checks also cover reset/5xx/429 transport behavior, removed-control repair, already-bound filed/expired proposals, stale reopened cases and receipt work added during shutdown. The focused live probe is still running; no held-out file was opened or rerun. Real Discord delivery, production restart and overlap verification remain release gates.
 
 Production has not been redeployed. The customer confirmed that the existing PR #24 smoke-test messages have not yet been posted; the approved readiness rollout and foundation release remain pending that verification.
 
