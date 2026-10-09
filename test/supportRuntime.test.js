@@ -76,6 +76,30 @@ test('drain has a bounded timeout and keeps existing ownership while work finish
   held.release(); await pending;
 });
 
+test('drain waits for receipt reconciliation added while an accepted send finishes', async () => {
+  const runtime = new SupportRuntime(); const send = barrier(); const receipt = barrier();
+  const pending = runtime.track(() => send.promise);
+  let drained = false;
+  const stopping = runtime.drain(1000).then((result) => { drained = true; return result; });
+  const reconciliation = runtime.track(() => receipt.promise, { acceptedReceipt: true });
+  assert.equal((await runtime.track(() => assert.fail('new work must stop'))).status, 'stopping');
+  send.release(); await pending;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(drained, false);
+  receipt.release(); await reconciliation;
+  assert.equal(await stopping, true);
+});
+
+test('additional receipt work cannot restart the original drain timeout', async () => {
+  const runtime = new SupportRuntime(); const send = barrier(); const receipt = barrier();
+  const pending = runtime.track(() => send.promise);
+  const stopping = runtime.drain(5);
+  const reconciliation = runtime.track(() => receipt.promise, { acceptedReceipt: true });
+  send.release(); await pending;
+  assert.equal(await stopping, false);
+  receipt.release(); await reconciliation;
+});
+
 test('lease expiry fences stale replies and does not automatically replay an uncertain started request', async () => {
   let now = 1000; const store = new MemoryRuntimeStore({ now: () => now });
   const runtime = new SupportRuntime({ store }); const held = barrier(); const started = barrier();

@@ -92,6 +92,23 @@ test('real case acceptance survives service recreation and retains the first acc
   assert.deepEqual(await restarted.getCaseById(value.id), repeated);
 });
 
+test('reopening advances one generation and clears prior receipts and acceptance', async () => {
+  const cases = createCaseService(createMemoryStore());
+  const value = await cases.getOrCreateCase({ channelId: 'help', customerId: 'alice', customerThreadId: 'help' });
+  await cases.markDelivered(value.id, { messageId: 'old-card', expectedGeneration: 0 });
+  await cases.markAccepted(value.id, { staffId: 'old-owner' });
+  await cases.resolveCase(value.id, { close: true, confirmed: true });
+  const reopened = await cases.reopenByThread('help', 'alice');
+  assert.equal(reopened.generation, 1);
+  for (const field of ['deliveryId', 'deliveryDestination', 'acceptedBy', 'acceptedAt']) assert.equal(reopened[field], null);
+  assert.equal((await cases.reopenByThread('help', 'alice')).generation, 1);
+  assert.equal(await cases.markDelivered(value.id, { messageId: 'late-old-card', expectedGeneration: 0 }), null);
+  assert.throws(() => cases.markDelivered(value.id, { messageId: 'bad-card', expectedGeneration: -1 }), /generation/);
+  assert.equal((await cases.getCaseById(value.id)).status, 'queued');
+  await cases.markDelivered(value.id, { messageId: 'new-card', expectedGeneration: 1 });
+  assert.equal((await cases.markAccepted(value.id, { staffId: 'new-owner' })).acceptedBy, 'new-owner');
+});
+
 test('Postgres initialization and case inserts use an injectable client and sanitized parameters', async () => {
   const calls = [];
   const client = { query: async (sql, args) => { calls.push({ sql, args }); return { rows: [] }; } };

@@ -11,6 +11,24 @@ const {
 const { formatEscalationText } = require('../telegram');
 const { ChannelType } = require('discord.js');
 const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
+const deliveries = require('../supportDeliveries');
+const transport = require('../supportDiscordTransport');
+
+test.beforeEach(() => {
+  deliveries.setStoreForTests(deliveries.createMemoryStore());
+  transport.setTransportForTests(async (client, channel, payload) => {
+    const sent = await channel.send(payload);
+    if (!sent?.id) return sent;
+    return { ...sent, channelId: sent.channelId ?? channel.id,
+      author: sent.author ?? { id: client.user.id }, nonce: sent.nonce ?? payload.nonce,
+      reference: sent.reference ?? null };
+  });
+});
+test.afterEach(() => {
+  deliveries.setStoreForTests(null);
+  transport.setTransportForTests(null);
+  resetHandoffMemory();
+});
 
 test('case acceptance buttons remain exclusively on staff-only cards', () => {
   const { publicHandoffDiscord } = require('../handoff');
@@ -511,6 +529,7 @@ test('staff-only cards show plain owners and identify the customer only in the F
 
   const sent = [];
   const message = {
+    id: 'owner-refund-source',
     url: 'https://discord.com/channels/1/2/3',
     author: { id: '99', username: 'david' },
     channel: {
@@ -524,7 +543,10 @@ test('staff-only cards show plain owners and identify the customer only in the F
     },
     hasThread: false,
   };
-  const staffDestination = makeStaffChannel({ send: async (payload) => { sent.push(payload); return payload; } });
+  const staffDestination = makeStaffChannel({ send: async (payload) => {
+    sent.push(payload);
+    return { id: `staff-owner-card-${sent.length}`, channelId: 'staff-room', author: { id: 'bot-user' }, nonce: payload.nonce };
+  } });
   const client = { user: { id: staffDestination.botUserId }, channels: { fetch: async () => staffDestination.channel } };
   const userResult = await notifyStaff({
     client,
@@ -542,7 +564,7 @@ test('staff-only cards show plain owners and identify the customer only in the F
   assert.equal(specialist.value, 'Mohsin');
   const roleResult = await notifyStaff({
     client,
-    message,
+    message: { ...message, id: 'owner-privacy-source' },
     question: 'Please delete my account data',
     reason: 'privacy',
     area: 'privacy',
@@ -554,7 +576,7 @@ test('staff-only cards show plain owners and identify the customer only in the F
   assert.deepEqual(sent[1].allowedMentions, { parse: [], users: [], roles: [] });
   const defaultResult = await notifyStaff({
     client,
-    message,
+    message: { ...message, id: 'owner-unclassified-source' },
     question: 'Can someone look into this unusual case?',
     reason: 'Needs review',
     area: 'unknown',
@@ -565,7 +587,7 @@ test('staff-only cards show plain owners and identify the customer only in the F
   assert.equal(sent[2].content, undefined);
   assert.deepEqual(sent[2].allowedMentions, { parse: [], users: [], roles: [] });
   const faqResult = await notifyStaff({
-    client, message, question: 'Get me a real human please', reason: 'Human requested',
+    client, message: { ...message, id: 'owner-person-source' }, question: 'Get me a real human please', reason: 'Human requested',
     area: 'unknown', route: { area: 'unknown', lane: 'faq', escalate: true }, skipDedupe: true,
   });
   assert.equal(faqResult.via, 'staff-channel');
@@ -949,6 +971,7 @@ test('help forum card does not repeat the customer post', async () => {
     const sent = [];
     let started = 0;
     const message = {
+      id: `source-${id}`,
       url: 'https://discord.com/channels/1/help-thread/3',
       author: { id: '99', username: 'ada' },
       channel: {
@@ -1024,7 +1047,10 @@ test('help forum card does not repeat the customer post', async () => {
     const staffSent = [];
     const quiet = helpMessage('help-thread-2');
     process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
-    const privateStaff = makeStaffChannel({ send: async (payload) => { staffSent.push(payload); return payload; } });
+    const privateStaff = makeStaffChannel({ send: async (payload) => {
+      staffSent.push(payload);
+      return { id: 'private-intake-card', channelId: 'staff-room', author: { id: 'bot-user' }, nonce: payload.nonce };
+    } });
     const staffResult = await notifyStaff({
       client: {
         user: { id: privateStaff.botUserId },
@@ -1158,6 +1184,190 @@ test('a configured public or unverifiable staff destination receives no staff pa
   } finally {
     if (previous === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID; else process.env.STAFF_ALERT_CHANNEL_ID = previous;
   }
+});
+
+function staffDeliveryFixture(t, { send } = {}) {
+  const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
+  const previousThreads = process.env.HANDOFF_THREADS;
+  const telegram = require('../telegram');
+  const previousTelegram = telegram.sendEscalation;
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
+  process.env.HANDOFF_THREADS = '1';
+  const counters = { staff: 0, public: 0, thread: 0, telegram: 0, fetch: 0 };
+  const payloads = [];
+  const destination = makeStaffChannel({ send: async (payload) => {
+    counters.staff += 1; payloads.push(payload);
+    if (send) return send(payload);
+    return { id: `staff-receipt-${counters.staff}`, channelId: 'staff-room',
+      author: { id: 'bot-user' }, nonce: payload.nonce };
+  } });
+  const client = { user: { id: destination.botUserId }, channels: { fetch: async (_id, options) => {
+    assert.equal(options.force, true); counters.fetch += 1; return destination.channel;
+  } } };
+  telegram.sendEscalation = async () => { counters.telegram += 1; return true; };
+  const message = { id: 'scoped-source', author: { id: 'customer' },
+    channel: { id: 'customer-thread', isTextBased: () => true, isThread: () => true,
+      send: async () => { counters.public += 1; },
+      threads: { create: async () => { counters.thread += 1; throw new Error('Unexpected thread creation'); } },
+    },
+    startThread: async () => { counters.thread += 1; throw new Error('Unexpected public thread'); },
+  };
+  const args = { client, message, caseId: '06acb3bf-35d9-4e8e-8d18-ea6ffbdcf1bc', caseGeneration: 2,
+    question: 'The app crashed while recording', reason: 'Technical review needed',
+    area: 'app', route: { area: 'app', lane: 'tech' }, skipDedupe: true };
+  const options = { ticket: true, sourceMessageId: message.id, customerId: message.author.id,
+    caseId: args.caseId, caseGeneration: args.caseGeneration };
+  t.after(() => {
+    telegram.sendEscalation = previousTelegram;
+    if (previousStaff === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID; else process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
+    if (previousThreads === undefined) delete process.env.HANDOFF_THREADS; else process.env.HANDOFF_THREADS = previousThreads;
+  });
+  return { counters, payloads, destination, client, message, args, options };
+}
+
+test('a persisted staff receipt is reused with one nonce and its exact id reaches the caller', async (t) => {
+  const { sendToStaffChannel } = require('../handoff');
+  const f = staffDeliveryFixture(t);
+  const receipts = [];
+  const payload = { content: 'Private technical intake', allowedMentions: { parse: [] } };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    assert.equal(await sendToStaffChannel(f.client, payload, f.message.channel.id, {
+      ...f.options, onReceipt: (receipt) => receipts.push(receipt),
+    }), true);
+  }
+  assert.equal(f.counters.staff, 1);
+  assert.equal(f.counters.fetch, 2);
+  assert.ok(f.payloads[0].nonce.length > 0 && f.payloads[0].nonce.length <= 25);
+  assert.equal(f.payloads[0].enforceNonce, true);
+  assert.equal(receipts[0].id, 'staff-receipt-1');
+  assert.equal(receipts[1].id, receipts[0].id);
+  assert.equal(receipts[1].author.id, f.client.user.id);
+  const nextGeneration = await sendToStaffChannel(f.client, payload, f.message.channel.id, {
+    ...f.options, caseGeneration: 3,
+  });
+  assert.equal(nextGeneration, true);
+  assert.equal(f.counters.staff, 2);
+  assert.notEqual(f.payloads[1].nonce, f.payloads[0].nonce);
+});
+
+test('notifyStaff returns the verified staff receipt instead of only a success boolean', async (t) => {
+  const f = staffDeliveryFixture(t);
+  const bindings = [];
+  const result = await notifyStaff({ ...f.args, onStaffSent: (receipt) => bindings.push(receipt) });
+  assert.equal(result.ok, true);
+  assert.equal(result.via, 'staff-channel');
+  assert.equal(result.messageId, 'staff-receipt-1');
+  assert.equal(bindings[0].id, result.messageId);
+  assert.equal(bindings[0].author.id, f.client.user.id);
+  assert.equal(f.counters.public, 0);
+});
+
+test('unknown staff delivery does not post another card or use Telegram, including on replay', async (t) => {
+  const f = staffDeliveryFixture(t, { send: async () => { throw new Error('Connection ended before a receipt'); } });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await notifyStaff(f.args);
+    assert.equal(result.ok, false);
+    assert.equal(result.unknown, true);
+    assert.equal(result.via, 'staff-channel');
+  }
+  assert.equal(f.counters.staff, 1);
+  assert.equal(f.counters.telegram, 0);
+  assert.equal(f.counters.public, 0);
+  assert.equal(f.counters.thread, 0);
+});
+
+test('a blocked staff delivery reservation holds all alternate destinations', async (t) => {
+  const f = staffDeliveryFixture(t);
+  const service = deliveries.getService();
+  const originalSend = service.send;
+  service.send = async () => { const error = new Error('Reservation is unavailable'); error.deliveryBlocked = true; throw error; };
+  t.after(() => { service.send = originalSend; });
+  const result = await notifyStaff(f.args);
+  assert.equal(result.ok, false);
+  assert.equal(result.unknown, true);
+  assert.equal(result.via, 'staff-channel');
+  assert.equal(f.counters.staff, 0);
+  assert.equal(f.counters.public, 0);
+  assert.equal(f.counters.thread, 0);
+  assert.equal(f.counters.telegram, 0);
+});
+
+test('a definitive Discord rejection may use the existing minimal-card and private fallback path', async (t) => {
+  const { DiscordAPIError } = require('discord.js');
+  const f = staffDeliveryFixture(t, { send: async () => {
+    throw new DiscordAPIError({ code: 50013, message: 'Missing Permissions' }, 50013, 403,
+      'POST', 'https://discord.com/api/v10/channels/staff-room/messages', {});
+  } });
+  process.env.HANDOFF_THREADS = '0';
+  const result = await notifyStaff(f.args);
+  assert.equal(result.unknown, undefined);
+  assert.equal(result.ok, true);
+  assert.equal(result.deliveredVia, 'telegram');
+  assert.equal(f.counters.staff, 1);
+  assert.equal(f.counters.public, 1);
+  assert.equal(f.counters.telegram, 1);
+});
+
+test('accepted receipt callbacks and an optional mirror failure never cause another handoff', async (t) => {
+  const f = staffDeliveryFixture(t);
+  const telegram = require('../telegram');
+  telegram.sendEscalation = async () => { f.counters.telegram += 1; throw new Error('Optional mirror unavailable'); };
+  const result = await notifyStaff({ ...f.args, onStaffSent: async () => { throw new Error('Approval binding unavailable'); } });
+  assert.equal(result.ok, true);
+  assert.equal(result.messageId, 'staff-receipt-1');
+  assert.equal(f.counters.staff, 1);
+  assert.equal(f.counters.public, 0);
+  assert.equal(f.counters.thread, 0);
+  const { sendToStaffChannel } = require('../handoff');
+  const { nonce, enforceNonce, ...originalPayload } = f.payloads[0];
+  assert.equal(await sendToStaffChannel(f.client, originalPayload, f.message.channel.id, {
+    ...f.options, onReceipt: async () => { throw new Error('Projection unavailable'); },
+  }), true);
+  assert.equal(f.counters.staff, 1);
+});
+
+test('the accepted receipt preserves the exact approval id even when card binding fails', async (t) => {
+  const f = staffDeliveryFixture(t);
+  const approvalId = 'baf8b7b0-8982-43e1-8d2b-9a1434686cc6';
+  const edits = [];
+  f.destination.channel.messages = { edit: async (id, payload) => { edits.push({ id, payload }); } };
+  const result = await notifyStaff({ ...f.args, fileIssueId: approvalId,
+    onStaffSent: async () => { throw new Error('Binding storage unavailable'); } });
+  assert.equal(result.ok, true);
+  assert.equal(result.messageId, 'staff-receipt-1');
+  const operationKey = `staff-card:${f.args.caseId}:${f.args.caseGeneration}:${f.message.id}`;
+  const row = await deliveries.getService().get(operationKey);
+  assert.equal(row.state, 'accepted');
+  assert.equal(row.approvalId, approvalId);
+  assert.equal(row.messageId, result.messageId);
+  assert.equal(edits[0].id, result.messageId);
+  assert.equal(JSON.stringify(edits[0].payload).includes(`file:${approvalId}`), false);
+  assert.equal(f.counters.staff, 1);
+  assert.equal(f.counters.public, 0);
+});
+
+test('accepted staff receipt reuse still requires a fresh private destination check', async (t) => {
+  const { sendToStaffChannel } = require('../handoff');
+  const { PermissionFlagsBits } = require('discord.js');
+  const f = staffDeliveryFixture(t);
+  assert.equal(await sendToStaffChannel(f.client, { content: 'Private intake' }, f.message.channel.id, f.options), true);
+  f.destination.channel.permissionOverwrites.cache.set(f.destination.guild.id,
+    f.destination.overwrite(f.destination.guild.id, 0, [PermissionFlagsBits.ViewChannel]));
+  assert.equal(await sendToStaffChannel(f.client, { content: 'Private intake' }, f.message.channel.id, f.options), false);
+  assert.equal(f.counters.fetch, 2);
+  assert.equal(f.counters.staff, 1);
+});
+
+test('ticket provenance is mandatory while non-ticket operational notices keep their legacy path', async (t) => {
+  const { sendToStaffChannel } = require('../handoff');
+  const f = staffDeliveryFixture(t);
+  assert.equal(await sendToStaffChannel(f.client, { content: 'Private intake' }, f.message.channel.id, {
+    ...f.options, sourceMessageId: undefined,
+  }), false);
+  assert.equal(f.counters.staff, 0);
+  assert.equal(await sendToStaffChannel(f.client, { content: 'Operational notice' }, f.message.channel.id), true);
+  assert.equal(f.counters.staff, 1);
+  assert.equal(f.payloads[0].nonce, undefined);
 });
 
 test('a locked Handoff thread is not reused for a new report', async () => {

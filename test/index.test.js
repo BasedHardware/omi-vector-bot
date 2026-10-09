@@ -34,6 +34,18 @@ process.env.HELP_FORUM_CHANNEL_ID = HELP_FORUM;
 
 const utils = require('../utils');
 utils.typingDelay = async () => {};
+const deliveryTransport = require('../supportDiscordTransport');
+const supportDeliveries = require('../supportDeliveries');
+const sourceMessages = new Map();
+async function testDiscordSender(_client, channel, payload, { replyToMessageId } = {}) {
+  const source = sourceMessages.get(replyToMessageId);
+  const sent = await (source ? source.reply(payload) : channel.send(payload));
+  if (!sent) return sent;
+  return { ...sent, channelId: sent.channelId || channel.id,
+    author: sent.author || { id: BOT_ID, bot: true }, nonce: payload.nonce,
+    reference: replyToMessageId ? { messageId: replyToMessageId, channelId: channel.id } : null };
+}
+deliveryTransport.setTransportForTests(testDiscordSender);
 
 const commandcode = require('../commandcode');
 const modelCalls = [];
@@ -169,7 +181,7 @@ docs.relevantDocs = (...args) => docsObserver ? docsObserver(...args) : original
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
-const { app, client, handleMessage, shouldHandle, noteCustomerLead } = require('../index');
+const { app, client, handleMessage, shouldHandle, noteCustomerLead, reconcileDeliveryReceipt } = require('../index');
 const router = require('../router');
 const supportCases = require('../supportCases');
 const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
@@ -296,6 +308,7 @@ function makeMessage(
       return thread;
     },
   };
+  sourceMessages.set(message.id, message);
   return message;
 }
 
@@ -370,6 +383,8 @@ function enableStaffDelivery(t) {
 
 test.beforeEach(() => {
   supportCases.setStoreForTests(supportCases.createMemoryStore());
+  supportDeliveries.setStoreForTests(supportDeliveries.createMemoryStore());
+  sourceMessages.clear();
   modelCalls.length = 0;
   modelReply = {};
   modelDown = false;
@@ -399,6 +414,75 @@ test.beforeEach(() => {
   process.env.HELP_FORUM_CHANNEL_ID = HELP_FORUM;
   knowledge.resetKnowledge();
   github.resetGithubMemory();
+});
+
+test('an uncertain customer send is held without a generic second reply', async () => {
+  const message = makeMessage('Where do I change the language that Omi transcribes?');
+  let attempts = 0;
+  message.reply = async (payload) => {
+    attempts++;
+    message.replies.push(payload);
+    const error = new Error('PRIVATE_RESPONSE_TOKEN socket reset');
+    error.code = 'ECONNRESET';
+    throw error;
+  };
+  const lines = [];
+  const original = console.error;
+  console.error = (...args) => lines.push(args.join(' '));
+  try {
+    assert.equal((await handleMessage(message)).status, 'failed');
+  } finally { console.error = original; }
+  assert.equal(attempts, 1);
+  assert.equal(message.replies[0].enforceNonce, true);
+  assert.match(message.replies[0].nonce, /^[a-f0-9]{24}$/);
+  assert.equal(message.replies.some((reply) => /Something broke|trouble saving/.test(reply.content)), false);
+  assert.equal(lines.some((line) => line.includes('PRIVATE_RESPONSE_TOKEN')), false);
+});
+
+test('an own-bot Gateway receipt reconciles a timed-out answer without another send', async () => {
+  const message = makeMessage('Where can I choose the transcription language?');
+  let outgoing;
+  message.reply = async (payload) => { outgoing = payload; throw new Error('transport timeout'); };
+  assert.equal((await handleMessage(message)).status, 'failed');
+  const receipt = { id: nextId(), nonce: outgoing.nonce, author: { id: BOT_ID, bot: true },
+    channelId: message.channel.id, channel: message.channel, reference: { messageId: message.id } };
+  assert.equal(await reconcileDeliveryReceipt({ ...receipt, author: { id: nextId(), bot: false } }), false);
+  assert.equal(await reconcileDeliveryReceipt({ ...receipt, reference: { messageId: nextId() } }), false);
+  assert.equal(await reconcileDeliveryReceipt(receipt), true);
+  const recent = await supportDeliveries.getService().recentAnswers({ limit: 20, since: 0 });
+  assert.equal(recent.some((row) => row.messageId === receipt.id && row.customerId === message.author.id), true);
+});
+
+test('a definite permission rejection does not retry with a generic reply', async () => {
+  const message = makeMessage('Where do I choose my transcription language?');
+  let attempts = 0;
+  message.reply = async () => { attempts++; throw Object.assign(new Error('private access response'), { code: 50013, status: 403 }); };
+  assert.equal((await handleMessage(message)).status, 'failed');
+  assert.equal(attempts, 1);
+});
+
+test('a definite missing reference may fall back once, while generic validation cannot', async () => {
+  for (const referenceMissing of [true, false]) {
+    const message = makeMessage('Where can I choose a transcription language?');
+    message.reply = async () => { throw Object.assign(new Error('invalid body'), { code: 50035, status: 400, referenceMissing }); };
+    const before = message.channel.sent.length;
+    const result = await handleMessage(message);
+    const fallback = message.channel.sent.slice(before).filter((payload) => typeof payload.content === 'string');
+    assert.equal(fallback.length, referenceMissing ? 1 : 0);
+    assert.equal(result.status, referenceMissing ? 'answered' : 'failed');
+  }
+});
+
+test('an uncertain staff send reports uncertainty rather than unverified receipt or definitive failure', async (t) => {
+  enableStaffDelivery(t);
+  deliveryTransport.setTransportForTests(async (...args) => {
+    if (args[1].id === process.env.STAFF_ALERT_CHANNEL_ID) throw new Error('staff send timeout');
+    return testDiscordSender(...args);
+  });
+  t.after(() => deliveryTransport.setTransportForTests(testDiscordSender));
+  const result = await ask('Please get me a real human to help with this.');
+  assert.match(result.reply, /could not confirm that this reached the support team.*help@omi\.me/is);
+  assert.doesNotMatch(result.reply, /could not deliver|has this now|will reply in this thread/i);
 });
 
 test('/health reports missing staff delivery without revealing IDs', () => {
@@ -968,7 +1052,9 @@ test('delivered refund, order, and account tickets give one next step in the cus
   const originalFetch = client.channels.fetch;
   const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
   process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
-  client.channels.fetch = async () => makeStaffChannel({ id: 'staff-room', botUserId: BOT_ID }).channel;
+  client.channels.fetch = async () => makeStaffChannel({ id: 'staff-room', botUserId: BOT_ID,
+    send: async () => ({ id: nextId(), channelId: 'staff-room', author: { id: BOT_ID } }),
+  }).channel;
   t.after(() => {
     client.channels.fetch = originalFetch;
     process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;

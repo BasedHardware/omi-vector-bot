@@ -8,6 +8,7 @@ test('live-eval keeps per-call model usage next to stage timings', () => {
   assert.deepEqual(state.modelCalls, [{ stage: 'planner', model: 'test-model', promptTokens: 30, completionTokens: 12, reasoningTokens: 4 }]);
 });
 const { hasTroubleshootingStep } = require('../supportSteps');
+const { makeChannel, makeMessage, evalDiscordSender } = require('../scripts/live-eval');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -53,4 +54,21 @@ test('three-run scoring accepts two passes and lists that case as flaky', () => 
   assert.deepEqual(summary.flaky, ['a']);
   assert.deepEqual(summary.fail, []);
   assert.deepEqual(summary.latency.planner, { p50: 2, p95: 3 });
+});
+
+test('live-eval stubs the new send boundary with verifiable receipts without using a bot token', async () => {
+  const { channel, history } = makeChannel('evaluation');
+  const source = makeMessage('How does this work?', channel, history, 'synthetic-customer');
+  const payload = { content: 'A sourced answer.', nonce: '0123456789abcdef01234567', enforceNonce: true };
+  const receipt = await evalDiscordSender({ token: 'MUST_NOT_BE_USED' }, channel, payload, { replyToMessageId: source.id });
+  assert.equal(receipt.author.id, '800000000000000001');
+  assert.equal(receipt.channelId, channel.id);
+  assert.equal(receipt.reference.messageId, source.id);
+  assert.equal(receipt.nonce, payload.nonce);
+  assert.equal(history.at(-1).id, receipt.id);
+  assert.equal(source.replies.length, 1);
+  const normal = await evalDiscordSender({}, channel, payload);
+  assert.equal(normal.reference, null);
+  assert.equal(normal.channelId, channel.id);
+  await assert.rejects(evalDiscordSender({}, channel, payload, { replyToMessageId: 'missing' }), (error) => error.referenceMissing === true);
 });
