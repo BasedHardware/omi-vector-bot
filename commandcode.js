@@ -2,7 +2,7 @@ const axios = require('axios');
 const { buildSystemPrompt, buildUserPrompt } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING, hasUnsyncedDataRisk } = require('./answerPipeline');
-const { isInstructionSentence } = require('./supportSteps');
+const { isInstructionSentence, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 const { redactSensitive } = require('./privacy');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
@@ -210,19 +210,54 @@ const SOURCE_LABELS = {
   es: 'Fuente', de: 'Quelle', pt: 'Fonte', tr: 'Kaynak', id: 'Sumber',
   fr: 'Source', hi: 'Srot', ja: '出典', zh: '来源', ko: '출처', ru: 'Источник',
 };
-const SOURCE_LABEL_NAME = '(?:Sources?|Fuentes?|Quellen?|Fonte|Fontes|Sumber|Kaynak|Srot|स्रोत|出典|来源|출처|Источник|Riferimenti)';
-const SOURCE_LABEL = new RegExp(`(?:^|\\s)${SOURCE_LABEL_NAME}\\s*:`, 'iu');
-const SOURCE_LINE = new RegExp(`^\\s*(${SOURCE_LABEL_NAME})\\s*:\\s*(.+?)\\s*$`, 'iu');
-const INLINE_EVIDENCE_GROUP = /[ \t]*(?:\((?:S\d+(?:[ \t,;|/+&-]+S\d+)*)\)|\[(?:S\d+(?:[ \t,;|/+&-]+S\d+)*)\])/gi;
+// Emphasis must close with the same delimiter, around either the label or label + colon.
+const SOURCE_HEADING_PATTERN = `(?:(\\*\\*|__|\\*|_)(${SOURCE_LABEL_NAME})\\s*(?:\\1\\s*${SOURCE_LABEL_SEPARATOR}|${SOURCE_LABEL_SEPARATOR}\\1)|(${SOURCE_LABEL_NAME})\\s*${SOURCE_LABEL_SEPARATOR})`;
+const SOURCE_HEADING = new RegExp(`^${SOURCE_HEADING_PATTERN}\\s*`, 'iu');
+const SOURCE_LABEL = new RegExp(`(?:^|\\s)${SOURCE_HEADING_PATTERN}\\s*`, 'giu');
+const CITATION_ATOM = /^(?:\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<>\[\]{}"'`，。、；｜（）［］【】]+|S\d+(?=$|[^\p{L}\p{N}_]|和|及|と|및))/iu;
+const CITATION_SEPARATOR = /^[\s\p{P}+&|＋｜]+/u;
+const CITATION_CONJUNCTION = /^(?:(?:and|or|y|o|e|et|und|ve|dan|и)(?![\p{L}\p{M}\p{N}_])|和|及|と|및)/iu;
+const EVIDENCE_GROUP_CONTENT = 'S\\d+(?:[ \\t,;|/+&，、；｜-]+S\\d+)*';
+const INLINE_EVIDENCE_GROUP = new RegExp(`[ \\t]*(?:\\(${EVIDENCE_GROUP_CONTENT}\\)|\\[${EVIDENCE_GROUP_CONTENT}\\]|（${EVIDENCE_GROUP_CONTENT}）|［${EVIDENCE_GROUP_CONTENT}］|【${EVIDENCE_GROUP_CONTENT}】)`, 'gi');
 
-function citationOnlySourceLabel(line) {
-  const match = String(line || '').match(SOURCE_LINE);
-  if (!match) return '';
-  const remainder = match[2]
-    .replace(/https?:\/\/[^\s,;|)]+/gi, '')
-    .replace(/\bS\d+\b/gi, '')
-    .replace(/[\s[\](),;|+&/\-–—]+/g, '');
-  return remainder ? '' : match[1];
+function citationOnlySource(line) {
+  const heading = String(line || '').trimStart().match(SOURCE_HEADING);
+  if (!heading) return null;
+  let tail = String(line || '').trimStart().slice(heading[0].length);
+  let citations = 0;
+  let needsCitation = true;
+  const evidenceIds = [];
+  // Consume the complete tail, never removing allowed words from surrounding prose.
+  while (tail) {
+    const atom = tail.match(CITATION_ATOM);
+    if (atom) {
+      citations += 1;
+      needsCitation = false;
+      if (/^S\d+$/i.test(atom[0])) evidenceIds.push(atom[0]);
+      tail = tail.slice(atom[0].length);
+      continue;
+    }
+    // Repeated source headings in a single citation suffix remain supported.
+    const continuation = !needsCitation && (tail.match(CITATION_CONJUNCTION) || tail.match(SOURCE_HEADING));
+    if (continuation) {
+      needsCitation = true;
+      tail = tail.slice(continuation[0].length);
+      continue;
+    }
+    const separator = tail.match(CITATION_SEPARATOR);
+    if (!separator) return null;
+    tail = tail.slice(separator[0].length);
+  }
+  return citations && !needsCitation ? { label: heading[2] || heading[3], evidenceIds } : null;
+}
+
+function sourceCitationSuffix(line) {
+  for (const marker of String(line || '').matchAll(SOURCE_LABEL)) {
+    const start = marker.index + (marker[0].match(/^\s*/u)?.[0].length || 0);
+    const citation = citationOnlySource(line.slice(start));
+    if (citation) return { ...citation, start };
+  }
+  return null;
 }
 
 function stripInlineEvidenceGroups(text, sources) {
@@ -235,16 +270,16 @@ function stripInlineEvidenceGroups(text, sources) {
 
 function cleanupEvidenceIdCitations(answer, sources) {
   const withoutSourceIds = String(answer || '').split('\n').filter((line) => {
-    const sourceLine = line.match(SOURCE_LINE);
-    if (!sourceLine || !citationOnlySourceLabel(line)) return true;
-    const withoutUrls = sourceLine[2].replace(/https?:\/\/[^\s,;|)]+/gi, '');
-    return !/\bS\d+\b/i.test(withoutUrls);
+    const citation = citationOnlySource(line);
+    return !citation?.evidenceIds.length;
   }).join('\n');
   return stripInlineEvidenceGroups(withoutSourceIds, sources);
 }
 
 function trailingSourceLabel(line) {
-  const match = String(line || '').trim().match(/^([\p{L}\p{M}][\p{L}\p{M}\s-]{0,32})\s*:\s*((?:https:\/\/[^\s]+)(?:\s+https:\/\/[^\s]+)*)\s*$/iu);
+  // A recognized heading with a non-citation tail is prose, not an unknown-label fallback.
+  if (String(line || '').trimStart().match(SOURCE_HEADING)) return '';
+  const match = String(line || '').trim().match(/^([\p{L}\p{M}][\p{L}\p{M}\s-]{0,32})\s*[:：]\s*((?:https:\/\/[^\s]+)(?:\s+https:\/\/[^\s]+)*)\s*$/iu);
   if (!match) return '';
   const urls = match[2].split(/\s+/);
   return urls.every((url) => /^https:\/\/(?:help|docs|feedback)\.omi\.me\/|^https:\/\/(?:www\.)?omi\.me\/|^https:\/\/github\.com\/BasedHardware\//i.test(url))
@@ -259,27 +294,24 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
   ].slice(0, 2);
   const text = String(answer || '');
   const modelLabel = text.split('\n').map((line) => {
-    const citationOnly = citationOnlySourceLabel(line);
-    if (citationOnly) return citationOnly;
+    const citation = sourceCitationSuffix(line);
+    if (citation) return citation.label;
     const trailing = trailingSourceLabel(line);
     if (trailing) return trailing;
-    const marker = SOURCE_LABEL.exec(line);
-    return marker && /https?:\/\//i.test(line.slice(marker.index))
-      ? marker[0].trim().replace(/:$/, '')
-      : '';
+    return '';
   }).find(Boolean);
-  const body = cleanupEvidenceIdCitations(text, sources)
+  // Classify citations before removing inline ID groups; otherwise "[S1] and [S2]"
+  // becomes bare "and", hiding the fact that the complete suffix was a citation.
+  const body = stripInlineEvidenceGroups(text
     .split('\n')
     .map((line) => {
-      if (citationOnlySourceLabel(line)) return '';
+      const citation = sourceCitationSuffix(line);
+      if (citation) return line.slice(0, citation.start).trimEnd();
       if (trailingSourceLabel(line)) return '';
-      const marker = line.search(SOURCE_LABEL);
-      return marker >= 0 && /https:\/\//i.test(line.slice(marker))
-        ? line.slice(0, marker).trimEnd()
-        : line;
+      return line;
     })
     .filter((line) => line.trim())
-    .join('\n')
+    .join('\n'), sources)
     .trim();
   const code = String(language || 'en').toLowerCase().split('-')[0];
   const label = code === 'en' ? 'Source' : SOURCE_LABELS[code] || modelLabel || 'Source';
@@ -430,7 +462,7 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
   const published = [...new Set(sourceIds.map((id) => urls.get(String(id))).filter(Boolean))].slice(0, 2);
   const hasOfficialCitation = published.some((url) => OFFICIAL_STEP_URL.test(url));
   const hasReleaseCitation = published.some((url) => OFFICIAL_RELEASE_URL.test(url));
-  const withoutSources = original.replace(/\bSources?:\s*https:\/\/[^\s\n]+(?:\s+https:\/\/[^\s\n]+)*/gi, '');
+  const withoutSources = original.replace(new RegExp(`(^|\\s)${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}\\s*https:\\/\\/[^\\s\\n]+(?:\\s+https:\\/\\/[^\\s\\n]+)*`, 'giu'), '$1');
   let kept = '';
   let blankLines = 0;
   const dropped = [];
