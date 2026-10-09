@@ -398,16 +398,44 @@ test.beforeEach(() => {
   github.resetGithubMemory();
 });
 
-test('/health reports missing staff delivery without revealing IDs', () => {
+test('/health stays unavailable until Discord is ready and never reveals staff IDs', (t) => {
   const health = app._router.stack.find((layer) => layer.route?.path === '/health').route.stack[0].handle;
-  let body;
-  health({}, { json: (value) => { body = value; } });
-  assert.equal(body.staffHandoff, 'missing');
-  process.env.STAFF_ALERT_CHANNEL_ID = 'private-staff-room';
-  health({}, { json: (value) => { body = value; } });
-  assert.equal(body.staffHandoff, 'configured');
-  assert.equal(JSON.stringify(body).includes('private-staff-room'), false);
+  const hadOwnIsReady = Object.hasOwn(client, 'isReady');
+  const originalIsReady = client.isReady;
+  const originalStaffChannel = process.env.STAFF_ALERT_CHANNEL_ID;
+  t.after(() => {
+    if (hadOwnIsReady) client.isReady = originalIsReady;
+    else delete client.isReady;
+    if (originalStaffChannel === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID;
+    else process.env.STAFF_ALERT_CHANNEL_ID = originalStaffChannel;
+  });
+  const response = () => {
+    const received = {};
+    health({}, {
+      status(code) { received.code = code; return this; },
+      json(body) { received.body = body; return this; },
+    });
+    return received;
+  };
+
+  client.isReady = () => false;
   delete process.env.STAFF_ALERT_CHANNEL_ID;
+  assert.deepEqual(response(), {
+    code: 503,
+    body: { status: 'not_ready', staffHandoff: 'missing' },
+  });
+  process.env.STAFF_ALERT_CHANNEL_ID = 'private-staff-room';
+  assert.deepEqual(response(), {
+    code: 503,
+    body: { status: 'not_ready', staffHandoff: 'configured' },
+  });
+
+  client.isReady = () => true;
+  assert.deepEqual(response(), {
+    code: 200,
+    body: { status: 'ok', staffHandoff: 'configured' },
+  });
+  assert.equal(JSON.stringify(response()).includes('private-staff-room'), false);
 });
 
 test('answer path emits per-stage timing metrics without customer text', async () => {

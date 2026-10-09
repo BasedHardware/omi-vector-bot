@@ -76,10 +76,13 @@ const client = new Client({
 });
 
 const app = express();
-app.get('/health', (_req, res) => res.json({
-  status: 'ok',
-  staffHandoff: process.env.STAFF_ALERT_CHANNEL_ID || telegram.isReady() ? 'configured' : 'missing',
-}));
+app.get('/health', (_req, res) => {
+  const ready = client.isReady();
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ok' : 'not_ready',
+    staffHandoff: process.env.STAFF_ALERT_CHANNEL_ID || telegram.isReady() ? 'configured' : 'missing',
+  });
+});
 app.get('/ratings', async (_req, res) => {
   const { ratingCounts } = require('./ratings');
   const counts = await ratingCounts();
