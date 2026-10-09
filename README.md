@@ -2,6 +2,13 @@
 
 Discord support agent for Omi. Customers see it as **Omi Support**. It answers product questions from retrieved Omi sources, verifies model-written answers against those sources, and hands account or device-specific work to a person without inventing a status or a ping.
 
+## Architecture planning
+
+The proposed next phase is documented in [Architecture](docs/ARCHITECTURE.md) and
+[Implementation Checklist](docs/IMPLEMENTATION_PLAN.md): durable support cases,
+reliable delivery, verified metadata-only diagnostics, and empathetic communication
+backed by real actions. These documents describe planned work, not deployed access.
+
 ## Answer pipeline
 
 1. A deterministic router protects private orders, money, privacy, app failures, and device failures before model output can change the lane. Informational exceptions still use the grounded answer pipeline.
