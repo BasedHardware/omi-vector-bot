@@ -2,20 +2,13 @@
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
-## Priority 0: N12 exposed credential rotation
-
-- [ ] Rotate/revoke the exposed Discord token, GitHub App private key, webhook secret and CommandCode key; revoke the old OpenCode key. Rotation is not confirmed.
-- [ ] Handle `DATA_ENCRYPTION_KEY` through a data-preserving migration before replacement. Do not make retained encrypted records unreadable or reset state to hide a failure.
-
-This is the first security priority and the only currently identified open P0. Never print or paste replacement values into chat, logs or GitHub. Record completion through provider-side revocation and successful authorized use, not merely a variable being present. No credential or Railway variable changes are authorized as a side effect of the release work below.
-
 ## Release-only mode and merge gates
 
-Feature work is frozen. Do not extend Milestone 2, add diagnostics code or make further feature commits to #28–#30. Ship the reviewed work in the following order; only #25 currently has merge/deploy approval.
+Feature work is frozen. Do not extend Milestone 2, add diagnostics code or make further feature commits to #28–#30. #25 and #31 have explicit release approval and are live; #26 and the remaining stack still require review before merge/deployment.
 
 1. Complete and report Aryan's four #24 smoke tests, their exact timing lines, second-look lines and errors, and the private staff card. Screenshots received on October 9 confirm the four replies and replacement card. Totals: deletion 24.760 s, replacement 30.631 s, Spanish 31.251 s, developer 53.540 s; no second looks or model/staff-delivery failures in that window. Functional checks pass, but do not convert this into a blanket answer-quality signoff: the Undo wording overpromises recovery and the replacement intake asks for tracking details.
 2. Release approved #25 with a merge commit, deploy main, verify HTTP 200/status `ok`/staff handoff `configured`, and record a real successful rollback target. Read but do not change overlap/draining variables. Set only Healthcheck Path `/health`, leave timeout default, verify the health-gated deployment and measure new Discord login versus old SIGTERM. If overlap exceeds ten seconds, tell Aryan before any further deployments.
-3. Standalone citation fix [#31](https://github.com/BasedHardware/omi-vector-bot/pull/31) replaces #27, on main after #25. Only the original four-file citation commit is applied; 512 tests and offline 8/8 pass. #27 is superseded, with its branch retained. Stop for review; no citation merge/deploy is approved. Hosted CI is not available on this standalone branch because the workflow is still in unmerged #26. This replacement avoids force-pushing, squash merging and importing #26's ancestry.
+3. Standalone citation fix [#31](https://github.com/BasedHardware/omi-vector-bot/pull/31) replaces #27, whose branch is retained. Approved head `4f2c6e5` is merged as `3a28c7f`; 516 tests and offline 8/8 pass. Deployment `0955e078-42ea-4830-bba5-006dae841745` succeeded in an observed quiet window, with HTTP 200/status `ok`/staff handoff `configured` and Discord login confirmed. Rollback target: `75e41379-2bad-46a4-b130-04bd52382504`. Spanish phone-only smoke reply ends with one Fuente line. Chinese returns/warranty reply has one 来源 line followed by an English handoff footer; Aryan confirmed staff receipt and approved continuing with this layout exception recorded. Smoke total timing: Spanish 39.197 s, Chinese 55.366 s. No reply-formatting or Railway setting changes were made. Hosted CI on main still awaits unmerged #26.
 4. Evaluate #26 with the standalone citation fix applied. Use the protected 81-case file, two runs and concurrency three, as in round 12d; do not open the cases or tune code to results. Gate: at least 70 cases pass both runs, unsafe advice zero, duplicate source labels zero (recognize both `:` and `：`), handoff promises without a handoff zero, total p50 at most 43 s and p95 at most 70 s. Provide the JSON and wait for the verification/order-code review and explicit merge/deploy approval, then deploy and smoke-test.
 5. After #26 is deployed, release #28, then #29, then #30 separately, each only after approval and with its own deploy/health/Discord smoke test: staff-authored GitHub preview/approval (#28), forced duplicate-send check in #vector-test (#29), and `/done` close/reopen (#30). No further feature commits. These existing delivery-only changes do not need the held-out test under the approved release plan.
 
@@ -23,7 +16,7 @@ Any change to answer/reviewer prompts or canned customer-answer replies must pas
 
 Product decision confirmed by Aryan: **keep** optional honest App Store/Google Play review buttons in #26, shown regardless of feedback. Their implementation is complete; release remains pending #26's gates. Store clicks are not internal support votes or verified review submissions.
 
-Customer-impacting follow-ups take priority over deferred plumbing: Chinese duplicate source labels; developer pages cited for consumer questions; deletion how-to escalating unnecessarily; and speed. Record any failures without adding fixes during this release-only turn. Milestone 3 stays parked until Omi backend-team agreement and privacy review, before any implementation.
+Customer-impacting follow-ups take priority over deferred plumbing: developer pages cited for consumer questions; deletion how-to escalating unnecessarily; and speed. Chinese duplicate source labels are addressed by #31; the English footer following its localized citation is a recorded smoke exception, not a new formatting fix. Record any failures without adding fixes during this release-only turn. Milestone 3 stays parked until Omi backend-team agreement and privacy review, before any implementation.
 
 ## Current milestone
 
@@ -88,11 +81,20 @@ Recovery, reprocessing, refunds, deletion and account mutations remain separate 
 
 - [x] Redesign `/done` closure with internal resolution feedback and optional honest App Store/Google Play review links. Links are shown before any vote, regardless of satisfaction. Store clicks are not dashboard votes or verified review submissions.
 - [x] Keep “Still need help” functional and show feedback-storage failure honestly, without invented dashboard totals or a false “recorded” acknowledgment.
-- [ ] Normalize Chinese citation labels so every language receives exactly one source line.
+- [x] Normalize Chinese citation labels (#31 live; Chinese smoke has one 来源 citation line, with the footer-layout exception above).
 - [ ] Improve retrieval coverage and publish missing official support guidance; do not compensate with unverified product facts.
 - [ ] Maintain a reviewed incident/release registry with deployment evidence, affected versions and supported workarounds. Merged does not mean released.
 - [ ] Track resolution/reopen rates, handoff reasons, capability success and p50/p95 latency without logging customer content.
 - [ ] Continue speed work after quality holds. Never cut useful evidence to manufacture a faster score.
+
+## Deferred security work: N12 exposed credential rotation
+
+**Deferred by Aryan (Oct 9), accepted risk.** Removed from the first priority slot at Aryan's explicit request; the exposure remains an unresolved security finding, not a completed rotation.
+
+- [ ] Rotate/revoke the exposed Discord token, GitHub App private key, webhook secret and CommandCode key; revoke the old OpenCode key. Rotation/revocation is unconfirmed.
+- [ ] Handle `DATA_ENCRYPTION_KEY` through a data-preserving migration before replacement. Do not make retained encrypted records unreadable or reset state to hide a failure.
+
+Never print or paste replacement values into chat, logs or GitHub. Record completion through provider-side revocation and successful authorized use, not merely a variable being present. No credential or Railway variable changes are authorized as a side effect of this release/evaluation work.
 
 ## Validation and operating rules
 
@@ -102,10 +104,10 @@ The #24 smoke test is now posted and reported. #25 is merged as `4f7d7a1` and li
 
 Railway healthcheck evidence (UTC): started 15:14:45.671, new Discord login 15:14:46.451, healthcheck passed 15:14:46.871. The old bot's own `Received SIGTERM` line is missing; platform stop is 15:14:53.151 (+6.7 s) and npm SIGTERM is 15:15:02.638 (+16.2 s). The npm time is a termination proxy, not proof of exact dual-connection duration. This possible over-ten-second window was reported to Aryan; **further deployments are paused for review**, without changing teardown/window settings. No Missing env, model failed or Staff delivery failed lines were found since the health-gated deployment.
 
-The pre-release code rollback target is `701f3d34-be16-4228-a537-b402866978b6` (#24); the prior healthy #25 deployment is `73760501-ddd2-4b49-a21d-7e383840b5d8`. #26, #28, #29, #30 and standalone #31 remain unmerged/unreleased. The protected #26 gate has not been run; work stops at #31 review. No feature commits were made to #28–#30 during this release-only work.
+The earlier #25 rollback targets remain historical records. Current production is #31 deployment `0955e078-42ea-4830-bba5-006dae841745`, with `75e41379-2bad-46a4-b130-04bd52382504` as its rollback target. Aryan's explicit approval for #31's quiet-window release superseded the earlier deployment pause; overlap/draining/start settings were not changed. #26 incorporates main through merge commit `95c2c13` (citation formatter from main; readiness combines Discord, coordination initialization and non-stopping runtime). Its unit suite passes 603 tests and offline check is 8/8; the protected 81-case gate is pending. #26, #28, #29 and #30 remain unmerged/unreleased. No feature commits were made to #28–#30.
 
 Run `npm test`, the offline customer check and relevant isolated database checks. Answer/reviewer prompt or canned-answer changes require the full 81-case held-out gate before merge, not just a focused live probe. Held-out files stay unopened and must never become tuning inputs. Record failed checks and remaining limitations instead of marking work complete prematurely.
 
-No production settings or credentials change as a side effect of coding. Previously exposed secrets still need confirmed rotation/revocation; encryption-key rotation needs a data-preserving migration. Omi Support Bot is the product name; technical repository/domain/channel names are not renamed without an explicit migration.
+No production settings or credentials change as a side effect of coding. Previously exposed credentials remain unrotated/unconfirmed, deferred by Aryan with accepted risk; encryption-key rotation needs a data-preserving migration. Omi Support Bot is the product name; technical repository/domain/channel names are not renamed without an explicit migration.
 
 See [Architecture](docs/ARCHITECTURE.md), [Implementation Checklist](docs/IMPLEMENTATION_PLAN.md), and [Operations Runbook](docs/RUNBOOK.md).
