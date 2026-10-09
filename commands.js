@@ -111,14 +111,26 @@ function closePayload(user) {
 }
 
 async function handleRating(interaction, options = {}) {
+  const deferred = typeof interaction.deferReply === 'function' && typeof interaction.editReply === 'function';
+  if (deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const respond = (content) => deferred
+    ? interaction.editReply({ content, allowedMentions: { parse: [] } })
+    : interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
   if (!['rate:yes', 'rate:no'].includes(interaction.customId)) {
-    await interaction.reply({ content: 'That is not a support feedback button.', flags: MessageFlags.Ephemeral });
+    await respond('That is not a support feedback button.');
     return;
   }
   const helped = interaction.customId === 'rate:yes';
   const threadId = String(interaction.channelId || interaction.channel?.id || '');
   const cases = options.cases || supportCases;
-  const storedCase = threadId ? await cases.getCaseByThread(threadId) : null;
+  let storedCase;
+  try {
+    storedCase = threadId ? await cases.getCaseByThread(threadId) : null;
+  } catch {
+    console.error('[Bot] rating case lookup failed');
+    await respond('I could not check this case just now. Your feedback has not been saved; please try again.');
+    return;
+  }
   let customerId = String(interaction.channel?.ownerId || '');
   // A Handoff started from a customer's message is owned by the bot, not by
   // that customer. The starter message is the authoritative customer here.
@@ -136,10 +148,7 @@ async function handleRating(interaction, options = {}) {
   if (storedCase) customerId = storedCase.customerId;
   const clicker = String(interaction.user?.id || interaction.member?.user?.id || '');
   if (!customerId || clicker !== customerId) {
-    await interaction.reply({
-      content: 'Only the customer who opened this post can answer that.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await respond('Only the customer who opened this post can answer that.');
     return;
   }
   let counts = { yes: 0, no: 0 };
@@ -151,6 +160,7 @@ async function handleRating(interaction, options = {}) {
     console.error('[Bot] rating save failed');
   }
   let reopened = false;
+  let threadReopened = false;
   if (!helped && storedCase) {
     try {
       const active = await cases.getActiveCase(storedCase.channelId, clicker);
@@ -167,6 +177,8 @@ async function handleRating(interaction, options = {}) {
       } else {
         throw new Error('Thread cannot be reopened');
       }
+      threadReopened = true;
+      require('./handoff').markHandoffReopened?.(channel);
       const tagId = resolvedTagId(channel);
       if (tagId && typeof channel.setAppliedTags === 'function') {
         await channel.setAppliedTags((channel.appliedTags || []).map(String).filter((id) => id !== tagId), 'Customer still needs help');
@@ -178,7 +190,6 @@ async function handleRating(interaction, options = {}) {
       }
       reopened = Boolean(await cases.reopenByThread(threadId, clicker));
       if (!reopened && ['queued', 'delivered', 'accepted'].includes(storedCase.status) && !channel.archived && !channel.locked) reopened = true;
-      if (reopened) require('./handoff').markHandoffReopened?.(channel);
     } catch (err) {
       console.error('[Bot] case reopen failed:', err.name);
     }
@@ -200,11 +211,15 @@ async function handleRating(interaction, options = {}) {
   const note = !feedbackSaved
     ? reopened
       ? 'This case is reopened. You can continue in this thread. Saving your feedback failed; it has not been added to the dashboard.'
+      : threadReopened
+      ? 'This thread is reopened, but I could not finish updating the case. You can continue here. Your feedback has not been saved; please try the feedback button again.'
       : 'Thank you for your feedback. I could not save it just now; please try the feedback button again.'
     : helped ? 'Glad it helped. Thank you for your honest feedback.' : reopened
     ? 'This case is reopened. You can continue in this thread.'
+    : threadReopened
+    ? 'This thread is reopened, but I could not finish updating the case. You can continue here. Your feedback is recorded.'
     : 'Your feedback is recorded. This thread has not been reopened; open a new Help post if you still need help.';
-  await interaction.reply({ content: note, flags: MessageFlags.Ephemeral });
+  await respond(note);
 }
 
 function resolvedTagId(channel) {
