@@ -4,6 +4,11 @@ const ACTION = '(?:try|check|make sure|enable|allow|restart|reboot|reset|reconne
 const IMPERATIVE = new RegExp(`^(?:[-*]\\s*|\\d+[.)]\\s*)?(?:please\\s+)?${ACTION}\\b`, 'i');
 const SECOND_PERSON = new RegExp(`\\byou\\s+(?:can|should|need\\s+to)\\s+${ACTION}\\b`, 'i');
 const LEADING_CONDITION = /^(?:[-*]\s*|\d+[.)]\s*)?(?:(?:if|when)\b[^,\n]{0,160},\s*|(?:then|otherwise|after that),?\s*)+/i;
+// Keep citation syntax shared with answer presentation: East Asian source
+// labels commonly use a fullwidth colon instead of the ASCII colon.
+const SOURCE_LABEL_NAME = '(?:Sources?|Fuentes?|Quellen?|Fonte|Fontes|Fonti|Sumber|Kaynak|Srot|स्रोत|出典|来源|來源|출처|Источник|Riferimenti)';
+const SOURCE_LABEL_SEPARATOR = '[:：]';
+const SOURCE_LINE = new RegExp(`(?:^|\\n)\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}[^\\n]*`, 'giu');
 
 function isInstructionSentence(sentence) {
   const text = String(sentence || '').trim().replace(LEADING_CONDITION, '');
@@ -13,9 +18,9 @@ function isInstructionSentence(sentence) {
 
 function hasTroubleshootingStep(answer) {
   return String(answer || '')
-    .replace(/(?:^|\n)Sources?:[^\n]*/gi, '')
+    .replace(SOURCE_LINE, '')
     .split(/(?<=[.!?])\s+|\n+/)
     .some(isInstructionSentence);
 }
 
-module.exports = { isInstructionSentence, hasTroubleshootingStep };
+module.exports = { isInstructionSentence, hasTroubleshootingStep, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR };

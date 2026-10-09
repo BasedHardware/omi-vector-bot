@@ -595,6 +595,55 @@ test('Chinese, Korean, and Russian replies retain exactly one localized source l
   }
 });
 
+test('all recognized localized source labels normalize ASCII and fullwidth colons to one citation line', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Official docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const labels = [
+    ['en', 'Source', 'Source'], ['en', 'Sources', 'Source'],
+    ['es', 'Fuente', 'Fuente'], ['es', 'Fuentes', 'Fuente'],
+    ['de', 'Quelle', 'Quelle'], ['de', 'Quellen', 'Quelle'],
+    ['pt', 'Fonte', 'Fonte'], ['pt', 'Fontes', 'Fonte'],
+    ['it', 'Fonti', 'Fonti'], ['it', 'Riferimenti', 'Riferimenti'],
+    ['id', 'Sumber', 'Sumber'], ['tr', 'Kaynak', 'Kaynak'],
+    ['hi', 'Srot', 'Srot'], ['hi', 'स्रोत', 'Srot'],
+    ['ja', '出典', '出典'], ['zh', '来源', '来源'], ['zh', '來源', '来源'],
+    ['ko', '출처', '출처'], ['ru', 'Источник', 'Источник'],
+  ];
+  for (const [language, modelLabel, finalLabel] of labels) {
+    for (const colon of [':', '：']) {
+      const answer = groundedSourceLine(
+        `Keep the selected language.\n${modelLabel} ${colon} S1，(S2)； https://help.omi.me/preferences\n${modelLabel}${colon} https://docs.omi.me/settings`,
+        evidence, ['S1', 'S2', 'S1'], language,
+      );
+      assert.equal(answer, `Keep the selected language.\n\n${finalLabel}: https://help.omi.me/preferences https://docs.omi.me/settings`, `${modelLabel}${colon}`);
+    }
+  }
+});
+
+test('mixed-width source labels and evidence-only inline groups cannot duplicate a Chinese citation', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const answer = groundedSourceLine(
+    '设置保留。 (S1，S2) [S1][S2] （S1、S2）［S1；S2］【S2】\n来源：https://help.omi.me/preferences\n来源: S1｜S2',
+    evidence, ['S1'], 'zh',
+  );
+  assert.equal(answer, '设置保留。\n\n来源: https://help.omi.me/preferences');
+});
+
+test('source cleanup preserves prose, bare ids, unknown evidence groups and inline docs links', () => {
+  const evidence = '[S1 | Official docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const body = 'Use the guide at https://docs.omi.me/settings. The source: this is a settings explanation, not an extra citation. S1 stays literal; Galaxy S21 stays a phone model. Unknown [S90], (S1，S90), and 【S90】 stay.';
+  const answer = groundedSourceLine(`${body}\nSource： S1`, evidence, ['S1']);
+  assert.ok(answer.startsWith(body));
+  assert.equal(answer, `${body}\n\nSource: https://docs.omi.me/settings`);
+  const noCitation = groundedSourceLine('The source: https://docs.omi.me/settings explains the screen.', evidence, []);
+  assert.equal(noCitation, 'The source: https://docs.omi.me/settings explains the screen.');
+});
+
+test('unfamiliar URL-only localized labels also recognize fullwidth colons', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.';
+  const answer = groundedSourceLine('Useful answer.\nRéférences：https://help.omi.me/preferences', evidence, ['S1'], 'it');
+  assert.equal(answer, 'Useful answer.\n\nRéférences: https://help.omi.me/preferences');
+});
+
 test('an unfamiliar localized source label is replaced instead of duplicated', () => {
   const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/delete-one\nDelete one item.';
   const answer = groundedSourceLine('Risposta utile.\n\nRiferimenti: https://help.omi.me/en/articles/delete-one', evidence, ['S1'], 'it');
