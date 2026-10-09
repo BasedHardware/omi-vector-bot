@@ -17,6 +17,8 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Add bounded leased workers and a metadata-only queue for unstarted requests.
 - [x] Add a metadata-only receipt ledger and isolated bounded Discord sender for ordinary answers and private full staff cards; uncertain outcomes block fallback/reposting, and accepted message IDs are durable.
 - [x] Repair accepted case/card projections with fresh destination checks, generation fences and bounded backoff; reconcile exact own-bot Gateway receipts and restore owned answer references. Add private read-only receipt inspection.
+- [x] Extend the receipt boundary to tracked-case `/done` notices; reuse accepted cards after failed saves, scope feedback to the actual closing receipt/generation and serialize close/reopen across copies.
+- [x] Fence closure/reopening to the exact case/customer; stale feedback cannot cancel a newer cycle and ambiguous cases cannot fall through to legacy closure. Require staff authority for `/done` independent of test-channel bypasses.
 - [ ] Add the complete delivery outbox with attempt tracking, reconciliation and retries. Use backoff and an overall deadline, not unlimited retries.
 - [x] Stop new work on shutdown; drain accepted work and queue unstarted requests. Coordinate overlapping copies through Postgres claims. Started requests with uncertain delivery remain an operator-reconciliation task.
 - [x] Make `/done`, ratings/reopening and Telegram delivery operate on the same case state. Failed customer delivery must not resolve a case.
@@ -32,7 +34,7 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 
 Acceptance: restart during OTP, overlapping copies, provider slowdown, failed/uncertain sends, repeated webhooks, staff-button use after restart and termination during a reply produce neither false completion nor uncontrolled duplicate work. Existing customer routing/privacy regressions stay green.
 
-The receipt slice is not this complete acceptance claim. Uncertain sends without a captured receipt remain manual; reused-thread answers, closure cards, Telegram, ephemeral commands and other notifications are not ledgered yet. No queued payload replay or new customer-content retention is introduced. Approve metadata/payload retention before the complete outbox and its production rollout.
+The receipt slices are not this complete acceptance claim. Uncertain sends without a captured receipt remain manual; reused-thread answers, untracked legacy closure cards, Telegram, ephemeral commands and other notifications are not ledgered yet. Tracked `/done` cards are now ledgered; restart recovery repairs case/escalation state but never autoarchives the customer thread. No queued payload replay or new customer-content retention is introduced. Review [retention prerequisites](RETENTION.md) before cleanup and the complete outbox rollout.
 
 ## Phase 2 Verified metadata diagnostics
 
