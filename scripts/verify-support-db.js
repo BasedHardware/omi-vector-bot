@@ -1,9 +1,11 @@
 // Integration fixtures only: never point this script at a customer database.
 const assert = require('node:assert/strict');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createCipheriv, createHmac } = require('node:crypto');
 const runtime = require('../supportRuntime');
 const cases = require('../supportCases');
 const { SupportIdentityStore, initSchema: initIdentity } = require('../supportIdentityStore');
+const approvals = require('../supportApprovals');
+const issueLinks = require('../supportIssueLinks');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -36,6 +38,7 @@ async function isolatedPool() {
 async function verify(pool) {
   for (let count = 0; count < 2; count++) {
     await runtime.initSchema(pool); await cases.initSchema(pool); await initIdentity(pool);
+    await approvals.initSchema(pool); await issueLinks.initSchema(pool);
   }
   const prefix = `test-${randomUUID()}`;
   const store = new runtime.PostgresRuntimeStore(pool);
@@ -85,7 +88,78 @@ async function verify(pool) {
   const encrypted = (await pool.query('SELECT * FROM support_verified_emails WHERE discord_user_id=$1', [user])).rows[0];
   assert.doesNotMatch(JSON.stringify(encrypted), /fixture@example\.test/);
   await restarted.revoke(user); assert.equal(await identity.getBinding(user), null);
+  const approvalStore = approvals.createPostgresStore(pool);
+  const publication = approvals.createApprovalService(approvalStore, { key: Buffer.alloc(32, 19) });
+  const publicationCopy = approvals.createApprovalService(approvalStore, { key: Buffer.alloc(32, 19) });
+  const scoped = { caseId: first.id, customerId: aliceInput.customerId, sourceMessageId: `${prefix}-report`,
+    channelId: `${prefix}-staff`, threadId: aliceInput.channelId, botUserId: `${prefix}-bot`, repo: 'BasedHardware/omi', kind: 'issue' };
+  const draft = await publication.createDraft({ title: 'Technical support report', body: 'Staff technical details pending review', labels: [] }, scoped);
+  const duplicateDraft = await publicationCopy.createDraft({ title: 'Do not replace', body: 'This must not overwrite an existing scoped draft' }, { ...scoped, repo: 'basedhardware/OMI' });
+  assert.equal(draft.id, duplicateDraft.id);
+  assert.equal(draft.repo, 'basedhardware/omi');
+  assert.equal(duplicateDraft.payloadHash, draft.payloadHash);
+  const original = { ...scoped, cardMessageId: `${prefix}-card`, cardAuthorId: scoped.botUserId };
+  await publication.bindCard(draft.id, original);
+  const editing = await publication.beginEdit(draft.id, { ...original, authorized: true, staffId: `${prefix}-staff-user` });
+  assert.equal(editing.ok, true);
+  const reviewed = await publication.updateDraft(draft.id, { scope: scoped, staffId: `${prefix}-staff-user`, editToken: editing.editToken,
+    draft: { title: 'App failure report', body: 'Support reviewed the technical reproduction and app version.' } });
+  assert.ok(reviewed);
+  const confirmation = { ...scoped, authorized: true, staffId: `${prefix}-staff-user`, cardAuthorId: scoped.botUserId,
+    previewMessageId: `${prefix}-preview`, revision: reviewed.revision, payloadHash: reviewed.payloadHash };
+  await publication.bindPreview(draft.id, confirmation);
+  const concurrent = await Promise.all([publication.claimDraft(draft.id, confirmation), publicationCopy.claimDraft(draft.id, { ...confirmation, repo: 'BASEDHARDWARE/omi' })]);
+  assert.equal(concurrent.filter((result) => result.ok).length, 1);
+  const dispatch = concurrent.find((result) => result.ok);
+  await publication.recordFiled(draft.id, { leaseToken: dispatch.leaseToken, number: 4242, url: 'https://github.com/BasedHardware/omi/issues/4242' });
+  assert.equal((await publicationCopy.getDraft(draft.id)).status, 'filed');
+  const storedPublication = (await pool.query('SELECT * FROM support_issue_approvals WHERE id=$1', [draft.id])).rows[0];
+  assert.doesNotMatch(JSON.stringify(storedPublication), /Support reviewed the technical reproduction|App failure report/);
+  const internalLinks = issueLinks.createIssueLinkService(issueLinks.createPostgresStore(pool), { getCase: service.getCaseById });
+  await internalLinks.link({ repo: scoped.repo, issueNumber: 4242, caseId: first.id, customerId: aliceInput.customerId,
+    channelId: aliceInput.channelId, threadId: scoped.threadId, sourceMessageId: scoped.sourceMessageId, approvedBy: `${prefix}-staff-user` });
+  assert.equal((await internalLinks.findForSource(first.id, scoped.repo, scoped.sourceMessageId)).issueNumber, 4242);
+  assert.equal(Number((await pool.query('SELECT COUNT(*) AS count FROM support_issue_approvals WHERE case_id=$1 AND LOWER(repository)=$2 AND source_message_id=$3',
+    [first.id, 'basedhardware/omi', scoped.sourceMessageId])).rows[0].count), 1);
+
+  // Transaction-only migration fixture in this dedicated test database. Removing
+  // the new index reproduces the old schema; rollback restores it and all rows.
+  const publishedApproval = await publication.getDraft(draft.id);
+  const migration = await pool.connect();
+  try {
+    await migration.query('BEGIN');
+    await migration.query('DROP INDEX support_issue_approvals_action_canonical_idx');
+    const legacy = { ...publishedApproval, id: `${prefix}-legacy-variant`, repo: 'BasedHardware/omi' };
+    const aad = Buffer.from(JSON.stringify([legacy.id, legacy.caseId, legacy.customerId, legacy.sourceMessageId,
+      legacy.channelId, legacy.threadId, legacy.botUserId, legacy.repo, legacy.kind, legacy.targetIssueNumber, legacy.revision]));
+    const plaintext = JSON.stringify(legacy.draft);
+    const iv = Buffer.alloc(12, 11); const encryptionKey = Buffer.alloc(32, 19);
+    const cipher = createCipheriv('aes-256-gcm', encryptionKey, iv); cipher.setAAD(aad);
+    const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]).toString('base64');
+    const payloadHash = createHmac('sha256', encryptionKey).update(aad).update(plaintext).digest('hex');
+    await migration.query(`INSERT INTO support_issue_approvals
+      (id,case_id,customer_id,source_message_id,channel_id,thread_id,bot_user_id,repository,kind,target_issue_number,
+       payload_ciphertext,payload_iv,payload_tag,payload_hash,payload_revision,created_at,expires_at)
+      SELECT $1,case_id,customer_id,source_message_id,channel_id,thread_id,bot_user_id,$2,kind,target_issue_number,
+       $3,$4,$5,$6,payload_revision,created_at,expires_at FROM support_issue_approvals WHERE id=$7`,
+    [legacy.id, legacy.repo, ciphertext, iv.toString('base64'), cipher.getAuthTag().toString('base64'), payloadHash, draft.id]);
+    const legacyReader = approvals.createApprovalService(approvals.createPostgresStore(migration), { key: encryptionKey });
+    assert.deepEqual((await legacyReader.getDraft(legacy.id)).draft, legacy.draft);
+    const beforeMigration = (await migration.query('SELECT id,repository,payload_ciphertext,payload_iv,payload_tag,payload_hash FROM support_issue_approvals WHERE case_id=$1 AND source_message_id=$2 ORDER BY id',
+      [first.id, scoped.sourceMessageId])).rows;
+    assert.equal(beforeMigration.length, 2);
+    await migration.query('SAVEPOINT before_canonical_migration');
+    await assert.rejects(() => approvals.initSchema(migration), (error) => error.code === '23505');
+    await migration.query('ROLLBACK TO SAVEPOINT before_canonical_migration');
+    const afterMigration = (await migration.query('SELECT id,repository,payload_ciphertext,payload_iv,payload_tag,payload_hash FROM support_issue_approvals WHERE case_id=$1 AND source_message_id=$2 ORDER BY id',
+      [first.id, scoped.sourceMessageId])).rows;
+    assert.deepEqual(afterMigration, beforeMigration);
+  } finally {
+    await migration.query('ROLLBACK');
+    migration.release();
+  }
   console.log('Support database integration: schema, claims, queue, case isolation, verification and revocation passed');
+  console.log('GitHub approval integration: encrypted drafts, case-insensitive source uniqueness, single dispatch, private links and fail-safe migration passed');
 }
 
 (async () => {

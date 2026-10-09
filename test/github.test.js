@@ -42,12 +42,12 @@ test('draftFromQuestion never uses shop or privacy labels', () => {
   assert.equal(named.title, 'omi-windows ERESOLVE');
   assert.match(named.body, /What they wrote/);
   const formatted = github.issueBody({
-    quote: 'There is 2 min conversation but it shows 40+ min.',
+    technicalSummary: 'There is 2 min conversation but it shows 40+ min.',
     reason: 'Cannot see the phone app from chat',
     threadUrl: 'https://discord.com/channels/1/2',
     related: [{ title: 'compute conversation duration from transcript', url: 'https://github.com/BasedHardware/omi/pull/7528', state: 'merged' }],
   });
-  assert.match(formatted, /Discord thread: https:\/\/discord.com\/channels\/1\/2/);
+  assert.doesNotMatch(formatted, /discord\.com|Discord thread:/);
   assert.match(formatted, /40\+ min/);
   assert.match(formatted, /#7528|pull\/7528/);
   assert.match(formatted, /still a problem after those changes/);
@@ -193,7 +193,7 @@ test('createIssue posts to the repo', async () => {
   );
   assert.equal(created.ok, true);
   assert.equal(created.number, 42);
-  assert.match(posted.body, /vector-thread:1550182642874589194/);
+  assert.doesNotMatch(posted.body, /vector-thread:|1550182642874589194/);
   delete process.env.GITHUB_TOKEN;
 });
 
@@ -219,10 +219,155 @@ test('createIssue redacts every public write even if a draft was stored raw', as
       assert.equal(blob.includes(value), false, value);
     }
     assert.match(blob, /Attachments in Discord: 1/);
-    assert.match(blob, /vector-thread:1550182642874589194/);
+    assert.doesNotMatch(blob, /vector-thread:|1550182642874589194/);
   } finally {
     delete process.env.GITHUB_TOKEN;
   }
+});
+
+test('public issue and comment writes strip private links and old thread markers, using only the opaque approval marker', async (t) => {
+  const previous = process.env.GITHUB_TOKEN; process.env.GITHUB_TOKEN = 'fixture-token';
+  t.after(() => { if (previous === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = previous; });
+  const approvalId = '11111111-1111-4111-8111-111111111111';
+  const body = 'Staff technical summary. https://discord.com/channels/1/2/3 <!-- vector-thread:123456789012345678 --> https://private.example/audio?token=CANARY_TOKEN';
+  let sentIssue; let sentComment;
+  const issue = await github.createIssue({ title: 'Technical report', body, approvalId, files: { size: 2 } }, {
+    fetchImpl: async (_url, options) => { sentIssue = JSON.parse(options.body); return { ok: true, status: 201, json: async () => ({ number: 44 }) }; },
+  });
+  const comment = await github.commentOnIssue(44, body, { approvalId,
+    fetchImpl: async (_url, options) => { sentComment = JSON.parse(options.body); return { ok: true, status: 201, json: async () => ({ id: 99, html_url: 'https://github.com/BasedHardware/omi/issues/44#issuecomment-99' }) }; },
+  });
+  assert.equal(issue.outcome, 'accepted'); assert.equal(comment.outcome, 'accepted');
+  for (const payload of [sentIssue, sentComment]) {
+    assert.doesNotMatch(JSON.stringify(payload), /discord\.com|vector-thread:|123456789012345678|private\.example|CANARY_TOKEN/);
+    assert.match(payload.body, /omi-support-approval:11111111-1111-4111-8111-111111111111/);
+  }
+  assert.deepEqual(sentIssue, github.issuePublicationPayload({ title: 'Technical report', body, approvalId, files: { size: 2 } }));
+  assert.equal(sentComment.body, github.publicMutationBody(body, approvalId));
+});
+
+test('HTTP rejection can be retried explicitly, but transport/5xx/malformed success outcomes never auto-retry', async (t) => {
+  const previous = process.env.GITHUB_TOKEN; const oldError = console.error;
+  process.env.GITHUB_TOKEN = 'fixture-token'; console.error = () => {};
+  t.after(() => { console.error = oldError; if (previous === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = previous; });
+  for (const [status, expected] of [[422, 'known_rejected'], [429, 'known_rejected'], [408, 'unknown'], [500, 'unknown']]) {
+    let calls = 0;
+    const response = async () => { calls++; return { ok: false, status }; };
+    assert.equal((await github.createIssue({ title: 'Report', body: 'Staff summary', labels: ['app'] }, { fetchImpl: response })).outcome, expected);
+    assert.equal(calls, 1);
+    calls = 0;
+    assert.equal((await github.commentOnIssue(44, 'Staff summary', { fetchImpl: response })).outcome, expected);
+    assert.equal(calls, 1);
+  }
+  for (const response of [
+    async () => { throw new Error('response lost'); },
+    async () => ({ ok: true, status: 201, json: async () => { throw new Error('invalid response'); } }),
+    async () => ({ ok: true, status: 201, json: async () => ({}) }),
+  ]) {
+    assert.equal((await github.createIssue({ title: 'Report', body: 'Staff summary' }, { fetchImpl: response })).outcome, 'unknown');
+    assert.equal((await github.commentOnIssue(44, 'Staff summary', { fetchImpl: response })).outcome, 'unknown');
+  }
+});
+
+test('a public marker or substring cannot establish a trusted Discord link or reconcile without writer and payload proof', async () => {
+  github.resetGithubMemory(); let calls = 0;
+  assert.equal(await github.findIssueForThread('123456789012345678', { fetchImpl: async () => { calls++; } }), '');
+  assert.equal(calls, 0);
+  const approval = { id: '11111111-1111-4111-8111-111111111111', status: 'unknown', writerAppId: '123', kind: 'issue', repo: 'BasedHardware/omi', draft: { title: 'Technical report', body: 'Approved staff summary.', labels: ['app'] } };
+  const publicPayload = github.issuePublicationPayload({ ...approval.draft, approvalId: approval.id });
+  const data = { number: 44, html_url: 'https://github.com/BasedHardware/omi/issues/44', ...publicPayload, labels: [{ name: 'app' }], user: { type: 'Bot' }, performed_via_github_app: { id: 123 } };
+  assert.equal(github.matchesApprovalPublication(approval, data, { appId: 123 }), true);
+  for (const changed of [{ user: { type: 'User' } }, { performed_via_github_app: { id: 999 } }, { body: publicPayload.body + ' Unapproved content' }, { title: 'Different report' }, { labels: [] }, { html_url: 'https://github.com/other/repo/issues/44' }]) {
+    assert.equal(github.matchesApprovalPublication(approval, { ...data, ...changed }, { appId: 123 }), false);
+  }
+  assert.equal(github.matchesApprovalPublication({ ...approval, kind: 'comment', targetIssueNumber: 44 }, {
+    id: 99, issue_url: 'https://api.github.com/repos/BasedHardware/omi/issues/44', html_url: 'https://github.com/BasedHardware/omi/issues/44#issuecomment-99',
+    body: github.publicMutationBody(approval.draft.body, approval.id), user: { type: 'Bot' }, performed_via_github_app: { id: 123 },
+  }, { appId: 123 }), true);
+});
+
+function unknownApproval(kind = 'issue') {
+  return { id: '11111111-1111-4111-8111-111111111111', status: 'unknown', writerAppId: '123', kind,
+    repo: 'BasedHardware/omi', targetIssueNumber: kind === 'comment' ? 44 : null,
+    approvedAt: '2026-10-09T12:00:00.000Z', draft: { title: 'Technical report', body: 'Staff-approved technical summary.', labels: ['app'] } };
+}
+
+function publishedIssue(approval, number = 44) {
+  return { number, html_url: `https://github.com/basedhardware/OMI/issues/${number}/`,
+    ...github.issuePublicationPayload({ ...approval.draft, approvalId: approval.id }), labels: [{ name: 'app' }],
+    user: { type: 'Bot' }, performed_via_github_app: { id: 123 } };
+}
+
+test('read-only reconciliation uses the saved app identity after configuration changes and returns only canonical receipt data', async (t) => {
+  const previous = { token: process.env.GITHUB_TOKEN, app: process.env.GITHUB_APP_ID };
+  process.env.GITHUB_TOKEN = 'fixture-token'; process.env.GITHUB_APP_ID = '999';
+  t.after(() => {
+    for (const [name, old] of [['GITHUB_TOKEN', previous.token], ['GITHUB_APP_ID', previous.app]]) {
+      if (old === undefined) delete process.env[name]; else process.env[name] = old;
+    }
+  });
+  const approval = unknownApproval(); const requests = [];
+  const result = await github.findApprovalPublication(approval, { fetchImpl: async (url, options) => {
+    requests.push({ url: String(url), method: options.method });
+    return { ok: true, json: async () => [
+      { ...publishedIssue(approval), performed_via_github_app: { id: 999 } }, publishedIssue(approval),
+    ] };
+  } });
+  assert.deepEqual(result, { ok: true, found: true, outcomeData: { number: 44, url: 'https://github.com/BasedHardware/omi/issues/44' } });
+  assert.equal(requests.length, 1); assert.equal(requests[0].method, 'GET');
+  assert.match(requests[0].url, /\/repos\/BasedHardware\/omi\/issues\?/);
+  assert.equal(new URL(requests[0].url).searchParams.get('since'), '2026-10-09T11:59:00.000Z');
+  assert.doesNotMatch(JSON.stringify(result), /Staff-approved technical summary|labels|performed_via/);
+});
+
+test('read-only reconciliation for comments checks the fixed issue target and returns comment receipt fields', async (t) => {
+  const previous = process.env.GITHUB_TOKEN; process.env.GITHUB_TOKEN = 'fixture-token';
+  t.after(() => { if (previous === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = previous; });
+  const approval = unknownApproval('comment'); let requests = 0;
+  const item = { id: 99, issue_url: 'https://api.github.com/repos/basedhardware/OMI/issues/44',
+    html_url: 'https://github.com/basedhardware/omi/issues/44#issuecomment-99',
+    body: github.publicMutationBody(approval.draft.body, approval.id), user: { type: 'Bot' }, performed_via_github_app: { id: 123 } };
+  const result = await github.findApprovalPublication(approval, { fetchImpl: async (url, options) => {
+    requests++; assert.equal(options.method, 'GET'); assert.match(String(url), /\/issues\/44\/comments\?/);
+    return { ok: true, json: async () => [{ ...item, issue_url: 'https://api.github.com/repos/BasedHardware/omi/issues/45' }, item] };
+  } });
+  assert.equal(requests, 1);
+  assert.deepEqual(result.outcomeData, { number: 44, id: 99, commentId: 99, url: 'https://github.com/BasedHardware/omi/issues/44#issuecomment-99' });
+});
+
+test('reconciliation without a saved application identity or unknown state makes no request', async () => {
+  let requests = 0; const fetchImpl = async () => { requests++; assert.fail('must remain unverified'); };
+  for (const writerAppId of [null, undefined, '', 'not-an-app-id']) {
+    assert.equal((await github.findApprovalPublication({ ...unknownApproval(), writerAppId }, { fetchImpl })).reason, 'unverified_app_identity');
+  }
+  assert.equal((await github.findApprovalPublication({ ...unknownApproval(), status: 'filed' }, { fetchImpl })).reason, 'not_unknown');
+  assert.equal(requests, 0);
+});
+
+test('reconciliation reads at most three bounded pages and never retries publication when no match is found', async (t) => {
+  const previous = process.env.GITHUB_TOKEN; process.env.GITHUB_TOKEN = 'fixture-token';
+  t.after(() => { if (previous === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = previous; });
+  const approval = unknownApproval(); let requests = 0;
+  const result = await github.findApprovalPublication(approval, { fetchImpl: async (url, options) => {
+    requests++; assert.equal(options.method, 'GET'); assert.equal(new URL(url).searchParams.get('page'), String(requests));
+    assert.equal(new URL(url).searchParams.get('per_page'), '100');
+    return { ok: true, json: async () => Array.from({ length: 100 }, () => ({ ...publishedIssue(approval), body: 'Unapproved body' })) };
+  } });
+  assert.deepEqual(result, { ok: true, found: false, reason: 'not_found_in_window' });
+  assert.equal(requests, 3); assert.equal(approval.status, 'unknown');
+});
+
+test('ambiguous publication receipts remain unverified and API failures expose no raw details', async (t) => {
+  const previous = process.env.GITHUB_TOKEN; const oldError = console.error; const logs = [];
+  process.env.GITHUB_TOKEN = 'fixture-token'; console.error = (...args) => logs.push(args.join(' '));
+  t.after(() => { console.error = oldError; if (previous === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = previous; });
+  const approval = unknownApproval();
+  assert.equal((await github.findApprovalPublication(approval, { fetchImpl: async () => ({ ok: true, json: async () => [publishedIssue(approval, 44), publishedIssue(approval, 45)] }) })).reason, 'ambiguous_publications');
+  const result = await github.findApprovalPublication(approval, { fetchImpl: async (_url, options) => {
+    assert.equal(options.method, 'GET'); throw new Error('CANARY_PRIVATE_ERROR');
+  } });
+  assert.deepEqual(result, { ok: false, found: false, reason: 'github_unavailable' });
+  assert.equal(logs.length, 0);
 });
 
 test('webhook signature and closed/merged lines; never implies /done', () => {
@@ -241,7 +386,8 @@ test('webhook signature and closed/merged lines; never implies /done', () => {
     action: 'closed',
     pull_request: { number: 12, merged: true, title: 'fix', body: 'Closes #9' },
   });
-  assert.equal(merged.line, '#9 was merged.');
+  assert.equal(merged.line, 'Pull request #12 was merged. This does not confirm a released fix.');
+  assert.doesNotMatch(merged.line, /#9 was merged/);
   assert.equal(merged.numbers.includes(9), true);
 });
 
@@ -250,6 +396,21 @@ test('issue-thread map is used for webhook targets', () => {
   github.linkIssueThread(9, 'thread-1');
   assert.deepEqual(github.threadsForIssue(9), ['thread-1']);
   github.resetGithubMemory();
+});
+
+test('legacy thread ownership is not reused for a different repository', async (t) => {
+  const previousRepo = process.env.GITHUB_REPO;
+  const previousDatabase = process.env.DATABASE_URL;
+  t.after(() => {
+    if (previousRepo === undefined) delete process.env.GITHUB_REPO; else process.env.GITHUB_REPO = previousRepo;
+    if (previousDatabase === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previousDatabase;
+    github.resetGithubMemory();
+  });
+  github.linkIssueThread(9, 'thread-1', { persist: false });
+  process.env.GITHUB_REPO = 'another/repository';
+  process.env.DATABASE_URL = 'unused-test-database';
+  assert.equal(await github.findIssueForThread('thread-1'), '');
+  assert.equal(await github.hydrateIssueThreads(), 0);
 });
 
 test('thread markers survive in issue bodies and webhook events', () => {

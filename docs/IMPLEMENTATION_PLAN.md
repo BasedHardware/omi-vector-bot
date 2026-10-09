@@ -11,14 +11,20 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 
 ## Phase 1 Durable workflows without new backend access
 
-- [ ] Add support cases with customer ownership, context summary, attempted steps, missing details, source references, linked work, delivery destination and resolution state.
+- [x] Add support cases with customer ownership, categories/source references, linked work, delivery destination and resolution state.
+- [ ] Add a retained cumulative context summary, attempted steps and missing details with an approved retention/deletion policy.
 - [x] Move message claims, per-case locks, duplicate-answer state, verification bindings and verification throttles to durable storage. Add expiries, revocation and encryption; do not persist raw verification codes.
 - [x] Add bounded leased workers and a metadata-only queue for unstarted requests.
 - [ ] Add the complete delivery outbox with attempt tracking, reconciliation and retries. Use backoff and an overall deadline, not unlimited retries.
 - [x] Stop new work on shutdown; drain accepted work and queue unstarted requests. Coordinate overlapping copies through Postgres claims. Started requests with uncertain delivery remain an operator-reconciliation task.
 - [x] Make `/done`, ratings/reopening and Telegram delivery operate on the same case state. Failed customer delivery must not resolve a case.
 - [x] Record real staff acceptance through an authenticated private-card action; preserve the first accepting actor/time.
-- [ ] Persist staff-approved issue drafts and action results so a restart does not invalidate the File workflow. Decide whether approved customer updates should reach linked GitHub issues; do not document an inactive path as working.
+- [x] Persist encrypted staff-authored issue/comment drafts, scoped revisions, original cards, private previews, atomic approval claims and verified action results across restarts.
+- [x] Require explicit staff confirmation of the exact sanitized public summary; prevent public-card publication, stale previews, cross-customer/repository retargeting and blind retries after uncertain writes.
+- [x] Stage owning-customer follow-ups in dedicated threads for staff-approved comments on one unambiguous linked issue; retain manual selection for shared channels and multiple targets.
+- [x] Add read-only GitHub receipt reconciliation and idempotent private-link repair; never infer trusted ownership from a public marker.
+- [x] Validate actual Discord staff audience and bot permissions before full-card delivery and GitHub actions, failing closed on unknown audience grants.
+- [ ] Add automatic draft retention cleanup, a general delivery outbox and Telegram destination verification. The bounded GitHub reconciliation flow is not the complete outbox.
 - [x] Correct exact order targeting: an explicit number not found stays a miss, never another order. Move the retired Shopify API version to a supported tested contract and verify the actual response version. Shopify documents [version fallback](https://shopify.dev/docs/api/usage/versioning) and [order-access scopes](https://shopify.dev/docs/api/usage/access-scopes).
 - [ ] Add bounded historical-order pagination and explain accessible history privately.
 
@@ -38,6 +44,7 @@ Acceptance: valid owner succeeds; unverified, expired, revoked, wrong customer, 
 ## Phase 3 Helpful communication backed by real case state
 
 - [x] Incorporate the standing support preference into answer/reviewer contracts and deterministic personal-action replies: empathy, remembered attempts, concise uncertainty and one delivery-controlled support next step.
+- [x] Normalize localized source labels and fullwidth punctuation without dropping real prose or unknown evidence groups.
 - [ ] Test before/after verification, staff delivery success/failure, staff acceptance, known/unknown recovery, and repeated follow-ups in several languages.
 - [ ] Distinguish attempted action, completed lookup, delivered case, accepted case and confirmed resolution in every reply.
 - [ ] Add an approved incident/release record with affected versions, supported workaround, deployment evidence and freshness. A merged PR is background, not a shipped-fix claim.

@@ -4,7 +4,7 @@ This is the living implementation record. A checked implementation item means co
 
 ## Current milestone
 
-**Workflow foundation is implemented on the working branch; production rollout is pending.** The earlier documentation-only proposal is now being extended with actual runtime changes. No GCP permissions or customer-content access have been granted.
+**The workflow foundation is in [PR #26](https://github.com/BasedHardware/omi-vector-bot/pull/26); durable engineering approvals and destination privacy checks are in [PR #28](https://github.com/BasedHardware/omi-vector-bot/pull/28).** Both are implemented and awaiting production rollout. The independent citation cleanup is [PR #27](https://github.com/BasedHardware/omi-vector-bot/pull/27). No GCP permissions or customer-content access have been granted. Both follow-ups build on #26, not on a separately deployed foundation.
 
 The existing PR #24 smoke-test prerequisite still applies to the approved PR #25 readiness rollout. Do not redeploy over an unfinished smoke test or claim the new foundation is live before deployment and end-to-end checks succeed.
 
@@ -40,11 +40,15 @@ These capabilities remain subject to answer-quality checks. Existing functionali
 
 ## Milestone 2 Complete case handling and delivery recovery
 
-- [ ] Persist staff-approved GitHub drafts across restarts and make later approved customer evidence reach linked engineering work.
+- [x] Persist encrypted, minimized GitHub issue/comment drafts, their exact case/customer/source/repository scope, staff edits, preview revisions, approval claims and external receipts across restarts.
+- [x] Require a staff-authored technical summary and an exact private preview before a public GitHub write. Never forward customer text, attachments or Discord links automatically; public customer cards have no publication controls.
+- [x] Stage important follow-ups from the owning customer's dedicated thread for a separate staff-approved comment when exactly one engineering target is linked. Shared-channel or ambiguous follow-ups remain manual, not guessed.
+- [x] Hold uncertain GitHub writes without retrying the POST. A staff check uses bounded read-only reconciliation with application provenance and exact payload verification; confirmed receipts can repair private case links without reposting.
+- [x] Validate Discord staff destination privacy and bot permissions before sending a full card or handling publication. Unknown audience permissions fail closed without fetching extra guild members or granting broader intents.
 - [ ] Add a delivery outbox with accepted-send identifiers, retries for known failures and reconciliation of unknown outcomes. Do not blindly replay a request that may already have replied.
 - [ ] Preserve an encrypted/minimized case summary of attempted steps and missing details, with an approved retention/deletion policy. Current durable case context is categories and sources, not raw conversation content.
 - [ ] Provide staff queue views, committed response targets, reminders and operational inspection of expired started claims.
-- [ ] Enforce cross-identity verification abuse limits and validate destination privacy/permissions beyond the presence of configuration.
+- [ ] Enforce cross-identity verification abuse limits. Discord destination validation is implemented above; Telegram destination verification remains a separate follow-up.
 - [ ] Add capability checks and monitoring for stale knowledge, provider outages, lookup failures, backlog and missed staff delivery.
 
 ## Milestone 3 Verified recording diagnostics
@@ -62,7 +66,7 @@ Recovery, reprocessing, refunds, deletion and account mutations remain separate 
 
 - [x] Redesign `/done` closure with internal resolution feedback and optional honest App Store/Google Play review links. Links are shown before any vote, regardless of satisfaction. Store clicks are not dashboard votes or verified review submissions.
 - [x] Keep “Still need help” functional and show feedback-storage failure honestly, without invented dashboard totals or a false “recorded” acknowledgment.
-- [ ] Normalize Chinese citation labels so every language receives exactly one source line.
+- [x] Implement a separate citation fix for recognized localized labels with both ASCII and fullwidth colons, including Chinese, so the grounded formatter emits one source line without deleting prose or unknown identifiers. It is not an engineering-workflow dependency.
 - [ ] Improve retrieval coverage and publish missing official support guidance; do not compensate with unverified product facts.
 - [ ] Maintain a reviewed incident/release registry with deployment evidence, affected versions and supported workarounds. Merged does not mean released.
 - [ ] Track resolution/reopen rates, handoff reasons, capability success and p50/p95 latency without logging customer content.
@@ -71,6 +75,8 @@ Recovery, reprocessing, refunds, deletion and account mutations remain separate 
 ## Validation and operating rules
 
 Validation recorded on October 9, 2026: 593 unit/regression tests pass, the offline customer check is 8/8, and the isolated SQL check passes. Hosted CI passes on runtime head `3960f24`. The communication probe used snapshot `4d643e3`: 23/24 replies passed, with the voice-question/no-answer case missing part of the requested explanation on one run; later interaction-deadline and public-order privacy changes have separate regressions and CI coverage. Do not hide that remaining answer-quality inconsistency or call this a full held-out approval.
+
+Next-milestone validation: PR #28 independently passes 668 tests; PR #27 independently passes 599. Their combined working tree passes 674 tests and the offline check is 8/8. Isolated SQL passes encrypted drafts, canonical repository identity, single dispatch, preserved legacy ciphertext, private links and migration refusal without deleting conflicting records. A focused three-run live check passes 12/12 replies across deletion how-to, developer-key how-to, Spanish refund and pure thanks. Its staff delivery is stubbed; this is neither a real delivery/ACL smoke test nor a held-out gate. Hosted CI is a separate required check on each PR.
 
 Production has not been redeployed. The customer confirmed that the existing PR #24 smoke-test messages have not yet been posted; the approved readiness rollout and foundation release remain pending that verification.
 

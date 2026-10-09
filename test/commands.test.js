@@ -618,6 +618,7 @@ test('GitHub webhook notify posts one line and never archives', async () => {
     channels: {
       fetch: async (id) => ({
         id,
+        isThread: () => true,
         isTextBased: () => true,
         send: async (text) => {
           sent.push(text);
@@ -631,7 +632,8 @@ test('GitHub webhook notify posts one line and never archives', async () => {
   };
   const n = await notifyLinkedThreads(client, { number: 9, numbers: [9], line: '#9 was closed.' });
   assert.equal(n, 1);
-  assert.equal(sent[0], '#9 was closed.');
+  assert.equal(sent[0].content, '#9 was closed.');
+  assert.deepEqual(sent[0].allowedMentions.parse, []);
   github.resetGithubMemory();
 });
 
@@ -644,6 +646,7 @@ test('a forged vector-thread marker does not notify; a thread the bot linked doe
     channels: {
       fetch: async (id) => ({
         id,
+        isThread: () => true,
         isTextBased: () => true,
         send: async (text) => {
           sent.push({ id, text });
@@ -674,293 +677,186 @@ test('a forged vector-thread marker does not notify; a thread the bot linked doe
   github.resetGithubMemory();
 });
 
-test('a File click that GitHub rejects can be pressed again', async () => {
-  const github = require('../github');
-  const { handleInteraction } = require('../commands');
-  github.resetGithubMemory();
-  const prevStaff = process.env.STAFF_USER_IDS;
-  const prevToken = process.env.GITHUB_TOKEN;
-  const prevFetch = globalThis.fetch;
-  process.env.STAFF_USER_IDS = '123456789012345678';
-  process.env.GITHUB_TOKEN = 'ghs_test';
-  const statuses = [502, 201];
-  let posts = 0;
-  globalThis.fetch = async (url) => {
-    if (String(url).includes('/search/issues')) {
-      return { ok: true, status: 200, json: async () => ({ items: [] }) };
-    }
-    posts += 1;
-    const status = statuses.shift();
-    return {
-      ok: status < 300,
-      status,
-      json: async () => ({ number: 42, html_url: 'https://github.com/BasedHardware/omi/issues/42' }),
-    };
-  };
-  const id = github.stashDraft({ title: 'App crashes on open', body: 'It crashes.', labels: ['vector'] });
+test('case-linked webhook notices address distinct source messages in a shared channel without broadcasts', async () => {
+  const { notifyLinkedThreads } = require('../commands');
+  const records = ['alice', 'bob'].map((customerId) => ({ repo: 'basedhardware/omi', issueNumber: 42, caseId: `case-${customerId}`,
+    customerId, channelId: 'general', threadId: 'general', sourceMessageId: `source-${customerId}` }));
   const replies = [];
-  const click = () => ({
-    customId: `file:${id}`,
-    channelId: '555555555555555555',
-    user: { id: '123456789012345678' },
-    isChatInputCommand: () => false,
-    isButton: () => true,
-    deferReply: async () => {},
-    editReply: async (text) => {
-      replies.push(text);
-    },
-    reply: async ({ content }) => {
-      replies.push(content);
-    },
-    channel: { isTextBased: () => true, send: async (text) => text },
+  const client = { channels: { fetch: async () => ({ id: 'general', isTextBased: () => true, isThread: () => false,
+    messages: { fetch: async (id) => ({ id, author: { id: id.replace('source-', '') }, reply: async (payload) => replies.push({ id, payload }) }) },
+    send: async () => assert.fail('shared channel must not broadcast'),
+  }) } };
+  const count = await notifyLinkedThreads(client, { number: 42, line: 'An engineering update is available.' }, {
+    issueLinks: { listForIssue: async () => [...records, records[0]] },
+    cases: { getCaseById: async (id) => ({ channelId: 'general', customerId: id.replace('case-', '') }) },
   });
-  try {
-    await handleInteraction(click());
-    await handleInteraction(click());
-    assert.equal(replies[0], 'GitHub did not accept the issue. I did not claim it was filed.');
-    assert.equal(replies[1], 'Filed https://github.com/BasedHardware/omi/issues/42');
-    assert.equal(posts, 2);
-  } finally {
-    globalThis.fetch = prevFetch;
-    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
-    else process.env.STAFF_USER_IDS = prevStaff;
-    if (prevToken == null) delete process.env.GITHUB_TOKEN;
-    else process.env.GITHUB_TOKEN = prevToken;
-    github.resetGithubMemory();
-  }
+  assert.equal(count, 2);
+  assert.deepEqual(replies.map((value) => value.id), ['source-alice', 'source-bob']);
+  for (const { payload } of replies) assert.deepEqual(payload.allowedMentions, { parse: [], repliedUser: false });
 });
 
-test('a File click with no GitHub token keeps the draft', async () => {
+test('missing or wrong-author sources never produce shared-channel notices or bypasses through legacy links', async () => {
+  const { notifyLinkedThreads } = require('../commands');
   const github = require('../github');
+  github.resetGithubMemory();
+  github.linkIssueThread(42, 'general', { persist: false });
+  const record = { repo: 'basedhardware/omi', issueNumber: 42, caseId: 'case-alice', customerId: 'alice', channelId: 'general', threadId: 'general', sourceMessageId: 'source' };
+  try {
+    for (const original of [null,
+      { id: 'source', author: { id: 'bob' }, reply: async () => assert.fail('wrong customer') },
+      { id: 'another-source', author: { id: 'alice' }, reply: async () => assert.fail('wrong source') }]) {
+      const count = await notifyLinkedThreads({ channels: { fetch: async () => ({ id: 'general', isTextBased: () => true, isThread: () => false,
+        messages: { fetch: async () => original }, send: async () => assert.fail('must not broadcast'),
+      }) } }, { number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [record] },
+        cases: { getCaseById: async () => ({ channelId: 'general', customerId: 'alice' }) },
+      });
+      assert.equal(count, 0);
+    }
+  } finally { github.resetGithubMemory(); }
+});
+
+test('missing source fallback requires a case-bound dedicated customer or handoff thread', async () => {
+  const { notifyLinkedThreads } = require('../commands');
+  const record = { repo: 'basedhardware/omi', issueNumber: 42, caseId: 'case-alice', customerId: 'alice', channelId: 'general', threadId: 'dedicated', sourceMessageId: 'missing' };
+  let sends = 0;
+  const client = { channels: { fetch: async () => ({ id: 'dedicated', ownerId: 'alice', isThread: () => true, isTextBased: () => true,
+    messages: { fetch: async () => null }, send: async () => sends++,
+  }) } };
+  const count = await notifyLinkedThreads(client, { number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [record] },
+    cases: { getCaseById: async () => ({ channelId: 'general', customerId: 'alice', customerThreadId: 'dedicated' }) },
+  });
+  assert.equal(count, 1); assert.equal(sends, 1);
+});
+
+test('legacy status notices keep dedicated threads but skip ordinary general channels', async () => {
+  const { notifyLinkedThreads } = require('../commands');
+  const github = require('../github');
+  github.resetGithubMemory();
+  github.linkIssueThread(42, 'general', { persist: false });
+  github.linkIssueThread(42, 'legacy-thread', { persist: false });
+  const sent = [];
+  try {
+    const count = await notifyLinkedThreads({ channels: { fetch: async (id) => ({ id, isTextBased: () => true, isThread: () => id === 'legacy-thread',
+      send: async (payload) => sent.push({ id, payload }),
+    }) } }, { number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [] } });
+    assert.equal(count, 1);
+    assert.equal(sent[0].id, 'legacy-thread');
+    assert.deepEqual(sent[0].payload.allowedMentions.parse, []);
+  } finally { github.resetGithubMemory(); }
+});
+
+function fileGuardEnvironment(t) {
+  const names = ['STAFF_ALERT_CHANNEL_ID', 'STAFF_USER_IDS', 'VECTOR_TEST_CHANNEL_ID'];
+  const before = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
+  process.env.STAFF_USER_IDS = 'staff-user';
+  process.env.VECTOR_TEST_CHANNEL_ID = 'vector-test';
+  const previousFetch = globalThis.fetch;
+  let fetches = 0;
+  globalThis.fetch = async () => { fetches += 1; throw new Error('Refused File buttons must not reach GitHub'); };
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+    for (const name of names) {
+      if (before[name] === undefined) delete process.env[name];
+      else process.env[name] = before[name];
+    }
+  });
+  return () => fetches;
+}
+
+function fileClick(customId, { channel = { id: 'staff-room', isThread: () => false }, user = 'staff-user' } = {}) {
+  const replies = [];
+  const click = {
+    customId, channel, channelId: channel.id, user: { id: user }, replies,
+    client: { user: { id: 'bot-user' } },
+    memberPermissions: { has: (permission) => user === 'staff-user' && ['Administrator', 'ManageThreads'].includes(permission) },
+    isChatInputCommand: () => false, isButton: () => true,
+    deferReply: async () => { click.deferred = true; },
+    reply: async (payload) => replies.push(payload),
+    editReply: async (payload) => replies.push(payload),
+    followUp: async (payload) => replies.push(payload),
+  };
+  return click;
+}
+
+const SCOPED_FILE_ID = 'file:92e47649-f9aa-499d-b8b4-216b8b9b1c97';
+
+test('legacy process-local File buttons are refused instead of publishing an unverifiable draft', async (t) => {
+  const countFetches = fileGuardEnvironment(t);
   const { handleInteraction } = require('../commands');
   const { MessageFlags } = require('discord.js');
-  github.resetGithubMemory();
-  const prevStaff = process.env.STAFF_USER_IDS;
-  const prevConfigured = github.isConfigured;
-  process.env.STAFF_USER_IDS = '123456789012345678';
-  github.isConfigured = () => false;
-  const draft = { title: 'App crashes on open', body: 'It crashes.', labels: ['vector'] };
-  const id = github.stashDraft(draft);
-  const stashed = github.peekDraft(id);
-  const replies = [];
-  const sent = [];
-  try {
-    assert.equal(github.isConfigured(), false);
-    await handleInteraction({
-      customId: `file:${id}`,
-      channelId: '555555555555555555',
-      user: { id: '123456789012345678' },
-      isChatInputCommand: () => false,
-      isButton: () => true,
-      deferReply: async () => {
-        throw new Error('must not defer without a token');
-      },
-      editReply: async (text) => {
-        replies.push(text);
-      },
-      reply: async (payload) => {
-        replies.push(payload);
-      },
-      channel: {
-        isTextBased: () => true,
-        send: async (text) => {
-          sent.push(text);
-          return text;
-        },
-      },
-    });
-    assert.equal(replies.length, 1);
-    assert.match(replies[0].content, /No GitHub token/);
-    assert.equal(replies[0].flags, MessageFlags.Ephemeral);
-    assert.equal(sent.length, 0);
-    assert.equal(github.peekDraft(id), stashed);
-    assert.equal(stashed.title, draft.title);
-    assert.equal(stashed.body, draft.body);
-    assert.deepEqual(stashed.labels, draft.labels);
-  } finally {
-    github.isConfigured = prevConfigured;
-    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
-    else process.env.STAFF_USER_IDS = prevStaff;
-    github.resetGithubMemory();
+  for (const id of ['file:1', 'file:lost-local-draft']) {
+    const click = fileClick(id);
+    await handleInteraction(click);
+    assert.match(click.replies[0].content, /older File button cannot be verified/i);
+    assert.equal(click.replies[0].flags, MessageFlags.Ephemeral);
+    assert.equal(click.deferred, undefined);
+    assert.equal(click.replies.length, 1);
+    assert.doesNotMatch(click.replies[0].content, /Filed https|already on GitHub/i);
   }
+  assert.equal(countFetches(), 0);
 });
 
-test('a File click does not claim a filing when GitHub returns no issue', async () => {
-  const github = require('../github');
+test('a staff File click in the customer thread cannot bypass the private staff workflow', async (t) => {
+  const countFetches = fileGuardEnvironment(t);
   const { handleInteraction } = require('../commands');
-  github.resetGithubMemory();
-  const prevStaff = process.env.STAFF_USER_IDS;
-  const prevToken = process.env.GITHUB_TOKEN;
-  const prevAppId = process.env.GITHUB_APP_ID;
-  const prevInstall = process.env.GITHUB_APP_INSTALLATION_ID;
-  const prevKey = process.env.GITHUB_APP_PRIVATE_KEY;
-  const prevFetch = globalThis.fetch;
-  process.env.STAFF_USER_IDS = '123456789012345678';
-  process.env.GITHUB_TOKEN = 'ghs_test';
-  delete process.env.GITHUB_APP_ID;
-  delete process.env.GITHUB_APP_INSTALLATION_ID;
-  delete process.env.GITHUB_APP_PRIVATE_KEY;
-  globalThis.fetch = async () => ({
-    ok: true,
-    status: 201,
-    json: async () => ({}),
-  });
-  const draft = { title: 'App crashes on open', body: 'It crashes.', labels: ['vector'] };
-  const id = github.stashDraft(draft);
-  const stashed = github.peekDraft(id);
-  const replies = [];
-  const sent = [];
-  try {
-    await handleInteraction({
-      customId: `file:${id}`,
-      channelId: '555555555555555555',
-      user: { id: '123456789012345678' },
-      isChatInputCommand: () => false,
-      isButton: () => true,
-      deferReply: async () => {},
-      editReply: async (text) => {
-        replies.push(text);
-      },
-      reply: async ({ content }) => {
-        replies.push(content);
-      },
-      channel: {
-        isTextBased: () => true,
-        send: async (text) => {
-          sent.push(text);
-          return text;
-        },
-      },
-    });
-    assert.equal(replies[0], 'GitHub did not accept the issue. I did not claim it was filed.');
-    assert.equal(sent.length, 0);
-    assert.equal(github.peekDraft(id), stashed);
-    assert.equal(github.takeDraft(id).title, draft.title);
-  } finally {
-    globalThis.fetch = prevFetch;
-    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
-    else process.env.STAFF_USER_IDS = prevStaff;
-    if (prevToken == null) delete process.env.GITHUB_TOKEN;
-    else process.env.GITHUB_TOKEN = prevToken;
-    if (prevAppId == null) delete process.env.GITHUB_APP_ID;
-    else process.env.GITHUB_APP_ID = prevAppId;
-    if (prevInstall == null) delete process.env.GITHUB_APP_INSTALLATION_ID;
-    else process.env.GITHUB_APP_INSTALLATION_ID = prevInstall;
-    if (prevKey == null) delete process.env.GITHUB_APP_PRIVATE_KEY;
-    else process.env.GITHUB_APP_PRIVATE_KEY = prevKey;
-    github.resetGithubMemory();
-  }
+  const { MessageFlags } = require('discord.js');
+  const click = fileClick(SCOPED_FILE_ID, { channel: { id: 'customer-thread', isThread: () => true } });
+  await handleInteraction(click);
+  assert.match(click.replies[0].content, /configured staff channel/i);
+  assert.equal(click.replies[0].flags, MessageFlags.Ephemeral);
+  assert.equal(click.deferred, undefined);
+  assert.equal(countFetches(), 0);
 });
 
-test('a File click does not file when GitHub already has a matching issue', async () => {
-  const github = require('../github');
+test('a customer File click in the test channel has no public publication privilege', async (t) => {
+  const countFetches = fileGuardEnvironment(t);
   const { handleInteraction } = require('../commands');
-  github.resetGithubMemory();
-  const prevStaff = process.env.STAFF_USER_IDS;
-  const prevToken = process.env.GITHUB_TOKEN;
-  const prevFetch = globalThis.fetch;
-  process.env.STAFF_USER_IDS = '123456789012345678';
-  process.env.GITHUB_TOKEN = 'ghs_test';
-  let posts = 0;
-  globalThis.fetch = async (url, init) => {
-    const href = String(url);
-    if (href.includes('/search/issues')) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          items: [{ number: 2850, title: 'mac recording stops randomly', html_url: 'https://github.com/BasedHardware/omi/issues/2850' }],
-        }),
-      };
-    }
-    if (init && init.method === 'POST') posts += 1;
-    return { ok: true, status: 201, json: async () => ({ number: 1, html_url: 'https://github.com/BasedHardware/omi/issues/1' }) };
-  };
-  const id = github.stashDraft({ title: 'mac recording stops', body: 'It stops.', labels: ['vector'] });
-  const replies = [];
-  try {
-    await handleInteraction({
-      customId: `file:${id}`,
-      channelId: '555555555555555555',
-      user: { id: '123456789012345678' },
-      isChatInputCommand: () => false,
-      isButton: () => true,
-      deferReply: async () => {},
-      editReply: async (text) => { replies.push(text); },
-      reply: async ({ content }) => { replies.push(content); },
-      channel: { isTextBased: () => true, send: async () => {} },
-    });
-    assert.equal(posts, 0);
-    assert.match(replies[0], /Already on GitHub: https:\/\/github.com\/BasedHardware\/omi\/issues\/2850/);
-    assert.match(replies[0], /did not file another/);
-  } finally {
-    globalThis.fetch = prevFetch;
-    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
-    else process.env.STAFF_USER_IDS = prevStaff;
-    if (prevToken == null) delete process.env.GITHUB_TOKEN;
-    else process.env.GITHUB_TOKEN = prevToken;
-    github.resetGithubMemory();
-  }
+  const click = fileClick(SCOPED_FILE_ID, { channel: { id: 'vector-test', isThread: () => false }, user: 'customer' });
+  await handleInteraction(click);
+  assert.match(click.replies[0].content, /Only authorized staff/i);
+  assert.equal(click.deferred, undefined);
+  assert.equal(countFetches(), 0);
 });
 
-test('a File click keeps the draft when Discord rejects the defer', async () => {
-  const github = require('../github');
+test('staff administrator permissions do not turn the test channel into an approval destination', async (t) => {
+  const countFetches = fileGuardEnvironment(t);
   const { handleInteraction } = require('../commands');
-  github.resetGithubMemory();
-  const prevStaff = process.env.STAFF_USER_IDS;
-  const prevToken = process.env.GITHUB_TOKEN;
-  process.env.STAFF_USER_IDS = '123456789012345678';
-  process.env.GITHUB_TOKEN = 'ghs_test';
-  const draft = { title: 'App crashes on open', body: 'It crashes.', labels: ['vector'] };
-  const id = github.stashDraft(draft);
-  const stashed = github.peekDraft(id);
-  const replies = [];
-  try {
-    await handleInteraction({
-      customId: `file:${id}`,
-      channelId: '555555555555555555',
-      user: { id: '123456789012345678' },
-      isChatInputCommand: () => false,
-      isButton: () => true,
-      deferReply: async () => {
-        throw new Error('already acknowledged');
-      },
-      editReply: async (text) => {
-        replies.push(text);
-      },
-      reply: async ({ content }) => {
-        replies.push(content);
-      },
-      followUp: async ({ content }) => {
-        replies.push(content);
-      },
-      channel: {
-        isTextBased: () => true,
-        send: async () => {
-          throw new Error('must not announce a filing');
-        },
-      },
-    });
-    assert.equal(replies.some((text) => /Filed/i.test(String(text))), false);
-    assert.equal(github.peekDraft(id), stashed);
-  } finally {
-    if (prevStaff == null) delete process.env.STAFF_USER_IDS;
-    else process.env.STAFF_USER_IDS = prevStaff;
-    if (prevToken == null) delete process.env.GITHUB_TOKEN;
-    else process.env.GITHUB_TOKEN = prevToken;
-    github.resetGithubMemory();
-  }
+  const click = fileClick(SCOPED_FILE_ID, { channel: { id: 'vector-test', isThread: () => false } });
+  await handleInteraction(click);
+  assert.match(click.replies[0].content, /configured staff channel/i);
+  assert.equal(click.deferred, undefined);
+  assert.equal(countFetches(), 0);
+});
+
+test('a configured staff destination that is public is rejected before approval or publication', async (t) => {
+  const countFetches = fileGuardEnvironment(t);
+  const { handleInteraction } = require('../commands');
+  const { PermissionFlagsBits } = require('discord.js');
+  const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
+  const fixture = makeStaffChannel();
+  fixture.channel.permissionOverwrites.cache.set(fixture.guild.id,
+    fixture.overwrite(fixture.guild.id, 0, [PermissionFlagsBits.ViewChannel]));
+  const click = fileClick(SCOPED_FILE_ID, { channel: fixture.channel });
+  await handleInteraction(click);
+  assert.equal(click.deferred, true);
+  assert.match(click.replies[0].content, /not verified as staff-only/i);
+  assert.equal(click.replies.length, 1);
+  assert.equal(countFetches(), 0);
 });
 
 test('a rating button tells staff without pinging anyone', async () => {
   const { handleInteraction } = require('../commands');
   const { resetRatings } = require('../ratings');
+  const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
   resetRatings();
   const prevDb = process.env.DATABASE_URL;
   delete process.env.DATABASE_URL;
   const prev = process.env.STAFF_ALERT_CHANNEL_ID;
   process.env.STAFF_ALERT_CHANNEL_ID = '1554155306504814633';
   const sent = [];
+  const staffChannel = makeStaffChannel({ id: process.env.STAFF_ALERT_CHANNEL_ID,
+    send: async (payload) => { sent.push(payload); return payload; } }).channel;
   try {
     await handleInteraction({
       customId: 'rate:no',
@@ -970,14 +866,9 @@ test('a rating button tells staff without pinging anyone', async () => {
       user: { id: 'customer-1' },
       channel: { ownerId: 'customer-1' },
       client: {
+        user: { id: 'bot-user' },
         channels: {
-          fetch: async () => ({
-            isTextBased: () => true,
-            send: async (payload) => {
-              sent.push(payload);
-              return payload;
-            },
-          }),
+          fetch: async () => staffChannel,
         },
       },
       reply: async (payload) => {
