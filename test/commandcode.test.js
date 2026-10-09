@@ -627,6 +627,55 @@ test('Chinese, Korean, and Russian replies retain exactly one localized source l
   }
 });
 
+test('all recognized localized source labels normalize ASCII and fullwidth colons to one citation line', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Official docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const labels = [
+    ['en', 'Source', 'Source'], ['en', 'Sources', 'Source'],
+    ['es', 'Fuente', 'Fuente'], ['es', 'Fuentes', 'Fuente'],
+    ['de', 'Quelle', 'Quelle'], ['de', 'Quellen', 'Quelle'],
+    ['pt', 'Fonte', 'Fonte'], ['pt', 'Fontes', 'Fonte'],
+    ['it', 'Fonti', 'Fonti'], ['it', 'Riferimenti', 'Riferimenti'],
+    ['id', 'Sumber', 'Sumber'], ['tr', 'Kaynak', 'Kaynak'],
+    ['hi', 'Srot', 'Srot'], ['hi', 'स्रोत', 'Srot'],
+    ['ja', '出典', '出典'], ['zh', '来源', '来源'], ['zh', '來源', '来源'],
+    ['ko', '출처', '출처'], ['ru', 'Источник', 'Источник'],
+  ];
+  for (const [language, modelLabel, finalLabel] of labels) {
+    for (const colon of [':', '：']) {
+      const answer = groundedSourceLine(
+        `Keep the selected language.\n${modelLabel} ${colon} S1，(S2)； https://help.omi.me/preferences\n${modelLabel}${colon} https://docs.omi.me/settings`,
+        evidence, ['S1', 'S2', 'S1'], language,
+      );
+      assert.equal(answer, `Keep the selected language.\n\n${finalLabel}: https://help.omi.me/preferences https://docs.omi.me/settings`, `${modelLabel}${colon}`);
+    }
+  }
+});
+
+test('mixed-width source labels and evidence-only inline groups cannot duplicate a Chinese citation', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const answer = groundedSourceLine(
+    '设置保留。 (S1，S2) [S1][S2] （S1、S2）［S1；S2］【S2】\n来源：https://help.omi.me/preferences\n来源: S1｜S2',
+    evidence, ['S1'], 'zh',
+  );
+  assert.equal(answer, '设置保留。\n\n来源: https://help.omi.me/preferences');
+});
+
+test('source cleanup preserves prose, bare ids, unknown evidence groups and inline docs links', () => {
+  const evidence = '[S1 | Official docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const body = 'Use the guide at https://docs.omi.me/settings. The source: this is a settings explanation, not an extra citation. S1 stays literal; Galaxy S21 stays a phone model. Unknown [S90], (S1，S90), and 【S90】 stay.';
+  const answer = groundedSourceLine(`${body}\nSource： S1`, evidence, ['S1']);
+  assert.ok(answer.startsWith(body));
+  assert.equal(answer, `${body}\n\nSource: https://docs.omi.me/settings`);
+  const noCitation = groundedSourceLine('The source: https://docs.omi.me/settings explains the screen.', evidence, []);
+  assert.equal(noCitation, 'The source: https://docs.omi.me/settings explains the screen.');
+});
+
+test('unfamiliar URL-only localized labels also recognize fullwidth colons', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.';
+  const answer = groundedSourceLine('Useful answer.\nRéférences：https://help.omi.me/preferences', evidence, ['S1'], 'it');
+  assert.equal(answer, 'Useful answer.\n\nRéférences: https://help.omi.me/preferences');
+});
+
 test('an unfamiliar localized source label is replaced instead of duplicated', () => {
   const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/delete-one\nDelete one item.';
   const answer = groundedSourceLine('Risposta utile.\n\nRiferimenti: https://help.omi.me/en/articles/delete-one', evidence, ['S1'], 'it');
@@ -649,6 +698,85 @@ test('source cleanup removes citation-only lines in recognized languages', () =>
     assert.doesNotMatch(answer, new RegExp(modelCitation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), language);
     assert.equal((answer.match(/https:\/\/help\.omi\.me\/article-1/g) || []).length, 1, language);
     assert.equal(answer.split('\n').filter((line) => /:\s*(?:S\d|\[S\d|\(S\d)/.test(line)).length, 0, language);
+  }
+});
+
+test('citation-only source lines accept short conjunctions between URLs and evidence ids', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const citations = [
+    ['es', 'Fuente: https://help.omi.me/preferences y https://docs.omi.me/settings', 'Fuente'],
+    ['fr', 'Source : https://help.omi.me/preferences et https://docs.omi.me/settings', 'Source'],
+    ['en', 'Sources: S1 and S2 or [S1]', 'Source'],
+    ['es', 'Fuentes： S1 o S2', 'Fuente'],
+    ['pt', 'Fonte: S1 e S2', 'Fonte'],
+    ['de', 'Quellen: S1 und S2', 'Quelle'],
+    ['tr', 'Kaynak: S1 ve S2', 'Kaynak'],
+    ['id', 'Sumber: S1 dan S2', 'Sumber'],
+    ['ru', 'Источник: S1 и S2', 'Источник'],
+    ['zh', '來源： [S1]和[S2]及[S1]', '来源'],
+    ['ja', '出典： (S1)と(S2)', '出典'],
+    ['ko', '출처： S1 및 S2', '출처'],
+  ];
+  for (const [language, citation, finalLabel] of citations) {
+    assert.equal(
+      groundedSourceLine(`The preference is saved.\n${citation}`, evidence, ['S1', 'S2'], language),
+      `The preference is saved.\n\n${finalLabel}: https://help.omi.me/preferences https://docs.omi.me/settings`,
+      citation,
+    );
+  }
+});
+
+test('source labels accept matching markdown emphasis around the label or label and colon', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.';
+  for (const emphasis of ['**', '__', '*', '_']) {
+    for (const colon of [':', '：']) {
+      for (const heading of [`${emphasis}Source${emphasis}${colon}`, `${emphasis}Source ${colon}${emphasis}`]) {
+        assert.equal(
+          groundedSourceLine(`The preference is saved.\n${heading} [Preferences](https://help.omi.me/preferences) and S1`, evidence, ['S1']),
+          'The preference is saved.\n\nSource: https://help.omi.me/preferences',
+          heading,
+        );
+      }
+    }
+  }
+  assert.equal(
+    groundedSourceLine('La preferenza è salvata.\n__Fonti:__ S1', evidence, ['S1'], 'it'),
+    'La preferenza è salvata.\n\nFonti: https://help.omi.me/preferences',
+  );
+});
+
+test('mid-line source citations use the same conjunction and emphasis grammar', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Docs]\nhttps://docs.omi.me/settings\nSettings.';
+  for (const citation of [
+    '**Fuente:** https://help.omi.me/preferences y https://docs.omi.me/settings',
+    '_Source_ : [Preferences](https://help.omi.me/preferences) et S2',
+    '出典： [S1]と[S2]',
+    'Source: S1 and S2',
+  ]) {
+    assert.equal(
+      groundedSourceLine(`Keep the selected preference. ${citation}`, evidence, ['S1']),
+      'Keep the selected preference.\n\nSource: https://help.omi.me/preferences',
+      citation,
+    );
+  }
+});
+
+test('source headings followed by prose or longer words remain untouched', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.';
+  for (const prose of [
+    'Source: the Help Center guide',
+    '**Source:** https://help.omi.me/preferences and keep the app open.',
+    'Fuente: S1 y comprueba el idioma seleccionado.',
+    'Source: S1 only',
+    '出典： S1と設定を確認してください。',
+    '来源：https://help.omi.me/preferences。请检查设置。',
+    'Source: and',
+    'Source: S1 and',
+    '**Source:* S1',
+    'Source: S1st',
+  ]) {
+    assert.equal(groundedSourceLine(prose, evidence, []), prose, prose);
+    assert.equal(groundedSourceLine(`Keep this detail. ${prose}`, evidence, []), `Keep this detail. ${prose}`, prose);
   }
 });
 

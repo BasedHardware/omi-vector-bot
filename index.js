@@ -81,7 +81,7 @@ const client = new Client({
 
 const app = express();
 app.get('/health', (_req, res) => {
-  const ready = coordinationReady && !runtime.stopping;
+  const ready = client.isReady() && coordinationReady && !runtime.stopping;
   res.status(ready ? 200 : 503).json({
     status: ready ? 'ok' : 'not_ready',
     staffHandoff: process.env.STAFF_ALERT_CHANNEL_ID || telegram.isReady() ? 'configured' : 'missing',
