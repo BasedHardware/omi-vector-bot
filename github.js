@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { clipForDiscord } = require('./utils');
 const { redactSensitive, attachmentCount } = require('./privacy');
+const supportApprovals = require('./supportApprovals');
 const {
   chunkDocument,
   formatEvidence,
@@ -10,7 +11,6 @@ const {
 
 const DEFAULT_REPO = 'BasedHardware/omi';
 const TIMEOUT_MS = 8000;
-const drafts = new Map();
 const issueThreads = new Map();
 const threadToIssue = new Map();
 const officialCodeCache = new Map();
@@ -125,10 +125,9 @@ function draftFromQuestion(question, area, extra = {}) {
   };
 }
 
-function issueBody({ quote, reason, threadUrl, related, files } = {}) {
+function issueBody({ technicalSummary, reason, related, files } = {}) {
   const lines = ['Reported in Discord.'];
-  if (threadUrl) lines.push(`Discord thread: ${threadUrl}`);
-  lines.push('', '## What they wrote', '', redactSensitive(quote || '(no text)', { issue: true }), '', '## What support can see', '');
+  lines.push('', '## Technical summary', '', redactSensitive(technicalSummary || '(staff technical summary required)', { issue: true }), '', '## What support can see', '');
   if (reason) lines.push(redactSensitive(reason, { issue: true }));
   lines.push('Cannot see the app or device from chat. No versions invented.', '', '## Earlier changes');
   if (!related?.length) {
@@ -250,24 +249,47 @@ function formatShopTicketCard({ title, labels } = {}) {
 }
 
 function stashDraft(draft, meta = {}) {
-  const id = crypto.randomBytes(4).toString('hex');
-  drafts.set(id, { ...draft, ...meta, at: Date.now() });
-  return id;
+  return createIssueApproval(draft, meta).then((approval) => approval?.id || null);
 }
 
 function takeDraft(id) {
-  const draft = drafts.get(id);
-  if (!draft) return null;
-  drafts.delete(id);
-  return draft;
+  throw new Error('A scoped staff approval claim is required');
 }
 
 function restoreDraft(id, draft) {
-  drafts.set(id, draft);
+  throw new Error('A known approval outcome must be recorded');
 }
 
 function peekDraft(id) {
-  return drafts.get(id) || null;
+  return getIssueApproval(id).then((approval) => approval?.draft || null);
+}
+
+function createIssueApproval(draft, input) {
+  return createScopedApproval(draft, { ...input, kind: 'issue' });
+}
+
+function createCommentApproval(draft, input) {
+  return createScopedApproval(draft, { ...input, kind: 'comment' });
+}
+function createScopedApproval(draft, input) {
+  const appId = String(process.env.GITHUB_APP_ID || '');
+  return supportApprovals.createDraft(draft, { ...input, repo: repo(), writerAppId: isAppConfigured() && /^[1-9]\d*$/.test(appId) ? appId : null });
+}
+function beginApprovalEdit(id, input) { return supportApprovals.beginEdit(id, { ...input, repo: repo() }); }
+function updateApprovalDraft(id, input) { return supportApprovals.updateDraft(id, { ...input, scope: { ...input.scope, repo: repo() } }); }
+function bindApprovalPreview(id, input) { return supportApprovals.bindPreview(id, { ...input, repo: repo() }); }
+
+function getIssueApproval(id) { return supportApprovals.getDraft(id); }
+function bindIssueApprovalCard(id, input) { return supportApprovals.bindCard(id, { ...input, repo: repo() }); }
+function claimIssueApproval(id, input) { return supportApprovals.claimDraft(id, { ...input, repo: repo() }); }
+function recordIssueApprovalFiled(id, input) { return supportApprovals.recordFiled(id, input); }
+function recordIssueApprovalRejected(id, input) { return supportApprovals.recordRejected(id, input); }
+function recordIssueApprovalUnknown(id, input) { return supportApprovals.recordUnknown(id, input); }
+function recordApprovalCommented(id, input) { return supportApprovals.recordCommented(id, input); }
+
+function approvalMarker(id) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))
+    ? `<!-- omi-support-approval:${id} -->` : '';
 }
 
 function linkIssueThread(number, threadId, options = {}) {
@@ -287,7 +309,8 @@ function rememberIssueThread(number, threadId) {
 }
 
 async function hydrateIssueThreads() {
-  if (!process.env.DATABASE_URL) return 0;
+  // Historical rows do not include repository provenance.
+  if (!process.env.DATABASE_URL || repo().toLowerCase() !== DEFAULT_REPO.toLowerCase()) return 0;
   const db = require('./db');
   const rows = await db.listIssueThreads();
   for (const row of rows) linkIssueThread(row.issue_number, row.thread_id, { persist: false });
@@ -299,16 +322,17 @@ function threadsForIssue(number) {
 }
 
 function resetGithubMemory() {
-  drafts.clear();
+  supportApprovals.resetMemory();
   issueThreads.clear();
   threadToIssue.clear();
   officialCodeCache.clear();
   installationCache = { token: '', exp: 0 };
 }
 
-async function githubFetch(url, { method = 'GET', body, fetchImpl } = {}) {
+async function githubFetch(url, { method = 'GET', body, fetchImpl, onRequest } = {}) {
   const fetchFn = fetchImpl || fetch;
   const token = await accessToken(fetchImpl);
+  onRequest?.();
   const res = await fetchFn(url, {
     method,
     headers: {
@@ -503,70 +527,138 @@ async function existingWork(text, { fetchImpl } = {}) {
 }
 
 async function findIssueForThread(threadId, { fetchImpl } = {}) {
+  if (repo().toLowerCase() !== DEFAULT_REPO.toLowerCase()) return '';
   const known = threadToIssue.get(String(threadId || ''));
   if (known) return known;
-  if (!isConfigured() || !/^\d+$/.test(String(threadId || ''))) return '';
-  const url = new URL('https://api.github.com/search/issues');
-  url.searchParams.set('q', `repo:${repo()} is:issue ${threadId}`);
-  url.searchParams.set('per_page', '5');
-  try {
-    const res = await githubFetch(url, { fetchImpl });
-    if (!res.ok) return '';
-    const data = await res.json();
-    const items = Array.isArray(data?.items) ? data.items : [];
-    const hit = items.find((item) => String(item.body || '').includes(String(threadId)));
-    if (!hit?.number) return '';
-    linkIssueThread(hit.number, threadId);
-    return String(hit.number);
-  } catch (err) {
-    console.error('[GitHub] thread lookup failed:', err.message);
-    return '';
-  }
+  // Public text and user-supplied markers never establish a trusted case link.
+  return '';
 }
 
-async function commentOnIssue(number, body, { fetchImpl } = {}) {
-  if (!isConfigured() || !number) return false;
-  const url = `https://api.github.com/repos/${repo()}/issues/${number}/comments`;
+function publicMutationBody(text, approvalId) {
+  const cleaned = supportApprovals.publicDraft({ body: String(text || '')
+    .replace(/<!--\s*(?:vector-thread|omi-support-approval):[\s\S]*?-->/gi, '') }).body;
+  const marker = approvalMarker(approvalId);
+  return marker ? `${cleaned}\n\n${marker}` : cleaned;
+}
+
+function issuePublicationPayload(draft) {
+  const safe = supportApprovals.publicDraft(draft);
+  return { title: safe.title, body: publicMutationBody(withFiles(safe.body, safe.files), draft.approvalId), labels: safe.labels };
+}
+
+function matchesApprovalPublication(approval, data) {
+  // Call only with a response read from the official GitHub API. A public marker
+  // alone never proves either application provenance or an approved payload.
+  const appId = approval?.writerAppId;
+  if (approval?.status !== 'unknown' || !/^[1-9]\d*$/.test(String(appId || '')) ||
+      String(data?.performed_via_github_app?.id || '') !== String(appId) || data?.user?.type !== 'Bot') return false;
+  const marker = approvalMarker(approval.id);
+  if (!marker || !String(data.body || '').includes(marker)) return false;
+  if (approval.kind === 'comment') {
+    return Number.isSafeInteger(data.id) && data.id > 0 &&
+      String(data.issue_url || '').toLowerCase() === `https://api.github.com/repos/${approval.repo}/issues/${approval.targetIssueNumber}`.toLowerCase() &&
+      Boolean(supportApprovals.canonicalReceiptUrl(data.html_url, approval.repo, approval.targetIssueNumber, data.id)) &&
+      data.body === publicMutationBody(approval.draft.body, approval.id);
+  }
+  const payload = issuePublicationPayload({ ...approval.draft, approvalId: approval.id });
+  const labels = (data.labels || []).map((label) => String(typeof label === 'string' ? label : label.name).toLowerCase()).sort();
+  return Number.isSafeInteger(data.number) && data.number > 0 &&
+    !data.pull_request && Boolean(supportApprovals.canonicalReceiptUrl(data.html_url, approval.repo, data.number)) &&
+    data.title === payload.title && data.body === payload.body &&
+    JSON.stringify(labels) === JSON.stringify([...payload.labels].sort());
+}
+
+async function findApprovalPublication(approval, { fetchImpl } = {}) {
+  if (approval?.status !== 'unknown') return { ok: false, found: false, reason: 'not_unknown' };
+  if (!/^[1-9]\d*$/.test(String(approval.writerAppId || ''))) return { ok: false, found: false, reason: 'unverified_app_identity' };
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(approval.repo || '')) ||
+      !['issue', 'comment'].includes(approval.kind) || !approvalMarker(approval.id) || !approval.draft) return { ok: false, found: false, reason: 'invalid_approval' };
+  if (approval.kind === 'comment' && (!Number.isSafeInteger(approval.targetIssueNumber) || approval.targetIssueNumber <= 0)) return { ok: false, found: false, reason: 'invalid_target' };
+  if (!isConfigured()) return { ok: false, found: false, reason: 'unconfigured' };
+  const matches = [];
+  const pageSize = 100;
   try {
-    const res = await githubFetch(url, { method: 'POST', body: { body }, fetchImpl });
-    return res.ok;
+    for (let page = 1; page <= 3; page++) {
+      const path = approval.kind === 'comment' ? `issues/${approval.targetIssueNumber}/comments` : 'issues';
+      const url = new URL(`https://api.github.com/repos/${approval.repo}/${path}`);
+      url.searchParams.set('per_page', String(pageSize)); url.searchParams.set('page', String(page));
+      if (approval.kind === 'issue') {
+        url.searchParams.set('state', 'all'); url.searchParams.set('sort', 'created'); url.searchParams.set('direction', 'desc');
+      }
+      const at = new Date(approval.approvedAt || approval.createdAt).getTime();
+      if (Number.isFinite(at)) url.searchParams.set('since', new Date(at - 60_000).toISOString());
+      const response = await githubFetch(url, { fetchImpl });
+      if (!response.ok) return { ok: false, found: false, reason: 'github_unavailable' };
+      const rows = await response.json();
+      if (!Array.isArray(rows)) return { ok: false, found: false, reason: 'invalid_response' };
+      for (const data of rows.slice(0, pageSize)) {
+        if (!matchesApprovalPublication(approval, data)) continue;
+        const number = approval.kind === 'comment' ? approval.targetIssueNumber : data.number;
+        const commentId = approval.kind === 'comment' ? data.id : null;
+        const receipt = { number, url: supportApprovals.canonicalReceiptUrl(data.html_url, approval.repo, number, commentId) };
+        if (commentId) Object.assign(receipt, { id: commentId, commentId });
+        if (!matches.some((prior) => prior.url === receipt.url)) matches.push(receipt);
+        if (matches.length > 1) return { ok: false, found: false, reason: 'ambiguous_publications' };
+      }
+      if (rows.length < pageSize) break;
+    }
+    return matches.length === 1 ? { ok: true, found: true, outcomeData: matches[0] }
+      : { ok: true, found: false, reason: 'not_found_in_window' };
+  } catch { return { ok: false, found: false, reason: 'github_unavailable' }; }
+}
+
+async function commentOnIssue(number, body, { fetchImpl, approvalId } = {}) {
+  const input = typeof body === 'object' && body ? body : { body };
+  if (!isConfigured() || !Number.isSafeInteger(Number(number)) || Number(number) <= 0) return { ok: false, outcome: 'known_rejected', reason: 'unconfigured' };
+  const url = `https://api.github.com/repos/${repo()}/issues/${number}/comments`;
+  let dispatched = false;
+  try {
+    const res = await githubFetch(url, { method: 'POST', body: { body: publicMutationBody(input.body, input.approvalId || approvalId) }, fetchImpl,
+      onRequest: () => { dispatched = true; } });
+    if (!res.ok) {
+      const rejected = Number.isInteger(res.status) && res.status >= 400 && res.status < 500 && res.status !== 408;
+      return { ok: false, outcome: rejected ? 'known_rejected' : 'unknown' };
+    }
+    const data = await res.json();
+    const expected = supportApprovals.canonicalReceiptUrl(data.html_url, repo(), Number(number), data.id);
+    if (!Number.isSafeInteger(data.id) || data.id <= 0 || !expected) return { ok: false, outcome: 'unknown' };
+    return { ok: true, outcome: 'accepted', id: data.id, url: expected };
   } catch (err) {
-    console.error('[GitHub] comment failed:', err.message);
-    return false;
+    console.error('[GitHub] comment creation failed:', dispatched ? 'unknown outcome' : 'not dispatched');
+    return { ok: false, outcome: dispatched ? 'unknown' : 'known_rejected' };
   }
 }
 
 async function createIssue(draft, { fetchImpl } = {}) {
-  if (!isConfigured()) return { ok: false, reason: 'unconfigured' };
+  if (!isConfigured()) return { ok: false, reason: 'unconfigured', outcome: 'known_rejected' };
   const url = `https://api.github.com/repos/${repo()}/issues`;
-  const withoutAttachments = String(draft.body || '')
-    .split('\n')
-    .filter((line) => !/https:\/\/(?:cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\//i.test(line))
-    .join('\n');
-  const body = withThreadMarker(redactSensitive(withFiles(withoutAttachments, draft.files), { issue: true }), draft.threadId);
+  const payload = issuePublicationPayload(draft);
+  let dispatched = false;
   try {
     const res = await githubFetch(url, {
       method: 'POST',
-      body: {
-        title: redactSensitive(draft.title, { issue: true }),
-        body,
-        labels: draft.labels,
-      },
+      body: payload,
       fetchImpl,
+      onRequest: () => { dispatched = true; },
     });
-    if (res.status === 422 && draft.labels?.length) {
-      return createIssue({ ...draft, labels: [] }, { fetchImpl });
+    if (!res.ok) {
+      const rejected = Number.isInteger(res.status) && res.status >= 400 && res.status < 500 && res.status !== 408;
+      return { ok: false, reason: rejected ? 'error' : 'unknown', outcome: rejected ? 'known_rejected' : 'unknown' };
     }
-    if (!res.ok) return { ok: false, reason: 'error' };
     const data = await res.json();
+    const receivedUrl = data.html_url ? supportApprovals.canonicalReceiptUrl(data.html_url, repo(), data.number) : issueUrl(data.number);
+    if (!Number.isSafeInteger(data.number) || data.number <= 0 || !receivedUrl) {
+      return { ok: false, reason: 'unknown', outcome: 'unknown' };
+    }
     return {
       ok: true,
+      outcome: 'accepted',
       number: data.number,
-      url: data.html_url || issueUrl(data.number),
+      url: receivedUrl,
     };
   } catch (err) {
-    console.error('[GitHub] create failed:', err.message);
-    return { ok: false, reason: 'error' };
+    console.error('[GitHub] issue creation failed:', dispatched ? 'unknown outcome' : 'not dispatched');
+    return { ok: false, reason: dispatched ? 'unknown' : 'error', outcome: dispatched ? 'unknown' : 'known_rejected' };
   }
 }
 
@@ -606,7 +698,7 @@ function describeWebhookEvent(payload) {
       number: extras[0] || pr,
       numbers,
       threadIds: parseThreadIds(payload.pull_request.body, payload.pull_request.title),
-      line: extras[0] ? `#${extras[0]} was merged.` : `#${pr} was merged.`,
+      line: `Pull request #${pr} was merged. This does not confirm a released fix.`,
     };
   }
   if (payload?.comment && payload.action === 'created' && payload.issue) {
@@ -1085,6 +1177,31 @@ module.exports = {
   takeDraft,
   restoreDraft,
   peekDraft,
+  createIssueApproval,
+  createCommentApproval,
+  createScopedApproval,
+  getScopedApproval: getIssueApproval,
+  bindApprovalCard: bindIssueApprovalCard,
+  beginApprovalEdit,
+  updateApprovalDraft,
+  bindApprovalPreview,
+  claimApproval: claimIssueApproval,
+  recordApprovalFiled: recordIssueApprovalFiled,
+  recordApprovalRejected: recordIssueApprovalRejected,
+  recordApprovalUnknown: recordIssueApprovalUnknown,
+  recordApprovalCommented,
+  isApprovalReady: supportApprovals.isReady,
+  getIssueApproval,
+  bindIssueApprovalCard,
+  claimIssueApproval,
+  recordIssueApprovalFiled,
+  recordIssueApprovalRejected,
+  recordIssueApprovalUnknown,
+  approvalMarker,
+  issuePublicationPayload,
+  publicMutationBody,
+  matchesApprovalPublication,
+  findApprovalPublication,
   linkIssueThread,
   hydrateIssueThreads,
   threadsForIssue,

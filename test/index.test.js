@@ -169,9 +169,10 @@ docs.relevantDocs = (...args) => docsObserver ? docsObserver(...args) : original
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
-const { app, client, handleMessage, shouldHandle } = require('../index');
+const { app, client, handleMessage, shouldHandle, noteCustomerLead } = require('../index');
 const router = require('../router');
 const supportCases = require('../supportCases');
+const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
 const { unreadMediaSentence } = require('../attachments');
 
 client.user = new User(client, { id: BOT_ID, username: 'vector', bot: true });
@@ -353,13 +354,13 @@ function enableStaffDelivery(t) {
   const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
   const delivered = [];
   process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
-  client.channels.fetch = async () => ({
-    isTextBased: () => true,
+  const fixture = makeStaffChannel({ id: 'staff-room', botUserId: BOT_ID,
     send: async (payload) => {
       delivered.push(payload);
-      return payload;
+      return { id: nextId(), author: { id: BOT_ID }, ...payload };
     },
   });
+  client.channels.fetch = async () => fixture.channel;
   t.after(() => {
     client.channels.fetch = originalFetch;
     process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
@@ -967,7 +968,7 @@ test('delivered refund, order, and account tickets give one next step in the cus
   const originalFetch = client.channels.fetch;
   const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
   process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
-  client.channels.fetch = async () => ({ isTextBased: () => true, send: async (payload) => payload });
+  client.channels.fetch = async () => makeStaffChannel({ id: 'staff-room', botUserId: BOT_ID }).channel;
   t.after(() => {
     client.channels.fetch = originalFetch;
     process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
@@ -1509,7 +1510,7 @@ test('a related pull is mentioned cautiously only when the reviewer cites it', a
   assert.doesNotMatch(r.reply, /Pull request #4500 fixes this/i);
 });
 
-test('an open issue found by the duplicate search is linked on the Handoff and no new issue is filed', async () => {
+test('related issue search stays background until staff approve its case link', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   issues = [
     {
@@ -1525,7 +1526,7 @@ test('an open issue found by the duplicate search is linked on the Handoff and n
   assert.equal(r.thread.sent[0].components, undefined);
   assert.match(textOf(r.thread.sent[1]), /issues\/777/);
   assert.equal(posts().length, 0);
-  assert.deepEqual(github.threadsForIssue(777), [r.thread.id]);
+  assert.deepEqual(github.threadsForIssue(777), []);
 });
 
 test('a tech ticket does not file a public issue until staff press File', async () => {
@@ -1817,7 +1818,11 @@ test('a help-forum post with an email address gets a canned reply and a staff ca
   assert.equal(post.name, 'Pairing help');
 });
 
-test('filing the issue from a held help-forum post sends [email] to GitHub, never the address', async () => {
+test('a private issue review proposal never automatically publishes or copies the customer quote', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const key = process.env.DATA_ENCRYPTION_KEY;
+  process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 11).toString('base64');
+  t.after(() => { process.env.DATA_ENCRYPTION_KEY = key; });
   process.env.GITHUB_TOKEN = 'ghs_test';
   process.env.STAFF_USER_IDS = '123456789012345678';
   modelReply = { topic: 'Omi off for jane.doe@example.com' };
@@ -1826,7 +1831,7 @@ test('filing the issue from a held help-forum post sends [email] to GitHub, neve
     channel: post,
   });
   assert.equal(r.github.filter((c) => c.method === 'POST').length, 0);
-  const button = post.sent[0].components[0].components[0];
+  const button = staff[0].components[0].components[0];
   assert.match(button.custom_id, /^file:/);
   const filed = posts().length;
   await commands.handleInteraction({
@@ -1840,10 +1845,45 @@ test('filing the issue from a held help-forum post sends [email] to GitHub, neve
     editReply: async () => {},
   });
   const sent = posts().slice(filed);
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].body.title.includes('jane.doe@example.com'), false);
-  assert.match(sent[0].body.body, /\[email\]/);
+  assert.equal(sent.length, 0, 'public customer-thread click cannot approve a private GitHub action');
   assert.equal(JSON.stringify(sent).includes('jane.doe@example.com'), false);
+  const approval = await github.getScopedApproval(button.custom_id.slice('file:'.length));
+  assert.ok(approval.cardMessageId);
+  assert.doesNotMatch(JSON.stringify(approval.draft), /jane\.doe@example\.com|keeps turning itself off|What they wrote/);
+});
+
+test('later evidence from the linked customer becomes one private review, never an automatic GitHub comment', async (t) => {
+  const staff = enableStaffDelivery(t);
+  const approvals = require('../supportApprovals'); const issueLinks = require('../supportIssueLinks');
+  const previousKey = process.env.DATA_ENCRYPTION_KEY;
+  process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 15).toString('base64');
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  approvals.setStoreForTests(approvals.createMemoryStore());
+  issueLinks.setStoreForTests(issueLinks.createMemoryStore());
+  t.after(() => { process.env.DATA_ENCRYPTION_KEY = previousKey; approvals.setStoreForTests(null); issueLinks.setStoreForTests(null); });
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'App technical problem' });
+  const customer = nextId();
+  const value = await supportCases.getOrCreateCase({ channelId: post.id, customerId: customer,
+    customerThreadId: post.id, context: { area: 'app', lane: 'app' } });
+  await issueLinks.link({ repo: github.repo(), issueNumber: 18537, caseId: value.id, customerId: customer,
+    channelId: post.id, threadId: post.id, sourceMessageId: 'original-source', approvedBy: 'staff-user' });
+  const update = makeMessage('I checked again and the conversation still disappears. My email is private@example.test.', { channel: post, authorId: customer });
+  await noteCustomerLead(post, update);
+  await noteCustomerLead(post, update);
+  assert.equal(staff.length, 1);
+  const button = staff[0].components[0].components[0];
+  const record = await github.getScopedApproval(button.custom_id.slice('file:'.length));
+  assert.equal(record.kind, 'comment'); assert.equal(record.targetIssueNumber, 18537);
+  assert.equal(record.customerId, customer); assert.ok(record.cardMessageId);
+  assert.doesNotMatch(JSON.stringify(record.draft), /private@example\.test|conversation still disappears/);
+  assert.equal(githubCalls.filter((call) => call.method === 'POST').length, 0);
+  const other = makeMessage('I have new debugging evidence that belongs to someone else.', { channel: post, authorId: nextId() });
+  await noteCustomerLead(post, other);
+  assert.equal(staff.length, 1, 'another customer cannot update the linked case');
+  await issueLinks.link({ repo: github.repo(), issueNumber: 18538, caseId: value.id, customerId: customer,
+    channelId: post.id, threadId: post.id, sourceMessageId: 'second-source', approvedBy: 'staff-user' });
+  await noteCustomerLead(post, makeMessage('Another new debugging detail after a second issue was linked.', { channel: post, authorId: customer }));
+  assert.equal(staff.length, 1, 'ambiguous issue destinations require manual staff selection');
 });
 
 test('a new help-forum post puts its title and tags in front of the model question', async () => {

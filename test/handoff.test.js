@@ -10,6 +10,7 @@ const {
 } = require('../handoff');
 const { formatEscalationText } = require('../telegram');
 const { ChannelType } = require('discord.js');
+const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
 
 test('case acceptance buttons remain exclusively on staff-only cards', () => {
   const { publicHandoffDiscord } = require('../handoff');
@@ -20,7 +21,7 @@ test('case acceptance buttons remain exclusively on staff-only cards', () => {
   const staff = formatStaffTicket({ ...input, staffOnly: true }).discord;
   assert.equal(staff.components[0].components.some((button) => button.custom_id === `case:accept:${caseId}`), true);
   const publicPayload = publicHandoffDiscord(staff);
-  assert.deepEqual(publicPayload.components[0].components.map((button) => button.custom_id), ['file:issue-draft']);
+  assert.equal(publicPayload.components, undefined);
   assert.equal(JSON.stringify(publicPayload).includes(caseId), false);
   const publicCard = formatStaffTicket(input).discord;
   assert.equal(publicCard.components[0].components.some((button) => button.custom_id.startsWith('case:accept:')), false);
@@ -523,10 +524,8 @@ test('staff-only cards show plain owners and identify the customer only in the F
     },
     hasThread: false,
   };
-  const client = { channels: { fetch: async () => ({
-    isTextBased: () => true,
-    send: async (payload) => { sent.push(payload); return payload; },
-  }) } };
+  const staffDestination = makeStaffChannel({ send: async (payload) => { sent.push(payload); return payload; } });
+  const client = { user: { id: staffDestination.botUserId }, channels: { fetch: async () => staffDestination.channel } };
   const userResult = await notifyStaff({
     client,
     message,
@@ -1025,16 +1024,12 @@ test('help forum card does not repeat the customer post', async () => {
     const staffSent = [];
     const quiet = helpMessage('help-thread-2');
     process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
+    const privateStaff = makeStaffChannel({ send: async (payload) => { staffSent.push(payload); return payload; } });
     const staffResult = await notifyStaff({
       client: {
+        user: { id: privateStaff.botUserId },
         channels: {
-          fetch: async () => ({
-            isTextBased: () => true,
-            send: async (payload) => {
-              staffSent.push(payload);
-              return payload;
-            },
-          }),
+          fetch: async () => privateStaff.channel,
         },
       },
       message: quiet.message,
@@ -1144,6 +1139,24 @@ test('help forum card does not repeat the customer post', async () => {
     if (prev.role === undefined) delete process.env.STAFF_ROLE_ID;
     else process.env.STAFF_ROLE_ID = prev.role;
     resetHandoffMemory();
+  }
+});
+
+test('a configured public or unverifiable staff destination receives no staff payload', async () => {
+  const { sendToStaffChannel } = require('../handoff');
+  const previous = process.env.STAFF_ALERT_CHANNEL_ID;
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
+  let sends = 0;
+  const fixture = makeStaffChannel({ send: async () => { sends++; } });
+  fixture.channel.permissionOverwrites.cache.delete(fixture.guild.id);
+  try {
+    assert.equal(await sendToStaffChannel({ user: { id: fixture.botUserId }, channels: { fetch: async (_id, options) => {
+      assert.equal(options.force, true); return fixture.channel;
+    } } }, { content: 'PRIVATE_INTAKE' }, 'customer-channel'), false);
+    assert.equal(await sendToStaffChannel({ user: { id: fixture.botUserId }, channels: { fetch: async () => ({ isTextBased: () => true, send: async () => sends++ }) } }, { content: 'PRIVATE_INTAKE' }, 'customer-channel'), false);
+    assert.equal(sends, 0);
+  } finally {
+    if (previous === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID; else process.env.STAFF_ALERT_CHANNEL_ID = previous;
   }
 });
 

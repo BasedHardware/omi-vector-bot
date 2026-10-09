@@ -12,6 +12,8 @@ The implemented foundation addresses these audited workflow gaps:
 - Durable cases distinguish delivery, actual staff acceptance and closure. `/done` and Telegram resolve only after customer delivery; customer-authorized reopening protects newer cases (`supportCases.js`, `commands.js`, `telegram.js`).
 - Three leased worker slots bound execution. Excess requests persist metadata-only references for recovery; shutdown drains accepted work and queues work that has not started. Started requests with uncertain delivery are not blindly replayed (`supportRuntime.js`, `index.js`).
 - An explicit order miss no longer substitutes another order; returned facts must match both the requested number and verified owner. Historical-order pagination/access remains follow-up work (`shopify.js`, `orderFlow.js`).
+- Encrypted engineering proposals and private case/source/repository links survive restart. Staff author a technical summary, inspect the exact public payload and confirm its revision; atomic claims prevent parallel publication. Unknown remote outcomes stay held for read-only reconciliation, not automatic retries (`supportApprovals.js`, `supportIssueLinks.js`, `githubFlow.js`).
+- Full Discord staff delivery and GitHub controls require a verified staff-only audience and bot send permission. An unknown direct member grant fails closed; no broader member intent or permission is added (`discordPrivacy.js`, `handoff.js`).
 
 A complete delivery outbox, retained cumulative case summary, staff queue and customer diagnostic gateway remain implementation work, not guarantees of this foundation.
 
@@ -37,7 +39,7 @@ Use the existing Postgres database for support cases, jobs, claims, and delivery
 | Order lookup | Exact verified order, fulfillment/tracking facts and observation time | Existing email verification; private response only. No refund, cancellation, address or fulfillment writes. |
 | Recording diagnostics | Upload/session/sync/finalization states, bounded error codes, storage availability metadata | New Omi sign-in and explicit case-bound diagnostic grant; no transcript, audio, summary, or photos. |
 | Support cases | Case status, delivery receipt, staff acceptance, resolution | Write only the support system's records. Do not treat delivery as acceptance or resolution. |
-| GitHub | Relevant issues, releases and official source; redacted proposed issues | Narrow repository access. Staff approve public writes; no code, merge, Actions, secrets, or deployment permissions. |
+| GitHub | Relevant issues, releases and official source; staff-authored, sanitized technical summaries | Narrow repository access. Staff approve the exact public issue/comment revision; no automatic raw customer forwarding, code, merge, Actions, secrets, or deployment permissions. |
 | Discord | Trigger message, authorized continuation, customer thread and staff destination | Preserve mention-only behavior outside support spaces. No Administrator, role management, or ambient server-wide ingestion. |
 
 Do not give the bot project Owner/Editor, backend impersonation credentials, general Firestore access, audio-bucket download permission, full customer conversation scopes, arbitrary log queries, shell execution, or Railway administration. Read-only credentials can still leak private information.
@@ -71,6 +73,18 @@ Use the exact verified order privately when available. Refund, replacement, bill
 ### Human handoff and closure
 
 The current case states are `queued`, `delivered`, `accepted`, `resolved`, and `closed`, with an explicit reopening transition. An authenticated staff acceptance records its actor and time; delivery alone does not count. Delivery failure is an attempt outcome, not resolution. Staff get the current intake and a link to the conversation; a retained cumulative summary and a distinct `awaiting_customer` state are follow-up work. Reminders and target response times belong to a real staffed queue; do not publish an SLA before an owner commits to it.
+
+### Staff-approved engineering work
+
+An application-owned proposal is bound to the case, customer, original source message, private staff destination, bot identity, repository and fixed target. Its sanitized payload is encrypted with the existing `DATA_ENCRYPTION_KEY`; database failure does not downgrade to a process-local publication map. Missing encryption configuration disables this optional capability while the human handoff remains available.
+
+The original bot card opens a single-use, staff-bound editor. Staff enter a technical summary in their own words; only that sanitized summary is used for related-work search. The bot presents the exact public payload privately and binds its message, revision and payload hash to the confirming staff member. Editing invalidates earlier previews. Related work is background, not proof of deployment or a reason to silently retarget the approved action.
+
+Publication proceeds under one atomic claim. Save the verified GitHub receipt and a private repository/case/customer/source link. A successful POST followed by a failed local save is an uncertain boundary, not a reason to send another POST. A later check verifies the opaque operation marker, exact approved bytes, fixed target and saved GitHub App provenance through the official API. Missing proof remains held; a matching public marker alone establishes neither ownership nor authorization. A confirmed receipt can repair a private link without writing to GitHub again.
+
+Important later evidence in the owning customer's dedicated thread can stage a new comment proposal only when exactly one engineering issue is linked. Staff still write and approve the public summary. Ambiguous multi-issue cases and shared-channel follow-ups require manual selection. Search similarity alone does not create a case link. Webhook notices in shared channels reply only to the verified original customer message; thread fallback needs dedicated customer/handoff ownership. Legacy internal thread links support status notices only for actual threads in the original repository; public issue-body markers are not imported as new customer ownership. Historical public issues are not rewritten by this change. A merge notice names the pull request, not its referenced issue, and explicitly does not claim a released fix.
+
+Pending proposals expire for editing/publication after seven days and editors after ten minutes; uncertain actions remain reconcilable. Expiry does not yet purge stored ciphertext. Automated retention/deletion and a general delivery outbox remain roadmap work. Customer tracking notices are best-effort and do not imply staff acceptance, release or resolution.
 
 ## Communication policy
 

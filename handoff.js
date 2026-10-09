@@ -2,6 +2,7 @@ const telegram = require('./telegram');
 const { ChannelType } = require('discord.js');
 const { clipForDiscord, stripPingNarration } = require('./utils');
 const { redactSensitive } = require('./privacy');
+const { validateStaffDestination } = require('./discordPrivacy');
 const {
   classify,
   pickStaffReason,
@@ -746,7 +747,7 @@ function formatStaffTicket({
             type: 2,
             style: 1,
             custom_id: `file:${fileIssueId}`,
-            label: 'File issue',
+            label: 'Review technical summary',
           },
         ],
       },
@@ -825,14 +826,31 @@ async function postHandoffThread(message, payload, meta = {}) {
   return thread;
 }
 
-async function sendToStaffChannel(client, payload, customerChannelId) {
+async function sendToStaffChannel(client, payload, customerChannelId, { onSent } = {}) {
   const staffId = process.env.STAFF_ALERT_CHANNEL_ID;
   if (!staffId || !client?.channels?.fetch) return false;
   if (String(staffId) === String(customerChannelId || '')) return false;
-  const ch = await client.channels.fetch(staffId);
+  const ch = await client.channels.fetch(staffId, { force: true });
   if (!ch?.isTextBased?.() || typeof ch.send !== 'function') return false;
+  const configured = staffMentionIds();
+  const privacy = validateStaffDestination(ch, { botUserId: client.user?.id, staffUsers: configured.users, staffRoleIds: configured.roles });
+  if (!privacy.ok) {
+    console.error(`[Handoff] Staff destination rejected (${privacy.code})`);
+    return false;
+  }
   await assertCurrentOwnership();
-  await ch.send(payload);
+  const sent = await ch.send(payload);
+  if (onSent) {
+    try { await onSent(sent); }
+    catch {
+      console.error('[GitHubFlow] approval card binding unavailable');
+      try {
+        await sent?.edit?.({ components: (payload.components || []).map((row) => ({ ...row,
+          components: (row.components || []).filter((button) => !String(button.custom_id || '').startsWith('file:')),
+        })).filter((row) => row.components.length) });
+      } catch { console.error('[GitHubFlow] unbound approval control removal unavailable'); }
+    }
+  }
   return true;
 }
 
@@ -867,7 +885,7 @@ function publicHandoffDiscord(discord) {
   };
   if (Array.isArray(discord?.components) && discord.components.length) {
     const publicRows = discord.components.map((row) => ({ ...row,
-      components: (row.components || []).filter((component) => !String(component.custom_id || component.customId || '').startsWith('case:accept:')),
+      components: (row.components || []).filter((component) => !/^(?:case:accept:|file:|gh-)/.test(String(component.custom_id || component.customId || ''))),
     })).filter((row) => row.components.length);
     if (publicRows.length) payload.components = publicRows;
   }
@@ -890,6 +908,7 @@ async function notifyStaff({
   labels,
   dataLossRisk = false,
   caseId,
+  onStaffSent,
 }) {
   const channelId = message?.channel?.id;
   const userId = message?.author?.id;
@@ -916,7 +935,7 @@ async function notifyStaff({
   let visibleCard = null;
 
   try {
-    if (await sendToStaffChannel(client, ticket.discord, channelId)) {
+    if (await sendToStaffChannel(client, ticket.discord, channelId, { onSent: onStaffSent })) {
       markHandedOff(channelId, userId, true);
       await assertCurrentOwnership();
       await telegram.sendEscalation(ticket.plain);
