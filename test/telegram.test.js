@@ -97,3 +97,140 @@ test('reply mention policy does not parse users or roles', () => {
   assert.equal(out.includes('<@99>'), false);
   assert.match(out, /@staffer/);
 });
+
+async function withTelegram(fn) {
+  const moduleId = require.resolve('../telegram');
+  const previousModule = require.cache[moduleId];
+  const previousChat = process.env.TELEGRAM_CHAT_ID;
+  const previousToken = process.env.TELEGRAM_TOKEN;
+  const previousDb = process.env.DATABASE_URL;
+  process.env.TELEGRAM_CHAT_ID = '12345';
+  process.env.TELEGRAM_TOKEN = 'unit-test-token';
+  delete process.env.DATABASE_URL;
+  delete require.cache[moduleId];
+  try { await fn(require('../telegram')); }
+  finally {
+    require.cache[moduleId] = previousModule;
+    if (previousChat === undefined) delete process.env.TELEGRAM_CHAT_ID;
+    else process.env.TELEGRAM_CHAT_ID = previousChat;
+    if (previousToken === undefined) delete process.env.TELEGRAM_TOKEN;
+    else process.env.TELEGRAM_TOKEN = previousToken;
+    if (previousDb === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDb;
+  }
+}
+
+function staffUpdate(text, threadId = 'help-thread') {
+  return { message: { chat: { id: 12345 }, text: 'A: A documented next step.',
+    reply_to_message: { from: { id: BOT_ID }, text: text || `Thread: ${threadId}\nWhy: needs a person` },
+  } };
+}
+
+test('Telegram never resolves cases or escalations after missing or failed Discord delivery', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  await withTelegram(async (telegram) => {
+    const cases = createCaseService(createMemoryStore());
+    const value = await cases.getOrCreateCase({ channelId: 'help-thread', customerId: 'alice', customerThreadId: 'help-thread' });
+    await cases.linkHandoff(value.id, { escalationId: 42 });
+    let resolutions = 0;
+    const db = { getPendingEscalation: async () => ({ id: 42 }), resolveEscalation: async () => resolutions++ };
+    const base = { cases, db, getBotUserId: async () => BOT_ID };
+    for (const discordClient of [null,
+      { channels: { fetch: async () => null } },
+      { channels: { fetch: async () => ({ isTextBased: () => true, isThread: () => true, send: async () => { throw new Error('Missing Access'); } }) } },
+    ]) {
+      await telegram.handleUpdate(staffUpdate(), { ...base, discordClient });
+      assert.equal((await cases.getCaseById(value.id)).status, 'queued');
+      assert.equal(resolutions, 0);
+    }
+  });
+});
+
+test('Telegram exact case marker isolates customers in a shared channel and resolves after confirmed send', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  await withTelegram(async (telegram) => {
+    const cases = createCaseService(createMemoryStore());
+    const alice = await cases.getOrCreateCase({ channelId: 'general', customerId: 'alice' });
+    const bob = await cases.getOrCreateCase({ channelId: 'general', customerId: 'bob' });
+    await cases.linkHandoff(alice.id, { escalationId: 10 });
+    await cases.linkHandoff(bob.id, { escalationId: 11 });
+    const events = [];
+    const discordClient = { channels: { fetch: async () => ({ isTextBased: () => true, isThread: () => false,
+      send: async () => { events.push('send'); return { id: 'delivered-answer' }; },
+    }) } };
+    const db = { getPendingEscalation: async () => assert.fail('shared channel cannot select latest escalation'), resolveEscalation: async (id) => events.push(`resolve:${id}`) };
+    await telegram.handleUpdate(staffUpdate(`Thread: general\nCase: ${alice.id}`), { cases, db, discordClient, getBotUserId: async () => BOT_ID });
+    assert.deepEqual(events, ['send', 'resolve:10']);
+    assert.equal((await cases.getCaseById(alice.id)).status, 'resolved');
+    assert.equal((await cases.getCaseById(bob.id)).status, 'queued');
+  });
+});
+
+test('Telegram rejects a case marker for a different destination', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  await withTelegram(async (telegram) => {
+    const cases = createCaseService(createMemoryStore());
+    const value = await cases.getOrCreateCase({ channelId: 'general', customerId: 'alice' });
+    await telegram.handleUpdate(staffUpdate(`Thread: unrelated\nCase: ${value.id}`), {
+      cases, getBotUserId: async () => BOT_ID,
+      discordClient: { channels: { fetch: async () => assert.fail('wrong case destination must not send') } },
+    });
+    assert.equal((await cases.getCaseById(value.id)).status, 'queued');
+  });
+});
+
+test('legacy Telegram shared-channel reply cannot resolve an arbitrary escalation', async () => {
+  await withTelegram(async (telegram) => {
+    const { createCaseService, createMemoryStore } = require('../supportCases');
+    await telegram.handleUpdate(staffUpdate('Thread: general'), {
+      cases: createCaseService(createMemoryStore()), getBotUserId: async () => BOT_ID,
+      discordClient: { channels: { fetch: async () => ({ isTextBased: () => true, isThread: () => false, send: async () => ({ id: 'sent' }) }) } },
+      db: { getPendingEscalation: async () => assert.fail('general channel has no customer binding'), resolveEscalation: async () => assert.fail('must stay pending') },
+    });
+  });
+});
+
+test('Telegram shutdown drains an active customer send and never schedules another poll', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  await withTelegram(async (telegram) => {
+    const cases = createCaseService(createMemoryStore());
+    const value = await cases.getOrCreateCase({ channelId: 'help-thread', customerId: 'alice', customerThreadId: 'help-thread' });
+    let releaseSend;
+    let started;
+    const sendGate = new Promise((resolve) => { releaseSend = resolve; });
+    const sendStarted = new Promise((resolve) => { started = resolve; });
+    let schedules = 0;
+    const task = telegram.startPolling({
+      schedule: () => { schedules++; },
+      poll: () => telegram.handleUpdate(staffUpdate(), { cases, getBotUserId: async () => BOT_ID,
+        discordClient: { channels: { fetch: async () => ({ isTextBased: () => true, isThread: () => true,
+          send: async () => { started(); await sendGate; return { id: 'customer-receipt' }; },
+        }) } },
+      }),
+    });
+    await sendStarted;
+    let drained = false;
+    const draining = telegram.drainPolling(1000).then((result) => { drained = true; return result; });
+    assert.equal(drained, false);
+    assert.equal((await cases.getCaseById(value.id)).status, 'queued');
+    releaseSend();
+    assert.equal(await draining, true);
+    await task;
+    assert.equal((await cases.getCaseById(value.id)).status, 'resolved');
+    assert.equal(schedules, 0);
+  });
+});
+
+test('Telegram polling drain reports its timeout while preserving the active task', async () => {
+  await withTelegram(async (telegram) => {
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    let schedules = 0;
+    const task = telegram.startPolling({ poll: () => gate, schedule: () => { schedules++; } });
+    assert.equal(await telegram.drainPolling(5), false);
+    release();
+    await task;
+    assert.equal(schedules, 0);
+    assert.equal(await telegram.drainPolling(5), true);
+  });
+});

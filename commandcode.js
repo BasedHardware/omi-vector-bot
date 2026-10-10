@@ -62,6 +62,30 @@ function recordModelUsage(data, stage, requestedModel, onUsage) {
   if (typeof onUsage === 'function') onUsage(event);
 }
 
+function escapeJsonStringControls(text) {
+  let inString = false;
+  let escaped = false;
+  let result = '';
+  for (const char of text) {
+    if (escaped) {
+      // Preserve existing escapes, including invalid ones for JSON.parse to reject.
+      result += char;
+      escaped = false;
+    } else if (inString && char === '\\') {
+      result += char;
+      escaped = true;
+    } else if (char === '"') {
+      result += char;
+      inString = !inString;
+    } else if (inString && char.charCodeAt(0) < 0x20) {
+      result += `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`;
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
 function jsonObject(raw) {
   const trimmed = String(raw || '')
     .replace(/^```(?:json)?\s*/i, '')
@@ -70,7 +94,7 @@ function jsonObject(raw) {
   const start = trimmed.indexOf('{');
   const end = trimmed.lastIndexOf('}');
   if (start === -1 || end === -1) throw new Error('CommandCode reply was not JSON');
-  return JSON.parse(trimmed.slice(start, end + 1));
+  return JSON.parse(escapeJsonStringControls(trimmed.slice(start, end + 1)));
 }
 
 function parseAgentJson(raw) {
@@ -217,8 +241,63 @@ const SOURCE_LABEL = new RegExp(`(?:^|\\s)${SOURCE_HEADING_PATTERN}\\s*`, 'giu')
 const CITATION_ATOM = /^(?:\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<>\[\]{}"'`，。、；｜（）［］【】]+|S\d+(?=$|[^\p{L}\p{N}_]|和|及|と|및))/iu;
 const CITATION_SEPARATOR = /^[\s\p{P}+&|＋｜]+/u;
 const CITATION_CONJUNCTION = /^(?:(?:and|or|y|o|e|et|und|ve|dan|и)(?![\p{L}\p{M}\p{N}_])|和|及|と|및)/iu;
-const EVIDENCE_GROUP_CONTENT = 'S\\d+(?:[ \\t,;|/+&，、；｜-]+S\\d+)*';
+const EVIDENCE_GROUP_CONTENT = 'S\\d+(?:(?:[ \\t,;|/+&，、；｜-]+(?:(?:and|or|y|o|e|et|und|ve|dan|и)[ \\t]+)?|和|及|と|및)S\\d+)*';
 const INLINE_EVIDENCE_GROUP = new RegExp(`[ \\t]*(?:\\(${EVIDENCE_GROUP_CONTENT}\\)|\\[${EVIDENCE_GROUP_CONTENT}\\]|（${EVIDENCE_GROUP_CONTENT}）|［${EVIDENCE_GROUP_CONTENT}］|【${EVIDENCE_GROUP_CONTENT}】)`, 'gi');
+
+const URL_TOKEN = /\[[^\]\n]*\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<>\[\]{}"'`，。、；｜（）［］【】]+/giu;
+const LONE_HEADING = new RegExp(`^(?:(\\*\\*|__|\\*|_)?${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}\\1?|(\\*\\*|__|\\*|_)${SOURCE_LABEL_NAME}\\2\\s*${SOURCE_LABEL_SEPARATOR})$`, 'iu');
+const INLINE_SOURCE_GROUP = new RegExp(`[ \\t]*[(（]\\s*${SOURCE_HEADING_PATTERN}([^()（）\\n]{1,400}?)\\s*[)）]`, 'giu');
+const URL_FRAGMENT_LINE = /^(?:(?:[,;，、；]|(?:and|or|y|o|e|et|und|ve|dan|и)(?![\p{L}\p{M}\p{N}_])|和|及|と|및)\s*)(?:https?:\/\/\S+\s*)+$/iu;
+const BARE_URL_LINE = /^(?:https?:\/\/\S+\s*)+$/iu;
+
+// A citation may name the cited section ("url (Light Indicators)"); a handful of
+// leftover words is a label, anything longer is prose that must stay.
+function citationResidueOnly(text) {
+  if (!String(text || '').match(URL_TOKEN)) return false;
+  const residue = String(text || '')
+    .replace(URL_TOKEN, ' ')
+    .replace(/[(（［\[][^()（）［］\[\]\n]{0,60}[)）］\]]/gu, ' ')
+    .replace(/[\p{P}\p{S}]+/gu, ' ')
+    .trim();
+  return residue.split(/\s+/u).filter(Boolean).length <= 4;
+}
+
+// Lines that start with a source heading and only carry links (plus section names).
+function looseSourceLine(line) {
+  const trimmed = String(line || '').trim();
+  const heading = trimmed.match(SOURCE_HEADING);
+  return Boolean(heading && citationResidueOnly(trimmed.slice(heading[0].length)));
+}
+
+function unwrapEmphasis(line) {
+  const match = String(line || '').match(/^(\s*)(\*\*|__|\*|_)(.+)\2\s*$/u);
+  return match && SOURCE_HEADING.test(match[3].trim()) ? `${match[1]}${match[3].trim()}` : line;
+}
+
+// The application appends one verified Source line, so model-written citations in
+// any shape are folded away instead of leaving a second, differently formatted one.
+function removeModelCitations(lines, chosen) {
+  const urls = (line) => (String(line).match(/https?:\/\/[^\s)>\]，。、；]+/giu) || []).map((url) => url.replace(/[.,;:!?]+$/u, ''));
+  const kept = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (looseSourceLine(trimmed)) continue;
+    if (LONE_HEADING.test(trimmed)) {
+      let next = index + 1;
+      while (next < lines.length && citationResidueOnly(lines[next].replace(/^\s*(?:[-*•]|\d+[.)])\s+/u, ''))) next += 1;
+      if (next > index + 1) { index = next - 1; continue; }
+    }
+    if (URL_FRAGMENT_LINE.test(trimmed)) continue;
+    if (BARE_URL_LINE.test(trimmed) && urls(trimmed).every((url) => chosen.includes(url))) {
+      const previous = [...kept].reverse().find((item) => item.trim()) || '';
+      if (!/[:：]\s*$/u.test(previous)) continue;
+    }
+    const cleaned = line.replace(INLINE_SOURCE_GROUP, (group, ...parts) => (citationResidueOnly(parts[3]) ? '' : group));
+    if (cleaned.trim()) kept.push(cleaned);
+  }
+  return kept;
+}
 
 function citationOnlySource(line) {
   const heading = String(line || '').trimStart().match(SOURCE_HEADING);
@@ -292,17 +371,18 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
   const chosen = [
     ...new Set((sourceIds || []).map((id) => urls.get(String(id))).filter(Boolean)),
   ].slice(0, 2);
-  const text = String(answer || '');
+  const text = String(answer || '').split('\n').map(unwrapEmphasis).join('\n');
   const modelLabel = text.split('\n').map((line) => {
     const citation = sourceCitationSuffix(line);
     if (citation) return citation.label;
     const trailing = trailingSourceLabel(line);
     if (trailing) return trailing;
+    if (looseSourceLine(line)) { const heading = line.trim().match(SOURCE_HEADING); return heading[2] || heading[3]; }
     return '';
   }).find(Boolean);
   // Classify citations before removing inline ID groups; otherwise "[S1] and [S2]"
   // becomes bare "and", hiding the fact that the complete suffix was a citation.
-  const body = stripInlineEvidenceGroups(text
+  const lines = text
     .split('\n')
     .map((line) => {
       const citation = sourceCitationSuffix(line);
@@ -310,7 +390,8 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
       if (trailingSourceLabel(line)) return '';
       return line;
     })
-    .filter((line) => line.trim())
+    .filter((line) => line.trim());
+  const body = stripInlineEvidenceGroups((chosen.length ? removeModelCitations(lines, chosen) : lines)
     .join('\n'), sources)
     .trim();
   const code = String(language || 'en').toLowerCase().split('-')[0];

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const knowledge = require('./knowledge');
+const supportCases = require('./supportCases');
 
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -9,6 +10,8 @@ const TELEGRAM_MAX = 3500;
 
 let offset = 0;
 let pollTimer = null;
+let polling = false;
+let activePoll = null;
 let discordClient = null;
 let botUserId = null;
 
@@ -45,9 +48,10 @@ function clipField(value, max) {
   return `${text.slice(0, Math.max(0, max - 1))}…`;
 }
 
-function formatEscalationText({ threadId, userQuestion, botDraft, missingInfo, jumpUrl }) {
+function formatEscalationText({ threadId, caseId, userQuestion, botDraft, missingInfo, jumpUrl }) {
   const lines = [
     `Thread: ${threadId || '(unknown)'}`,
+    caseId ? `Case: ${caseId}` : '',
     jumpUrl ? `Jump: ${jumpUrl}` : '',
     `User asked: ${clipField(userQuestion, 1200)}`,
     `Why: ${clipField(missingInfo, 300)}`,
@@ -89,7 +93,7 @@ async function pollUpdates() {
   }
 }
 
-async function handleUpdate(update) {
+async function handleUpdate(update, options = {}) {
   const msg = update.message;
   if (!msg?.text) return;
 
@@ -101,7 +105,7 @@ async function handleUpdate(update) {
   // Check if this is a reply to an escalation message this bot sent
   let myId;
   try {
-    myId = await getBotUserId();
+    myId = await (options.getBotUserId || getBotUserId)();
   } catch (err) {
     console.error('[Telegram] getMe failed:', err.message);
     return;
@@ -129,20 +133,40 @@ async function handleUpdate(update) {
 
   console.log(`[Telegram] Got reply for thread ${threadId}`);
 
-  // Post answer to Discord (thread or text channel)
-  if (discordClient) {
+  const cases = options.cases || supportCases;
+  const database = options.db || (process.env.DATABASE_URL ? require('./db') : null);
+  let storedCase;
+  try {
+    const caseId = replyTo.match(/^Case:\s*(\S+)/m)?.[1];
+    storedCase = caseId ? await cases.getCaseById(caseId) : await cases.getCaseByThread(threadId);
+    if (caseId && (!storedCase || ![storedCase.channelId, storedCase.customerThreadId, storedCase.handoffThreadId].includes(threadId))) return;
+  } catch (err) {
+    console.error('[Telegram] case lookup failed:', err.name);
+    return;
+  }
+  // Post answer to Discord (thread or text channel). A successful staff reply
+  // fetch is not customer delivery; keep the case pending on any send failure.
+  let delivered = false;
+  let deliveryId;
+  let isDedicatedThread = false;
+  const client = options.discordClient || discordClient;
+  if (client) {
     try {
-      const channel = await discordClient.channels.fetch(threadId);
+      const channel = await client.channels.fetch(threadId);
+      isDedicatedThread = Boolean(channel?.isThread?.());
       if (channel?.isTextBased?.() && typeof channel.send === 'function') {
         // Staff replies are pasted into Discord verbatim — suppress all
         // mention resolution so a stray @here / <@&role> cannot ping.
-        await channel.send({ content: answer, allowedMentions: { parse: [] } });
+        const sent = await channel.send({ content: answer, allowedMentions: { parse: [] } });
+        delivered = true;
+        deliveryId = sent?.id;
         console.log(`[Telegram] Posted answer to ${threadId}`);
       }
     } catch (err) {
       console.error(`[Telegram] Failed to post to ${threadId}:`, err.message);
     }
   }
+  if (!delivered) return;
 
   // Use the same reviewed, in-memory staff-note path as Discord `faq:`.
   // Legacy database notes have no provenance and are not read by the bot.
@@ -153,36 +177,66 @@ async function handleUpdate(update) {
   }
 
   // Resolve escalation
-  if (process.env.DATABASE_URL) {
-    const db = require('./db');
-    const escalation = await db.getPendingEscalation(threadId);
-    if (escalation) {
-      await db.resolveEscalation(escalation.id);
-      console.log(`[Telegram] Resolved escalation #${escalation.id}`);
+  if (storedCase) {
+    await cases.resolveCase(storedCase.id, { deliveryId, confirmed: true });
+  }
+  if (database) {
+    // Legacy records have no customer ownership. Only a dedicated thread can
+    // safely resolve one by thread; shared channels require an exact case link.
+    const escalation = !storedCase?.escalationId && isDedicatedThread ? await database.getPendingEscalation(threadId) : null;
+    const escalationId = storedCase?.escalationId || escalation?.id;
+    if (escalationId) {
+      await database.resolveEscalation(escalationId);
+      console.log(`[Telegram] Resolved escalation #${escalationId}`);
     }
   }
 }
 
-function startPolling() {
-  if (pollTimer) return;
+function startPolling({ poll = pollUpdates, intervalMs = POLL_INTERVAL_MS, schedule = setTimeout } = {}) {
+  if (polling) return activePoll;
   if (!isReady()) {
     console.log('[Telegram] Not configured, polling skipped');
     return;
   }
+  polling = true;
   console.log('[Telegram] Polling started');
+  if (activePoll) return activePoll;
 
-  async function tick() {
-    await pollUpdates();
-    pollTimer = setTimeout(tick, POLL_INTERVAL_MS);
+  function tick() {
+    if (!polling) return Promise.resolve();
+    const task = Promise.resolve().then(poll).catch((err) => {
+      console.error('[Telegram] active poll failed:', err.name);
+    }).finally(() => {
+      if (activePoll === task) activePoll = null;
+      // Shutdown may have started during getUpdates or a Discord send.
+      if (polling) pollTimer = schedule(() => { pollTimer = null; tick(); }, intervalMs);
+    });
+    activePoll = task;
+    return task;
   }
-  tick();
+  return tick();
 }
 
 function stopPolling() {
+  polling = false;
   if (pollTimer) {
     clearTimeout(pollTimer);
     pollTimer = null;
     console.log('[Telegram] Polling stopped');
+  }
+  return activePoll || Promise.resolve();
+}
+
+async function drainPolling(timeoutMs = 90_000) {
+  const pending = stopPolling();
+  let timer;
+  try {
+    return await Promise.race([
+      pending.then(() => true),
+      new Promise((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -192,6 +246,7 @@ module.exports = {
   sendEscalation,
   startPolling,
   stopPolling,
+  drainPolling,
   setDiscordClient,
   getBotUserId,
   isBotEscalationReply,

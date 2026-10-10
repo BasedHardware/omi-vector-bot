@@ -1,7 +1,9 @@
 const { REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { isCloseableThread, canStaffAct, markHandoffClosed, sendToStaffChannel } = require('./handoff');
+const { isCloseableThread, canStaffAct, staffMentionIds, markHandoffClosed, sendToStaffChannel } = require('./handoff');
 const github = require('./github');
 const orderFlow = require('./orderFlow');
+const supportCases = require('./supportCases');
+const { appReviewButtons } = require('./appReviews');
 
 const OMI_LOGO_URL =
   process.env.OMI_LOGO_URL ||
@@ -73,19 +75,24 @@ async function registerSlashCommands(client) {
 function closeNotice(user) {
   const who = user?.id ? `<@${user.id}>` : 'staff';
   return [
-    "If this is still happening, open a new post in Help. We won't see replies here.",
-    `Closed by ${who}.`,
-    'Did this help? Only the person who opened this post can answer.',
+    'Thank you for giving us the chance to help.',
+    'Did we help solve your problem? Your honest feedback helps us improve.',
+    'If you still need help, use the button below. If the thread cannot be reopened, open a new post in Help.',
+    `Marked resolved by ${who}. Only the customer who opened this post can submit support feedback.`,
   ].join('\n\n');
 }
 
 function closePayload(user) {
   const embed = {
-    author: { name: 'Omi', iconURL: OMI_LOGO_URL },
-    title: 'This ticket is closed',
+    author: { name: 'Omi Support', iconURL: OMI_LOGO_URL },
+    title: 'How did we do?',
     color: 0x111111,
     description: closeNotice(user),
     thumbnail: { url: OMI_LOGO_URL },
+    fields: [{
+      name: 'Share an honest app review · optional',
+      value: "We'd appreciate an honest rating or review of the Omi app on your store. It's optional and does not affect your support.\nOn Google Play, choose **Write a review** after opening the page.",
+    }],
   };
   return {
     embeds: [embed],
@@ -93,18 +100,37 @@ function closePayload(user) {
       {
         type: 1,
         components: [
-          { type: 2, style: 3, label: 'Yes, this helped', custom_id: 'rate:yes' },
+          { type: 2, style: 3, label: 'Yes, my issue is resolved', custom_id: 'rate:yes' },
           { type: 2, style: 2, label: 'Still need help', custom_id: 'rate:no' },
         ],
       },
+      appReviewButtons(),
     ],
-    allowedMentions: user?.id ? { users: [String(user.id)] } : { parse: [] },
+    allowedMentions: { parse: [] },
   };
 }
 
-async function handleRating(interaction) {
+async function handleRating(interaction, options = {}) {
+  const deferred = typeof interaction.deferReply === 'function' && typeof interaction.editReply === 'function';
+  if (deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const respond = (content) => deferred
+    ? interaction.editReply({ content, allowedMentions: { parse: [] } })
+    : interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+  if (!['rate:yes', 'rate:no'].includes(interaction.customId)) {
+    await respond('That is not a support feedback button.');
+    return;
+  }
   const helped = interaction.customId === 'rate:yes';
   const threadId = String(interaction.channelId || interaction.channel?.id || '');
+  const cases = options.cases || supportCases;
+  let storedCase;
+  try {
+    storedCase = threadId ? await cases.getCaseByThread(threadId) : null;
+  } catch {
+    console.error('[Bot] rating case lookup failed');
+    await respond('I could not check this case just now. Your feedback has not been saved; please try again.');
+    return;
+  }
   let customerId = String(interaction.channel?.ownerId || '');
   // A Handoff started from a customer's message is owned by the bot, not by
   // that customer. The starter message is the authoritative customer here.
@@ -118,33 +144,82 @@ async function handleRating(interaction) {
       console.error('[Bot] rating starter lookup failed:', err.message);
     }
   }
+  // Durable ownership survives bot restarts and bot-owned Handoff threads.
+  if (storedCase) customerId = storedCase.customerId;
   const clicker = String(interaction.user?.id || interaction.member?.user?.id || '');
   if (!customerId || clicker !== customerId) {
-    await interaction.reply({
-      content: 'Only the customer who opened this post can answer that.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await respond('Only the customer who opened this post can answer that.');
     return;
   }
   let counts = { yes: 0, no: 0 };
+  let feedbackSaved = false;
   try {
-    counts = await require('./ratings').recordRating(threadId, clicker, helped);
+    counts = await (options.recordRating || require('./ratings').recordRating)(threadId, clicker, helped);
+    feedbackSaved = true;
   } catch (err) {
-    console.error('[Bot] rating save failed:', err.message);
+    console.error('[Bot] rating save failed');
+  }
+  let reopened = false;
+  let threadReopened = false;
+  if (!helped && storedCase) {
+    try {
+      const active = await cases.getActiveCase(storedCase.channelId, clicker);
+      if (active && active.id !== storedCase.id) throw new Error('A newer support case is active');
+      const channel = interaction.channel;
+      if (typeof channel?.edit === 'function') {
+        await channel.edit({ archived: false, locked: false, reason: 'Customer still needs help' });
+      } else if (typeof channel?.setArchived === 'function') {
+        if (channel.locked) {
+          if (typeof channel.setLocked !== 'function') throw new Error('Thread cannot be unlocked');
+          await channel.setLocked(false, 'Customer still needs help');
+        }
+        await channel.setArchived(false, 'Customer still needs help');
+      } else {
+        throw new Error('Thread cannot be reopened');
+      }
+      threadReopened = true;
+      require('./handoff').markHandoffReopened?.(channel);
+      const tagId = resolvedTagId(channel);
+      if (tagId && typeof channel.setAppliedTags === 'function') {
+        await channel.setAppliedTags((channel.appliedTags || []).map(String).filter((id) => id !== tagId), 'Customer still needs help');
+      }
+      const database = options.db || (process.env.DATABASE_URL ? require('./db') : null);
+      if (storedCase.escalationId && database) {
+        if (typeof database.reopenEscalation !== 'function') throw new Error('Escalation cannot be reopened');
+        await database.reopenEscalation(storedCase.escalationId);
+      }
+      reopened = Boolean(await cases.reopenByThread(threadId, clicker));
+      if (!reopened && ['queued', 'delivered', 'accepted'].includes(storedCase.status) && !channel.archived && !channel.locked) reopened = true;
+    } catch (err) {
+      console.error('[Bot] case reopen failed:', err.name);
+    }
   }
   const where = threadId ? ` <#${threadId}>` : '';
+  const totals = feedbackSaved && Number.isFinite(counts?.yes) && Number.isFinite(counts?.no)
+    ? ` Helpful: ${counts.yes}. Still need help: ${counts.no}.`
+    : ' Feedback totals are temporarily unavailable.';
   try {
-    await sendToStaffChannel(interaction.client, {
+    await (options.notifyStaff || sendToStaffChannel)(interaction.client, {
       content: helped
-        ? `A customer said this helped.${where} Helpful: ${counts.yes}. Still need help: ${counts.no}.`
-        : `A customer still needs help.${where} Helpful: ${counts.yes}. Still need help: ${counts.no}.`,
+        ? `A customer said this helped.${where}${totals}`
+        : `A customer still needs help.${where}${totals}`,
       allowedMentions: { parse: [] },
     });
   } catch (err) {
     console.error('[Bot] rating note failed:', err.message);
   }
-  const note = helped ? 'Glad it helped.' : 'Noted. A person can still see this thread.';
-  await interaction.reply({ content: note, flags: MessageFlags.Ephemeral });
+  const note = !feedbackSaved
+    ? reopened
+      ? 'This case is reopened. You can continue in this thread. Saving your feedback failed; it has not been added to the dashboard.'
+      : threadReopened
+      ? 'This thread is reopened, but I could not finish updating the case. You can continue here. Your feedback has not been saved; please try the feedback button again.'
+      : 'Thank you for your feedback. I could not save it just now; please try the feedback button again.'
+    : helped ? 'Glad it helped. Thank you for your honest feedback.' : reopened
+    ? 'This case is reopened. You can continue in this thread.'
+    : threadReopened
+    ? 'This thread is reopened, but I could not finish updating the case. You can continue here. Your feedback is recorded.'
+    : 'Your feedback is recorded. This thread has not been reopened; open a new Help post if you still need help.';
+  await respond(note);
 }
 
 function resolvedTagId(channel) {
@@ -181,15 +256,37 @@ async function archiveHandoff(channel) {
   }
 }
 
-async function closeHandoff(channel, user) {
+async function closeHandoff(channel, user, options = {}) {
   if (!isCloseableThread(channel)) {
     return { ok: false, reason: 'Use /done in a Handoff or help thread.' };
   }
+  const cases = options.cases || supportCases;
+  const threadId = String(channel.id || '');
+  let storedCase;
+  let escalation;
+  const database = options.db || (process.env.DATABASE_URL ? require('./db') : null);
   try {
-    await channel.send(closePayload(user));
+    storedCase = threadId ? await cases.getCaseByThread(threadId) : null;
+    escalation = database && threadId ? await database.getPendingEscalation(threadId) : null;
+  } catch (err) {
+    console.error('[Bot] /done case lookup failed:', err.name);
+    return { ok: false, reason: 'Could not read this case. The thread has not been closed.' };
+  }
+  let delivered;
+  try {
+    delivered = await channel.send(closePayload(user));
   } catch (err) {
     console.error('[Bot] /done notice failed:', err.message);
     return { ok: false, reason: 'Could not post the resolved message.' };
+  }
+  try {
+    if (storedCase) await cases.resolveByThread(threadId, { customerId: storedCase.customerId, close: true, deliveryId: delivered?.id, confirmed: true });
+    if (database && (storedCase?.escalationId || escalation?.id)) {
+      await database.resolveEscalation(storedCase?.escalationId || escalation.id);
+    }
+  } catch (err) {
+    console.error('[Bot] /done case save failed:', err.name);
+    return { ok: false, reason: 'The notice was posted, but saving the case failed. The thread has not been archived; please retry.' };
   }
   markHandoffClosed(channel);
   try {
@@ -325,6 +422,44 @@ async function handleFileIssue(interaction) {
   await interaction.editReply(`Filed ${filedUrl}`);
 }
 
+function canAcceptCase(interaction) {
+  const staffChannelId = String(process.env.STAFF_ALERT_CHANNEL_ID || '').trim();
+  if (!staffChannelId || String(interaction.channel?.id || '') !== staffChannelId ||
+      String(interaction.channelId || interaction.channel?.id || '') !== staffChannelId || interaction.channel?.isThread?.()) return false;
+  const staffId = String(interaction.user?.id || '');
+  if (!staffId) return false;
+  const { users, roles } = staffMentionIds();
+  if (users.includes(staffId)) return true;
+  const cache = interaction.member?.roles?.cache;
+  if (roles.some((id) => cache?.has?.(id) || cache?.includes?.(id))) return true;
+  const permissions = interaction.memberPermissions || interaction.member?.permissions;
+  try { return Boolean(permissions?.has?.('ManageThreads', true) || permissions?.has?.('Administrator', true)); }
+  catch { return false; }
+}
+
+async function handleAcceptCase(interaction, { cases = supportCases } = {}) {
+  if (!canAcceptCase(interaction)) {
+    await interaction.reply({ content: 'Only authorized staff can accept a case in the configured staff channel.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const caseId = String(interaction.customId || '').match(/^case:accept:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)?.[1];
+  const botId = String(interaction.client?.user?.id || '');
+  const cardCase = (interaction.message?.embeds || []).flatMap((embed) => embed.fields || embed.data?.fields || [])
+    .find((field) => field.name === 'Case')?.value;
+  if (!caseId || !botId || String(interaction.message?.author?.id || '') !== botId || cardCase !== caseId) {
+    await interaction.reply({ content: 'That is not a valid case acceptance card.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const value = await cases.markAccepted(caseId, { staffId: interaction.user.id });
+  await interaction.editReply({
+    content: value?.acceptedBy && value?.acceptedAt
+      ? `Case accepted by <@${value.acceptedBy}>.`
+      : 'This case is not awaiting acceptance. It must be delivered before staff can accept it.',
+    allowedMentions: { parse: [] },
+  });
+}
+
 async function handleInteraction(interaction) {
   try {
     if (await orderFlow.handleOrderInteraction(interaction)) return;
@@ -338,6 +473,10 @@ async function handleInteraction(interaction) {
     }
     if (interaction.isButton?.() && String(interaction.customId || '').startsWith('rate:')) {
       await handleRating(interaction);
+      return;
+    }
+    if (interaction.isButton?.() && String(interaction.customId || '').startsWith('case:accept:')) {
+      await handleAcceptCase(interaction);
       return;
     }
     if (interaction.isButton?.() && String(interaction.customId || '').startsWith('file:')) {
@@ -390,6 +529,9 @@ module.exports = {
   closeNotice,
   closePayload,
   closeHandoff,
+  handleRating,
+  canAcceptCase,
+  handleAcceptCase,
   handleInteraction,
   notifyLinkedThreads,
 };

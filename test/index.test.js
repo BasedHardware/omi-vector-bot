@@ -169,8 +169,9 @@ docs.relevantDocs = (...args) => docsObserver ? docsObserver(...args) : original
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
-const { app, client, handleMessage, shouldHandle } = require('../index');
+const { app, client, handleMessage, shouldHandle, runtime } = require('../index');
 const router = require('../router');
+const supportCases = require('../supportCases');
 const { unreadMediaSentence } = require('../attachments');
 
 client.user = new User(client, { id: BOT_ID, username: 'vector', bot: true });
@@ -367,6 +368,7 @@ function enableStaffDelivery(t) {
 }
 
 test.beforeEach(() => {
+  supportCases.setStoreForTests(supportCases.createMemoryStore());
   modelCalls.length = 0;
   modelReply = {};
   modelDown = false;
@@ -403,9 +405,11 @@ test('/health stays unavailable until Discord is ready and never reveals staff I
   const hadOwnIsReady = Object.hasOwn(client, 'isReady');
   const originalIsReady = client.isReady;
   const originalStaffChannel = process.env.STAFF_ALERT_CHANNEL_ID;
+  const originalStopping = runtime.stopping;
   t.after(() => {
     if (hadOwnIsReady) client.isReady = originalIsReady;
     else delete client.isReady;
+    runtime.stopping = originalStopping;
     if (originalStaffChannel === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID;
     else process.env.STAFF_ALERT_CHANNEL_ID = originalStaffChannel;
   });
@@ -436,6 +440,23 @@ test('/health stays unavailable until Discord is ready and never reveals staff I
     body: { status: 'ok', staffHandoff: 'configured' },
   });
   assert.equal(JSON.stringify(response()).includes('private-staff-room'), false);
+  runtime.stopping = true;
+  assert.deepEqual(response(), {
+    code: 503,
+    body: { status: 'not_ready', staffHandoff: 'configured' },
+  });
+});
+
+test('the feedback dashboard reports unavailable storage without showing fake zero totals or private errors', async (t) => {
+  const ratings = require('../ratings');
+  t.mock.method(ratings, 'ratingCounts', async () => { throw new Error('private-storage-details'); });
+  const handler = app._router.stack.find((layer) => layer.route?.path === '/ratings').route.stack[0].handle;
+  let status; let body;
+  const response = { status: (value) => { status = value; return response; }, type: () => response, send: (value) => { body = value; } };
+  await handler({}, response);
+  assert.equal(status, 503);
+  assert.match(body, /temporarily unavailable/);
+  assert.doesNotMatch(body, /private-storage-details|Helpful: 0|needs-help counts: 0/);
 });
 
 test('answer path emits per-stage timing metrics without customer text', async () => {
@@ -616,7 +637,7 @@ test('missing delivery gets a grounded answer, no invented status, and a staff h
   const result = await ask(question);
   assert.equal(result.modelCalled, true);
   assert.ok(plannerCalls.includes(question));
-  assert.match(result.reply, /^I can't see order status from here/i);
+  assert.ok(result.reply.startsWith(router.ORDER_STATUS_OPENING));
   assert.doesNotMatch(result.reply, /Your order was delivered yesterday/i);
   assert.match(result.reply, /tracking link in the shipping email/i);
   assert.match(result.reply, /contact the carrier/i);
@@ -634,10 +655,29 @@ test('a delivered Omi that never arrived gets grounded delivery handling without
   };
   const result = await ask("UPS says my Omi was delivered yesterday but it isn't here");
   assert.equal(result.modelCalled, true);
-  assert.match(result.reply, /^I can't see order status from here/i);
+  assert.ok(result.reply.startsWith(router.ORDER_STATUS_OPENING));
   assert.doesNotMatch(result.reply, /Your Omi was delivered yesterday/i);
   assert.match(result.reply, /tracking link from the shipping email/i);
   assert.equal(staff.length, 1);
+});
+
+test('verified order facts enrich staff intake but never enter a public chat answer or its model inputs', async (t) => {
+  const shopify = require('../shopify'); const bind = require('../shopifyBind');
+  const staff = enableStaffDelivery(t);
+  t.mock.method(bind, 'get', async () => ({ email: 'owner@example.test' }));
+  t.mock.method(shopify, 'shouldLookup', () => true);
+  t.mock.method(shopify, 'lookupOrder', async () => ({ ok: true, order: { name: '#998877', fulfillmentStatus: 'fulfilled' } }));
+  t.mock.method(shopify, 'buildUserReply', () => { throw new Error('private facts must not enter model'); });
+  t.mock.method(shopify, 'formatStaffFacts', () => 'PRIVATE STAFF ORDER #998877');
+  modelReply = { final_answer: 'Your order was delivered yesterday. Open the tracking link in your shipping email and contact the carrier.', escalate: false };
+  const result = await ask('My parcel tracking page says delivered but it never arrived.');
+  assert.ok(result.modelCalled);
+  assert.equal(staff.length, 1);
+  assert.match(JSON.stringify(staff), /PRIVATE STAFF ORDER/);
+  assert.doesNotMatch(JSON.stringify(modelCalls), /owner@example\.test|998877|PRIVATE STAFF ORDER/);
+  assert.doesNotMatch(JSON.stringify(reviewCalls), /owner@example\.test|998877|PRIVATE STAFF ORDER/);
+  assert.doesNotMatch(result.reply, /998877|PRIVATE STAFF ORDER|Your order was delivered yesterday/);
+  assert.match(result.reply, /tracking link in your shipping email/);
 });
 
 test('the planner runs for a short first customer question', async () => {
@@ -1090,7 +1130,7 @@ test('an order status question checks sources, keeps email fallback when undeliv
   process.env.GITHUB_TOKEN = 'ghs_test';
   const r = await ask('Where is my order? I still have no tracking email.');
   assert.equal(r.modelCalled, true);
-  assert.match(r.reply, /^I can't see order status from here/i);
+  assert.ok(r.reply.startsWith(router.ORDER_STATUS_OPENING));
   assert.match(r.reply, /help@omi\.me/);
   assert.equal(/\/order/.test(r.reply), false);
   assert.ok(r.thread);
@@ -1317,7 +1357,8 @@ test('a later no-chat follow-up does not repeat notification advice or restart t
   assert.equal(modelCalls.length, models + 1);
   assert.match(reply, /rules out.*notification-permission/i);
   assert.match(reply, /no AI message appears in Chat/i);
-  assert.doesNotMatch(reply, /check.*notifications?|help@omi\.me|try.*reconnect/i);
+  assert.doesNotMatch(reply, /check.*notifications?|try.*reconnect/i);
+  assert.match(reply, /could not deliver this to the support team.*help@omi\.me/is);
   assert.equal(follow.threads.length, 0);
 });
 

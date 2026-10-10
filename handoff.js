@@ -13,6 +13,7 @@ const {
 
 const DEDUPE_MS = 15 * 60_000;
 const lastHandoff = new Map();
+const { assertCurrentOwnership, isLeaseLost } = require('./supportRuntime');
 
 function staffMentionIds() {
   const users = String(process.env.STAFF_USER_IDS || '')
@@ -284,6 +285,10 @@ function forgetOpenHandoff(thread) {
   for (const [key, list] of rememberedHandoffs) {
     rememberedHandoffs.set(key, list.filter((item) => String(item.id) !== id));
   }
+}
+
+function markHandoffReopened(thread) {
+  closedHandoffs.delete(String(thread?.id || ''));
 }
 
 function markHandoffClosed(thread) {
@@ -651,6 +656,7 @@ function formatStaffTicket({
   staffOnly = false,
   labels: labelOverride,
   dataLossRisk = false,
+  caseId,
 }) {
   const asked = clipUserQuestion(question);
   const jump = message?.url || '';
@@ -680,6 +686,9 @@ function formatStaffTicket({
       { name: 'Why', value: why, inline: false },
     ],
   };
+  if (staffOnly && /^[A-Za-z0-9_.:-]{1,128}$/.test(String(caseId || ''))) {
+    embed.fields.push({ name: 'Case', value: String(caseId), inline: true });
+  }
   embed.fields.push({
     name: 'Labels',
     value: labels.map((label) => `\`${label}\``).join('  '),
@@ -743,10 +752,15 @@ function formatStaffTicket({
       },
     ];
   }
+  if (staffOnly && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(caseId || ''))) {
+    if (!discord.components) discord.components = [{ type: 1, components: [] }];
+    discord.components[0].components.push({ type: 2, style: 1, custom_id: `case:accept:${caseId}`, label: 'Accept case' });
+  }
 
   return {
     discord,
     plain: {
+      caseId,
       threadId: message?.channel?.id,
       jumpUrl: jump,
       userQuestion: redactCardQuote(asked),
@@ -757,9 +771,11 @@ function formatStaffTicket({
 }
 
 async function postHandoffThread(message, payload, meta = {}) {
+  await assertCurrentOwnership();
   if (message.channel?.isThread?.()) return null;
 
   if (message.hasThread && message.thread?.send) {
+    await assertCurrentOwnership();
     await message.thread.send(payload);
     return message.thread;
   }
@@ -768,6 +784,7 @@ async function postHandoffThread(message, payload, meta = {}) {
   // receives only the minimal card. Invite the customer and configured staff.
   if (typeof message.channel?.threads?.create === 'function' && message.author?.id) {
     try {
+      await assertCurrentOwnership();
       const thread = await message.channel.threads.create({
         name: handoffThreadName(meta),
         type: ChannelType.PrivateThread,
@@ -775,19 +792,23 @@ async function postHandoffThread(message, payload, meta = {}) {
         autoArchiveDuration: 1440,
         reason: 'Support handoff',
       });
+      await assertCurrentOwnership();
       await thread.members?.add?.(String(message.author.id));
       for (const id of staffMentionIds().users) {
-        try { await thread.members?.add?.(id); } catch (err) { console.error('[Bot] private handoff staff invite failed:', err.message); }
+        try { await assertCurrentOwnership(); await thread.members?.add?.(id); } catch (err) { if (isLeaseLost(err)) throw err; console.error('[Bot] private handoff staff invite failed:', err.message); }
       }
+      await assertCurrentOwnership();
       await thread.send(payload);
       return thread;
     } catch (err) {
+      if (isLeaseLost(err)) throw err;
       console.error('[Bot] private handoff unavailable:', err.message);
     }
   }
 
   if (!message?.startThread) return null;
 
+  await assertCurrentOwnership();
   const thread = await message.startThread({
     name: handoffThreadName({
       question: meta.question,
@@ -799,6 +820,7 @@ async function postHandoffThread(message, payload, meta = {}) {
     autoArchiveDuration: 1440,
     reason: 'Could not finish this from chat',
   });
+  await assertCurrentOwnership();
   await thread.send(payload);
   return thread;
 }
@@ -809,6 +831,7 @@ async function sendToStaffChannel(client, payload, customerChannelId) {
   if (String(staffId) === String(customerChannelId || '')) return false;
   const ch = await client.channels.fetch(staffId);
   if (!ch?.isTextBased?.() || typeof ch.send !== 'function') return false;
+  await assertCurrentOwnership();
   await ch.send(payload);
   return true;
 }
@@ -843,7 +866,10 @@ function publicHandoffDiscord(discord) {
     },
   };
   if (Array.isArray(discord?.components) && discord.components.length) {
-    payload.components = discord.components;
+    const publicRows = discord.components.map((row) => ({ ...row,
+      components: (row.components || []).filter((component) => !String(component.custom_id || component.customId || '').startsWith('case:accept:')),
+    })).filter((row) => row.components.length);
+    if (publicRows.length) payload.components = publicRows;
   }
   return payload;
 }
@@ -863,6 +889,7 @@ async function notifyStaff({
   topic,
   labels,
   dataLossRisk = false,
+  caseId,
 }) {
   const channelId = message?.channel?.id;
   const userId = message?.author?.id;
@@ -871,6 +898,7 @@ async function notifyStaff({
   }
 
   const ticket = formatStaffTicket({
+    caseId,
     message,
     question,
     reason,
@@ -890,10 +918,12 @@ async function notifyStaff({
   try {
     if (await sendToStaffChannel(client, ticket.discord, channelId)) {
       markHandedOff(channelId, userId, true);
+      await assertCurrentOwnership();
       await telegram.sendEscalation(ticket.plain);
       return { ok: true, via: 'staff-channel' };
     }
   } catch (err) {
+    if (isLeaseLost(err)) throw err;
     errors.push(`staff-channel: ${err.message}`);
   }
 
@@ -910,6 +940,7 @@ async function notifyStaff({
         visibleCard = { via: 'thread', threadId: thread.id, thread };
       }
     } catch (err) {
+      if (isLeaseLost(err)) throw err;
       errors.push(`thread: ${err.message}`);
     }
   }
@@ -917,19 +948,23 @@ async function notifyStaff({
   try {
     if (!visibleCard && message?.channel?.isTextBased?.() && typeof message.channel.send === 'function') {
       const payload = publicHandoffDiscord(ticket.discord);
+      await assertCurrentOwnership();
       await message.channel.send(payload);
       visibleCard = { via: 'channel' };
     }
   } catch (err) {
+    if (isLeaseLost(err)) throw err;
     errors.push(`channel: ${err.message}`);
   }
 
   try {
+    await assertCurrentOwnership();
     if (await telegram.sendEscalation(ticket.plain)) {
       markHandedOff(channelId, userId, true);
       return { ok: true, ...(visibleCard || { via: 'telegram' }), deliveredVia: 'telegram' };
     }
   } catch (err) {
+    if (isLeaseLost(err)) throw err;
     errors.push(`telegram: ${err.message}`);
   }
 
@@ -980,6 +1015,7 @@ module.exports = {
   recentlyHandedOff,
   resetHandoffMemory,
   formatStaffTicket,
+  publicHandoffDiscord,
   clipUserQuestion,
   ticketLabels,
   threadTopic,
@@ -991,6 +1027,7 @@ module.exports = {
   findOpenHandoff,
   rememberOpenHandoff,
   markHandoffClosed,
+  markHandoffReopened,
   notifyStaff,
   sendToStaffChannel,
   isHandoffThread,

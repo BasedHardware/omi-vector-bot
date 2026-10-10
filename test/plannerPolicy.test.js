@@ -25,28 +25,60 @@ test('planner human request reaches staff even when language routing is otherwis
   assert.equal(policy.suppressOffTopic({ ...plan, messageKind: 'off_topic' }, route), false);
 });
 
-test('order and account handoffs retain useful next steps without inventing status', () => {
+test('planner-confirmed human order requests keep the human path through private-status fallback', (t) => {
+  const router = require('../router');
+  const { escalateReply } = require('../utils');
+  t.mock.method(require('../orderFlow'), 'isLive', () => true);
+  const question = 'Where is my shipment? I would prefer somebody from dispatch to look into it.';
+  const plan = { supportKind: 'order_lookup', wantsPerson: true, replyLanguage: 'en' };
+  const route = policy.routeWithUnderstanding(router.classify(question), plan, question);
+  assert.equal(route.wantHuman, true);
+  const body = policy.personReply('order_lookup', route, question, plan);
+  assert.match(body, /person from the shop team/i);
+  assert.match(body, /verified order check/i);
+  assert.match(body, /don't post your address or payment details/i);
+  const delivered = escalateReply(body, { pinged: true, replyInThread: true });
+  assert.match(delivered, /will reply in this thread/i);
+  assert.doesNotMatch(delivered, /\/order\b|email a code|help@omi\.me/i);
+});
+
+test('ordinary planner-routed order status keeps live private self-service', (t) => {
+  const router = require('../router');
+  t.mock.method(require('../orderFlow'), 'isLive', () => true);
+  const plan = { supportKind: 'order_lookup', wantsPerson: false, replyLanguage: 'en' };
+  const question = 'Where is my shipment?';
+  const route = policy.routeWithUnderstanding(router.classify(question), plan, question);
+  assert.equal(Boolean(route.wantHuman), false);
+  assert.match(policy.personReply('order_lookup', route, question, plan), /Use \/order to check your own orders privately/i);
+});
+
+test('order and account handoff drafts retain the relevant goal without inventing status', () => {
   const order = policy.personReply('order_lookup', { lane: 'shop' }, 'Where is my order?');
-  assert.match(order, /\/order|help@omi\.me/i);
+  assert.match(order, /verified order check/i);
+  assert.doesNotMatch(order, /help@omi\.me|Use \/order/i);
   assert.doesNotMatch(order, /has shipped|will arrive (?:on|by|tomorrow|next)/i);
   const account = policy.personReply('account_action', { lane: 'privacy' }, 'Delete my account');
   assert.match(account, /delet|remov|privacy/i);
 });
 
-test('planner-routed order reply uses verified /order when live and email when unavailable', () => {
-  const flow = require('../orderFlow');
-  const previous = flow.isLive;
-  try {
-    flow.isLive = () => true;
-    const live = policy.personReply('order_lookup', { lane: 'shop' }, 'Where is my order?');
-    assert.match(live, /Use \/order to check your own orders/i);
-    assert.match(live, /email a code/i);
-    flow.isLive = () => false;
-    const unavailable = policy.personReply('order_lookup', { lane: 'shop' }, 'Where is my order?');
-    assert.match(unavailable, /help@omi\.me/);
-    assert.doesNotMatch(unavailable, /Use \/order/i);
-  } finally {
-    flow.isLive = previous;
+test('planner-routed personal actions get exactly the next step confirmed by delivery', () => {
+  const { escalateReply } = require('../utils');
+  for (const [kind, route, question] of [
+    ['order_lookup', { lane: 'shop' }, 'Where is my order?'],
+    ['account_action', { lane: 'account' }, 'Please change my account plan'],
+    ['privacy', { lane: 'privacy' }, 'Please delete my data'],
+    ['money', { lane: 'money' }, 'I want a refund'],
+    ['exception_request', { lane: 'shop' }, 'Can you approve a warranty replacement?'],
+  ]) {
+    const draft = policy.personReply(kind, route, question);
+    assert.ok(draft.trim());
+    assert.doesNotMatch(draft, /^I can|has this now|will reply|email help@omi\.me|Use \/order/i);
+    const delivered = escalateReply(draft, { pinged: true, replyInThread: true });
+    assert.equal((delivered.match(/will reply in this thread/gi) || []).length, 1);
+    assert.doesNotMatch(delivered, /help@omi\.me|Use \/order|approved|has shipped/i);
+    const failed = escalateReply(draft, { deliveryFailed: true });
+    assert.equal((failed.match(/help@omi\.me/gi) || []).length, 1);
+    assert.doesNotMatch(failed, /will reply|has this now|Use \/order/i);
   }
 });
 
@@ -133,9 +165,8 @@ test('only short, pure acknowledgments are suppressed, even when the planner mis
 test('unsupported handoff languages keep a delivered or failed next step', () => {
   const { escalateReply } = require('../utils');
   for (const { language, question, acknowledgment } of [
-    { language: 'it', question: 'Vorrei parlare con una persona', acknowledgment: 'Una persona deve esaminare la tua richiesta in privato.' },
-    { language: 'zh', question: '我想联系人工客服', acknowledgment: '需要由工作人员私下查看您的请求。' },
     { language: 'ko', question: '상담원과 이야기하고 싶어요', acknowledgment: '담당자가 요청을 비공개로 검토해야 합니다.' },
+    { language: 'ru', question: 'Хочу поговорить с человеком', acknowledgment: 'Запрос должен проверить сотрудник команды.' },
   ]) {
     const plan = { replyLanguage: language, handoffAcknowledgment: acknowledgment };
     const body = policy.personReply('exception_request', { lane: 'account' }, question, plan);
@@ -150,9 +181,55 @@ test('unsupported handoff languages keep a delivered or failed next step', () =>
   assert.match(fallback, /person needs to review/i);
 });
 
+const NEW_HANDOFF_LOCALES = [
+  { language: 'zh', regionalLanguage: 'zh-CN', question: '我需要人工帮助。', body: '这个问题仍需查看。',
+    pending: /需要.*支持团队.*查看/, thread: /已将.*发送给支持团队.*等待团队回复/, sent: /已发送给支持团队/,
+    failed: /未能.*发送给支持团队.*help@omi\.me/, duplicate: /支持团队已经收到/, issue: /问题已记录/ },
+  { language: 'it', regionalLanguage: 'it-IT', question: 'Ho bisogno di aiuto da una persona.', body: 'Il problema richiede una verifica.',
+    pending: /persona del team.*esaminare/, thread: /Ho inviato.*Attendi la risposta.*questa conversazione/, sent: /richiesta è stata inviata/,
+    failed: /Non ho potuto inviare.*help@omi\.me/, duplicate: /team ha già ricevuto/, issue: /problema è registrato/ },
+];
+
+test('Chinese and Italian handoffs provide every delivery-state key and a localized pending fallback', () => {
+  const keys = ['pending', 'thread', 'sent', 'failed', 'duplicate', 'issue'];
+  for (const locale of NEW_HANDOFF_LOCALES) {
+    const footers = policy.handoffFooters({ replyLanguage: locale.language }, locale.question);
+    assert.ok(footers, locale.language);
+    assert.deepEqual(Object.keys(footers).sort(), [...keys].sort(), locale.language);
+    for (const key of keys) assert.match(footers[key], locale[key], `${locale.language}:${key}`);
+    assert.deepEqual(policy.handoffFooters({ replyLanguage: locale.regionalLanguage }, locale.question), footers);
+    assert.equal(policy.personReply('exception_request', { lane: 'account' }, locale.question,
+      { replyLanguage: locale.language }), footers.pending);
+    assert.doesNotMatch(footers.pending, /help@omi\.me|has this now|will reply|received|已发送|已经收到/);
+  }
+});
+
+test('Chinese and Italian handoff footers follow confirmed delivered, failed and other outcome paths', () => {
+  const { escalateReply } = require('../utils');
+  for (const locale of NEW_HANDOFF_LOCALES) {
+    const footers = policy.handoffFooters({ replyLanguage: locale.language }, locale.question);
+    assert.ok(footers, locale.language);
+    for (const [options, key] of [
+      [{ pinged: true, replyInThread: true }, 'thread'],
+      [{ pinged: true }, 'sent'],
+      [{ pinged: true, duplicate: true }, 'duplicate'],
+      [{ deliveryFailed: true, pinged: true, replyInThread: true }, 'failed'],
+      [{ issue: true }, 'issue'],
+      [{}, 'pending'],
+    ]) {
+      const reply = escalateReply(locale.body, { ...options, footers });
+      assert.equal(reply, `${locale.body}\n\n${footers[key]}`, `${locale.language}:${key}`);
+      assert.doesNotMatch(reply, /A person on the team|will reply in this thread|I could not send|The team already|The problem is written/i);
+      assert.equal((reply.match(/help@omi\.me/g) || []).length, key === 'failed' ? 1 : 0, `${locale.language}:${key}`);
+    }
+    assert.doesNotMatch(footers.failed, locale.sent);
+    assert.doesNotMatch(footers.failed, locale.thread);
+  }
+});
+
 test('person-only fallback matches the request and uses the customer script', () => {
   const billing = policy.personReply('money', { lane: 'money' }, 'My bill is wrong');
-  assert.match(billing, /billing/i);
+  assert.match(billing, /payment|charge|billing/i);
   assert.doesNotMatch(billing, /remove your data|replacement|warranty/i);
   const human = policy.personReply('exception_request', { lane: 'shop', wantHuman: true }, 'Can I talk to a person?');
   assert.match(human, /person/i);

@@ -161,7 +161,8 @@ function stripSupportRedirect(text) {
         .split(/(?<=[.!?])\s+/)
         .flatMap((sentence) => {
           if (/^\s*(?:source|fuente|quelle|fonte|источник|来源|출처)\s*:/i.test(sentence)) return [sentence];
-          if (/^\s*(?:use\s+\/order\b|include (?:the )?order (?:number|#)|we email a code\b|keep (?:your|the) order number handy\b)/i.test(sentence)) return [];
+          // Private /order self-service and its verification steps are not support redirects.
+          if (/^\s*include (?:the )?order (?:number|#)/i.test(sentence)) return [];
           if (!isRedirect(sentence)) return [sentence];
           const details = sentence.match(/\b(?:please\s+)?include\b.+$/i);
           return details ? [`Please ${details[0].replace(/^please\s+/i, '')}`] : [];

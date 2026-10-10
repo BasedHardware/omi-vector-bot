@@ -80,4 +80,33 @@ class VerificationService {
   }
 }
 
-module.exports = { VerificationService, normalizeEmail, digestCode };
+class PersistentVerificationService {
+  constructor({ store, ttlMinutes = 10, maxAttempts = 5, maxSendsPerHour = 3 } = {}) {
+    this.storeProvider = store ? () => store : () => require('./supportIdentityStore').getStore();
+    this.ttlMinutes = ttlMinutes;
+    this.maxAttempts = maxAttempts;
+    this.maxSendsPerHour = maxSendsPerHour;
+  }
+
+  reserveAttempt(discordUserId, email) {
+    return this.storeProvider().reserveAttempt(discordUserId, email, this.maxSendsPerHour);
+  }
+
+  releaseAttempt(discordUserId, email, reservationId) {
+    return this.storeProvider().releaseAttempt(discordUserId, email, reservationId);
+  }
+
+  create(discordUserId, email) {
+    return this.storeProvider().createChallenge(discordUserId, email, { ttlMinutes: this.ttlMinutes, maxAttempts: this.maxAttempts });
+  }
+
+  verify(discordUserId, code) {
+    return this.storeProvider().verifyChallenge(discordUserId, code);
+  }
+
+  reset() {
+    if (!process.env.DATABASE_URL) this.storeProvider().resetMemory();
+  }
+}
+
+module.exports = { VerificationService, PersistentVerificationService, normalizeEmail, digestCode };

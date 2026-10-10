@@ -110,7 +110,7 @@ test('/done still resolves when Discord refuses archive after lock', async () =>
   const result = await closeHandoff(channel, { id: '99' });
   assert.equal(result.ok, true);
   assert.deepEqual(sent[0], closePayload({ id: '99' }));
-  assert.equal(sent[0].embeds[0].title, 'This ticket is closed');
+  assert.equal(sent[0].embeds[0].title, 'How did we do?');
   assert.match(sent[0].embeds[0].thumbnail.url, /app_launcher_icon\.png/);
   assert.equal(sent[0].files, undefined);
 });
@@ -172,7 +172,7 @@ test('/done archives a Handoff thread and does not file GitHub', async () => {
   const result = await closeHandoff(channel, { id: '99' });
   assert.equal(result.ok, true);
   assert.deepEqual(sent[0], closePayload({ id: '99' }));
-  assert.match(closeText(sent[0]), /This ticket is closed/);
+  assert.match(closeText(sent[0]), /How did we do/);
   assert.match(closeText(sent[0]), /open a new post in Help/);
   assert.equal(channel.archived, true);
 });
@@ -374,6 +374,238 @@ test('File issue button is only added when a draft id is passed', () => {
     area: 'shop',
   });
   assert.equal(none.discord.components, undefined);
+});
+
+test('/done closes the linked durable case and exact escalation after sending the notice', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const cases = createCaseService(createMemoryStore());
+  const value = await cases.getOrCreateCase({ channelId: 'general', customerId: 'alice' });
+  await cases.linkHandoff(value.id, { handoffThreadId: 'handoff-alice', escalationId: 42 });
+  const events = [];
+  const channel = { id: 'handoff-alice', name: 'Handoff · app', isThread: () => true,
+    send: async () => { events.push('send'); return { id: 'notice' }; },
+    setArchived: async () => { events.push('archive'); },
+  };
+  const db = { getPendingEscalation: async () => ({ id: 99 }), resolveEscalation: async (id) => events.push(`resolve:${id}`) };
+  assert.equal((await closeHandoff(channel, { id: 'staff' }, { cases, db })).ok, true);
+  assert.deepEqual(events, ['send', 'resolve:42', 'archive']);
+  assert.equal((await cases.getCaseByThread(channel.id)).status, 'closed');
+});
+
+test('/done leaves case and escalation pending when customer notice delivery fails', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const cases = createCaseService(createMemoryStore());
+  const value = await cases.getOrCreateCase({ channelId: 'help', customerId: 'alice', customerThreadId: 'help' });
+  let resolved = 0;
+  const result = await closeHandoff({ id: 'help', name: 'Handoff · app', isThread: () => true,
+    send: async () => { throw new Error('Missing Access'); },
+    setArchived: async () => assert.fail('must not archive failed delivery'),
+  }, { id: 'staff' }, { cases, db: { getPendingEscalation: async () => ({ id: 7 }), resolveEscalation: async () => resolved++ } });
+  assert.equal(result.ok, false);
+  assert.equal(resolved, 0);
+  assert.equal((await cases.getCaseById(value.id)).status, 'queued');
+});
+
+test('still-help rating after service recreation reopens only the durable customer case', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const { handleRating } = require('../commands');
+  const store = createMemoryStore();
+  let cases = createCaseService(store);
+  const value = await cases.getOrCreateCase({ channelId: 'general', customerId: 'alice' });
+  await cases.linkHandoff(value.id, { handoffThreadId: 'alice-thread' });
+  await cases.resolveCase(value.id, { close: true, confirmed: true });
+  cases = createCaseService(createMemoryStore(store.state));
+  const replies = [];
+  let edits = 0;
+  const channel = { id: 'alice-thread', name: 'Handoff · app', ownerId: 'bot',
+    edit: async (payload) => { assert.equal(payload.archived, false); assert.equal(payload.locked, false); edits++; },
+  };
+  const options = { cases, recordRating: async () => ({ yes: 0, no: 1 }), notifyStaff: async () => true };
+  await handleRating({ customId: 'rate:no', channelId: channel.id, channel, user: { id: 'bob' }, reply: async (payload) => replies.push(payload.content) }, options);
+  assert.equal(edits, 0);
+  await handleRating({ customId: 'rate:no', channelId: channel.id, channel, user: { id: 'alice' }, reply: async (payload) => replies.push(payload.content) }, options);
+  assert.equal(edits, 1);
+  assert.equal((await cases.getCaseById(value.id)).status, 'queued');
+  assert.match(replies[1], /reopened/);
+});
+
+test('still-help rating does not promise a reopened thread when Discord rejects it', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const { handleRating } = require('../commands');
+  const cases = createCaseService(createMemoryStore());
+  const value = await cases.getOrCreateCase({ channelId: 'help-fail', customerId: 'alice', customerThreadId: 'help-fail' });
+  await cases.resolveCase(value.id, { close: true, confirmed: true });
+  let note;
+  await handleRating({ customId: 'rate:no', channelId: 'help-fail', channel: { id: 'help-fail', edit: async () => { throw new Error('Missing Access'); } },
+    user: { id: 'alice' }, reply: async (payload) => { note = payload.content; },
+  }, { cases, recordRating: async () => ({ yes: 0, no: 1 }), notifyStaff: async () => true });
+  assert.equal((await cases.getCaseById(value.id)).status, 'closed');
+  assert.match(note, /has not been reopened/);
+  assert.doesNotMatch(note, /person can still see/);
+});
+
+test('still-help reopening restores only its linked escalation after the thread can reopen', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const { handleRating } = require('../commands');
+  const cases = createCaseService(createMemoryStore());
+  const value = await cases.getOrCreateCase({ channelId: 'help-reopen', customerId: 'alice', customerThreadId: 'help-reopen' });
+  await cases.linkHandoff(value.id, { escalationId: 17 });
+  await cases.resolveCase(value.id, { close: true, confirmed: true });
+  const events = [];
+  await handleRating({ customId: 'rate:no', channelId: 'help-reopen', channel: { id: 'help-reopen', edit: async () => events.push('unarchive') },
+    user: { id: 'alice' }, reply: async () => {},
+  }, { cases, recordRating: async () => ({ yes: 0, no: 1 }), notifyStaff: async () => true,
+    db: { reopenEscalation: async (id) => events.push(`reopen:${id}`) },
+  });
+  assert.deepEqual(events, ['unarchive', 'reopen:17']);
+  assert.equal((await cases.getCaseById(value.id)).status, 'queued');
+});
+
+test('rating acknowledges privately before a held case lookup and edits its deferred reply', async () => {
+  const { handleRating } = require('../commands');
+  const { MessageFlags } = require('discord.js');
+  let releaseLookup;
+  let lookupStarted;
+  const lookup = new Promise((resolve) => { releaseLookup = resolve; });
+  const started = new Promise((resolve) => { lookupStarted = resolve; });
+  const events = [];
+  const pending = handleRating({ customId: 'rate:yes', channelId: 'held-case', channel: { id: 'held-case' }, user: { id: 'alice' },
+    deferReply: async (payload) => { assert.equal(payload.flags, MessageFlags.Ephemeral); events.push('defer'); },
+    editReply: async (payload) => { events.push('edit'); assert.match(payload.content, /Thank you/); },
+    reply: async () => assert.fail('a deferred interaction must use editReply'),
+  }, { cases: { getCaseByThread: async () => { events.push('lookup'); lookupStarted(); return lookup; } },
+    recordRating: async () => { events.push('vote'); return { yes: 1, no: 0 }; }, notifyStaff: async () => true,
+  });
+  await started;
+  assert.deepEqual(events, ['defer', 'lookup']);
+  releaseLookup({ customerId: 'alice' });
+  await pending;
+  assert.deepEqual(events, ['defer', 'lookup', 'vote', 'edit']);
+});
+
+test('an unauthorized deferred rating remains private and never writes a vote or case', async () => {
+  const { handleRating } = require('../commands');
+  const { MessageFlags } = require('discord.js');
+  let deferred = false;
+  await handleRating({ customId: 'rate:no', channelId: 'private-case', channel: { id: 'private-case' }, user: { id: 'other' },
+    deferReply: async (payload) => { assert.equal(payload.flags, MessageFlags.Ephemeral); deferred = true; },
+    editReply: async (payload) => { assert.equal(deferred, true); assert.match(payload.content, /Only the customer/); assert.deepEqual(payload.allowedMentions, { parse: [] }); },
+    reply: async () => assert.fail('must edit the private deferred reply'),
+  }, { cases: { getCaseByThread: async () => ({ customerId: 'alice' }), reopenByThread: async () => assert.fail('must not write case') },
+    recordRating: async () => assert.fail('must not write vote'), notifyStaff: async () => assert.fail('must not notify for unauthorized vote'),
+  });
+});
+
+test('a reopened Discord thread is reported honestly when a later tag or case update fails', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const { handleRating } = require('../commands');
+  for (const stage of ['tag', 'case']) {
+    const cases = createCaseService(createMemoryStore());
+    const threadId = `partial-${stage}`;
+    const value = await cases.getOrCreateCase({ channelId: threadId, customerId: 'alice', customerThreadId: threadId });
+    await cases.resolveCase(value.id, { close: true, confirmed: true });
+    const channel = { id: threadId, archived: true, locked: true,
+      edit: async () => { channel.archived = false; channel.locked = false; },
+      parent: { availableTags: [{ id: 'resolved', name: 'Resolved' }] }, appliedTags: ['resolved'],
+      setAppliedTags: async () => { if (stage === 'tag') throw new Error('Tag update failed'); },
+    };
+    let note;
+    await handleRating({ customId: 'rate:no', channelId: threadId, channel, user: { id: 'alice' },
+      deferReply: async () => {}, editReply: async (payload) => { note = payload.content; },
+      reply: async () => assert.fail('must edit deferred reply'),
+    }, { cases: stage === 'case' ? { ...cases, reopenByThread: async () => { throw new Error('Case update failed'); } } : cases,
+      recordRating: async () => ({ yes: 0, no: 1 }), notifyStaff: async () => true,
+    });
+    assert.equal(channel.archived, false);
+    assert.equal((await cases.getCaseById(value.id)).status, 'closed');
+    assert.match(note, /thread is reopened/);
+    assert.match(note, /could not finish updating the case/);
+    assert.doesNotMatch(note, /thread has not been reopened|case is reopened|open a new Help/);
+  }
+});
+
+test('a private staff acceptance records its owner and repeated clicks retain the first acceptor', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const { handleAcceptCase } = require('../commands');
+  const previous = { channel: process.env.STAFF_ALERT_CHANNEL_ID, users: process.env.STAFF_USER_IDS };
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-channel';
+  process.env.STAFF_USER_IDS = '123456789012345678,223456789012345678';
+  const cases = createCaseService(createMemoryStore());
+  const value = await cases.getOrCreateCase({ channelId: 'general', customerId: 'customer' });
+  await cases.markDelivered(value.id, { confirmed: true, destination: 'staff-channel' });
+  const replies = [];
+  const interaction = (staffId) => ({ customId: `case:accept:${value.id}`, channelId: 'staff-channel', channel: { id: 'staff-channel' },
+    user: { id: staffId }, client: { user: { id: 'bot-id' } },
+    message: { author: { id: 'bot-id' }, embeds: [{ fields: [{ name: 'Case', value: value.id }] }] },
+    deferReply: async () => {}, editReply: async (payload) => replies.push(payload),
+    reply: async () => assert.fail('authorized card should be accepted'),
+  });
+  try {
+    await handleAcceptCase(interaction('123456789012345678'), { cases });
+    const first = await cases.getCaseById(value.id);
+    await handleAcceptCase(interaction('223456789012345678'), { cases });
+    const repeated = await cases.getCaseById(value.id);
+    assert.equal(first.status, 'accepted');
+    assert.equal(repeated.acceptedBy, '123456789012345678');
+    assert.equal(repeated.acceptedAt, first.acceptedAt);
+    assert.match(replies[1].content, /123456789012345678/);
+    assert.deepEqual(replies[0].allowedMentions, { parse: [] });
+  } finally {
+    for (const [key, env] of [['channel', 'STAFF_ALERT_CHANNEL_ID'], ['users', 'STAFF_USER_IDS']]) {
+      if (previous[key] === undefined) delete process.env[env]; else process.env[env] = previous[key];
+    }
+  }
+});
+
+test('case acceptance rejects customers, other channels, and forged cards without reading case data', async () => {
+  const { handleAcceptCase } = require('../commands');
+  const previous = { channel: process.env.STAFF_ALERT_CHANNEL_ID, users: process.env.STAFF_USER_IDS };
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-channel';
+  process.env.STAFF_USER_IDS = '123456789012345678';
+  const caseId = '8df371b5-47c5-41b0-9931-39f35332bc33';
+  const base = { customId: `case:accept:${caseId}`, channelId: 'staff-channel', channel: { id: 'staff-channel' },
+    user: { id: '123456789012345678' }, client: { user: { id: 'bot-id' } },
+    message: { author: { id: 'bot-id' }, embeds: [{ fields: [{ name: 'Case', value: caseId }] }] },
+    deferReply: async () => assert.fail('invalid interaction must fail before defer'),
+  };
+  const forbidden = [
+    { ...base, user: { id: 'customer' } },
+    { ...base, channelId: 'general', channel: { id: 'general' } },
+    { ...base, channel: { id: 'general' } },
+    { ...base, message: { ...base.message, author: { id: 'other-user' } } },
+    { ...base, message: { ...base.message, embeds: [{ fields: [{ name: 'Case', value: 'another-case' }] }] } },
+  ];
+  try {
+    for (const interaction of forbidden) {
+      let denied = false;
+      await handleAcceptCase({ ...interaction, reply: async (payload) => { denied = true; assert.ok(payload.flags); } },
+        { cases: { markAccepted: async () => assert.fail('unauthorized interactions must not touch a case') } });
+      assert.equal(denied, true);
+    }
+  } finally {
+    for (const [key, env] of [['channel', 'STAFF_ALERT_CHANNEL_ID'], ['users', 'STAFF_USER_IDS']]) {
+      if (previous[key] === undefined) delete process.env[env]; else process.env[env] = previous[key];
+    }
+  }
+});
+
+test('case acceptance allows staff role or moderation permission but never the test-channel bypass', () => {
+  const { canAcceptCase } = require('../commands');
+  const names = ['STAFF_ALERT_CHANNEL_ID', 'STAFF_USER_IDS', 'STAFF_ROLE_ID', 'VECTOR_TEST_CHANNEL_ID'];
+  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  process.env.STAFF_ALERT_CHANNEL_ID = 'staff-channel';
+  process.env.VECTOR_TEST_CHANNEL_ID = 'staff-channel';
+  delete process.env.STAFF_USER_IDS;
+  delete process.env.STAFF_ROLE_ID;
+  const base = { channelId: 'staff-channel', channel: { id: 'staff-channel' }, user: { id: '123456789012345678' } };
+  try {
+    assert.equal(canAcceptCase(base), false);
+    assert.equal(canAcceptCase({ ...base, memberPermissions: { has: (permission) => permission === 'ManageThreads' } }), true);
+    process.env.STAFF_ROLE_ID = '998877665544332211';
+    assert.equal(canAcceptCase({ ...base, member: { roles: { cache: new Map([['998877665544332211', {}]]) } } }), true);
+  } finally {
+    for (const name of names) if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name];
+  }
 });
 
 test('GitHub webhook notify posts one line and never archives', async () => {

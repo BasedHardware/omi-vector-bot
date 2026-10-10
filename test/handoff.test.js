@@ -11,6 +11,23 @@ const {
 const { formatEscalationText } = require('../telegram');
 const { ChannelType } = require('discord.js');
 
+test('case acceptance buttons remain exclusively on staff-only cards', () => {
+  const { publicHandoffDiscord } = require('../handoff');
+  const caseId = '8df371b5-47c5-41b0-9931-39f35332bc33';
+  const input = { caseId, fileIssueId: 'issue-draft', question: 'App loses recordings', area: 'app',
+    message: { author: { id: '123456789012345678' }, channel: { id: 'general' } },
+  };
+  const staff = formatStaffTicket({ ...input, staffOnly: true }).discord;
+  assert.equal(staff.components[0].components.some((button) => button.custom_id === `case:accept:${caseId}`), true);
+  const publicPayload = publicHandoffDiscord(staff);
+  assert.deepEqual(publicPayload.components[0].components.map((button) => button.custom_id), ['file:issue-draft']);
+  assert.equal(JSON.stringify(publicPayload).includes(caseId), false);
+  const publicCard = formatStaffTicket(input).discord;
+  assert.equal(publicCard.components[0].components.some((button) => button.custom_id.startsWith('case:accept:')), false);
+  const acceptOnly = formatStaffTicket({ ...input, fileIssueId: null, staffOnly: true }).discord;
+  assert.equal(publicHandoffDiscord(acceptOnly).components, undefined);
+});
+
 test('private handoff invites the customer but never exposes the staff-only card', async () => {
   const previous = {
     threads: process.env.HANDOFF_THREADS,

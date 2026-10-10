@@ -1,6 +1,14 @@
-# Omi Support bot
+# Omi Support Bot
 
 Discord support agent for Omi. Customers see it as **Omi Support**. It answers product questions from retrieved Omi sources, verifies model-written answers against those sources, and hands account or device-specific work to a person without inventing a status or a ping.
+
+## Architecture and implementation
+
+The living [Roadmap](ROADMAP.md) records implemented work and pending rollout.
+[Architecture](docs/ARCHITECTURE.md), [Implementation Checklist](docs/IMPLEMENTATION_PLAN.md)
+and [Operations Runbook](docs/RUNBOOK.md) cover durable support cases, shared worker
+claims, private verification and truthful, action-first communication. The backend
+recording-diagnostics gateway remains planned, not an enabled capability.
 
 ## Answer pipeline
 
@@ -97,6 +105,9 @@ Without `--force`, each source is refreshed only when its freshness window has e
 - Outside support threads, Omi Support answers only an explicit bot-user mention or a same-customer direct reply to that answer. It never reads surrounding channel conversation for context.
 - Sensitive order, email, address, phone, and privacy content is not repeated publicly.
 - `/done` closes a support thread and asks the original customer whether the answer helped.
+- The `/done` card also offers optional honest App Store/Google Play reviews to
+  all customers, independently of their support-feedback choice. Store links do
+  not record a dashboard vote or tell the bot whether a review was submitted.
 - `/order`, `/orders`, and `/unlink` are public customer commands. Responses are ephemeral, and order access requires a code sent to the email on the Shopify order; Discord staff status is never used as authorization.
 
 ## Human handoff
@@ -117,7 +128,10 @@ An authenticated Telegram escalation reply may also include `KB: short support n
 
 Technical handoffs can show a minimal proposed issue card. The bot searches existing issues and pull requests first, but it does not open a public issue by itself. Staff must press **File**. Filing redacts contacts, addresses, order numbers, Discord identities, and secrets from the public issue; attachments are represented only by a count and the Discord thread link. Only threads linked by the bot receive signed GitHub webhook updates, and later customer messages are redacted before any GitHub comment.
 
-Repository contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). CI is intentionally deferred until the scored answer-quality set is a release gate.
+Repository contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). PR CI runs the
+rules suite, offline customer checks and an isolated Postgres integration check
+without customer, Discord or provider credentials. Live answer quality remains a
+separate release gate.
 
 ## HTTP endpoints
 

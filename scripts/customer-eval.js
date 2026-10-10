@@ -62,7 +62,10 @@ const scenarios = [
     first: 'person',
     ask: 'Ordered my Omi with Express Delivery on Sep 1st, #22102, and it is still in preparing status.',
     lane: 'shop',
-    must: [/help@omi\.me|not live yet|order number/i],
+    // This runner checks the draft/routing path; confirmed staff delivery
+    // chooses the thread reply or email fallback afterwards.
+    must: [/verified order check/i],
+    mustNot: [/has shipped|will arrive (?:on|by|tomorrow|next)/i],
   },
   {
     id: 'crash',

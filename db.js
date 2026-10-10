@@ -97,6 +97,9 @@ async function initSchema() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+    await require('./supportRuntime').initSchema(client);
+    await require('./supportCases').initSchema(client);
+    await require('./supportIdentityStore').initSchema(client);
     const chunks = await client.query(`SELECT count(*)::int AS n FROM doc_chunks`);
     const pages = await client.query(`SELECT count(*)::int AS n FROM doc_pages`);
     if ((chunks.rows[0]?.n || 0) === 0 && (pages.rows[0]?.n || 0) > 0) {
@@ -145,6 +148,10 @@ async function resolveEscalation(id) {
     `UPDATE escalations SET status = 'resolved' WHERE id = $1`,
     [id]
   );
+}
+
+async function reopenEscalation(id) {
+  await pool.query(`UPDATE escalations SET status = 'pending' WHERE id = $1`, [id]);
 }
 
 async function getAllPendingEscalations() {
@@ -366,6 +373,7 @@ module.exports = {
   createEscalation,
   getPendingEscalation,
   resolveEscalation,
+  reopenEscalation,
   getAllPendingEscalations,
   addKnowledge,
   searchKnowledge,

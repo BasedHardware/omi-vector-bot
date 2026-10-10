@@ -1,5 +1,6 @@
-const API_VERSION = '2024-10';
+const API_VERSION = '2026-10';
 const LOOKUP_TIMEOUT_MS = 8000;
+const { cannedReply } = require('./router');
 
 function shopName() {
   return String(process.env.SHOPIFY_SHOP || process.env.SHOPIFY_STORE || '').trim();
@@ -225,7 +226,7 @@ function formatUserReply(order) {
       if (t.url) lines.push(t.url);
     }
   } else if (!order.cancelled) {
-    lines.push('There is no tracking yet. I will not guess a delivery date.');
+    lines.push('No tracking is available on this order yet. A delivery date is not confirmed.');
   }
 
   const when = formatDate(order.createdAt);
@@ -257,19 +258,19 @@ function buildUserReply(lookup, question) {
   if (!isConfigured()) return null;
   if (needsWriteHuman(question)) {
     const extra = lookup?.order ? `\n\nThe order I found is ${payShip(lookup.order)}.` : '';
-    return `I can't issue a refund, cancel an order, or change an address from chat.${extra}`;
+    return `${cannedReply({ lane: 'money', area: 'shop' }, question)}${extra}`;
   }
   if (lookup?.reason === 'unverified') {
-    return "I can't look up Shopify from a number or email in chat. Anyone could type someone else's order. Email help@omi.me with the Order ID.";
+    return 'To check your order privately, use /order and verify the email on the order. Please do not post your email or order details here.';
   }
   if (lookup?.reason === 'no-key') {
-    return 'I can look this up in Shopify if you send the order number or the email on the order.';
+    return 'Use /order to verify the email on your order and check its details privately.';
   }
   if (lookup?.reason === 'error' || lookup?.reason === 'auth') {
-    return 'I could not reach Shopify just now. A person on the team needs to take this.';
+    return 'The order check is temporarily unavailable. Your order needs a team review rather than an unverified status or delivery date.';
   }
   if (!lookup?.order) {
-    return 'I looked in Shopify and did not find that order. A person on the team needs to take this.';
+    return 'The verified lookup did not find that exact order. Your order number and verified email need a team review; no order status is confirmed.';
   }
   return formatUserReply(lookup.order);
 }
@@ -315,6 +316,13 @@ async function shopifyList(params, fetchImpl) {
 
   if (res.status === 401 || res.status === 403) return { ok: false, reason: 'auth' };
   if (!res.ok) return { ok: false, reason: 'error' };
+  // Shopify silently falls forward when a pinned version is retired. Do not
+  // interpret customer records using an untested response contract.
+  const servedVersion = res.headers?.get?.('X-Shopify-API-Version');
+  if (servedVersion && servedVersion !== API_VERSION) {
+    console.warn('[Shopify] API version mismatch; order lookup withheld.');
+    return { ok: false, reason: 'error' };
+  }
 
   let data;
   try {
@@ -327,20 +335,13 @@ async function shopifyList(params, fetchImpl) {
   return { ok: true, raw: orders, orders: orders.map(summarizeOrder) };
 }
 
-async function shopifyGet(params, fetchImpl) {
-  const listed = await shopifyList(params, fetchImpl);
-  if (!listed.ok) return listed;
-  if (!listed.raw.length) return { ok: false, reason: 'miss' };
-  return { ok: true, raw: listed.raw[0], order: listed.orders[0] };
-}
-
 async function ordersForVerifiedEmail(email, { fetchImpl, limit = 5 } = {}) {
   const bound = normalizeEmail(email);
   if (!bound) return { ok: false, reason: 'unverified', orders: [] };
   if (!isConfigured()) return { ok: false, reason: 'unconfigured', orders: [] };
   const listed = await shopifyList({ email: bound, limit: String(limit) }, fetchImpl || fetch);
   if (!listed.ok) return { ok: false, reason: listed.reason, orders: [] };
-  return { ok: true, orders: listed.orders };
+  return { ok: true, orders: listed.raw.filter((raw) => orderEmailMatches(raw, bound)).map(summarizeOrder) };
 }
 
 async function hasRecentOrderForEmail(email, { fetchImpl } = {}) {
@@ -362,18 +363,20 @@ async function lookupOrder(text, { fetchImpl, verifiedEmail } = {}) {
   const fetchFn = fetchImpl || fetch;
   try {
     if (keys.orderName) {
-      const byName = await shopifyGet({ name: keys.orderName }, fetchFn);
-      if (byName.reason === 'auth' || byName.reason === 'error') return { ok: false, reason: byName.reason };
-      if (byName.ok) {
-        if (!orderEmailMatches(byName.raw, bound)) return { ok: false, reason: 'miss' };
-        return { ok: true, order: byName.order };
-      }
+      const byName = await shopifyList({ name: keys.orderName }, fetchFn);
+      if (!byName.ok) return { ok: false, reason: byName.reason };
+      const exact = byName.raw.find((raw) =>
+        String(raw?.name || '').trim() === keys.orderName && orderEmailMatches(raw, bound));
+      // A requested number is an exact lookup, never permission to substitute
+      // another order belonging to the same verified email.
+      return exact ? { ok: true, order: summarizeOrder(exact) } : { ok: false, reason: 'miss' };
     }
-    const byEmail = await shopifyGet({ email: bound }, fetchFn);
+    const byEmail = await shopifyList({ email: bound }, fetchFn);
     if (!byEmail.ok) return { ok: false, reason: byEmail.reason };
-    return { ok: true, order: byEmail.order };
+    const owned = byEmail.raw.find((raw) => orderEmailMatches(raw, bound));
+    return owned ? { ok: true, order: summarizeOrder(owned) } : { ok: false, reason: 'miss' };
   } catch (err) {
-    console.error('[Shopify] lookup failed:', err.message);
+    console.error('[Shopify] lookup failed; private request details withheld.');
     return { ok: false, reason: 'error' };
   }
 }

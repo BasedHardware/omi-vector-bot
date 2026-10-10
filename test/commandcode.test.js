@@ -71,6 +71,47 @@ test('planned staff handoff tells both answer and review to keep the customer in
   }
 });
 
+test('the answer keeps communication guidance while both review efforts keep only grounding checks', async (t) => {
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+  });
+  const { SUPPORT_COMMUNICATION_POLICY } = require('../prompt');
+  const captured = [];
+  const post = async (_url, body) => {
+    captured.push(body.messages[0].content);
+    return { data: { choices: [{ message: { content: JSON.stringify({
+      final_answer: 'You want a refund. The request needs a team review.',
+      grounded: true, relevant: true, confidence: 0.8, escalate: true, sources_used: [],
+    }) } }] } };
+  };
+  await queryAgent({ question: 'Please refund my purchase', route: { lane: 'money', area: 'shop' }, post });
+  const reviewed = await reviewAnswer({ question: 'Please refund my purchase',
+    draft: 'You want a refund. The request needs a team review.', lane: 'money', handoffPlanned: true, post });
+  await reviewAnswer({ question: 'Please refund my purchase',
+    draft: 'You want a refund. The request needs a team review.', lane: 'money', handoffPlanned: true,
+    reasoningEffort: null, post });
+  assert.equal(captured.length, 3);
+  assert.ok(captured[0].includes(SUPPORT_COMMUNICATION_POLICY));
+  assert.match(captured[0], /before delivery is confirmed/i);
+  assert.match(captured[0], /Never guarantee a refund, replacement, recovery/i);
+  for (const system of captured.slice(1)) {
+    assert.equal(system.includes(SUPPORT_COMMUNICATION_POLICY), false);
+    assert.match(system, /final relevance and grounding gate/i);
+    assert.match(system, /Check every concrete claim, instruction, UI path/i);
+    assert.match(system, /Never suggest reinstalling or logging out with possible unsynced recordings/i);
+    assert.match(system, /delivery succeeds/i);
+    assert.match(system, /"grounded":true,"relevant":true/);
+  }
+  assert.equal(reviewed.grounded, true);
+  assert.equal(reviewed.relevant, true);
+  assert.equal(reviewed.escalate, true);
+  assert.deepEqual(reviewed.sources_used, []);
+  assert.doesNotMatch(reviewed.final_answer, /will reply|approved|refund issued/i);
+});
+
 test('each provider stage reports completion and reasoning tokens to its reply callback', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';
@@ -311,6 +352,84 @@ test('parseAgentJson reads a fenced reply and a broken one', () => {
   const broken = parseAgentJson('{"final_answer": }');
   assert.equal(broken.reason, 'model json failed');
   assert.equal(broken.escalate, true);
+});
+
+test('answer JSON preserves raw control characters inside string values', () => {
+  const text = 'First line.\nSecond line.\tNote \u0000\b\f\r\u001f.';
+  const parsed = parseAgentJson(`{\n  "final_answer": "${text}",\n  "confidence": 0.8, "escalate": false\n}`);
+  assert.equal(parsed.final_answer, text);
+  assert.equal(parsed.escalate, false);
+  assert.equal(parsed.confidence, 0.8);
+});
+
+test('all raw C0 controls are preserved inside JSON values without becoming other fields', () => {
+  for (let code = 0; code < 0x20; code += 1) {
+    const value = `Before${String.fromCharCode(code)}after`;
+    const parsed = parseAgentJson(`{"final_answer":"Useful reply.","reason":"${value}","escalate":false}`);
+    assert.equal(parsed.reason, value, `control ${code}`);
+    assert.equal(parsed.escalate, false);
+  }
+});
+
+test('search planning shares control recovery and retains its existing text normalization', () => {
+  const plan = parseSearchPlan('{"standalone_question":"Change\nthis setting","customer_goal":"Choose\ta language","search_queries":["app\nlanguage"]}', 'Fallback');
+  assert.equal(plan.standaloneQuestion, 'Change this setting');
+  assert.equal(plan.customerGoal, 'Choose a language');
+  assert.deepEqual(plan.queries, ['app language']);
+});
+
+test('answer generation uses recovered JSON on the first call without retrying', async () => {
+  let calls = 0;
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  try {
+    const answer = await queryAgent({
+      question: 'What happens to this setting?', route: { lane: 'faq' },
+      post: async () => {
+        calls += 1;
+        return { data: { choices: [{ message: { content: '{"final_answer":"The setting\nstays unchanged.","escalate":false,"confidence":0.9}' } }] } };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(answer.final_answer, 'The setting\nstays unchanged.');
+    assert.equal(answer.escalate, false);
+  } finally {
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+  }
+});
+
+test('valid JSON escapes and quote boundaries retain their original meaning', () => {
+  for (const text of ['A literal \\n, a "quote", and a trailing slash \\.', 'Before \\\\"quoted" text.\nAfter.', 'C:\\notes\\today\t雪']) {
+    assert.equal(parseAgentJson(JSON.stringify({ final_answer: text, escalate: false })).final_answer, text);
+  }
+});
+
+test('control normalization does not repair invalid JSON outside strings or invalid escapes', () => {
+  for (const raw of [
+    '{"final_answer":"Useful reply", "escalate":tr\u0001ue}',
+    '{"final_answer":"Useful reply"\u0000}',
+    '{"final_answer":"Invalid \\\ncontinuation"}',
+    '{"final_answer":"Useful reply",}',
+  ]) {
+    const parsed = parseAgentJson(raw);
+    assert.equal(parsed.reason, 'model json failed');
+    assert.equal(parsed.escalate, true);
+  }
+});
+
+test('the reviewer accepts raw string line breaks without losing grounding checks', async () => {
+  const reviewed = await reviewAnswer({
+    question: 'What happens to the selected setting?', draft: 'The setting stays unchanged.',
+    lane: 'faq', sources: '[S1 | Help]\nhttps://help.omi.me/settings\nThe setting stays unchanged.',
+    post: async () => ({ data: { choices: [{ message: { content:
+      '{\n"final_answer":"The setting\nstays unchanged.","grounded":true,"relevant":true,"escalate":false,"confidence":0.9,"sources_used":["S1"]\n}',
+    } }] } }),
+  });
+  assert.equal(reviewed.final_answer, 'The setting\nstays unchanged.\n\nSource: https://help.omi.me/settings');
+  assert.equal(reviewed.grounded, true);
+  assert.equal(reviewed.relevant, true);
+  assert.equal(reviewed.escalate, false);
 });
 
 test('search planning rewrites a follow-up into several source searches', async () => {
@@ -828,5 +947,43 @@ test('a bad model JSON is tried once more, and a usage limit is not', async () =
   } finally {
     if (prev == null) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = prev;
+  }
+});
+
+test('model citations in any shape fold into the one application Source line', () => {
+  const guide = 'https://help.omi.me/en/articles/41-lights';
+  const start = 'https://docs.omi.me/start.md';
+  const evidence = `[S1 | Official Help Center]\n${guide}\nLight colours.\n[S2 | Official docs]\n${start}\nFirst steps.`;
+  const sourceLines = (text) => text.split('\n').filter((line) => /^(?:Source|Fuente|Quelle|Fonte|来源)\s*[:：]/u.test(line.trim()));
+  const cases = [
+    ['es', `La luz azul indica búsqueda.\nFuente: ${guide} (Luces del dispositivo), ${start}`, 'La luz azul indica búsqueda.'],
+    ['it', `Riavvia l'app (fonte: ${guide}) e riprova.`, "Riavvia l'app e riprova."],
+    ['pt', `Reinicie o aplicativo.\ne ${guide}`, 'Reinicie o aplicativo.'],
+    ['en', `Restart the app.\n, ${start}`, 'Restart the app.'],
+    ['en', `Restart the app.\n${guide}`, 'Restart the app.'],
+    ['en', 'Restart the app.\n*Sources: S2*', 'Restart the app.'],
+    ['en', 'Restart the app (S1 and S2).', 'Restart the app.'],
+    ['de', `Starte die App neu.\n**Quellen:**\n- ${guide}\n- [Erste Schritte](${start})`, 'Starte die App neu.'],
+    ['zh', `请重启应用（来源：${guide}）。`, '请重启应用。'],
+  ];
+  for (const [language, text, body] of cases) {
+    const answer = groundedSourceLine(text, evidence, ['S1', 'S2'], language);
+    assert.equal(answer.split('\n\n')[0], body, text);
+    assert.equal(sourceLines(answer).length, 1, text);
+  }
+});
+
+test('links that belong to the answer and longer prose stay intact', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/41-lights\nLight colours.';
+  for (const text of [
+    'Download the guide here:\nhttps://help.omi.me/en/articles/41-lights',
+    'Steps:\n1. Open Settings\n2. https://help.omi.me/en/articles/41-lights',
+    'Restart.\nhttps://help.omi.me/en/articles/99-other-guide',
+    'Open https://help.omi.me/en/articles/99-other-guide in your browser and follow it.',
+    'Sources: the Help Center explains that the light turns blue while it looks for your phone, see https://help.omi.me/en/articles/41-lights',
+    'Check the battery (S7) and retry.',
+    'Tested on a Galaxy S23 (my own phone, not a link).',
+  ]) {
+    assert.equal(groundedSourceLine(text, evidence, ['S1']).split('\n\nSource: ')[0], text);
   }
 });

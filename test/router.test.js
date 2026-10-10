@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const router = require('../router');
+const orderFlow = require('../orderFlow');
 
 test('tax, duties, and customs stay shop/money and never skip as tech', () => {
   const tax = router.classify('import tax on order #20716');
@@ -23,7 +24,8 @@ test('tax, duties, and customs stay shop/money and never skip as tech', () => {
   assert.equal(router.isTechLane(customs), false);
 });
 
-test('order and tracking are shop', () => {
+test('order and tracking are shop', (t) => {
+  t.mock.method(orderFlow, 'isLive', () => false);
   const route = router.classify('Where is my order?');
   assert.equal(route.area, 'shop');
   assert.equal(route.lane, 'shop');
@@ -33,14 +35,34 @@ test('order and tracking are shop', () => {
   assert.equal(numbered.lane, 'shop');
   assert.equal(router.skipModel(numbered), true);
   const canned = router.cannedReply(numbered, 'where is order #1042');
-  assert.match(canned, /help@omi\.me/);
+  assert.match(canned, /verified order check/i);
   assert.doesNotMatch(canned, /Order lookup in chat is not live yet/);
   const delivered = require('../utils').stripSupportRedirect(canned);
-  assert.match(delivered, /can't see order status from here/i);
-  assert.match(delivered, /needs someone with access to the order system/i);
+  assert.ok(delivered.startsWith(router.ORDER_STATUS_OPENING));
+  assert.match(delivered, /verified order check/i);
   assert.doesNotMatch(delivered, /Email help@omi\.me/);
   assert.equal(/\/order/.test(canned), false);
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
+});
+
+test('live order status lookup offers the private email-verified command without exposing customer details', (t) => {
+  t.mock.method(orderFlow, 'isLive', () => true);
+  const route = router.classify('Where is my order?');
+  const reply = router.cannedReply(route, 'Where is my order #48271? owner@example.test, 21 Sample Road');
+  assert.ok(reply.startsWith(router.ORDER_STATUS_OPENING));
+  assert.match(reply, /Use \/order to check your own orders privately/i);
+  assert.match(reply, /email a code to the address on the order/i);
+  assert.match(reply, /keep your address and payment details private/i);
+  assert.doesNotMatch(reply, /48271|owner@example\.test|21 Sample Road/);
+  assert.doesNotMatch(reply, /post.*(?:email|code|order number)|help@omi\.me|will arrive|has shipped|has this now/i);
+});
+
+test('unavailable order lookup does not advertise a private command that cannot complete', (t) => {
+  t.mock.method(orderFlow, 'isLive', () => false);
+  const reply = router.cannedReply(router.classify('Where is my order?'), 'Where is my order?');
+  assert.match(reply, /verified order check/i);
+  assert.match(reply, /keep your address and payment details private/i);
+  assert.doesNotMatch(reply, /\/order\b|email a code|help@omi\.me|will reply|has this now/i);
 });
 
 test('delivery problems and status questions use grounded shop answers, not checkout quotes', () => {
@@ -86,7 +108,8 @@ test('a checkout shipping quote is not treated as order status', () => {
   assert.match(router.staffReason(route, q), /checkout shipping quote/i);
 });
 
-test('an order customer asking for a human gets a handoff answer, not another /order instruction', () => {
+test('an order customer asking for a human gets a handoff answer, not another /order instruction', (t) => {
+  t.mock.method(orderFlow, 'isLive', () => true);
   const q = 'Please help me get in touch with the human who is responsible for shipping.';
   const route = router.classify(`Where is my order?\n${q}`);
   assert.equal(route.wantHuman, true);
@@ -214,7 +237,7 @@ test('paid plan / redemption is money, not shipping, even if they mention Order 
   assert.equal(router.skipModel(route), true);
   assert.equal(router.isTechLane(route), false);
   const canned = router.cannedReply(route, q);
-  assert.match(canned, /paid plan or a redemption code/i);
+  assert.match(canned, /paid plan or redemption code/i);
   assert.equal(/\/order|where that order is|guess a date/i.test(canned), false);
   assert.match(router.staffReason(route, q), /plan or redemption/i);
 });
@@ -585,13 +608,13 @@ test('a refund written in another language still reaches a person', () => {
   assert.equal(route.escalate, true);
 });
 
-test('a refund names help@omi.me on the first reply and keeps the order number', () => {
+test('a refund draft stays on the requested action and leaves the next step to confirmed delivery', () => {
   const q = 'Please refund Order #RUFKREEIX. We do not want the replacement.';
   const route = router.classify(q);
   assert.equal(route.lane, 'money');
   const reply = router.cannedReply(route, q);
-  assert.match(reply, /help@omi\.me/);
-  assert.match(reply, /RUFKREEIX/);
+  assert.match(reply, /refund.*needs a team review/i);
+  assert.doesNotMatch(reply, /help@omi\.me|RUFKREEIX|replacement/i);
   assert.equal(/order made right/i.test(reply), false);
 });
 

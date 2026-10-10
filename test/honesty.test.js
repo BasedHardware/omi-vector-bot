@@ -383,10 +383,12 @@ test('parses fenced JSON from the model', () => {
   assert.equal(parsed.escalate, false);
 });
 
-test('parseAgentJson survives raw newlines in the model JSON', () => {
+test('parseAgentJson recovers raw string newlines without changing the model flags', () => {
   const parsed = parseAgentJson('{"final_answer":"line1\nline2","confidence":0.9,"escalate":true}');
   assert.equal(parsed.escalate, true);
-  assert.match(parsed.reason, /json failed/);
+  assert.equal(parsed.final_answer, 'line1\nline2');
+  assert.equal(parsed.confidence, 0.9);
+  assert.equal(parsed.reason, '');
 });
 
 test('parses topic and labels from the model', () => {
@@ -433,7 +435,7 @@ test('a successful Discord handoff removes redirects but keeps useful details', 
     stripSupportRedirect(
       'Email help@omi.me with the order number. Use /order to check your orders. We email a code to the address on the order. Include order #22777. Keep your order number handy.'
     ),
-    ''
+    'Use /order to check your orders. We email a code to the address on the order. Keep your order number handy.'
   );
 });
 
