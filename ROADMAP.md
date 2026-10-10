@@ -133,6 +133,26 @@ Run `npm test`, the offline customer check and relevant isolated database checks
 
 Latest comparison preparation: 617 unit tests and offline 8/8 pass after raw-control recovery; planner, answer and reviewer caller regressions cover lossless controls, valid escaping, unchanged text normalization and fail-closed syntax. Main baseline is a separate clean checkout at `3a28c7f`. Both processes use the same pinned Node binary, primary-checkout harness/cwd and captured environment, with private services disabled. The harness and dependency lockfile match main. Evidence is fetched live independently: page counts do not prove identical content/order, so this is a same-day live-network comparison, not a frozen-corpus causal experiment. The direct-Node rollout patch remains prepared, not applied; no Railway/credential changes.
 
+### October 10 same-day comparison: complete, release still held
+
+Raw-control recovery is committed as `c3d881b`; both runs tested frozen code: main `3a28c7f` first, #26 `930b45f` second. Each completed all 162 rows (81 cases × two runs, concurrency three), with no provider-invalid or unscored rows. The second process started 66 ms after the first ended; checkout, dataset, harness, lockfile and local environment guards passed. Only 8/162 matched replies are byte-identical. Both crawled 58 Help Center and 40 website pages, but live content/order is not guaranteed identical. Retrieval and staff delivery are in-memory/stubbed, not a production Postgres or real-card test.
+
+Structural score, mutually exclusive pass-both/flaky/fail-both: **main 70/4/7; #26 70/6/5**. Nearest-rank timings in seconds, including every row and summed turns:
+
+| Stage | Main p50 | Main p95 | #26 p50 | #26 p95 |
+| --- | ---: | ---: | ---: | ---: |
+| Planner | 9.547 | 18.963 | 9.315 | 17.301 |
+| Retrieval | 1.282 | 4.470 | 1.343 | 4.684 |
+| Answer | 12.463 | 25.479 | 11.693 | 27.383 |
+| Review | 15.336 | 37.221 | 13.907 | 38.850 |
+| Total | 44.130 | 71.129 | 40.875 | 76.846 |
+
+The numerical relative checks pass: 70 ≥ 68 pass-both, p50 40.875 ≤ 46.130 s, p95 76.846 ≤ 77.129 s (p95 delta +5.717 s, only 0.283 s inside the limit). This is not full approval: each output has a real duplicate citation label (main `gs-038` run 2; #26 `gs-052` run 2), so the zero-duplicates condition fails. The citation formatter is byte-identical between tested roots; these outputs do not establish a new formatter regression. Main also has one advisory manual-flash fallback, naming a method rather than a detailed procedure. #26 has none. Explicit reinstall/logout/local-clear/factory-wipe instructions and staff-action promises without the harness handoff flag were zero in both full 162-row audits. Missing preservation/heat precautions and private-intake guidance remain separate concerns; zero positive-advice counts are not broad safety approval.
+
+The long background interruption compromises the benchmark: #26's final `hs-081` run 2 took 2,223.620 s and ended with an empty reply/no handoff. Its planner, retrieval and review recorded unusually large durations; the run logged two request-coordination failures and two review errors (JSON syntax and timeout). Normal provider timeout is 60 s. Do not attribute this row to normal code/provider speed or assert a verified host-sleep cause. It stays in every score/percentile; nothing was excluded, tuned or silently rerun. Main had three second looks (all approved); #26 had six (four approved). The raw-control fix does not attempt to repair other malformed JSON.
+
+Results are retained outside Git in `~/omi-eval/holdout-main-sameday-oct10.json` and `~/omi-eval/holdout-pr26-sameday-oct10.json`, with provenance alongside them. Neither result contains an exact scanned known local secret value. Unit suite: 617 pass; offline check: 8/8; hosted Node 20/24 and disposable database checks pass at tested head `930b45f`. Docs-only draft [#32](https://github.com/BasedHardware/omi-vector-bot/pull/32) records the support voice and shadow-mode access ladder; it grants no access. No merge, deploy, credential/setting change or additional held-out run was performed. #28–#30 remain unchanged; the direct-Node patch is still prepared, not applied. Stop for review.
+
 No production settings or credentials change as a side effect of coding. Previously exposed credentials remain unrotated/unconfirmed, deferred by Aryan with accepted risk; encryption-key rotation needs a data-preserving migration. Omi Support Bot is the product name; technical repository/domain/channel names are not renamed without an explicit migration.
 
 See [Architecture](docs/ARCHITECTURE.md), [Implementation Checklist](docs/IMPLEMENTATION_PLAN.md), and [Operations Runbook](docs/RUNBOOK.md).
