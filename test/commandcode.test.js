@@ -949,3 +949,41 @@ test('a bad model JSON is tried once more, and a usage limit is not', async () =
     else process.env.CMD_API_KEY = prev;
   }
 });
+
+test('model citations in any shape fold into the one application Source line', () => {
+  const guide = 'https://help.omi.me/en/articles/41-lights';
+  const start = 'https://docs.omi.me/start.md';
+  const evidence = `[S1 | Official Help Center]\n${guide}\nLight colours.\n[S2 | Official docs]\n${start}\nFirst steps.`;
+  const sourceLines = (text) => text.split('\n').filter((line) => /^(?:Source|Fuente|Quelle|Fonte|来源)\s*[:：]/u.test(line.trim()));
+  const cases = [
+    ['es', `La luz azul indica búsqueda.\nFuente: ${guide} (Luces del dispositivo), ${start}`, 'La luz azul indica búsqueda.'],
+    ['it', `Riavvia l'app (fonte: ${guide}) e riprova.`, "Riavvia l'app e riprova."],
+    ['pt', `Reinicie o aplicativo.\ne ${guide}`, 'Reinicie o aplicativo.'],
+    ['en', `Restart the app.\n, ${start}`, 'Restart the app.'],
+    ['en', `Restart the app.\n${guide}`, 'Restart the app.'],
+    ['en', 'Restart the app.\n*Sources: S2*', 'Restart the app.'],
+    ['en', 'Restart the app (S1 and S2).', 'Restart the app.'],
+    ['de', `Starte die App neu.\n**Quellen:**\n- ${guide}\n- [Erste Schritte](${start})`, 'Starte die App neu.'],
+    ['zh', `请重启应用（来源：${guide}）。`, '请重启应用。'],
+  ];
+  for (const [language, text, body] of cases) {
+    const answer = groundedSourceLine(text, evidence, ['S1', 'S2'], language);
+    assert.equal(answer.split('\n\n')[0], body, text);
+    assert.equal(sourceLines(answer).length, 1, text);
+  }
+});
+
+test('links that belong to the answer and longer prose stay intact', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/41-lights\nLight colours.';
+  for (const text of [
+    'Download the guide here:\nhttps://help.omi.me/en/articles/41-lights',
+    'Steps:\n1. Open Settings\n2. https://help.omi.me/en/articles/41-lights',
+    'Restart.\nhttps://help.omi.me/en/articles/99-other-guide',
+    'Open https://help.omi.me/en/articles/99-other-guide in your browser and follow it.',
+    'Sources: the Help Center explains that the light turns blue while it looks for your phone, see https://help.omi.me/en/articles/41-lights',
+    'Check the battery (S7) and retry.',
+    'Tested on a Galaxy S23 (my own phone, not a link).',
+  ]) {
+    assert.equal(groundedSourceLine(text, evidence, ['S1']).split('\n\nSource: ')[0], text);
+  }
+});
