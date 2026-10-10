@@ -42,6 +42,14 @@ Use the existing Postgres database for support cases, jobs, claims, and delivery
 
 Do not give the bot project Owner/Editor, backend impersonation credentials, general Firestore access, audio-bucket download permission, full customer conversation scopes, arbitrary log queries, shell execution, or Railway administration. Read-only credentials can still leak private information.
 
+### Incremental access and shadow boundary
+
+The [roadmap's access ladder](../ROADMAP.md#access-ladder-and-support-voice) orders new work: reviewed public issues/releases and product facts, private verified order facts, linked-account metadata, then recording diagnostics. Public records remain sourced, versioned and freshness-checked; staff authorship alone does not prove a fact or deployment.
+
+Every new adapter starts with synthetic/customer-independent validation and an authorized staff-only shadow pilot. The application enforces customer/case ownership, consent, read-only operation, bounded output and a fixed schema before staff see a result. Keep private facts out of model inputs and normal thread posts. Kill switches and metadata audits are per capability; shadow mode neither grants authorization nor guarantees confidentiality. Existing ephemeral order commands continue to work. Account sign-in/metadata requires backend agreement and privacy review before implementation, just as diagnostics does. An unavailable offline-device count is unknown, not zero.
+
+Support-state writes and staff-approved redacted GitHub filing remain controlled exceptions for the bot's own workflow, not write permissions over customer orders, accounts or recordings. No new capability is enabled by this documentation.
+
 ### Backend diagnostics gateway
 
 Introduce a backend-owned `diagnose_recording` capability. Authenticate both the bot service and the customer. Omi sign-in issues a short-lived, revocable grant bound to the customer, case, permitted operation and expiry. Derive the customer UID on the server; a UID, email, order number or Discord staff role supplied in chat is not proof of ownership. The existing Shopify email binding is not an Omi account authorization.
