@@ -1,5 +1,11 @@
 // Public GitHub issues and customer-visible cards must never carry raw customer identifiers.
 // Keep this independent of route classification so every filing path has the same boundary.
+
+// A phone word and at most a few joining words right before the digits: "phone number is",
+// "call me on", "tel.", "mobile:", "my number is".
+const PHONE_CONTEXT =
+  /(?:phone|tel(?:ephone)?|t[eé]l[eé]phone|tel[eé]fono?|telefone|whatsapp|call|\b(?:mobile|cell|contact|ph)\b|\bmy\s+(?:number|no)\b)\.?(?:\s*(?:number|no\.?|is|me|us|at|on|[:=#-]))*\s*$/i;
+
 function redactSensitive(text, { issue = false, preserveOfficialEmails = false } = {}) {
   let out = String(text || '');
   const officialEmail = (value) => preserveOfficialEmails &&
@@ -17,7 +23,7 @@ function redactSensitive(text, { issue = false, preserveOfficialEmails = false }
   out = out.replace(/(?<![\w#])\+?(?:\(\d{1,4}\)|\d{1,4})(?:[\s().-]*(?:\(\d{1,4}\)|\d{1,4})){1,5}(?!\w)/g, (match, offset, source) => {
     const digits = match.replace(/\D/g, '');
     const before = source.slice(Math.max(0, offset - 32), offset);
-    const hasPhoneContext = /(?:phone|tel(?:ephone)?|whatsapp|call)\s*(?:number|no\.?|me|at|on|:|=)?\s*$/i.test(before);
+    const hasPhoneContext = PHONE_CONTEXT.test(before);
     if (digits.length > 15 || (digits.length < 9 && !(hasPhoneContext && digits.length >= 7))) return match;
     const groups = match.match(/\d+/g) || [];
     const lengths = groups.map((group) => group.length).join('-');
