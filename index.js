@@ -543,7 +543,8 @@ async function handleMessage(message) {
     });
   } catch (err) {
     console.error('[SupportRuntime] request coordination failed');
-    // Never let a stale worker send after its lease has been taken by another copy.
+    // A lost lease means another copy or the recovery queue now owns this message
+    // (expired leases nobody took are resumed), so this worker must not send.
     if (err.message === 'support lease lost' || err.replyAlreadySent) return { status: 'failed' };
     try {
       await message.reply({

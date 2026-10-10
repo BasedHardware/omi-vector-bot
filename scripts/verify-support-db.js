@@ -57,6 +57,34 @@ async function verify(pool) {
   const resumed = { ...queued, owner: `${prefix}-resumed` };
   assert.equal(await store.claim(resumed), true); await store.finish(resumed, 'ignored');
 
+  // A stalled worker resumes an expired claim nobody took; a dead one's unsent request is requeued.
+  const expire = (messageId) => pool.query("UPDATE support_message_claims SET lease_until=NOW() - INTERVAL '1 second' WHERE message_id=$1", [messageId]);
+  const stalled = { messageId: `${prefix}-stalled`, caseKey: `${prefix}:carol`, owner: `${prefix}-stalled-owner`, fingerprint: null };
+  assert.equal(await store.claim(stalled), true); assert.equal(await store.acquire(stalled), true);
+  await pool.query("UPDATE support_case_leases SET lease_until=NOW() - INTERVAL '1 second' WHERE case_key=$1", [stalled.caseKey]);
+  await pool.query("UPDATE support_worker_slots SET lease_until=NOW() - INTERVAL '1 second' WHERE owner=$1", [stalled.owner]);
+  await expire(stalled.messageId);
+  assert.equal(await store.owned(stalled), false); assert.equal(await store.renew(stalled), false);
+  assert.equal(await store.reclaim(stalled), true); assert.notEqual(stalled.slot, null);
+  assert.equal(await store.owned(stalled), true); assert.equal(await store.markDelivering(stalled), true);
+  await store.finish(stalled, 'answered');
+  const orphan = { messageId: `${prefix}-orphan`, caseKey: `${prefix}:dave`, owner: `${prefix}-dead-owner`, fingerprint: null };
+  const partial = { messageId: `${prefix}-partial`, caseKey: `${prefix}:erin`, owner: `${prefix}-dead-owner-2`, fingerprint: null };
+  const local = { messageId: `${prefix}-local`, caseKey: `${prefix}:frank`, owner: `${prefix}-local-owner`, fingerprint: null };
+  for (const job of [orphan, partial, local]) assert.equal(await store.claim(job), true);
+  assert.equal(await store.markDelivering(partial), true);
+  for (const job of [orphan, partial, local]) await expire(job.messageId);
+  const swept = await store.abandoned({ exclude: [local.owner] });
+  assert.ok(swept.some((item) => item.messageId === orphan.messageId && item.state === 'queued'));
+  assert.ok(!swept.some((item) => [partial.messageId, local.messageId].includes(item.messageId)));
+  assert.equal(await store.reclaim(orphan), false);
+  assert.equal(await store.reclaim(local), true);
+  assert.ok((await store.queued(100)).some((item) => item.messageId === orphan.messageId));
+  const sweptLater = await store.abandoned({ exclude: [local.owner], uncertainGraceMs: 0 });
+  assert.ok(sweptLater.some((item) => item.messageId === partial.messageId && item.state === 'uncertain'));
+  assert.equal(await store.reclaim(partial), false);
+  await store.finish(local, 'answered');
+
   const service = cases.createCaseService(cases.createPostgresStore(pool));
   const aliceInput = { channelId: `${prefix}-general`, customerId: `${prefix}-alice`, context: { area: 'app', summary: 'private content must not persist' } };
   const [first, second] = await Promise.all([service.getOrCreateCase(aliceInput), service.getOrCreateCase(aliceInput)]);
@@ -85,7 +113,7 @@ async function verify(pool) {
   const encrypted = (await pool.query('SELECT * FROM support_verified_emails WHERE discord_user_id=$1', [user])).rows[0];
   assert.doesNotMatch(JSON.stringify(encrypted), /fixture@example\.test/);
   await restarted.revoke(user); assert.equal(await identity.getBinding(user), null);
-  console.log('Support database integration: schema, claims, queue, case isolation, verification and revocation passed');
+  console.log('Support database integration: schema, claims, lease recovery, queue, case isolation, verification and revocation passed');
 }
 
 (async () => {

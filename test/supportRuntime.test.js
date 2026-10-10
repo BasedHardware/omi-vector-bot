@@ -147,3 +147,91 @@ test('runtime schema and SQL claims persist no raw customer content', async () =
   assert.match(calls[1].sql, /ON CONFLICT.*message_id/s);
   assert.doesNotMatch(JSON.stringify(calls), /private meeting and email/);
 });
+
+const sendOnce = (counter) => async () => { await assertCurrentOwnership(); counter.sends++; markCurrentReplySent(); return true; };
+
+test('a worker stalled past its lease still answers when nobody else took the message', async () => {
+  let now = 1000; const store = new MemoryRuntimeStore({ now: () => now }); const logs = [];
+  const runtime = new SupportRuntime({ store, log: (line) => logs.push(line) }); const counter = { sends: 0 };
+  const result = await runtime.run(request('stalled'), async () => { now += 130_000; return sendOnce(counter)(); });
+  assert.equal(result.status, 'answered'); assert.equal(counter.sends, 1);
+  assert.match(logs.join('\n'), /reclaimed expired lease message=stalled/);
+  assert.equal((await runtime.run(request('stalled'), sendOnce(counter))).status, 'duplicate');
+  assert.equal(counter.sends, 1);
+});
+
+test('a transient renewal failure does not drop the reply', async () => {
+  const store = new MemoryRuntimeStore(); const logs = []; let failures = 1;
+  const renew = store.renew.bind(store);
+  store.renew = async (job) => { if (failures-- > 0) throw new Error('db blip'); return renew(job); };
+  const runtime = new SupportRuntime({ store, heartbeatMs: 2, log: (line) => logs.push(line) }); const counter = { sends: 0 };
+  const result = await runtime.run(request('blip'), async () => { await new Promise((resolve) => setTimeout(resolve, 20)); return sendOnce(counter)(); });
+  assert.equal(result.status, 'answered'); assert.equal(counter.sends, 1);
+  assert.match(logs.join('\n'), /renewal failed; retrying/);
+});
+
+test('an unreachable database at send time delivers the finished answer instead of dropping it', async () => {
+  const store = new MemoryRuntimeStore(); const logs = [];
+  const runtime = new SupportRuntime({ store, log: (line) => logs.push(line) }); const counter = { sends: 0 };
+  const pending = runtime.run(request('offline'), async () => {
+    store.owned = async () => { throw new Error('db down'); };
+    return sendOnce(counter)();
+  });
+  assert.equal((await pending).status, 'answered');
+  assert.equal(counter.sends, 1);
+  assert.match(logs.join('\n'), /delivered without confirmed ownership message=offline/);
+});
+
+test('a request abandoned before any send is requeued and answered once by another copy', async () => {
+  let now = 1000; const store = new MemoryRuntimeStore({ now: () => now }); const logs = [];
+  const dead = new SupportRuntime({ store }); const counter = { sends: 0 };
+  const started = barrier();
+  dead.run(request('orphan', 'thread:alice'), async () => { started.release(); await new Promise(() => {}); }).catch(() => {});
+  await started.promise;
+  now += 120_001;
+  const survivor = new SupportRuntime({ store, sweepMs: 0, log: (line) => logs.push(line) });
+  await survivor.recoverQueued((input) => survivor.run(input, sendOnce(counter)));
+  assert.equal(counter.sends, 1);
+  assert.equal(store.messages.get('orphan').state, 'answered');
+  assert.match(logs.join('\n'), /requeued abandoned request message=orphan/);
+});
+
+test('a stalled worker whose request was requeued stands down so the customer gets one answer', async () => {
+  let now = 1000; const store = new MemoryRuntimeStore({ now: () => now }); const logs = [];
+  const stalled = new SupportRuntime({ store, log: (line) => logs.push(line) }); const counter = { sends: 0 };
+  const held = barrier(); const started = barrier();
+  const pending = stalled.run(request('race', 'thread:bob'), async () => { started.release(); await held.promise; return sendOnce(counter)(); });
+  await started.promise; now += 120_001;
+  const survivor = new SupportRuntime({ store, sweepMs: 0 });
+  await survivor.recoverQueued((input) => survivor.run(input, sendOnce(counter)));
+  held.release();
+  await assert.rejects(pending, /lease lost/);
+  assert.equal(counter.sends, 1);
+  assert.match(logs.join('\n'), /standing down message=race/);
+});
+
+test('a request abandoned after delivery began is recorded as uncertain, never resent', async () => {
+  let now = 1000; const store = new MemoryRuntimeStore({ now: () => now }); const logs = [];
+  const dead = new SupportRuntime({ store }); const started = barrier();
+  dead.run(request('partial'), async () => { await assertCurrentOwnership(); started.release(); await new Promise(() => {}); }).catch(() => {});
+  await started.promise;
+  const survivor = new SupportRuntime({ store, sweepMs: 0, log: (line) => logs.push(line) }); let calls = 0;
+  now += 120_001;
+  await survivor.recoverQueued(async () => { calls++; });
+  assert.equal(store.messages.get('partial').state, 'processing');
+  now += 10 * 60_000;
+  await survivor.recoverQueued(async () => { calls++; });
+  assert.equal(calls, 0); assert.equal(store.messages.get('partial').state, 'uncertain');
+  assert.match(logs.join('\n'), /uncertain delivery message=partial/);
+});
+
+test('a copy never requeues its own in-flight request', async () => {
+  let now = 1000; const store = new MemoryRuntimeStore({ now: () => now });
+  const runtime = new SupportRuntime({ store, sweepMs: 0 }); const counter = { sends: 0 }; let recovered = 0;
+  const result = await runtime.run(request('mine'), async () => {
+    now += 130_000;
+    await runtime.recoverQueued(async () => { recovered++; });
+    return sendOnce(counter)();
+  });
+  assert.equal(result.status, 'answered'); assert.equal(counter.sends, 1); assert.equal(recovered, 0);
+});
