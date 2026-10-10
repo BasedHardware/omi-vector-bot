@@ -1,9 +1,19 @@
+// The same promise in the future tense: "I'll let the team know", "I will flag this to support".
+const WILL = "\\bi(?: will|['’]ll| am going to|['’]m going to) (?:also |just |now |go ahead and )?";
+const TEAM = '(?:the |our |a |an )?(?:omi )?(?:team|staff|support|engineers?|developers?|devs|person|human|someone)\\b';
+
 const LIE_PATTERNS = [
-  /i('ve| have) (already )?(spoken|talked|reached out|messaged|emailed|pinged|informed|notified|escalated)/i,
+  /i(['’]ve| have) (already )?(spoken|talked|reached out|messaged|emailed|pinged|informed|notified|escalated)/i,
+  new RegExp(`${WILL}(?:let|tell|notify|inform|ping|alert|message|email|contact) ${TEAM}`, 'i'),
+  new RegExp(
+    `${WILL}(?:flag|forward|escalate|pass|send|raise|report|hand) (?:this|it|that|(?:your|the) \\w+)(?: (?:on|along|over|up))? (?:to|with|for) ${TEAM}`,
+    'i'
+  ),
+  new RegExp(`${WILL}escalate\\b`, 'i'),
   /conveyed your (message|issue|problem)/i,
   /higher[- ]ups/i,
   /the (upper )?team has been (notified|informed)/i,
-  /i (will|I'll) (make sure|ensure) (the team|staff|someone)/i,
+  /\bi(?: will|['’]ll) (make sure|ensure) (the team|staff|someone)/i,
   /ticket has been (created|opened|filed)/i,
   /i (just )?contacted (support|staff|aarav|the team)/i,
   /passing this along/i,
