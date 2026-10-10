@@ -48,6 +48,20 @@ test('provider redaction keeps support placeholders while removing short interna
   assert.match(out, /\[phone\].*\[order number\].*\[token\]/);
 });
 
+test('an order or ticket number given in a sentence is redacted like one given after a colon', () => {
+  const input = 'My order number is 22777 and the ticket number was 138637367. Order ID is 31415, order no. is #27182.';
+  const out = redactSensitive(input, { issue: true });
+  for (const value of ['22777', '138637367', '31415', '27182']) {
+    assert.equal(out.includes(value), false, value);
+  }
+  assert.equal((out.match(/\[order number\]/g) || []).length, 4);
+});
+
+test('a price or a count after "order was" is not taken for an order number', () => {
+  const kept = 'My order was 299 dollars and the order is 2 weeks late.';
+  assert.equal(redactSensitive(kept, { issue: true }), kept);
+});
+
 test('public repository issue numbers survive while customer ticket numbers do not', () => {
   const out = redactSensitive('GitHub issue #20172; support ticket #138637367; Order #18063', { issue: true });
   assert.match(out, /GitHub issue #20172/);
