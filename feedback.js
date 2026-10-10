@@ -6,6 +6,7 @@ const {
   rankLocalChunks,
   supportQueries,
 } = require('./retrieval');
+const { redactPublic } = require('./helpcenter');
 
 const SITEMAP = 'https://feedback.omi.me/sitemap.xml';
 const CACHE_MS = 60 * 60 * 1000;
@@ -123,12 +124,6 @@ function feedbackPostFromHtml(html) {
   const result = fallback['rq:single:/v1/submission']?.data?.results?.[0];
   if (!result?.title || !result?.content) return null;
   return result;
-}
-
-function redactPublic(text) {
-  return String(text || '')
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]')
-    .replace(/(?<![\d#])\+?(?:\d[\s().-]*){7,14}\d(?!\d)/g, '[phone]');
 }
 
 function categoryName(category) {

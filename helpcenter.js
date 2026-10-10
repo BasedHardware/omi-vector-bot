@@ -1,6 +1,7 @@
 const SITEMAP = 'https://help.omi.me/sitemap.xml';
 const HELP_FORUM = () => String(process.env.HELP_FORUM_CHANNEL_ID || '').trim();
 const { cleanDocument } = require('./retrieval');
+const { redactSensitive } = require('./privacy');
 
 function articleUrls(xml) {
   return [...String(xml || '').matchAll(/<loc>(https:\/\/help\.omi\.me\/en\/articles\/[^<]+)<\/loc>/g)].map(
@@ -14,9 +15,10 @@ function htmlToText(html) {
   return cleanDocument(chunk);
 }
 
+// A stored copy of a Discord thread or a Feedback post is shown to the model and can be quoted to
+// another customer. It passes the public issue boundary first, then loses any long digit run left.
 function redactPublic(text) {
-  return String(text || '')
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]')
+  return redactSensitive(text, { issue: true })
     .replace(/(?<![\d#])\+?(?:\d[\s().-]*){7,14}\d(?!\d)/g, '[phone]');
 }
 
