@@ -383,10 +383,12 @@ test('parses fenced JSON from the model', () => {
   assert.equal(parsed.escalate, false);
 });
 
-test('parseAgentJson survives raw newlines in the model JSON', () => {
+test('parseAgentJson recovers raw string newlines without changing the model flags', () => {
   const parsed = parseAgentJson('{"final_answer":"line1\nline2","confidence":0.9,"escalate":true}');
   assert.equal(parsed.escalate, true);
-  assert.match(parsed.reason, /json failed/);
+  assert.equal(parsed.final_answer, 'line1\nline2');
+  assert.equal(parsed.confidence, 0.9);
+  assert.equal(parsed.reason, '');
 });
 
 test('parses topic and labels from the model', () => {

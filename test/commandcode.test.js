@@ -354,6 +354,84 @@ test('parseAgentJson reads a fenced reply and a broken one', () => {
   assert.equal(broken.escalate, true);
 });
 
+test('answer JSON preserves raw control characters inside string values', () => {
+  const text = 'First line.\nSecond line.\tNote \u0000\b\f\r\u001f.';
+  const parsed = parseAgentJson(`{\n  "final_answer": "${text}",\n  "confidence": 0.8, "escalate": false\n}`);
+  assert.equal(parsed.final_answer, text);
+  assert.equal(parsed.escalate, false);
+  assert.equal(parsed.confidence, 0.8);
+});
+
+test('all raw C0 controls are preserved inside JSON values without becoming other fields', () => {
+  for (let code = 0; code < 0x20; code += 1) {
+    const value = `Before${String.fromCharCode(code)}after`;
+    const parsed = parseAgentJson(`{"final_answer":"Useful reply.","reason":"${value}","escalate":false}`);
+    assert.equal(parsed.reason, value, `control ${code}`);
+    assert.equal(parsed.escalate, false);
+  }
+});
+
+test('search planning shares control recovery and retains its existing text normalization', () => {
+  const plan = parseSearchPlan('{"standalone_question":"Change\nthis setting","customer_goal":"Choose\ta language","search_queries":["app\nlanguage"]}', 'Fallback');
+  assert.equal(plan.standaloneQuestion, 'Change this setting');
+  assert.equal(plan.customerGoal, 'Choose a language');
+  assert.deepEqual(plan.queries, ['app language']);
+});
+
+test('answer generation uses recovered JSON on the first call without retrying', async () => {
+  let calls = 0;
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  try {
+    const answer = await queryAgent({
+      question: 'What happens to this setting?', route: { lane: 'faq' },
+      post: async () => {
+        calls += 1;
+        return { data: { choices: [{ message: { content: '{"final_answer":"The setting\nstays unchanged.","escalate":false,"confidence":0.9}' } }] } };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(answer.final_answer, 'The setting\nstays unchanged.');
+    assert.equal(answer.escalate, false);
+  } finally {
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+  }
+});
+
+test('valid JSON escapes and quote boundaries retain their original meaning', () => {
+  for (const text of ['A literal \\n, a "quote", and a trailing slash \\.', 'Before \\\\"quoted" text.\nAfter.', 'C:\\notes\\today\t雪']) {
+    assert.equal(parseAgentJson(JSON.stringify({ final_answer: text, escalate: false })).final_answer, text);
+  }
+});
+
+test('control normalization does not repair invalid JSON outside strings or invalid escapes', () => {
+  for (const raw of [
+    '{"final_answer":"Useful reply", "escalate":tr\u0001ue}',
+    '{"final_answer":"Useful reply"\u0000}',
+    '{"final_answer":"Invalid \\\ncontinuation"}',
+    '{"final_answer":"Useful reply",}',
+  ]) {
+    const parsed = parseAgentJson(raw);
+    assert.equal(parsed.reason, 'model json failed');
+    assert.equal(parsed.escalate, true);
+  }
+});
+
+test('the reviewer accepts raw string line breaks without losing grounding checks', async () => {
+  const reviewed = await reviewAnswer({
+    question: 'What happens to the selected setting?', draft: 'The setting stays unchanged.',
+    lane: 'faq', sources: '[S1 | Help]\nhttps://help.omi.me/settings\nThe setting stays unchanged.',
+    post: async () => ({ data: { choices: [{ message: { content:
+      '{\n"final_answer":"The setting\nstays unchanged.","grounded":true,"relevant":true,"escalate":false,"confidence":0.9,"sources_used":["S1"]\n}',
+    } }] } }),
+  });
+  assert.equal(reviewed.final_answer, 'The setting\nstays unchanged.\n\nSource: https://help.omi.me/settings');
+  assert.equal(reviewed.grounded, true);
+  assert.equal(reviewed.relevant, true);
+  assert.equal(reviewed.escalate, false);
+});
+
 test('search planning rewrites a follow-up into several source searches', async () => {
   const prev = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-key';

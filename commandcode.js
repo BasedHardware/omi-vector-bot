@@ -62,6 +62,30 @@ function recordModelUsage(data, stage, requestedModel, onUsage) {
   if (typeof onUsage === 'function') onUsage(event);
 }
 
+function escapeJsonStringControls(text) {
+  let inString = false;
+  let escaped = false;
+  let result = '';
+  for (const char of text) {
+    if (escaped) {
+      // Preserve existing escapes, including invalid ones for JSON.parse to reject.
+      result += char;
+      escaped = false;
+    } else if (inString && char === '\\') {
+      result += char;
+      escaped = true;
+    } else if (char === '"') {
+      result += char;
+      inString = !inString;
+    } else if (inString && char.charCodeAt(0) < 0x20) {
+      result += `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`;
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
 function jsonObject(raw) {
   const trimmed = String(raw || '')
     .replace(/^```(?:json)?\s*/i, '')
@@ -70,7 +94,7 @@ function jsonObject(raw) {
   const start = trimmed.indexOf('{');
   const end = trimmed.lastIndexOf('}');
   if (start === -1 || end === -1) throw new Error('CommandCode reply was not JSON');
-  return JSON.parse(trimmed.slice(start, end + 1));
+  return JSON.parse(escapeJsonStringControls(trimmed.slice(start, end + 1)));
 }
 
 function parseAgentJson(raw) {
