@@ -71,7 +71,7 @@ test('planned staff handoff tells both answer and review to keep the customer in
   }
 });
 
-test('answer and reviewer share the action-first truthful communication contract', async (t) => {
+test('the answer keeps communication guidance while both review efforts keep only grounding checks', async (t) => {
   const previousKey = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';
   t.after(() => {
@@ -90,11 +90,20 @@ test('answer and reviewer share the action-first truthful communication contract
   await queryAgent({ question: 'Please refund my purchase', route: { lane: 'money', area: 'shop' }, post });
   const reviewed = await reviewAnswer({ question: 'Please refund my purchase',
     draft: 'You want a refund. The request needs a team review.', lane: 'money', handoffPlanned: true, post });
-  assert.equal(captured.length, 2);
-  for (const system of captured) {
-    assert.ok(system.includes(SUPPORT_COMMUNICATION_POLICY));
-    assert.match(system, /before delivery is confirmed/i);
-    assert.match(system, /Never guarantee a refund, replacement, recovery/i);
+  await reviewAnswer({ question: 'Please refund my purchase',
+    draft: 'You want a refund. The request needs a team review.', lane: 'money', handoffPlanned: true,
+    reasoningEffort: null, post });
+  assert.equal(captured.length, 3);
+  assert.ok(captured[0].includes(SUPPORT_COMMUNICATION_POLICY));
+  assert.match(captured[0], /before delivery is confirmed/i);
+  assert.match(captured[0], /Never guarantee a refund, replacement, recovery/i);
+  for (const system of captured.slice(1)) {
+    assert.equal(system.includes(SUPPORT_COMMUNICATION_POLICY), false);
+    assert.match(system, /final relevance and grounding gate/i);
+    assert.match(system, /Check every concrete claim, instruction, UI path/i);
+    assert.match(system, /Never suggest reinstalling or logging out with possible unsynced recordings/i);
+    assert.match(system, /delivery succeeds/i);
+    assert.match(system, /"grounded":true,"relevant":true/);
   }
   assert.equal(reviewed.grounded, true);
   assert.equal(reviewed.relevant, true);
