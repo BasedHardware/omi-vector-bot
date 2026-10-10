@@ -433,7 +433,7 @@ test('a successful Discord handoff removes redirects but keeps useful details', 
     stripSupportRedirect(
       'Email help@omi.me with the order number. Use /order to check your orders. We email a code to the address on the order. Include order #22777. Keep your order number handy.'
     ),
-    ''
+    'Use /order to check your orders. We email a code to the address on the order. Keep your order number handy.'
   );
 });
 

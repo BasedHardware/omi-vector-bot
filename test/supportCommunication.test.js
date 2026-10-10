@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const router = require('../router');
+const orderFlow = require('../orderFlow');
 const { escalateReply } = require('../utils');
 const { addUnsyncedDataWarning } = require('../answerPipeline');
 const { buildSystemPrompt, buildUserPrompt, buildToolFacts, SUPPORT_COMMUNICATION_POLICY } = require('../prompt');
@@ -16,7 +17,8 @@ const cases = [
 ];
 
 for (const [kind, route, question, subject] of cases) {
-  test(`${kind} replies lead with the goal and use only the delivery-confirmed next step`, () => {
+  test(`${kind} replies lead with the goal and use the delivery-confirmed support next step`, (t) => {
+    t.mock.method(orderFlow, 'isLive', () => true);
     let body = router.cannedReply(route, question);
     if (kind === 'data loss') body = addUnsyncedDataWarning(body, question);
     assert.match(body, subject);
@@ -25,7 +27,13 @@ for (const [kind, route, question, subject] of cases) {
 
     const delivered = escalateReply(body, { pinged: true, replyInThread: true });
     assert.match(delivered, /will reply in this thread/i);
-    assert.doesNotMatch(delivered, /help@omi\.me|use \/order|contact support/i);
+    assert.doesNotMatch(delivered, /help@omi\.me|contact support/i);
+    if (kind === 'order') {
+      assert.match(delivered, /Use \/order to check your own orders privately/i);
+      assert.match(delivered, /keep your address and payment details private/i);
+    } else {
+      assert.doesNotMatch(delivered, /\/order\b/i);
+    }
     assert.equal((delivered.match(/will reply in this thread/gi) || []).length, 1);
 
     const failed = escalateReply(body, { deliveryFailed: true });
@@ -41,6 +49,22 @@ for (const [kind, route, question, subject] of cases) {
     }
   });
 }
+
+test('unavailable private order lookup keeps the delivery-aware fallback without advertising /order', (t) => {
+  t.mock.method(orderFlow, 'isLive', () => false);
+  const body = router.cannedReply({ lane: 'shop', area: 'shop' }, 'Where is my order?');
+  const delivered = escalateReply(body, { pinged: true, replyInThread: true });
+  const failed = escalateReply(body, { deliveryFailed: true });
+  for (const reply of [delivered, failed]) {
+    assert.match(reply, /keep your address and payment details private/i);
+    assert.doesNotMatch(reply, /\/order\b|email a code/i);
+  }
+  assert.match(delivered, /will reply in this thread/i);
+  assert.doesNotMatch(delivered, /help@omi\.me|contact support/i);
+  assert.match(failed, /Please email help@omi\.me/i);
+  assert.equal((failed.match(/help@omi\.me/gi) || []).length, 1);
+  assert.doesNotMatch(failed, /has this now|will reply in this thread/i);
+});
 
 test('payment-action acknowledgments match the requested action without inventing another one', () => {
   const cases = [

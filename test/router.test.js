@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const router = require('../router');
+const orderFlow = require('../orderFlow');
 
 test('tax, duties, and customs stay shop/money and never skip as tech', () => {
   const tax = router.classify('import tax on order #20716');
@@ -23,7 +24,8 @@ test('tax, duties, and customs stay shop/money and never skip as tech', () => {
   assert.equal(router.isTechLane(customs), false);
 });
 
-test('order and tracking are shop', () => {
+test('order and tracking are shop', (t) => {
+  t.mock.method(orderFlow, 'isLive', () => false);
   const route = router.classify('Where is my order?');
   assert.equal(route.area, 'shop');
   assert.equal(route.lane, 'shop');
@@ -41,6 +43,26 @@ test('order and tracking are shop', () => {
   assert.doesNotMatch(delivered, /Email help@omi\.me/);
   assert.equal(/\/order/.test(canned), false);
   assert.equal(/necklace|blue light|recording|iphone/i.test(canned), false);
+});
+
+test('live order status lookup offers the private email-verified command without exposing customer details', (t) => {
+  t.mock.method(orderFlow, 'isLive', () => true);
+  const route = router.classify('Where is my order?');
+  const reply = router.cannedReply(route, 'Where is my order #48271? owner@example.test, 21 Sample Road');
+  assert.ok(reply.startsWith(router.ORDER_STATUS_OPENING));
+  assert.match(reply, /Use \/order to check your own orders privately/i);
+  assert.match(reply, /email a code to the address on the order/i);
+  assert.match(reply, /keep your address and payment details private/i);
+  assert.doesNotMatch(reply, /48271|owner@example\.test|21 Sample Road/);
+  assert.doesNotMatch(reply, /post.*(?:email|code|order number)|help@omi\.me|will arrive|has shipped|has this now/i);
+});
+
+test('unavailable order lookup does not advertise a private command that cannot complete', (t) => {
+  t.mock.method(orderFlow, 'isLive', () => false);
+  const reply = router.cannedReply(router.classify('Where is my order?'), 'Where is my order?');
+  assert.match(reply, /verified order check/i);
+  assert.match(reply, /keep your address and payment details private/i);
+  assert.doesNotMatch(reply, /\/order\b|email a code|help@omi\.me|will reply|has this now/i);
 });
 
 test('delivery problems and status questions use grounded shop answers, not checkout quotes', () => {
@@ -86,7 +108,8 @@ test('a checkout shipping quote is not treated as order status', () => {
   assert.match(router.staffReason(route, q), /checkout shipping quote/i);
 });
 
-test('an order customer asking for a human gets a handoff answer, not another /order instruction', () => {
+test('an order customer asking for a human gets a handoff answer, not another /order instruction', (t) => {
+  t.mock.method(orderFlow, 'isLive', () => true);
   const q = 'Please help me get in touch with the human who is responsible for shipping.';
   const route = router.classify(`Where is my order?\n${q}`);
   assert.equal(route.wantHuman, true);
