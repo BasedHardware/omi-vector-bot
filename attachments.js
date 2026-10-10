@@ -178,12 +178,17 @@ function extractVideoFrame(buf) {
   const os = require('os');
   const path = require('path');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vec-'));
-  const input = path.join(dir, 'clip.bin');
-  const output = path.join(dir, 'frame.png');
-  fs.writeFileSync(input, buf);
-  const result = spawnSync(ffmpeg, ['-y', '-ss', '1', '-i', input, '-frames:v', '1', output], { timeout: 8000 });
-  if (result.status !== 0 || !fs.existsSync(output)) return null;
-  return fs.readFileSync(output);
+  try {
+    const input = path.join(dir, 'clip.bin');
+    const output = path.join(dir, 'frame.png');
+    fs.writeFileSync(input, buf);
+    const result = spawnSync(ffmpeg, ['-y', '-ss', '1', '-i', input, '-frames:v', '1', output], { timeout: 8000 });
+    if (result.status !== 0 || !fs.existsSync(output)) return null;
+    return fs.readFileSync(output);
+  } finally {
+    // The clip and its frame are a customer's attachment. They do not stay on disk.
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 async function videoErrorLines(attachments, { fetchImpl, extractFrame, recognize } = {}) {
