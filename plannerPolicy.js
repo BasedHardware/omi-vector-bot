@@ -125,7 +125,7 @@ function personReply(kind, route, question, understanding) {
   }
   let reply;
   if (kind === 'order_lookup') {
-    reply = router.cannedReply({ ...route, area: 'shop', lane: 'shop', wantHuman: false }, question);
+    reply = router.cannedReply({ ...route, area: 'shop', lane: 'shop' }, question);
   } else if (kind === 'account_action') {
     reply = route?.lane === 'privacy'
       ? router.cannedReply(route, question)

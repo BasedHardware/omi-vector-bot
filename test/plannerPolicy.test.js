@@ -25,6 +25,33 @@ test('planner human request reaches staff even when language routing is otherwis
   assert.equal(policy.suppressOffTopic({ ...plan, messageKind: 'off_topic' }, route), false);
 });
 
+test('planner-confirmed human order requests keep the human path through private-status fallback', (t) => {
+  const router = require('../router');
+  const { escalateReply } = require('../utils');
+  t.mock.method(require('../orderFlow'), 'isLive', () => true);
+  const question = 'Where is my shipment? I would prefer somebody from dispatch to look into it.';
+  const plan = { supportKind: 'order_lookup', wantsPerson: true, replyLanguage: 'en' };
+  const route = policy.routeWithUnderstanding(router.classify(question), plan, question);
+  assert.equal(route.wantHuman, true);
+  const body = policy.personReply('order_lookup', route, question, plan);
+  assert.match(body, /person from the shop team/i);
+  assert.match(body, /verified order check/i);
+  assert.match(body, /don't post your address or payment details/i);
+  const delivered = escalateReply(body, { pinged: true, replyInThread: true });
+  assert.match(delivered, /will reply in this thread/i);
+  assert.doesNotMatch(delivered, /\/order\b|email a code|help@omi\.me/i);
+});
+
+test('ordinary planner-routed order status keeps live private self-service', (t) => {
+  const router = require('../router');
+  t.mock.method(require('../orderFlow'), 'isLive', () => true);
+  const plan = { supportKind: 'order_lookup', wantsPerson: false, replyLanguage: 'en' };
+  const question = 'Where is my shipment?';
+  const route = policy.routeWithUnderstanding(router.classify(question), plan, question);
+  assert.equal(Boolean(route.wantHuman), false);
+  assert.match(policy.personReply('order_lookup', route, question, plan), /Use \/order to check your own orders privately/i);
+});
+
 test('order and account handoff drafts retain the relevant goal without inventing status', () => {
   const order = policy.personReply('order_lookup', { lane: 'shop' }, 'Where is my order?');
   assert.match(order, /verified order check/i);
