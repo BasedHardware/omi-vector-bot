@@ -5,7 +5,7 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 ## Release and security prerequisites
 
 - [x] PR #24's smoke test was reported before #25's verified readiness rollout. Keep subsequent releases gated on their own review, evaluation and production smoke tests; the roadmap records the evidence.
-- [ ] Confirm that previously exposed credentials have been rotated or revoked. Never reuse, print or commit exposed values. Plan encryption-key migration without discarding encrypted state.
+- [ ] **Deferred by Aryan (Oct 9), accepted risk.** Previously exposed credential rotation remains unconfirmed. Plan encryption-key migration without discarding encrypted state; never print or commit secret values.
 - [ ] Inventory actual installed GitHub, Shopify and Discord permissions without exposing values. Existing credentials being configured does not prove their scopes or end-to-end capability.
 - [ ] Define support owners, response targets, diagnostic consent, retention and an emergency disable procedure before making customer-facing commitments.
 
