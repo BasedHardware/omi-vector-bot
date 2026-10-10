@@ -31,7 +31,11 @@ function redactSensitive(text, { issue = false, preserveOfficialEmails = false }
   out = out.replace(/https:\/\/(?:cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\/[^\s)]+/gi, '[attachment in Discord]');
   out = out.replace(/<@!?\d+>|<@&\d+>|(?<![\w.])@[A-Za-z0-9_.-]{2,32}/g, '[Discord user]');
   out = out.replace(/\b(?:Discord\s+)?user(?:name)?\s*[:=]\s*[^\s,;]+/gi, '[Discord user]');
-  out = out.replace(/\b(?:order|ticket)\s*(?:number|no\.?|id|#)?\s*[:#]?\s*\d{3,}\b/gi, '[order number]');
+  // "order 22777" and "order number: 22777", and the same said in a sentence: "order number is 22777".
+  out = out.replace(
+    /\b(?:order|ticket)\s*(?:number|no\.?|id|#)?\s*(?:[:#]?\s*\d{3,}|(?:is|was|=|-)\s*#?\s*\d{4,})\b/gi,
+    '[order number]'
+  );
   out = out.replace(/(?<!\w)#\d{4,}\b/g, (match, offset, source) =>
     /\b(?:PR|pull request|(?:GitHub\s+)?issue)\s*$/i.test(source.slice(Math.max(0, offset - 30), offset)) ? match : '[order number]');
   out = out.replace(/\b(?:sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|AIza[A-Za-z0-9_-]{16,}|user_[A-Za-z0-9]{20,})\b/g, '[token]');
