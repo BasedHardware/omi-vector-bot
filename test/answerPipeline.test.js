@@ -161,3 +161,29 @@ test('an erased fixed claim is available to the reviewer as removed text', () =>
   assert.deepEqual(prepared.removed, [original]);
   assert.equal(presentReviewedAnswer('  '), EMPTY_ANSWER_FALLBACK);
 });
+
+test('a long answer is clipped in its body and its source link stays whole', () => {
+  const step = 'Open the Omi app, go to Settings, then Device, and check that the firmware shown is current. ';
+  for (const source of [
+    'Source: https://help.omi.me/en/articles/10401566-build-your-own-omi-device',
+    'Fuente: https://help.omi.me/es/articles/10401566-build-your-own-omi-device https://docs.omi.me/doc/get_started/introduction',
+  ]) {
+    for (const repeats of [20, 24]) {
+      const presented = presentReviewedAnswer(`${step.repeat(repeats).trim()}\n\n${source}`);
+      assert.ok(presented.length <= 1900, String(presented.length));
+      assert.ok(presented.endsWith(source), presented.slice(-100));
+      assert.match(presented, /…\n+\S+: https:/u);
+    }
+  }
+});
+
+test('an answer that fits is not clipped, with or without a source line', () => {
+  const step = 'Open the Omi app, go to Settings, then Device, and check that the firmware shown is current.';
+  const sourced = presentReviewedAnswer(`${step}\n\nSource: https://help.omi.me/en/articles/10401566`);
+  assert.ok(sourced.startsWith(step));
+  assert.ok(sourced.endsWith('Source: https://help.omi.me/en/articles/10401566'));
+  assert.equal(sourced.includes('…'), false);
+  const long = presentReviewedAnswer(`${step} `.repeat(30));
+  assert.equal(long.length, 1900);
+  assert.ok(long.endsWith('…'));
+});
