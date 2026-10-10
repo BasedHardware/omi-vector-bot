@@ -85,6 +85,8 @@ const LOCALIZED_HANDOFF = {
   'hi-Latn': { pending: 'Team ke kisi vyakti ko iski jaanch karni hogi.', thread: 'Team ka koi vyakti isi thread mein jawab dega.', sent: 'Team ko yeh mamla mil gaya hai.', failed: 'Main yeh mamla team tak nahi pahuncha saka. Kripya help@omi.me par private email karein.', duplicate: 'Team ke paas yeh mamla pehle se hai.', issue: 'Yeh samasya isi thread mein darj hai.' },
   'hi-Deva': { pending: 'टीम के किसी व्यक्ति को इसकी जाँच करनी होगी।', thread: 'टीम का कोई व्यक्ति इसी थ्रेड में जवाब देगा।', sent: 'टीम को यह मामला मिल गया है।', failed: 'मैं यह मामला टीम तक नहीं पहुँचा सका। कृपया help@omi.me पर निजी ईमेल करें।', duplicate: 'टीम के पास यह मामला पहले से है।', issue: 'यह समस्या इसी थ्रेड में दर्ज है।' },
   ja: { pending: '担当者による確認が必要です。', thread: '担当者がこのスレッドで返信します。', sent: '担当者にこの件を共有しました。', failed: '担当者に届けられませんでした。詳細を help@omi.me に非公開でメールしてください。', duplicate: '担当者にはすでに共有されています。', issue: '問題はこのスレッドに記録されています。' },
+  zh: { pending: '需要支持团队的工作人员查看这个请求。', thread: '已将您的请求发送给支持团队。请在这个讨论串等待团队回复。', sent: '您的请求已发送给支持团队。', failed: '未能将您的请求发送给支持团队。请通过私密邮件联系 help@omi.me。', duplicate: '支持团队已经收到这个请求。', issue: '问题已记录在这个讨论串中。' },
+  it: { pending: 'Una persona del team deve esaminare questa richiesta.', thread: 'Ho inviato la richiesta al team. Attendi la risposta del team in questa conversazione.', sent: 'La richiesta è stata inviata al team.', failed: 'Non ho potuto inviare la richiesta al team. Scrivi a help@omi.me in privato.', duplicate: 'Il team ha già ricevuto questa richiesta.', issue: 'Il problema è registrato in questa conversazione.' },
 };
 
 function handoffLocale(understanding, question) {

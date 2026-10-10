@@ -138,9 +138,8 @@ test('only short, pure acknowledgments are suppressed, even when the planner mis
 test('unsupported handoff languages keep a delivered or failed next step', () => {
   const { escalateReply } = require('../utils');
   for (const { language, question, acknowledgment } of [
-    { language: 'it', question: 'Vorrei parlare con una persona', acknowledgment: 'Una persona deve esaminare la tua richiesta in privato.' },
-    { language: 'zh', question: '我想联系人工客服', acknowledgment: '需要由工作人员私下查看您的请求。' },
     { language: 'ko', question: '상담원과 이야기하고 싶어요', acknowledgment: '담당자가 요청을 비공개로 검토해야 합니다.' },
+    { language: 'ru', question: 'Хочу поговорить с человеком', acknowledgment: 'Запрос должен проверить сотрудник команды.' },
   ]) {
     const plan = { replyLanguage: language, handoffAcknowledgment: acknowledgment };
     const body = policy.personReply('exception_request', { lane: 'account' }, question, plan);
@@ -153,6 +152,52 @@ test('unsupported handoff languages keep a delivered or failed next step', () =>
   }
   const fallback = policy.personReply('exception_request', { lane: 'account' }, 'Хочу поговорить с человеком', { replyLanguage: 'ru' });
   assert.match(fallback, /person needs to review/i);
+});
+
+const NEW_HANDOFF_LOCALES = [
+  { language: 'zh', regionalLanguage: 'zh-CN', question: '我需要人工帮助。', body: '这个问题仍需查看。',
+    pending: /需要.*支持团队.*查看/, thread: /已将.*发送给支持团队.*等待团队回复/, sent: /已发送给支持团队/,
+    failed: /未能.*发送给支持团队.*help@omi\.me/, duplicate: /支持团队已经收到/, issue: /问题已记录/ },
+  { language: 'it', regionalLanguage: 'it-IT', question: 'Ho bisogno di aiuto da una persona.', body: 'Il problema richiede una verifica.',
+    pending: /persona del team.*esaminare/, thread: /Ho inviato.*Attendi la risposta.*questa conversazione/, sent: /richiesta è stata inviata/,
+    failed: /Non ho potuto inviare.*help@omi\.me/, duplicate: /team ha già ricevuto/, issue: /problema è registrato/ },
+];
+
+test('Chinese and Italian handoffs provide every delivery-state key and a localized pending fallback', () => {
+  const keys = ['pending', 'thread', 'sent', 'failed', 'duplicate', 'issue'];
+  for (const locale of NEW_HANDOFF_LOCALES) {
+    const footers = policy.handoffFooters({ replyLanguage: locale.language }, locale.question);
+    assert.ok(footers, locale.language);
+    assert.deepEqual(Object.keys(footers).sort(), [...keys].sort(), locale.language);
+    for (const key of keys) assert.match(footers[key], locale[key], `${locale.language}:${key}`);
+    assert.deepEqual(policy.handoffFooters({ replyLanguage: locale.regionalLanguage }, locale.question), footers);
+    assert.equal(policy.personReply('exception_request', { lane: 'account' }, locale.question,
+      { replyLanguage: locale.language }), footers.pending);
+    assert.doesNotMatch(footers.pending, /help@omi\.me|has this now|will reply|received|已发送|已经收到/);
+  }
+});
+
+test('Chinese and Italian handoff footers follow confirmed delivered, failed and other outcome paths', () => {
+  const { escalateReply } = require('../utils');
+  for (const locale of NEW_HANDOFF_LOCALES) {
+    const footers = policy.handoffFooters({ replyLanguage: locale.language }, locale.question);
+    assert.ok(footers, locale.language);
+    for (const [options, key] of [
+      [{ pinged: true, replyInThread: true }, 'thread'],
+      [{ pinged: true }, 'sent'],
+      [{ pinged: true, duplicate: true }, 'duplicate'],
+      [{ deliveryFailed: true, pinged: true, replyInThread: true }, 'failed'],
+      [{ issue: true }, 'issue'],
+      [{}, 'pending'],
+    ]) {
+      const reply = escalateReply(locale.body, { ...options, footers });
+      assert.equal(reply, `${locale.body}\n\n${footers[key]}`, `${locale.language}:${key}`);
+      assert.doesNotMatch(reply, /A person on the team|will reply in this thread|I could not send|The team already|The problem is written/i);
+      assert.equal((reply.match(/help@omi\.me/g) || []).length, key === 'failed' ? 1 : 0, `${locale.language}:${key}`);
+    }
+    assert.doesNotMatch(footers.failed, locale.sent);
+    assert.doesNotMatch(footers.failed, locale.thread);
+  }
 });
 
 test('person-only fallback matches the request and uses the customer script', () => {
