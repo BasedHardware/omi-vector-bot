@@ -623,6 +623,37 @@ test('authorized live-card actions update the case and notify the customer only 
   }
 });
 
+test('an unconfirmed acceptance notice gives staff an explicit private follow-up instruction', async t => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const { handleAcceptCase } = require('../commands');
+  const { MessageFlags } = require('discord.js');
+  const previous = { channel: process.env.STAFF_ALERT_CHANNEL_ID, users: process.env.STAFF_USER_IDS };
+  const staffChannel = '234567890123456789'; const staffId = '334567890123456789';
+  process.env.STAFF_ALERT_CHANNEL_ID = staffChannel; process.env.STAFF_USER_IDS = staffId;
+  t.after(() => {
+    if (previous.channel === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID; else process.env.STAFF_ALERT_CHANNEL_ID = previous.channel;
+    if (previous.users === undefined) delete process.env.STAFF_USER_IDS; else process.env.STAFF_USER_IDS = previous.users;
+  });
+  for (const code of ['send_unconfirmed', 'claim_failed', 'stale_acceptance', 'notice_unconfirmed', 'unavailable', 'thrown']) {
+    const cases = createCaseService(createMemoryStore());
+    const value = await cases.getOrCreateCase({ channelId: 'help', customerThreadId: 'help', customerId: 'customer' });
+    await cases.markDelivered(value.id, { confirmed: true });
+    let reply; let deferredFlags;
+    await handleAcceptCase({ customId: `case:accept:${value.id}`, channelId: staffChannel, channel: { id: staffChannel },
+      user: { id: staffId }, client: { user: { id: 'bot' } },
+      message: { id: '534567890123456789', author: { id: 'bot' }, embeds: [{ fields: [{ name: 'Case', value: value.id }] }] },
+      deferReply: async payload => { deferredFlags = payload.flags; }, editReply: async payload => { reply = payload; },
+      reply: async () => assert.fail('a valid staff acceptance must be deferred'),
+    }, { cases, cards: { rememberCard: async () => true, syncCase: async () => ({ ok: true }),
+      notifyAcceptance: async () => { if (code === 'thrown') throw new Error('unavailable'); return { ok: false, code }; } } });
+    assert.equal(deferredFlags, MessageFlags.Ephemeral);
+    assert.ok(reply.content.includes('The customer notice was not confirmed. Please reply in their thread yourself.'), code);
+    assert.doesNotMatch(reply.content, /customer thread was updated|notice was sent/i);
+    assert.deepEqual(reply.allowedMentions, { parse: [] });
+    assert.equal((await cases.getCaseById(value.id)).status, 'accepted');
+  }
+});
+
 test('case acceptance allows staff role or moderation permission but never the test-channel bypass', () => {
   const { canAcceptCase } = require('../commands');
   const names = ['STAFF_ALERT_CHANNEL_ID', 'STAFF_USER_IDS', 'STAFF_ROLE_ID', 'VECTOR_TEST_CHANNEL_ID'];

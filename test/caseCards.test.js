@@ -78,10 +78,19 @@ test('an intentionally deleted staff card is retired, not reposted', async t => 
 });
 
 test('failed card edit remains pending and a later sweep repairs it', async t => {
-  const f = await fixture(t); const edit = f.message.edit;
+  const f = await fixture(t); await f.cards.syncCase(f.client, f.value.id);
+  assert.match(f.message.embeds[0].title, /Awaiting staff acceptance/);
+  await f.cases.markAccepted(f.value.id, { staffId: OWNER });
+  await f.cases.setWorkStatus(f.value.id, 'in_progress');
+  const edit = f.message.edit; const beforeFailure = f.edits.length;
   f.message.edit = async () => { throw new Error('unavailable'); };
   assert.equal((await f.cards.syncCase(f.client, f.value.id)).ok, false);
+  assert.equal(f.edits.length, beforeFailure);
+  assert.match(f.message.embeds[0].title, /Awaiting staff acceptance/);
   f.message.edit = edit; assert.equal(await f.cards.syncPending(f.client), 1);
+  assert.equal(f.edits.length, beforeFailure + 1);
+  assert.match(f.message.embeds[0].title, /In progress/);
+  assert.equal(f.message.embeds[0].fields.find(field => field.name === 'Picked up by').value, `<@${OWNER}>`);
   assert.equal(await f.cards.syncPending(f.client), 0);
   assert.deepEqual(f.logs, ['[CaseCard] status refresh failed; pending retry']);
 });

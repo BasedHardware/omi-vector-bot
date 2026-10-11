@@ -482,7 +482,7 @@ async function handleCaseAction(interaction, { cases = supportCases, cards = req
     content: [summary,
       refreshed ? 'The staff card is up to date.' : 'The card refresh is not confirmed; use Refresh status to check it.',
       notice ? notice.ok ? notice.duplicate ? 'No duplicate customer notice was sent.' : 'The customer thread was updated.'
-        : 'The customer-thread notice is not confirmed. Please use the Jump link and follow up there.' : '',
+        : 'The customer notice was not confirmed. Please reply in their thread yourself.' : '',
     ].filter(Boolean).join(' '),
     allowedMentions: { parse: [] },
   });
