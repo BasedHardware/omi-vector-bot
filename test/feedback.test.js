@@ -80,3 +80,14 @@ test('relevant Feedback is labeled as an issue signal and saved without comments
   assert.doesNotMatch(text, /Advanced and continue|person@example\.com/);
   assert.equal(saved.length, 1);
 });
+
+test('a Feedback report is stored without a pasted key, address or order number', () => {
+  const page = feedbackPage('https://feedback.omi.me/p/sync-fails', {
+    title: 'Sync fails for order #22777',
+    content: 'Sync fails with my key sk-abcdefgh12345678.\nI am at 12 Baker Street, London',
+  });
+  for (const value of ['abcdefgh', '22777', 'Baker Street']) {
+    assert.equal(`${page.title}\n${page.body}`.includes(value), false, value);
+  }
+  assert.match(page.body, /Sync fails with my key \[token\]/);
+});
