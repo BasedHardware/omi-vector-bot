@@ -400,6 +400,39 @@ test.beforeEach(() => {
   github.resetGithubMemory();
 });
 
+test('staff cards recover on Discord ready and every 30 seconds, but not while stopping', async t => {
+  const caseCards = require('../caseCards');
+  const originals = { setInterval: global.setInterval, syncPending: caseCards.syncPending,
+    onChange: supportCases.onChange, fetch: client.channels.fetch,
+    hydrate: knowledge.hydrateFromDiscord, register: commands.registerSlashCommands, stopping: runtime.stopping };
+  t.after(() => {
+    global.setInterval = originals.setInterval; caseCards.syncPending = originals.syncPending;
+    supportCases.onChange = originals.onChange; client.channels.fetch = originals.fetch;
+    knowledge.hydrateFromDiscord = originals.hydrate; commands.registerSlashCommands = originals.register;
+    runtime.stopping = originals.stopping;
+  });
+  const timers = []; let passes = 0;
+  global.setInterval = (callback, delay) => { const timer = { callback, delay, unreferenced: false,
+    unref() { this.unreferenced = true; } }; timers.push(timer); return timer; };
+  caseCards.syncPending = async receivedClient => { assert.equal(receivedClient, client); passes++; return 0; };
+  supportCases.onChange = () => () => {};
+  client.channels.fetch = async () => null;
+  knowledge.hydrateFromDiscord = async () => 0;
+  commands.registerSlashCommands = async () => 0;
+  runtime.stopping = false;
+  const ready = client.listeners(Events.ClientReady)[0];
+  assert.equal(typeof ready, 'function');
+  await ready();
+  assert.equal(passes, 1, 'boot must repair persisted stale cards');
+  const sweep = timers.find(timer => timer.delay === 30000);
+  assert.ok(sweep); assert.equal(sweep.unreferenced, true);
+  await sweep.callback();
+  assert.equal(passes, 2, 'the timer must run another pending-card sweep');
+  runtime.stopping = true;
+  await sweep.callback();
+  assert.equal(passes, 2, 'shutdown must not start another repair');
+});
+
 test('/health stays unavailable until Discord is ready and never reveals staff IDs', (t) => {
   const health = app._router.stack.find((layer) => layer.route?.path === '/health').route.stack[0].handle;
   const hadOwnIsReady = Object.hasOwn(client, 'isReady');
