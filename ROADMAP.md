@@ -72,7 +72,7 @@ These capabilities remain subject to answer-quality checks. Existing functionali
 
 ### Requested live staff-card follow-through — draft, not live
 
-Validation on October 11: 646 unit/regression tests pass, offline customer evaluation 8/8, and the isolated SQL check passes with an old-schema upgrade, concurrent notice claims and card/close/reopen synchronization. Hosted PR CI and the protected customer-wording gate are separate checks, not implied by those local results.
+Validation on October 11: 647 unit/regression tests pass, offline customer evaluation 8/8, and the isolated SQL check passes with an old-schema upgrade, concurrent notice claims and card/close/reopen synchronization. The first hosted Postgres job caught a real microsecond-watermark bug that the initial millisecond-resolution fixture missed. It was reproduced with a sub-millisecond timestamp and corrected by stamping the exact server timestamp only for the rendered projection; a newer status remains pending. Hosted PR CI on the corrected head and the protected customer-wording gate are separate checks, not implied by local results.
 
 - [x] Show awaiting acceptance, accepted/not started, in progress, waiting for customer, resolved and closed from the same durable case. A staff action—not ticket delivery or elapsed time—starts work.
 - [x] Persist staff-card message references only; edit existing private cards immediately on transitions and recover missed edits through a bounded 30 s/25-case sweep. Serialize same-case edits across copies. Do not repost a card a person deleted.

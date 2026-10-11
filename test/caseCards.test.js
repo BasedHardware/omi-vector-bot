@@ -163,6 +163,15 @@ test('Postgres serializes cross-copy card edits and always releases its lock con
   assert.match(statements[2], /pg_advisory_xact_lock/); assert.equal(statements.at(-1), 'ROLLBACK'); assert.equal(released, true);
 });
 
+test('Postgres synchronization keeps its exact timestamp and refuses to acknowledge a newer state', async () => {
+  const calls = []; const store = createPostgresStore({ query: async (sql, args) => { calls.push({ sql, args }); } });
+  await store.synced({ caseId: 'case', messageId: CARD }, { updatedAt: new Date(), status: 'accepted', workStatus: 'in_progress', acceptedBy: OWNER });
+  assert.match(calls[0].sql, /synced_at=s.updated_at/);
+  assert.match(calls[0].sql, /date_trunc\('milliseconds', s.updated_at\)=\$3/);
+  assert.match(calls[0].sql, /s.work_status IS NOT DISTINCT FROM \$5/);
+  assert.match(calls[0].sql, /s.accepted_by IS NOT DISTINCT FROM \$6/);
+});
+
 test('acceptance uses the persisted customer language without a provider call', async t => {
   const f = await fixture(t);
   for (const [language, match] of [['es', /se ha hecho cargo/], ['zh', /已接手/], ['it', /preso in carico/], ['hi-Latn', /aapka mamla/]]) {

@@ -121,6 +121,8 @@ async function verify(pool) {
   await service.saveAcceptanceNotice(first.id, accepted.acceptanceGeneration, `${prefix}-acceptance-receipt`);
   assert.equal((await service.getCaseById(first.id)).acceptanceNoticeId, `${prefix}-acceptance-receipt`);
   const cardStore = cards.createPostgresStore(pool);
+  // Native Postgres retains sub-millisecond precision; JS Date does not.
+  await pool.query("UPDATE support_cases SET updated_at=date_trunc('milliseconds', NOW()) + INTERVAL '456 microseconds' WHERE id=$1", [first.id]);
   const cardService = cards.createCardService(cardStore, { service });
   const staffChannelId = '234567890123456789'; const staffCardId = '534567890123456789';
   const previousStaffChannel = process.env.STAFF_ALERT_CHANNEL_ID; process.env.STAFF_ALERT_CHANNEL_ID = staffChannelId;
@@ -133,6 +135,11 @@ async function verify(pool) {
     assert.equal(await cardService.syncPending(client), 1);
     assert.match(lastCard.embeds[0].title, /In progress/);
     assert.equal(await cardService.syncPending(client), 0);
+    const staleSnapshot = await service.getCaseById(first.id);
+    await service.setWorkStatus(first.id, 'waiting_customer');
+    await cardStore.synced({ caseId: first.id, messageId: staffCardId }, staleSnapshot);
+    assert.ok((await cardStore.dirty(service, 25)).includes(first.id));
+    await cardService.syncPending(client); assert.match(lastCard.embeds[0].title, /Waiting for customer/);
     await service.resolveCase(first.id, { close: true, confirmed: true });
     await cardService.syncPending(client); assert.match(lastCard.embeds[0].title, /Closed/);
     const reopened = await service.reopenByThread(`${prefix}-handoff`, aliceInput.customerId);

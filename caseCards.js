@@ -71,8 +71,15 @@ function createPostgresStore(pool) {
     },
     async forget(caseId, messageId, connection = pool) { await connection.query('DELETE FROM support_case_cards WHERE case_id=$1 AND message_id=$2', [caseId, messageId]); },
     async synced(card, value, connection = pool) {
-      await connection.query(`UPDATE support_case_cards SET synced_at=$3, synced_status=$4, synced_work_status=$5, synced_accepted_by=$6
-        WHERE case_id=$1 AND message_id=$2`, [card.caseId, card.messageId, value.updatedAt, value.status, value.workStatus, value.acceptedBy]);
+      // Preserve the database's microseconds rather than rounding its watermark
+      // through JS Date. Stamp only the same projection that was actually edited;
+      // a state change during the Discord request must remain pending.
+      await connection.query(`UPDATE support_case_cards c SET synced_at=s.updated_at,
+        synced_status=s.status, synced_work_status=s.work_status, synced_accepted_by=s.accepted_by
+        FROM support_cases s WHERE c.case_id=$1 AND c.message_id=$2 AND s.id=c.case_id
+          AND date_trunc('milliseconds', s.updated_at)=$3::timestamptz AND s.status=$4
+          AND s.work_status IS NOT DISTINCT FROM $5::text AND s.accepted_by IS NOT DISTINCT FROM $6::text`,
+      [card.caseId, card.messageId, value.updatedAt, value.status, value.workStatus, value.acceptedBy]);
     },
     async dirty(_service, limit) {
       const { rows } = await pool.query(`SELECT DISTINCT c.case_id FROM support_case_cards c JOIN support_cases s ON s.id=c.case_id
