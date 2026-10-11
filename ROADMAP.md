@@ -4,7 +4,19 @@ This is the living implementation record. A checked implementation item means co
 
 ## Release-only mode and merge gates
 
-Feature work is frozen. Do not extend Milestone 2, add diagnostics code or make further feature commits to #28–#30. #25 and #31 have explicit release approval and are live; #26 and the remaining stack still require review before merge/deployment.
+The latest staged-release brief governs release order. #28–#30 remain unchanged by this work. Aryan explicitly requested live staff-card status and an acceptance notice on October 11; that narrow feature is on the separate `feat/live-staff-case-status` draft branch, not deployed or blanket-approved for release. No diagnostics or new backend access accompanies it.
+
+### October 11 current production and review gate
+
+- #33 and #32 merged into #26's foundation; #26 merged into main as `2150383`. Its pre-release suite was 626/626, with Node 20/24 and database CI green.
+- Initial release `565be7b7-66ab-48a9-97e5-2cd8dedbc48d` succeeded on October 10 at 13:20:42 UTC. Direct `node index.js` startup replaced the unset override/effective npm startup; draining went from unset to 100 s. `/health` and its default timeout are unchanged; no service variables changed. Auto-deploy remains disabled; this was an explicit deploy.
+- Four normal smoke replies and two in-flight restart replies were observed on October 11. Each had exactly one source label and no link-only fragments; no missing/duplicate reply, schema/model/review/staff-delivery error was observed in the smoke window. Both old copies answered after SIGTERM and logged `drain completed=true telegram_completed=true`. The replacement card was screenshot-confirmed then intentionally deleted by Aryan; restart B's card was also independently read from Discord before its later removal.
+- Final same-image deployment: `8e9e453b-d60b-4001-86c0-8303deaf123d`, created October 11 at 11:01:55 UTC, SUCCESS; HTTP 200, `status=ok`, `staffHandoff=configured`. The specified rollback target `0955e078-42ea-4830-bba5-006dae841745` is still rollback-capable.
+- Restart A/B: new-login → old-SIGTERM gaps 3.678/9.398 s; new-login → old drain-completed logs 23.675/29.395 s. The latter are connection-shutdown proxies, not exact socket disconnect times. This verifies the two observed drains, not every possible duplicate/uncertain-send failure mode.
+- **Report 1 is complete but awaiting external grading.** Quality exceptions remain: the first webhook answer points at the prompt-app guide, Spanish mixes conflicting language guidance, replacement intake still asks for tracking, restart A omits available Developer Mode steps, and restart B hands off an ordinary how-to. Do not represent the reliability smoke as blanket answer-quality approval.
+- After Report 1 is graded clean, the separately approved contributor fixes release in order #37 → #40 → #34 → #36 → #38 → #39, with main CI green after each merge and one deploy/smoke after all six. #35 remains unmerged pending the requested product/prerelease fixes. #28 preparation can run alongside that phase; its merge still needs review. #29 preparation follows #28's merge; #30 follows #29 approval. Their deployments remain separate and gated by 24 clean hours unless Aryan explicitly says go.
+
+The preceding gate/comparison entries below are retained as history, not a claim that #26 is still undeployed.
 
 1. Complete and report Aryan's four #24 smoke tests, their exact timing lines, second-look lines and errors, and the private staff card. Screenshots received on October 9 confirm the four replies and replacement card. Totals: deletion 24.760 s, replacement 30.631 s, Spanish 31.251 s, developer 53.540 s; no second looks or model/staff-delivery failures in that window. Functional checks pass, but do not convert this into a blanket answer-quality signoff: the Undo wording overpromises recovery and the replacement intake asks for tracking details.
 2. Release approved #25 with a merge commit, deploy main, verify HTTP 200/status `ok`/staff handoff `configured`, and record a real successful rollback target. Read but do not change overlap/draining variables. Set only Healthcheck Path `/health`, leave timeout default, verify the health-gated deployment and measure new Discord login versus old SIGTERM. If overlap exceeds ten seconds, tell Aryan before any further deployments.
@@ -24,7 +36,7 @@ Customer-impacting follow-ups take priority over deferred plumbing: developer pa
 
 ## Current milestone
 
-**Workflow foundation is implemented on the working branch; production rollout is pending.** The earlier documentation-only proposal is now being extended with actual runtime changes. No GCP permissions or customer-content access have been granted.
+**Workflow foundation is live at `2150383`; Report 1 awaits grading.** Live staff-card status and acceptance notices are implemented on the separate draft branch, not production. No GCP permissions or customer-content access have been granted.
 
 The existing PR #24 smoke-test prerequisite still applies to the approved PR #25 readiness rollout. Do not redeploy over an unfinished smoke test or claim the new foundation is live before deployment and end-to-end checks succeed.
 
@@ -56,7 +68,18 @@ These capabilities remain subject to answer-quality checks. Existing functionali
 - [x] Add PR checks with no provider/Discord secrets, and a disposable Postgres integration job.
 - [x] Complete hosted CI for runtime head `3960f24`: rules on Node 20/24 and the disposable Postgres job pass.
 - [x] Run a focused three-run communication evaluation: eight cases meet the pass threshold, one is flaky, none fail the threshold. This is not the 81-case held-out gate or a production smoke test.
-- [ ] Deploy through the existing smoke-test and rollback gates; verify real private delivery, restart behavior and deployment overlap.
+- [x] Deploy #26/#33/#32 and record private delivery, two in-flight drains, overlap and rollback evidence; Report 1 grading remains pending, with the quality exceptions above.
+
+### Requested live staff-card follow-through — draft, not live
+
+Validation on October 11: 646 unit/regression tests pass, offline customer evaluation 8/8, and the isolated SQL check passes with an old-schema upgrade, concurrent notice claims and card/close/reopen synchronization. Hosted PR CI and the protected customer-wording gate are separate checks, not implied by those local results.
+
+- [x] Show awaiting acceptance, accepted/not started, in progress, waiting for customer, resolved and closed from the same durable case. A staff action—not ticket delivery or elapsed time—starts work.
+- [x] Persist staff-card message references only; edit existing private cards immediately on transitions and recover missed edits through a bounded 30 s/25-case sweep. Serialize same-case edits across copies. Do not repost a card a person deleted.
+- [x] Preserve the first accepting staff member per acceptance cycle, reset acceptance/work state on customer-authorized reopening, and separate the suggested specialist from the actual acceptor.
+- [x] Send one localized, no-ping acceptance update in the bound customer thread (or verified original-message reply). No ETA, private intake, backend check or resolution claim. Cross-copy claims and a per-cycle nonce prevent repeated Accept clicks from repeating the notice.
+- [x] On an unconfirmed notice, keep the real acceptance and tell staff to follow up via Jump; do not blindly replay an uncertain send or claim the customer was notified. A crash between the durable claim and Discord delivery can leave this optional notice unconfirmed; staff follow-up is the fallback, not an exactly-once guarantee.
+- [ ] Review the draft after #28's private-destination validation is integrated, pass the full 81-case gate required for canned customer wording, and smoke-test accept/start/wait/close/reopen plus a restart before enabling. Reuse #28's validation rather than implementing a competing audience checker. The protected file has not been opened or rerun for this feature.
 
 ## Milestone 2 Complete case handling and delivery recovery
 

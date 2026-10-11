@@ -753,8 +753,10 @@ function formatStaffTicket({
     ];
   }
   if (staffOnly && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(caseId || ''))) {
+    embed.fields.unshift({ name: 'Status', value: 'Awaiting staff acceptance', inline: true });
     if (!discord.components) discord.components = [{ type: 1, components: [] }];
     discord.components[0].components.push({ type: 2, style: 1, custom_id: `case:accept:${caseId}`, label: 'Accept case' });
+    discord.components[0].components.push({ type: 2, style: 2, custom_id: `case:refresh:${caseId}`, label: 'Refresh status' });
   }
 
   return {
@@ -825,14 +827,18 @@ async function postHandoffThread(message, payload, meta = {}) {
   return thread;
 }
 
-async function sendToStaffChannel(client, payload, customerChannelId) {
+async function sendToStaffChannel(client, payload, customerChannelId, caseId) {
   const staffId = process.env.STAFF_ALERT_CHANNEL_ID;
   if (!staffId || !client?.channels?.fetch) return false;
   if (String(staffId) === String(customerChannelId || '')) return false;
   const ch = await client.channels.fetch(staffId);
   if (!ch?.isTextBased?.() || typeof ch.send !== 'function') return false;
   await assertCurrentOwnership();
-  await ch.send(payload);
+  const sent = await ch.send(payload);
+  if (caseId && sent?.id) {
+    try { await require('./caseCards').rememberCard(caseId, ch.id || staffId, sent.id); }
+    catch { console.error('[CaseCard] receipt persistence failed; staff can repair with Refresh status'); }
+  }
   return true;
 }
 
@@ -853,7 +859,7 @@ function publicHandoffDiscord(discord) {
   const payload = {
     embeds: [
       {
-        title: embed.title,
+        title: /^Support case ·/.test(String(embed.title || '')) ? 'Needs a human' : embed.title,
         color: embed.color,
         description: PUBLIC_HELP_CARD_DESCRIPTION,
         fields,
@@ -867,7 +873,7 @@ function publicHandoffDiscord(discord) {
   };
   if (Array.isArray(discord?.components) && discord.components.length) {
     const publicRows = discord.components.map((row) => ({ ...row,
-      components: (row.components || []).filter((component) => !String(component.custom_id || component.customId || '').startsWith('case:accept:')),
+      components: (row.components || []).filter((component) => !String(component.custom_id || component.customId || '').startsWith('case:')),
     })).filter((row) => row.components.length);
     if (publicRows.length) payload.components = publicRows;
   }
@@ -916,7 +922,7 @@ async function notifyStaff({
   let visibleCard = null;
 
   try {
-    if (await sendToStaffChannel(client, ticket.discord, channelId)) {
+    if (await sendToStaffChannel(client, ticket.discord, channelId, caseId)) {
       markHandedOff(channelId, userId, true);
       await assertCurrentOwnership();
       await telegram.sendEscalation(ticket.plain);
