@@ -40,6 +40,7 @@ const modelCalls = [];
 let modelReply = {};
 let modelDown = false;
 let searchPlanQueries = [];
+let plannerSubQuestions = [];
 const plannerCalls = [];
 let plannerSupportKind = 'other';
 let plannerMessageKind = 'question';
@@ -84,6 +85,7 @@ commandcode.understandQuestion = async ({ question, onUsage }) => {
     wantsPerson: plannerWantsPerson,
     dataLossRisk: plannerDataLossRisk,
     queries: searchPlanQueries,
+    subQuestions: plannerSubQuestions,
   };
 };
 commandcode.reviewAnswer = async (args) => {
@@ -373,6 +375,7 @@ test.beforeEach(() => {
   modelReply = {};
   modelDown = false;
   searchPlanQueries = [];
+  plannerSubQuestions = [];
   plannerCalls.length = 0;
   plannerSupportKind = 'other';
   plannerMessageKind = 'question';
@@ -614,6 +617,33 @@ test('large docs evidence still passes later Help Center blocks to the answer st
     if (previousKey === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previousKey;
   }
+});
+
+test('multi-part planning reaches production retrieval without dropping individual sub-questions', async t => {
+  const previousKey = process.env.CMD_API_KEY;
+  t.after(() => {
+    docsObserver = null;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY; else process.env.CMD_API_KEY = previousKey;
+  });
+  process.env.CMD_API_KEY = 'test-only-key';
+  plannerSubQuestions = [
+    { question: 'Start a phone recording', query: 'Omi phone microphone recording instructions' },
+    { question: 'Choose a transcription language', query: 'Omi app transcription language settings' },
+    { question: 'Read a conversation summary', query: 'Omi conversation summary view' },
+    { question: 'Remove one saved conversation', query: 'Omi individual conversation deletion' },
+  ];
+  searchPlanQueries = plannerSubQuestions.map(part => part.query);
+  const lookups = [];
+  docsObserver = async (question, options) => {
+    lookups.push({ question, options });
+    return '[S1 | Official Help Center | authoritative]\nApp controls\nhttps://help.omi.me/en/articles/fixture-controls\nThe app provides recording, language and conversation controls.';
+  };
+  const result = await ask('Please explain phone recording, transcription language selection, reading summaries and removing one saved conversation.');
+  assert.equal(result.modelCalled, true);
+  assert.equal(lookups.length, 1);
+  assert.deepEqual(lookups[0].options.subQuestions, plannerSubQuestions);
+  assert.deepEqual(lookups[0].options.queries, searchPlanQueries);
+  assert.deepEqual(modelCalls.at(-1).understanding.subQuestions, plannerSubQuestions);
 });
 
 test('a how-to question in #vector-test gets the model answer and no Handoff', async () => {
