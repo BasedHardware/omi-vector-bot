@@ -4,8 +4,10 @@ const {
   stripPingNarration,
   formatDiscordReply,
   clipForDiscord,
+  DISCORD_REPLY_MAX,
 } = require('./utils');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
+const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 
 const EMPTY_ANSWER_FALLBACK = 'I could not verify a safe answer here. A person needs to check this.';
 const UNSYNCED_DATA_WARNING = 'Recordings may still be unsynced. Do not reinstall the app, log out, or clear Pending/All storage until a person checks; those actions could erase local recordings.';
@@ -39,10 +41,30 @@ function prepareDraftForReview(answer, lane, question) {
   return prepareDraftForReviewWithAudit(answer, lane, question).draft;
 }
 
+// The closing source line: a label, then at least one https link, up to the end of the answer.
+const TRAILING_SOURCE = new RegExp(
+  `\\n\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}\\s*https:\\/\\/[^\\n]*$`,
+  'iu'
+);
+
+// Clip the body and keep the source line whole. A link cut short opens nothing.
+function clipKeepingSource(answer, max = DISCORD_REPLY_MAX) {
+  const text = String(answer || '').trim();
+  if (text.length <= max) return text;
+  const sourceAt = text.search(TRAILING_SOURCE);
+  if (sourceAt < 0) return clipForDiscord(text, max);
+  const tail = text.slice(sourceAt);
+  const gap = /^\n\s*\n/.test(tail) ? '\n\n' : '\n';
+  const sourceLine = tail.trim();
+  const bodyBudget = max - sourceLine.length - gap.length;
+  if (bodyBudget < 200) return clipForDiscord(text, max);
+  return `${clipForDiscord(text.slice(0, sourceAt), bodyBudget)}${gap}${sourceLine}`;
+}
+
 function presentReviewedAnswer(answer) {
   // The reviewer has already checked the claims. Only enforce the hard
   // no-false-ping rule and Discord's format/length constraints here.
-  return ensureNonEmptyAnswer(clipForDiscord(formatDiscordReply(stripPingNarration(answer))));
+  return ensureNonEmptyAnswer(clipKeepingSource(formatDiscordReply(stripPingNarration(answer))));
 }
 
 function stripUnverifiedOrderClaims(answer, { verifiedLookup = false } = {}) {
