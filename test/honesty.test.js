@@ -838,3 +838,31 @@ test('the same message id is only claimed once', () => {
   assert.equal(claimMessage('forum-starter-1'), false);
   assert.equal(claimMessage('forum-starter-2'), true);
 });
+
+test('a promise to tell the team is a staff lie in the future tense too', () => {
+  for (const line of [
+    "I'll make sure the team sees this.",
+    'I’ll make sure someone gets back to you.',
+    "I'll let the team know about this.",
+    'I will notify support right away.',
+    "I'll flag this to the team.",
+    "I'll forward this to support.",
+    "I'll escalate this for you.",
+    'I am going to pass this on to the engineers.',
+  ]) {
+    assert.equal(looksLikeStaffLie(line), true, line);
+    assert.equal(stripStaffLies(`Restart the app first. ${line}`), 'Restart the app first.', line);
+  }
+});
+
+test('an offer the customer can act on is not a staff lie', () => {
+  for (const line of [
+    "I'll tell you how to contact support.",
+    "I'll explain what the red light means.",
+    'If that fails, let the team know in this thread.',
+    'You can email help@omi.me and a person will look at it.',
+    'I will send you the steps to reset the device.',
+  ]) {
+    assert.equal(looksLikeStaffLie(line), false, line);
+  }
+});
