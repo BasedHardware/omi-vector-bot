@@ -10,6 +10,8 @@ Keep one primary running service. Shared claims and worker slots protect overlap
 
 Before deploying, pass PR tests and relevant answer-quality checks, finish the existing smoke-test prerequisite, and record the current successful deployment as the rollback target. Verify the new deployment, health endpoint, Discord login, staff receipt and actual customer replies. Configuration presence is not a staff-delivery test. Do not change unrelated Railway variables or cloud permissions during rollout.
 
+Current staged order is #41 → gated Phase 4 → #28 → #29 → #30, with one smoke report and 24 clean hours between releases unless Aryan explicitly says go. The Phase 2 deployment at October 11, 12:08:24 UTC means #41 cannot release before October 12, 12:08:24 UTC / 17:38:24 IST without that explicit exception. Verify the current deployment/interval again before dispatch; do not rely on an old timestamp after another deploy. The scheduler rejected the follow-up, so a future manual continuation is needed unless scheduling is restored.
+
 ## Customer verification
 
 Order links are customer-owned, encrypted in Postgres, and expire after 30 days. Codes expire after ten minutes by default, have five attempts, and are limited to three sends per hour per Discord-user/email pair. Those limits survive restart. `/unlink` revokes the binding and pending challenge, even if Shopify/email delivery is unavailable; it does not reset the anti-abuse limit.

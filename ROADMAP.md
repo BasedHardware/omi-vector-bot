@@ -4,7 +4,24 @@ This is the living implementation record. A checked implementation item means co
 
 ## Release-only mode and merge gates
 
-Feature work is frozen. Do not extend Milestone 2, add diagnostics code or make further feature commits to #28–#30. #25 and #31 have explicit release approval and are live; #26 and the remaining stack still require review before merge/deployment.
+The latest staged-release instructions govern this work. Do not add diagnostics or unrelated features. Keep each release isolated, verified and separated by 24 clean hours unless Aryan explicitly says go. Omi Support Bot is the product name; technical identifiers remain unchanged.
+
+### October 11 current production and next gates
+
+- Reports 1 and 2 were graded PASS. The foundation and six approved contributor fixes are live at main `8321439`, deployment `5b25759b-d01e-4645-ade1-c869a482b323`, with `8e9e453b-d60b-4001-86c0-8303deaf123d` as the Phase 2 rollback target. The observed production suite is 638 tests and offline 8/8.
+- Phase 2 deployed October 11 at 12:08:24 UTC / 17:38:24 IST. Health returned HTTP 200, `status=ok`, `staffHandoff=configured`; settings and variables were unchanged. All four synthetic posts received one reply. The extra long guide exercised clipping at 1,900 characters and retained one complete Source line and both URLs, but its body was incomplete. Staff delivery was screenshot-confirmed; Aryan intentionally removed the test cards. The public filing formatter hid phone/order offline; a live filing draft was not inspected. Preserve these limitations rather than treating the smoke as blanket answer quality approval.
+- #41 (`feat/live-staff-case-status`, reviewed head `e5cff9e`) is approved with 661 tests, offline 8/8 and Node 20/24 plus Postgres CI. It is not deployed or merged into main. Hold its release until October 12 after 12:08:24 UTC / 17:38:24 IST unless Aryan explicitly says go. REPORT 3 requires real English/Spanish Accept and duplicate-Accept clicks, Start work, Waiting, restart/Refresh and `/done`, with card snapshots, actual notices and CaseCard/SupportRuntime logs. The follow-up scheduler rejected creation; no automatic rollout is booked.
+- Phase 4 is implemented on `fix/howto-routing-and-long-answers`, from main `8321439`: technical topics select retrieval lanes without asserting a failure or forcing a handoff; real failures and protected person-required paths remain. Triage has no separate topic-only escalation rule; tests preserve real model/reviewer handoffs. Offline-capability questions and diagnostic-log guides are not incident reports by themselves.
+- Phase 4 answers get an approximately 1,500-character draft budget, brief supported parts in requested order and complete-item overflow clipping. Wrapped bullets/steps remain atomic; Source links and data-preservation warnings stay whole. An oversized first item gets an honest truncation note, not partial guidance.
+- Phase 4 multipart planning retains a neutral search query for each distinct part (bounded to eight). More than three parts can select four complementary official pages within eight chunks and 9,000 evidence characters. Normal query/citation defaults remain; multipart citations can use up to four retrieved URLs on one Source line. Production's stored corpus and the eval's joint multipart corpus share coverage selection. Ordinary evidence concatenation is not newly sliced, preserving the earlier Help Center regression fix.
+- Physical damaged/replacement intake asks for photos/video, private order email and delivery date, not tracking. Account/code/receipt changes retain their prior intake; delivered-but-missing parcels retain tracking intake. Private staff order retention is unchanged.
+- Local Phase 4 checks: 668 tests, offline 8/8; new behavior regressions were exercised against the pre-change code. The same-day protected comparison is pending: pinned main first, branch second, 81 cases × two runs, concurrency three. Keep code/settings fixed between runs, keep questions unopened, report both JSONs and per-stage timings, and let the reviewer grade case quality/escalations. Latency limits: branch p50 ≤ main +2 s, p95 ≤ main +6 s. No Phase 4 merge/deploy before its gate and review.
+
+**Deployment order:** #41 → reviewed Phase 4 → reviewed/private-preflight #28 → reviewed #29 → reviewed #30. One deploy and its own smoke report at a time, 24 clean hours between releases. Later phase corrections remain narrowly authorized; no changes to #28–#30 accompany this Phase 4 PR. Private diagnostics stay parked behind backend/privacy agreement. N12 credential rotation remains deferred by Aryan (Oct 9), accepted risk.
+
+### Historical release plan (superseded by the staged order above)
+
+The earlier entries below are historical evidence, not a claim that the foundation is still undeployed or authority to skip current gates.
 
 1. Complete and report Aryan's four #24 smoke tests, their exact timing lines, second-look lines and errors, and the private staff card. Screenshots received on October 9 confirm the four replies and replacement card. Totals: deletion 24.760 s, replacement 30.631 s, Spanish 31.251 s, developer 53.540 s; no second looks or model/staff-delivery failures in that window. Functional checks pass, but do not convert this into a blanket answer-quality signoff: the Undo wording overpromises recovery and the replacement intake asks for tracking details.
 2. Release approved #25 with a merge commit, deploy main, verify HTTP 200/status `ok`/staff handoff `configured`, and record a real successful rollback target. Read but do not change overlap/draining variables. Set only Healthcheck Path `/health`, leave timeout default, verify the health-gated deployment and measure new Discord login versus old SIGTERM. If overlap exceeds ten seconds, tell Aryan before any further deployments.
@@ -24,9 +41,9 @@ Customer-impacting follow-ups take priority over deferred plumbing: developer pa
 
 ## Current milestone
 
-**Workflow foundation is implemented on the working branch; production rollout is pending.** The earlier documentation-only proposal is now being extended with actual runtime changes. No GCP permissions or customer-content access have been granted.
+**Foundation and approved Phase 2 fixes are live at `8321439`.** #41 is approved but time-gated; Phase 4 is implemented on its review branch with the protected comparison still pending. No GCP permissions or customer-content access have been granted.
 
-The existing PR #24 smoke-test prerequisite still applies to the approved PR #25 readiness rollout. Do not redeploy over an unfinished smoke test or claim the new foundation is live before deployment and end-to-end checks succeed.
+The older #24/#25 prerequisites are complete. Each subsequent release still needs its own review, smoke report, clean interval and rollback evidence; never redeploy over an unfinished reply.
 
 ## Already working before this milestone
 
@@ -56,7 +73,7 @@ These capabilities remain subject to answer-quality checks. Existing functionali
 - [x] Add PR checks with no provider/Discord secrets, and a disposable Postgres integration job.
 - [x] Complete hosted CI for runtime head `3960f24`: rules on Node 20/24 and the disposable Postgres job pass.
 - [x] Run a focused three-run communication evaluation: eight cases meet the pass threshold, one is flaky, none fail the threshold. This is not the 81-case held-out gate or a production smoke test.
-- [ ] Deploy through the existing smoke-test and rollback gates; verify real private delivery, restart behavior and deployment overlap.
+- [x] Deploy the foundation and approved Phase 2 fixes; record real private delivery, two in-flight restart/drain checks, overlap and rollback evidence. Reports 1 and 2 passed; recorded answer-quality exceptions remain.
 
 ## Milestone 2 Complete case handling and delivery recovery
 

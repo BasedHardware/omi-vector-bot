@@ -1,6 +1,19 @@
 # Omi Support Bot Implementation Checklist
 
-Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. The first workflow foundation is implemented and tested on the branch; rollout and future diagnostics remain separate. Each runtime change needs regression checks and release verification. No cloud access grants accompany this foundation.
+Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. The foundation and Phase 2 fixes are live at `8321439`; reports 1 and 2 passed. #41 is approved but time-gated, and Phase 4 is implemented on a separate review branch. Each runtime change needs regression checks and release verification. No cloud access grants accompany this work.
+
+## Current staged release checklist
+
+- [x] Phase 2 release and REPORT 2 graded PASS; preserve the clipping, retrieval and synthetic-title limitations in the roadmap.
+- [x] #41 review approved at `e5cff9e`, 661 tests and Node 20/24/Postgres CI green.
+- [ ] Release #41 after October 12, 12:08:24 UTC / 17:38:24 IST unless Aryan explicitly says go; complete English/Spanish acceptance, repeated click, work/wait, restart/refresh and closure smoke, then REPORT 3. No automatic rollout is scheduled.
+- [x] Phase 4 routing separates technical topics from failures, with eight own English/Spanish how-tos, eight failures and capability/diagnostic-guide edge checks; genuine reviewer/protected handoffs remain.
+- [x] Phase 4 draft budget and complete-item clipping preserve full Source URLs and data-loss warnings.
+- [x] Phase 4 multipart planning/retrieval/citation coverage uses up to four pages within existing evidence caps; production/eval joint coverage and unchanged ordinary evidence paths have offline fixtures.
+- [x] Phase 4 replacement intake requests damage evidence, private order email and delivery date while preserving account and missing-delivery intake.
+- [x] Local Phase 4 unit suite: 668 pass; offline customer check 8/8. New regression behavior was shown to fail before the fixes.
+- [ ] Run the same-day 81×2/concurrency-3 main/branch comparison, preserve both JSONs and per-case escalation outcomes for review; branch latency p50 ≤ main +2 s, p95 ≤ main +6 s. No protected-case inspection or tuning.
+- [ ] Review and deploy Phase 4 only after #41's verified release and the comparison gate; then prepare/review #28, #29 and #30 in order, each with its own release/smoke/24-hour interval.
 
 ## Release and security prerequisites
 

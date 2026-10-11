@@ -1,6 +1,6 @@
 # Omi Support Bot Architecture
 
-Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. The workflow foundation described below is implemented on the working branch; production rollout is tracked separately in [the roadmap](../ROADMAP.md). The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
+Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. The foundation and approved Phase 2 fixes are live at main `8321439`; reports 1 and 2 passed. #41's live case-status upgrade is approved but time-gated, and the Phase 4 answer-quality work below is implemented on a review branch, not deployed. [The roadmap](../ROADMAP.md) records each gate separately. The recording-diagnostics gateway remains a target design, not newly granted access.
 
 ## Current capabilities and gaps
 
@@ -68,6 +68,10 @@ For later log correlation, a dedicated gateway identity can read only an approve
 
 Use the current question plus relevant case context. Retrieve official evidence, answer the actual goal, and retain the review and source formatting checks. Preserve what the customer tried; do not repeat failed steps. Pure thanks receive no reply. Clarify only when the missing detail changes the answer.
 
+Phase 4 separates technical topics from reported failures. APP/DESKTOP/FIRMWARE still select their retrieval lane, but a deterministic handoff requires an observed failure or an independently protected person-required signal. Capability questions and diagnostic-guide topics are not failures by themselves; a real fault inside a question still is. Model/reviewer rejection, human requests and data-loss signals remain independent handoff grounds, not suppressed by a how-to label.
+
+Multipart planning retains bounded neutral `{question, query}` pairs in the requested order. With more than three distinct parts, retrieval selects up to four complementary pages, without increasing the eight-chunk/9,000-character output budget. Stored and in-memory evaluation corpora use the same coverage selector before formatting; the ordinary concatenation path remains untouched. Grounded multipart citations may include four exact retrieved URLs, while ordinary replies retain two. The answer model gets an approximately 1,500-character budget and concise supported coverage. Overflow presentation keeps complete bullets/steps or prose sentences plus the intact Source line; data-loss warnings use the same boundary and are never shortened away.
+
 ### Missing recordings
 
 Acknowledge the impact and immediately protect potentially unsynced data. Provide a private verification step, obtain diagnostic consent, and inspect the permitted pipeline metadata. Explain observed facts without guessing root cause or promising recovery. If unresolved, deliver one staff case containing the diagnostic timeline, attempted steps and missing information. Logs can locate a failure stage; they cannot recreate absent audio.
@@ -75,6 +79,8 @@ Acknowledge the impact and immediately protect potentially unsynced data. Provid
 ### Orders and other person-required requests
 
 Use the exact verified order privately when available. Refund, replacement, billing, account and privacy decisions remain with staff. Give safe documented steps where applicable and one next step. Once staff delivery succeeds, do not also tell the customer to email another channel. If delivery fails, use the existing honest fallback.
+
+Phase 4 damaged-item/replacement intake requests photos or video, the order email privately and the delivery date. This requires a physical-item damage/replacement signal, not replacing an account field, receipt or redemption code. Ordinary missing-delivery intake keeps its tracking details; private order retention and public redaction boundaries are unchanged.
 
 ### Human handoff and closure
 
