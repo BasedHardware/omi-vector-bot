@@ -1,5 +1,11 @@
 // Public GitHub issues and customer-visible cards must never carry raw customer identifiers.
 // Keep this independent of route classification so every filing path has the same boundary.
+
+// A phone word and at most a few joining words right before the digits: "phone number is",
+// "call me on", "tel.", "mobile:", "my number is".
+const PHONE_CONTEXT =
+  /(?:phone|tel(?:ephone)?|t[eé]l[eé]phone|tel[eé]fono?|telefone|whatsapp|call|\b(?:mobile|cell|contact|ph)\b|\bmy\s+(?:number|no)\b)\.?(?:\s*(?:number|no\.?|is|me|us|at|on|[:=#-]))*\s*$/i;
+
 function redactSensitive(text, { issue = false, preserveOfficialEmails = false } = {}) {
   let out = String(text || '');
   const officialEmail = (value) => preserveOfficialEmails &&
@@ -17,7 +23,7 @@ function redactSensitive(text, { issue = false, preserveOfficialEmails = false }
   out = out.replace(/(?<![\w#])\+?(?:\(\d{1,4}\)|\d{1,4})(?:[\s().-]*(?:\(\d{1,4}\)|\d{1,4})){1,5}(?!\w)/g, (match, offset, source) => {
     const digits = match.replace(/\D/g, '');
     const before = source.slice(Math.max(0, offset - 32), offset);
-    const hasPhoneContext = /(?:phone|tel(?:ephone)?|whatsapp|call)\s*(?:number|no\.?|me|at|on|:|=)?\s*$/i.test(before);
+    const hasPhoneContext = PHONE_CONTEXT.test(before);
     if (digits.length > 15 || (digits.length < 9 && !(hasPhoneContext && digits.length >= 7))) return match;
     const groups = match.match(/\d+/g) || [];
     const lengths = groups.map((group) => group.length).join('-');
@@ -31,7 +37,11 @@ function redactSensitive(text, { issue = false, preserveOfficialEmails = false }
   out = out.replace(/https:\/\/(?:cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\/[^\s)]+/gi, '[attachment in Discord]');
   out = out.replace(/<@!?\d+>|<@&\d+>|(?<![\w.])@[A-Za-z0-9_.-]{2,32}/g, '[Discord user]');
   out = out.replace(/\b(?:Discord\s+)?user(?:name)?\s*[:=]\s*[^\s,;]+/gi, '[Discord user]');
-  out = out.replace(/\b(?:order|ticket)\s*(?:number|no\.?|id|#)?\s*[:#]?\s*\d{3,}\b/gi, '[order number]');
+  // "order 22777" and "order number: 22777", and the same said in a sentence: "order number is 22777".
+  out = out.replace(
+    /\b(?:order|ticket)\s*(?:number|no\.?|id|#)?\s*(?:[:#]?\s*\d{3,}|(?:is|was|=|-)\s*#?\s*\d{4,})\b/gi,
+    '[order number]'
+  );
   out = out.replace(/(?<!\w)#\d{4,}\b/g, (match, offset, source) =>
     /\b(?:PR|pull request|(?:GitHub\s+)?issue)\s*$/i.test(source.slice(Math.max(0, offset - 30), offset)) ? match : '[order number]');
   out = out.replace(/\b(?:sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|AIza[A-Za-z0-9_-]{16,}|user_[A-Za-z0-9]{20,})\b/g, '[token]');

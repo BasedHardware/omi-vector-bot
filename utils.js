@@ -496,6 +496,7 @@ module.exports = {
   stripSupportRedirect,
   formatDiscordReply,
   clipForDiscord,
+  DISCORD_REPLY_MAX,
   SAFE_REPLY_MENTIONS,
   rewriteUserMentions,
   wantsAuthorPing,
