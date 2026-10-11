@@ -50,12 +50,7 @@ const WEAK_SHOP = [/\border\s*(#|number|id|num)\b/i, /\border\s*no\.?\s*#?\d{3,}
 const SHOP = [...STRONG_SHOP, ...WEAK_SHOP];
 const ORDER_STATUS_OPENING = 'Let’s work through your delivery question.';
 
-const FIRMWARE = [
-  /\bfirmware\b/i,
-  /\brma\b/i,
-  /\bwarehouse\b/i,
-  /\bserial( number)?\b/i,
-  /\breplacement (device|unit|omi)\b/i,
+const FIRMWARE_FAILURE = [
   /powers? off (by itself|after)/i,
   /dies? seconds after/i,
   /turns? off .+ (100\s*%|battery)/i,
@@ -65,7 +60,16 @@ const FIRMWARE = [
   /shuts? (itself )?off after/i,
   /\bnot charging\b/i,
   /\bwon'?t charge\b/i,
+];
+
+const FIRMWARE = [
+  /\bfirmware\b/i,
+  /\brma\b/i,
+  /\bwarehouse\b/i,
+  /\bserial( number)?\b/i,
+  /\breplacement (device|unit|omi)\b/i,
   /\bcharger\b/i,
+  ...FIRMWARE_FAILURE,
 ];
 
 const DESKTOP = [
@@ -90,22 +94,26 @@ const INTEGRATION_FAILURE = [
   /\b(?:google|gmail|calendar|integration|extension).{0,70}\b(?:blocked|error|fail(?:ed|s|ing)?|cannot connect|won'?t connect|not connect|only (?:shows|gets|syncs))\b/i,
 ];
 
-const APP = [
-  /\b(android|iphone|ios)\b/i,
-  /\bapple watch\b/i,
+const APP_FAILURE = [
   ...INTEGRATION_FAILURE,
   /\b(the )?app (crash|crashed|force.?clos)/i,
   /\bcrash(ed|es|ing)?\b/i,
+  /\bdidn'?t sync\b/i,
+  /\b(recordings?|clips?) (are )?(missing|gone)\b/i,
+  /\bstill nothing recorded\b/i,
+];
+
+const APP = [
+  /\b(android|iphone|ios)\b/i,
+  /\bapple watch\b/i,
   /\blisten socket\b/i,
   /\b1011\b/,
   /\btranscription\b/i,
   /\bwss:\/\/api\.omi/i,
-  /\bdidn'?t sync\b/i,
-  /\b(recordings?|clips?) (are )?(missing|gone)\b/i,
+  /\bapp stayed open\b/i,
   /\b(disconnected|offline).{0,40}\bapp\b/i,
   /\bapp.{0,40}(disconnected|offline)\b/i,
-  /\bapp stayed open\b/i,
-  /\bstill nothing recorded\b/i,
+  ...APP_FAILURE,
 ];
 
 const CAPTURE_FAILURE = [
@@ -278,13 +286,14 @@ function classifyRoute(text) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
   if (any(s, FIRMWARE)) {
-    return { area: 'firmware', lane: 'firmware', escalate: true, wantHuman };
+    const deviceRequest = /\brma\b|\breplacement\s+(?:device|unit|omi)\b/i.test(s);
+    return { area: 'firmware', lane: 'firmware', escalate: wantHuman || deviceRequest || looksLikeReportedFailure(s), wantHuman };
   }
   if (any(s, DESKTOP)) {
-    return { area: 'desktop', lane: 'tech', escalate: true, wantHuman };
+    return { area: 'desktop', lane: 'tech', escalate: wantHuman || looksLikeReportedFailure(s), wantHuman };
   }
   if (any(s, APP)) {
-    return { area: 'app', lane: 'tech', escalate: true, wantHuman };
+    return { area: 'app', lane: 'tech', escalate: wantHuman || looksLikeReportedFailure(s), wantHuman };
   }
   if (any(s, WEAK_SHOP)) {
     return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
@@ -381,9 +390,25 @@ function looksLikeHardFailure(text) {
   return /\b(app (was|stayed) open|kept the app (open|running)|blue light)\b/i.test(s) && /\b(nothing|still)\b/i.test(s);
 }
 
+function looksLikeReportedFailure(text) {
+  const s = String(text || '').replace(/[\u2018\u2019]/g, "'")
+    // In a diagnostic noun phrase, crash/error names the type of artifact,
+    // not an assertion that the customer's app crashed or raised an error.
+    // Reported failures elsewhere in the same question remain untouched.
+    .replace(/\b(?:crash|error|exception|failure)s?\s+(logs?|reports?|guides?|documentation)\b/gi, 'diagnostic $1');
+  if (looksLikeHardFailure(s) || looksLikeCaptureFailure(s) ||
+      any(s, APP_FAILURE) || any(s, FIRMWARE_FAILURE)) return true;
+  // Topic names select the product lane, not a support incident. Only an
+  // observed failure/negated capability adds the deterministic handoff signal.
+  const englishFailure = /\b(?:not\s+working|broken|errors?|fail(?:ed|s|ing)?|stopped|stuck|missing|lost|cannot|can't|won't|doesn't|didn't|unavailable|freez(?:e|es|ing)|froze|never\s+(?:get|gets|receive|receives)|no\s+(?:audio|transcript|recording|response))\b/i;
+  const spanishFailure = /\b(?:no\s+(?:funciona|funcionan|abre|abren|graba|graban|sincroniza|sincronizan|conecta|conectan|termina|terminan)|dej[oó]\s+de\s+(?:funcionar|grabar|transcribir)|fall(?:a|an|o|os|ando)|atascad[oa]s?|rot[oa]s?|perdid[oa]s?|faltan?)\b/i;
+  const connectionFailure = /\b(?:is|was|stays?|stayed|keeps?|kept|show(?:s|ing)?|says?|reports?|became|went)\s+(?:as\s+)?(?:disconnected|offline)\b/i;
+  return englishFailure.test(s) || spanishFailure.test(s) || connectionFailure.test(s);
+}
+
 function looksLikeProductQuestion(text) {
   const s = String(text || '');
-  if (looksLikeHardFailure(s)) return false;
+  if (looksLikeReportedFailure(s)) return false;
   if (
     any(s, STRONG_MONEY) ||
     any(s, WEAK_MONEY) ||
@@ -587,15 +612,18 @@ function cannedReply(route, question) {
   const batteryReply = batteryReadingReply(question);
   if (batteryReply) return batteryReply;
   if (lane === 'firmware') {
+    if (route?.escalate === false) return 'You need guidance on using or setting up your Omi device.';
     return 'Your Omi device isn’t working as expected. A device review is needed to identify the cause and a safe next step.';
   }
   if (lane === 'tech' && route?.area === 'desktop') {
+    if (route?.escalate === false) return 'You need guidance on using or setting up the computer app.';
     return 'The computer app isn’t working as expected. A closer review is needed to find a safe next step without repeating checks you’ve already tried.';
   }
   if (lane === 'tech' && route?.area === 'unknown') {
     return 'You’re running into a technical problem. A closer review is needed to identify the cause and a safe next step.';
   }
   if (lane === 'tech') {
+    if (route?.escalate === false) return 'You need guidance on using or setting up the phone app.';
     return 'The phone app isn’t working as expected. A closer review is needed to find a safe next step without repeating checks you’ve already tried.';
   }
   if (/\bblue\b/i.test(String(question || '')) && /\blight\b/i.test(String(question || ''))) {
@@ -676,10 +704,14 @@ function describe(route) {
     return 'Account limits and plans. Answer phone vs computer if they asked. Do not invent prices.';
   }
   if (lane === 'firmware' || area === 'firmware') {
+    if (route?.escalate === false) return 'Device usage, setup or firmware guidance. Answer the requested procedure from official sources without assuming a device fault.';
     return 'The device itself is failing. They may already have paired.';
   }
-  if (area === 'desktop') return 'Computer app install or bug.';
+  if (area === 'desktop') return route?.escalate === false
+    ? 'Computer app usage or setup. Answer the requested procedure from official sources without assuming a fault.'
+    : 'Computer app install or bug.';
   if (area === 'app') {
+    if (route?.escalate === false) return 'Phone app or transcription usage and setup. Answer the requested procedure from official sources without assuming a fault.';
     return 'The phone app is reporting a problem. Do not name a cause or where recordings are.';
   }
   if (lane === 'shop') return 'Order, shipping, or customs.';
