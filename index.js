@@ -58,6 +58,7 @@ const supportCases = require('./supportCases');
 const supportIssueLinks = require('./supportIssueLinks');
 const githubFlow = require('./githubFlow').createGithubFlow();
 const caseCards = require('./caseCards');
+const staffDestination = require('./staffDestination');
 const { SupportRuntime, PostgresRuntimeStore, MemoryRuntimeStore, questionFingerprint, assertCurrentOwnership, markCurrentReplySent, isLeaseLost } = require('./supportRuntime');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -1270,6 +1271,10 @@ async function nickOmiSupport(client) {
 }
 
 client.once(Events.ClientReady, async () => {
+  const staff = staffMentionIds();
+  await runtime.track(() => staffDestination.checkBootStaffDestination(client, {
+    staffUsers: staff.users, staffRoleIds: staff.roles,
+  }));
   const syncCards = (caseId) => runtime.track(() => caseId ? caseCards.syncCase(client, caseId) : caseCards.syncPending(client))
     .catch(() => console.error('[CaseCard] refresh worker failed; pending retry'));
   unsubscribeCaseCards = supportCases.onChange(syncCards);

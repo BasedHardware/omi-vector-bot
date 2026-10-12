@@ -11,7 +11,7 @@ function authority(permissionSet) {
   return has(permissionSet, PermissionFlagsBits.Administrator) || has(permissionSet, PermissionFlagsBits.ManageThreads);
 }
 
-function validateStaffDestination(channel, { botUserId, staffUsers = [], staffRoleIds = [] } = {}) {
+async function validateStaffDestination(channel, { botUserId, staffUsers = [], staffRoleIds = [] } = {}) {
   const reject = (code) => ({ ok: false, code });
   try {
     const guild = channel?.guild;
@@ -41,11 +41,15 @@ function validateStaffDestination(channel, { botUserId, staffUsers = [], staffRo
       const id = String(overwrite.id);
       if (!has(overwrite.allow, PermissionFlagsBits.ViewChannel)) continue;
       if (id === String(botUserId) || id === String(guild.ownerId || '') || users.has(id)) continue;
-      // No member fetch or privileged intent: only a cached, complete member
-      // can prove that an otherwise unconfigured direct grant is staff-owned.
-      const member = guild.members?.cache?.get(id);
+      // Fetch only this direct grantee over REST. Never trust stale cached
+      // moderation roles, request all members, or enable a privileged intent.
+      if (typeof guild.members?.fetch !== 'function') return reject('member_acl_unverifiable');
+      let member;
+      try { member = await guild.members.fetch({ user: id, force: true, cache: false }); }
+      catch { return reject('member_acl_unverifiable'); }
       const memberRoles = member?.roles?.cache;
-      if (!member || member.partial || !memberRoles?.values) return reject('member_acl_unverifiable');
+      if (!member || String(member.id) !== id || String(member.guild?.id || '') !== String(guild.id) ||
+          member.partial || !memberRoles?.values) return reject('member_acl_unverifiable');
       const resolvedRoles = [...memberRoles.values()];
       if (resolvedRoles.some((role) => !roles.has(String(role.id)))) return reject('member_acl_unverifiable');
       if (!resolvedRoles.some((role) => staffRoles.has(String(role.id)) || authority(role.permissions))) return reject('untrusted_member_can_view');
@@ -60,4 +64,17 @@ function validateStaffDestination(channel, { botUserId, staffUsers = [], staffRo
   }
 }
 
-module.exports = { validateStaffDestination };
+async function checkConfiguredStaffDestination(client, options = {}) {
+  const channelId = String(options.channelId ?? process.env.STAFF_ALERT_CHANNEL_ID ?? '');
+  if (!channelId) return { ok: false, code: 'staff_destination_missing' };
+  try {
+    if (typeof client?.channels?.fetch !== 'function') return { ok: false, code: 'staff_channel_unavailable' };
+    const channel = await client.channels.fetch(channelId, { force: true });
+    if (!channel || String(channel.id) !== channelId) return { ok: false, code: 'staff_channel_unavailable' };
+    return await validateStaffDestination(channel, {
+      botUserId: client.user?.id, staffUsers: options.staffUsers || [], staffRoleIds: options.staffRoleIds || [],
+    });
+  } catch { return { ok: false, code: 'staff_channel_unavailable' }; }
+}
+
+module.exports = { validateStaffDestination, checkConfiguredStaffDestination };

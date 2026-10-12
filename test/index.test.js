@@ -403,16 +403,20 @@ test.beforeEach(() => {
 
 test('staff cards recover on Discord ready and every 30 seconds, but not while stopping', async t => {
   const caseCards = require('../caseCards');
+  const staffDestination = require('../staffDestination');
   const originals = { setInterval: global.setInterval, syncPending: caseCards.syncPending,
     onChange: supportCases.onChange, fetch: client.channels.fetch,
-    hydrate: knowledge.hydrateFromDiscord, register: commands.registerSlashCommands, stopping: runtime.stopping };
+    hydrate: knowledge.hydrateFromDiscord, register: commands.registerSlashCommands, stopping: runtime.stopping,
+    checkBoot: staffDestination.checkBootStaffDestination };
   t.after(() => {
     global.setInterval = originals.setInterval; caseCards.syncPending = originals.syncPending;
     supportCases.onChange = originals.onChange; client.channels.fetch = originals.fetch;
     knowledge.hydrateFromDiscord = originals.hydrate; commands.registerSlashCommands = originals.register;
     runtime.stopping = originals.stopping;
+    staffDestination.checkBootStaffDestination = originals.checkBoot;
   });
-  const timers = []; let passes = 0;
+  const timers = []; let passes = 0, bootChecks = 0;
+  staffDestination.checkBootStaffDestination = async receivedClient => { assert.equal(receivedClient, client); bootChecks++; return { ok: true, code: 'private_staff_destination' }; };
   global.setInterval = (callback, delay) => { const timer = { callback, delay, unreferenced: false,
     unref() { this.unreferenced = true; } }; timers.push(timer); return timer; };
   caseCards.syncPending = async receivedClient => { assert.equal(receivedClient, client); passes++; return 0; };
@@ -424,6 +428,7 @@ test('staff cards recover on Discord ready and every 30 seconds, but not while s
   const ready = client.listeners(Events.ClientReady)[0];
   assert.equal(typeof ready, 'function');
   await ready();
+  assert.equal(bootChecks, 1, 'Discord ready must validate the configured private destination');
   assert.equal(passes, 1, 'boot must repair persisted stale cards');
   const sweep = timers.find(timer => timer.delay === 30000);
   assert.ok(sweep); assert.equal(sweep.unreferenced, true);

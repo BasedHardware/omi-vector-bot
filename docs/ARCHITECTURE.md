@@ -1,6 +1,8 @@
 # Omi Support Bot Architecture
 
-Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. The workflow foundation and approved Phase 2 fixes are deployed at main `8321439`; Report 1 passed and the Phase 2 smoke/report evidence is recorded in [the roadmap](../ROADMAP.md). Live staff-card status/acceptance notices described below are draft-branch work, not newly deployed behavior. The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
+October 12 status: #41 is deployed at main `b9eeb16`; Reports 2 and 3 passed. #28's engineering approvals/audience checks are draft work, not production capabilities. After an explicitly approved REST-only SDK hydration repair, its live read-only preflight returned `untrusted_role_can_view`; release is stopped pending audience reconciliation, not approved because local tests passed.
+
+Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. The workflow foundation, Phase 2 fixes and #41 live cards are deployed at main `b9eeb16`; Reports 1–3 passed. The engineering approvals/audience corrections below are draft #28, not deployed. The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
 
 ## Current capabilities and gaps
 
@@ -13,7 +15,7 @@ The implemented foundation addresses these audited workflow gaps:
 - Three leased worker slots bound execution. Excess requests persist metadata-only references for recovery; shutdown drains accepted work and queues work that has not started. Started requests with uncertain delivery are not blindly replayed (`supportRuntime.js`, `index.js`).
 - An explicit order miss no longer substitutes another order; returned facts must match both the requested number and verified owner. Historical-order pagination/access remains follow-up work (`shopify.js`, `orderFlow.js`).
 - Encrypted engineering proposals and private case/source/repository links survive restart. Staff author a technical summary, inspect the exact public payload and confirm its revision; atomic claims prevent parallel publication. Unknown remote outcomes stay held for read-only reconciliation, not automatic retries (`supportApprovals.js`, `supportIssueLinks.js`, `githubFlow.js`).
-- Full Discord staff delivery and GitHub controls require a verified staff-only audience and bot send permission. An unknown direct member grant fails closed; no broader member intent or permission is added (`discordPrivacy.js`, `handoff.js`).
+- Draft #28 full Discord staff delivery and GitHub controls require a verified staff-only audience and bot send permission. An unconfigured direct View Channel grantee is read individually over REST with `force: true, cache: false`; stale cached roles cannot establish authority. Unknown/mismatched/partial proof fails closed; no bulk member fetch, broader member intent or permission is added (`discordPrivacy.js`, `handoff.js`). Boot reuses the configured-destination check and emits a metadata-only Telegram operational alert on rejection. `/health` still measures Discord readiness, coordination initialization and non-stopping runtime rather than advertising an unverified audience as ready.
 
 A complete delivery outbox, retained cumulative case summary, staff queue and customer diagnostic gateway remain implementation work, not guarantees of this foundation.
 

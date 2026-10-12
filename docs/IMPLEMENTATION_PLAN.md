@@ -1,5 +1,7 @@
 # Omi Support Bot Implementation Checklist
 
+October 12 Phase 5 status: main `b9eeb16` is merged into #28 with `42c6d42`, preserving shipped #41 and `/health` readiness. Member/boot/preflight corrections are locally implemented and 750 unit tests plus isolated SQL pass; they are not pushed or deployed. The actual private-destination gate is **blocked** (`untrusted_role_can_view`) after the explicitly approved REST-only SDK hydration repair/rerun. Stop release work and reconcile the audience before another approved preflight. No audience permission changes or write operations occurred.
+
 Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. The foundation and approved Phase 2 fixes are deployed at `8321439`; Report 1 passed and Report 2 awaits grading. Live staff-card status and acceptance notices are implemented only on a separate draft branch. Each runtime change needs regression checks and release verification. No cloud access grants accompany this foundation.
 
 ## Release and security prerequisites
@@ -23,7 +25,8 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Require explicit staff confirmation of the exact sanitized public summary; prevent public-card publication, stale previews, cross-customer/repository retargeting and blind retries after uncertain writes.
 - [x] Stage owning-customer follow-ups in dedicated threads for staff-approved comments on one unambiguous linked issue; retain manual selection for shared channels and multiple targets.
 - [x] Add read-only GitHub receipt reconciliation and idempotent private-link repair; never infer trusted ownership from a public marker.
-- [x] Validate actual Discord staff audience and bot permissions before full-card delivery and GitHub actions, failing closed on unknown audience grants.
+- [x] Draft #28: validate actual Discord staff audience and bot permissions before full-card delivery and GitHub actions; fetch only an unconfigured direct grantee uncached and fail closed on unknown/stale proof. Add boot validation and a bounded metadata-only Telegram alert; preserve existing readiness and shutdown.
+- [ ] Obtain `private_staff_destination` from the live read-only production-configured preflight, then independent review before merge. The approved rerun returned `untrusted_role_can_view`; do not add unverified roles, relax checks or continue rollout.
 - [ ] Add automatic draft retention cleanup, a general delivery outbox and Telegram destination verification. The bounded GitHub reconciliation flow is not the complete outbox.
 - [x] Draft: project accepted/work/waiting/resolved/closed state into the existing private cards; persist message references, serialize edits and recover missed updates after restart. Retire deleted cards without reposting.
 - [x] Draft: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.

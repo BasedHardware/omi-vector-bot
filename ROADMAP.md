@@ -4,7 +4,16 @@ This is the living implementation record. A checked implementation item means co
 
 ## Release-only mode and merge gates
 
-The latest staged-release brief governs release order. #28–#30 remain unchanged by this work. Aryan explicitly requested live staff-card status and an acceptance notice on October 11; that narrow feature is on the separate `feat/live-staff-case-status` draft branch, not deployed or blanket-approved for release. No diagnostics or new backend access accompanies it.
+### October 12 Phase 5 release stop
+
+Reports 2 and 3 passed; current production is #41 at main `b9eeb16`, deployment `4a8e93d5`, rollback `6ddd1673`. #28 is not deployed. Remaining order is gated/reviewed #42 → reviewed closing-card fix #43 → reviewed #28 → #29 → #30, with one deployment at a time and 24 clean hours unless explicitly waived. Earlier entries below are historical.
+
+- Main merged into this branch with merge commit `42c6d42`. Merge verification passed 736 tests, preserving `/health`'s Discord/coordination/non-stopping readiness and both live-card receipts and GitHub approval-card binding. Combined SQL checks preserve old-schema upgrade/live-card/acceptance coverage alongside encrypted approvals and private issue links.
+- Scoped privacy corrections are retained locally, not pushed/released: direct member grants use one forced, uncached REST member read rather than cached authority; no bulk fetch or privileged member intent. Boot checks the configured destination and reports rejection through a bounded, metadata-only Telegram operational alert. Actual sends and GitHub actions retain their own fresh destination checks. A read-only preflight refuses all write methods and never logs API payloads.
+- Regression proof: nine focused failures before the member/boot correction, two before the read-only script and two SDK hydration regressions before the approved helper correction. Afterward 750/750 unit tests and the isolated SQL check pass. These are not production delivery or privacy proof.
+- **STOPPED at the live gate:** the first actual read returned `guild_acl_unavailable` because a bare REST SDK Guild lacks gateway channel state. Aryan explicitly approved a tested metadata-only helper repair and one additional read-only check. The repair hydrates native SDK objects from verified guild/role/bot/target-channel metadata without assigning an availability flag or weakening the validator. The approved 02:57:16–02:57:20 UTC rerun returned **`untrusted_role_can_view`**, not `private_staff_destination`: the actual staff channel has a View Channel grant outside the configured staff/moderator/bot authority set. Each check made six GETs and one single-member read; no gateway login, privileged intent, write or permission change. Both results are retained outside Git in `phase5-private-destination-preflight-oct12.json` and `phase5-private-destination-preflight-oct12-approved-rerun.json`. Stop release work, reconcile the audience with an administrator and obtain direction before another check or merge/deploy. Never add unverified roles to force the gate to pass.
+
+The latest staged-release brief governs release order. #28 receives only its separately authorized corrections; #29–#30 remain untouched. Aryan's live staff-card status and acceptance feature shipped in #41 and Report 3 passed. No diagnostics or new backend access accompanies it.
 
 ### October 11 current production and review gate
 
@@ -96,7 +105,7 @@ Retained, not discarded. The current staged order puts #28 after #41 and the rou
 - [x] Require a staff-authored technical summary and an exact private preview before a public GitHub write. Never forward customer text, attachments or Discord links automatically; public customer cards have no publication controls.
 - [x] Stage important follow-ups from the owning customer's dedicated thread for a separate staff-approved comment when exactly one engineering target is linked. Shared-channel or ambiguous follow-ups remain manual, not guessed.
 - [x] Hold uncertain GitHub writes without retrying the POST. A staff check uses bounded read-only reconciliation with application provenance and exact payload verification; confirmed receipts can repair private case links without reposting.
-- [x] Validate Discord staff destination privacy and bot permissions before sending a full card or handling publication. Unknown audience permissions fail closed without fetching extra guild members or granting broader intents.
+- [x] Draft #28: validate Discord staff destination privacy and bot permissions before sending a full card or handling publication. Unknown audience permissions fail closed; the scoped correction fetches only the specific direct grantee uncached, never all guild members or a broader intent. Live preflight is blocked as recorded above.
 - [ ] Add a delivery outbox with accepted-send identifiers, retries for known failures and reconciliation of unknown outcomes. Do not blindly replay a request that may already have replied.
 - [ ] Preserve an encrypted/minimized case summary of attempted steps and missing details, with an approved retention/deletion policy. Current durable case context is categories and sources, not raw conversation content.
 - [ ] Provide staff queue views, committed response targets, reminders and operational inspection of expired started claims.

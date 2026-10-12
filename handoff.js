@@ -835,7 +835,7 @@ async function sendToStaffChannel(client, payload, customerChannelId, caseId, { 
   const ch = await client.channels.fetch(staffId, { force: true });
   if (!ch?.isTextBased?.() || typeof ch.send !== 'function') return false;
   const configured = staffMentionIds();
-  const privacy = validateStaffDestination(ch, { botUserId: client.user?.id, staffUsers: configured.users, staffRoleIds: configured.roles });
+  const privacy = await validateStaffDestination(ch, { botUserId: client.user?.id, staffUsers: configured.users, staffRoleIds: configured.roles });
   if (!privacy.ok) {
     console.error(`[Handoff] Staff destination rejected (${privacy.code})`);
     return false;
