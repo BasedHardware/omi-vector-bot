@@ -413,11 +413,23 @@ function staffDetailsRequest(route, question) {
   if (route.area === 'privacy' || route.lane === 'privacy') {
     return 'If they did not provide the account email, ask for it privately.';
   }
+  if (route.lane === 'account') {
+    return 'If they did not provide the purchase email, ask for it privately.';
+  }
+  const physicalItem = '(?:omi|devices?|units?|hardware|casing|housing|necklaces?|glasses|chargers?|wearables?|items?)';
+  const itemWords = '(?:(?:my|our|your|the|this|a|an|new|omi|damaged|defective|broken)\\s+){0,3}';
+  const damagedItem = new RegExp(`\\b${physicalItem}\\b`, 'i').test(text) &&
+    /\b(?:damag(?:e|ed)|defect(?:ive)?|broken|crack(?:ed)?|faulty)\b/i.test(text);
+  const replacingItem = new RegExp(`\\b(?:replac(?:e|ing)\\s+${itemWords}${physicalItem}|replacement\\s+(?:(?:for|of)\\s+)?${itemWords}${physicalItem}|${physicalItem}\\s+(?:needs?|requires?)\\s+(?:a\\s+)?replacement)\\b`, 'i').test(text);
+  if ((route.area === 'shop' || ['shop', 'money'].includes(route.lane)) &&
+      (damagedItem || replacingItem)) {
+    return 'If they did not provide photos or a video of the damage, the order email and the delivery date, ask for them. Ask for the order email privately.';
+  }
   if (/\b(?:bulk|wholesale|sales|business|enterprise|company|corporate|\d+\s+(?:units|devices|omis))\b/i.test(text) &&
       (route.area === 'shop' || route.lane === 'shop')) {
     return 'If they did not provide the company and quantity, ask for both.';
   }
-  if (route.lane === 'money' || route.lane === 'account' ||
+  if (route.lane === 'money' ||
       /\b(?:refund|charg(?:e|ed)|bill(?:ing)?|payment|purchase|subscription|invoice)\b/i.test(text)) {
     return 'If they did not provide the purchase email, ask for it privately.';
   }

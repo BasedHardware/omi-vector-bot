@@ -1,6 +1,22 @@
 # Omi Support Bot Implementation Checklist
 
-Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. The foundation and approved Phase 2 fixes are deployed at `8321439`; Report 1 passed and Report 2 awaits grading. Live staff-card status and acceptance notices are implemented only on a separate draft branch. Each runtime change needs regression checks and release verification. No cloud access grants accompany this foundation.
+Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the answer/review, official retrieval, public commands and private delivery. [The roadmap](../ROADMAP.md) is authoritative. The foundation, Phase 2 and #41 are live at `b9eeb16`; reports 1–3 passed. Phase 4 remains a review branch. No cloud access grants accompany this work.
+
+## Current staged release checklist
+
+- [x] Phase 2 release and REPORT 2 graded PASS; preserve the clipping, retrieval and synthetic-title limitations in the roadmap.
+- [x] #41 review approved at `e5cff9e`, 661 tests and Node 20/24/Postgres CI green.
+- [x] Release #41 after Aryan's explicit go; REPORT 3 graded PASS. Real English/Spanish accept, work/wait, restart/Refresh and closure passed. Button removal and tested database notice uniqueness were accepted without a live retest.
+- [x] Phase 4 routing separates technical topics from failures, with eight own English/Spanish how-tos, eight failures and capability/diagnostic-guide edge checks; genuine reviewer/protected handoffs remain.
+- [x] Phase 4 draft budget and complete-item clipping preserve full Source URLs and data-loss warnings.
+- [x] Phase 4 multipart planning/retrieval/citation coverage uses up to four pages within existing evidence caps; production/eval joint coverage and unchanged ordinary evidence paths have offline fixtures.
+- [x] Phase 4 replacement intake requests damage evidence, private order email and delivery date while preserving account and missing-delivery intake.
+- [x] Current-main merge and structural navigation/conditional correction: 707 unit tests pass. Own six how-tos/six failures plus clause-boundary guards supplement the earlier red-before coverage.
+- [x] Five serial candidate cases finish under 90 s, then both fresh same-day 81×2/concurrency-3 arms complete. Preserve private JSONs, all rows, percentiles, per-case escalation deltas and supervised exit/heartbeat provenance. Numerical limits pass; this is not independent answer-quality approval.
+- [ ] Obtain independent #42 factual/how-to/protected-escalation/clipping grading. Unwanted handoff flags increased 12 → 15, missing flags remain 2 per arm; no code tuning from protected results and no merge/deploy while held.
+- [x] Separate closing-card localization draft #43 uses stored case language with English fallback and unchanged feedback/link semantics; 668 tests and hosted CI pass. Review/release smoke remain pending after #42.
+- [ ] Resolve #28's actual `untrusted_role_can_view` audience stop before another approved preflight/review/merge. Its scoped corrections are retained locally (750 tests and isolated SQL pass), not pushed/deployed. No server permission change; #29/#30 remain untouched.
+- [ ] Review/deploy gated #42, then the separate localized closing-card PR, then #28, #29 and #30 in order, each with review, smoke and 24 clean hours.
 
 ## Release and security prerequisites
 
@@ -18,8 +34,8 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Stop new work on shutdown; drain accepted work and queue unstarted requests. Coordinate overlapping copies through Postgres claims. Started requests with uncertain delivery remain an operator-reconciliation task.
 - [x] Make `/done`, ratings/reopening and Telegram delivery operate on the same case state. Failed customer delivery must not resolve a case.
 - [x] Record real staff acceptance through an authenticated private-card action; preserve the first accepting actor/time.
-- [x] Draft: project accepted/work/waiting/resolved/closed state into the existing private cards; persist message references, serialize edits and recover missed updates after restart. Retire deleted cards without reposting.
-- [x] Draft: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.
+- [x] Live #41: project accepted/work/waiting/resolved/closed state into the existing private cards; persist message references, serialize edits and recover missed updates after restart. Retire deleted cards without reposting.
+- [x] Live #41: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.
 - [x] Phase 3 correction: every unconfirmed acceptance notification explicitly tells staff to reply in the customer's thread, in an ephemeral response. Confirmed boot/30-second sweep wiring and stale-card repair after a failed edit; Phase 2 main merged without a rebase. Combined unit suite 661 pass, offline 8/8.
 - [ ] Review and run the full protected gate for the new canned acceptance wording, then smoke-test real accept/start/wait/close/reopen and restart recovery. No deployment or protected-file read accompanies this implementation.
 - [ ] Persist staff-approved issue drafts and action results so a restart does not invalidate the File workflow. Decide whether approved customer updates should reach linked GitHub issues; do not document an inactive path as working.
@@ -35,7 +51,7 @@ Acceptance: restart during OTP, overlapping copies, provider slowdown, failed/un
 - [ ] For each new adapter, define a fixed allowlist, customer/case authorization where needed, consent, limits, kill switch and metadata-only audit; validate synthetically, then pilot in the private staff card before reviewed customer enablement.
 - [ ] Extend order facts only through exact-owner-verified private/ephemeral delivery, never a normal customer-thread message or model prompt. Keep existing `/order` self-service enabled; do not add order/account writes.
 - [ ] Obtain backend-team agreement and privacy review before linked-account metadata/sign-in implementation. Define available/stale/unknown states for device/version/sync/plan and any provable unsynced count; exclude content and unrelated customers.
-- [ ] Follow the latest staged order: Phase 2 → reviewed #41 → routing/intake comparison → reviewed/private-preflight #28 → reviewed #29 → reviewed #30. The previous two-week go/no-go order is superseded, not a reason to bypass review. Keep deployments separate, with 24 clean hours unless Aryan explicitly says go; add only the authorized phase corrections. Other open queue/monitoring/retention work remains deferred.
+- [ ] Latest order: gated #42 → localized closing card → reviewed/private-preflight #28 → reviewed #29 → reviewed #30. Each release stays separate with 24 clean hours unless Aryan says go. No unrelated feature additions.
 
 ## Phase 2 Verified metadata diagnostics
 

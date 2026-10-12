@@ -2,6 +2,8 @@
 
 Operate the capabilities that are actually enabled. The [roadmap](../ROADMAP.md) distinguishes implemented, validated and deployed work. Never paste credentials, verification codes, customer messages, private identifiers or raw backend logs into public issues or operational chat.
 
+October 12 release holds: #42's fresh comparison is complete and meets numerical limits, but factual/how-to/protected-escalation/clipping review is pending; do not approve it from pass-both or latency alone. #43 closing-card localization is a separate draft. #28's actual read-only preflight returned `untrusted_role_can_view`, so stop its rollout and obtain administrator/direction review of the real audience; never add unverified roles, change permissions or silently repeat a failed private-destination check. No deployment accompanied these checks.
+
 ## Startup and deployment
 
 Production uses the existing `DATABASE_URL` for support state as well as knowledge. Startup applies additive, repeatable schemas before Discord login. If database initialization fails, the process must not start answering with a memory-only coordination or identity store. Development/evaluation without `DATABASE_URL` uses isolated in-memory stores.
@@ -9,6 +11,8 @@ Production uses the existing `DATABASE_URL` for support state as well as knowled
 Keep one primary running service. Shared claims and worker slots protect overlap, but the platform still needs an adequate termination grace period. The bot stops taking new work and waits up to 90 seconds for accepted replies/interactions and active Telegram polling. Unstarted work is returned to the queue; a timed-out, started request is an uncertain outcome that must not be automatically replayed.
 
 Before deploying, pass PR tests and relevant answer-quality checks, finish the existing smoke-test prerequisite, and record the current successful deployment as the rollback target. Verify the new deployment, health endpoint, Discord login, staff receipt and actual customer replies. Configuration presence is not a staff-delivery test. Do not change unrelated Railway variables or cloud permissions during rollout.
+
+Remaining staged order is gated #42 → localized closing-card fix → #28 → #29 → #30, with one smoke report and 24 clean hours between releases unless Aryan explicitly says go. Aryan granted that exception for #41, which is live at main `b9eeb16`. Current deployment after the required same-image restart test is `4a8e93d5-771c-486e-91f6-335839f05be4`, created October 12 at 01:02:10 UTC / 06:32:10 IST; Phase 3's rollback target is `6ddd1673-2e45-4cac-9d0d-28c71a9107fd`. REPORT 3 was graded PASS; the reviewer accepted button removal plus tested database notice uniqueness without a live retest. The next deployment needs its own gates and 24 clean hours from this latest restart unless Aryan says go again. Verify the active deployment and interval before dispatch; never use a historical release's hard-coded rollback helper for a later release. No automatic rollout is booked.
 
 ## Customer verification
 

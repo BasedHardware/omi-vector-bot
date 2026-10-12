@@ -209,6 +209,46 @@ test('staff cards request details appropriate to the ticket and flag possible da
   assert.match(loss.fields.find((field) => field.name === 'Why').value, /^Possible data loss: they should not reinstall, log out or clear storage\./);
 });
 
+test('damaged-item and replacement intake asks for evidence and order email, not tracking', () => {
+  const base = { message: { url: 'https://discord.com/channels/1/2/3', author: { id: '99' }, channel: { id: '2' } }, staffOnly: true, area: 'shop' };
+  for (const [lane, question] of [
+    ['shop', 'The housing arrived cracked. My order number is 38192. What should I do?'],
+    ['money', 'I purchased a unit and would like a replacement for the defective device.'],
+    ['shop', 'The device was damaged in the box; I need the team to help.'],
+    ['shop', 'Can you replace my Omi?'],
+    ['shop', 'This unit needs a replacement.'],
+  ]) {
+    const card = formatStaffTicket({ ...base, lane, question }).discord.embeds[0];
+    const intake = card.fields.find((field) => field.name === 'Staff').value;
+    assert.match(intake, /photos? or (?:a )?video.*damage/i, question);
+    assert.match(intake, /order email.*privately/i, question);
+    assert.match(intake, /delivery date/i, question);
+    assert.doesNotMatch(intake, /tracking/i, question);
+    if (question.includes('38192')) assert.match(card.description, /38192/);
+  }
+  const crash = formatStaffTicket({ ...base, area: 'app', lane: 'tech', question: 'The app crashes when I try to replace a task.' }).discord.embeds[0];
+  assert.doesNotMatch(crash.fields.find((field) => field.name === 'Staff').value, /photos|order email/i);
+});
+
+test('replacement intake stays specific to physical items and preserves account and delivery intake', () => {
+  const base = { message: { url: 'https://discord.com/channels/1/2/3', author: { id: '99' }, channel: { id: '2' } }, staffOnly: true, area: 'shop' };
+  for (const question of [
+    'I would like to replace my redemption code.',
+    'My account details need replacing after a plan change.',
+    'I need to replace the device linked to my subscription account.',
+  ]) {
+    const card = formatStaffTicket({ ...base, lane: 'account', question }).discord.embeds[0];
+    const intake = card.fields.find((field) => field.name === 'Staff').value;
+    assert.match(intake, /purchase email.*privately/i, question);
+    assert.doesNotMatch(intake, /photo|video|damage|tracking/i, question);
+  }
+  const receipt = formatStaffTicket({ ...base, lane: 'money', question: 'Could you replace my purchase receipt for the Omi device?' }).discord.embeds[0];
+  assert.doesNotMatch(receipt.fields.find((field) => field.name === 'Staff').value, /photo|video|damage/i);
+  const delivery = formatStaffTicket({ ...base, lane: 'shop', question: 'The parcel is marked delivered but never arrived.' }).discord.embeds[0];
+  assert.match(delivery.fields.find((field) => field.name === 'Staff').value, /order number and the delivery date tracking shows/i);
+  assert.doesNotMatch(delivery.fields.find((field) => field.name === 'Staff').value, /photo|video|damage/i);
+});
+
 test('staff ticket infers shop/account labels from fair-use text', () => {
   const ticket = formatStaffTicket({
     message: {

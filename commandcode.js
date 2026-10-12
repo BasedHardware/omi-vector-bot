@@ -4,6 +4,7 @@ const { stripStaffLies } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING, hasUnsyncedDataRisk } = require('./answerPipeline');
 const { isInstructionSentence, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 const { redactSensitive } = require('./privacy');
+const { normalizeSubQuestions } = require('./retrieval');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
 
@@ -143,33 +144,48 @@ function parseSearchPlan(raw, question) {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 500);
-  const queries = [];
-  const seen = new Set();
-  for (const value of Array.isArray(data.search_queries) ? data.search_queries : []) {
-    const query = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 180);
-    const key = query.toLowerCase();
-    if (!query || seen.has(key)) continue;
-    seen.add(key);
-    queries.push(query);
-    if (queries.length >= 4) break;
-  }
   const shortList = (value, limit = 5) => {
     const out = [];
     for (const item of Array.isArray(value) ? value : []) {
       const text = String(item || '').replace(/\s+/g, ' ').trim().slice(0, 240);
-      if (!text || out.includes(text)) continue;
+      if (!text || out.some((prior) => prior.toLowerCase() === text.toLowerCase())) continue;
       out.push(text);
       if (out.length >= limit) break;
     }
     return out;
   };
+  const mustAnswer = shortList(data.must_answer, 8);
+  let subQuestions = normalizeSubQuestions(data.sub_questions);
+  // Older planner outputs remain valid. On a genuinely multipart request,
+  // missing queries fall back to the neutral requirement, never a guessed fact.
+  if (!subQuestions.length && mustAnswer.length > 3) {
+    subQuestions = normalizeSubQuestions(mustAnswer.map((part, index) => ({
+      question: part, query: Array.isArray(data.search_queries) ? data.search_queries[index] : part,
+    })));
+  }
+  const multipart = subQuestions.length > 3;
+  const queries = [];
+  const seen = new Set();
+  for (const value of [
+    ...subQuestions.map((part) => part.query),
+    ...(Array.isArray(data.search_queries) ? data.search_queries : []),
+  ]) {
+    if (typeof value !== 'string') continue;
+    const query = value.replace(/\s+/g, ' ').trim().slice(0, 180);
+    const key = query.toLowerCase();
+    if (!query || seen.has(key)) continue;
+    seen.add(key);
+    queries.push(query);
+    if (queries.length >= (multipart ? 8 : 4)) break;
+  }
   return {
     standaloneQuestion: standaloneQuestion || String(question || '').trim(),
     queries,
     device: String(data.device || '').trim().slice(0, 80),
     topic: String(data.topic || '').trim().slice(0, 80),
     customerGoal: String(data.customer_goal || '').replace(/\s+/g, ' ').trim().slice(0, 500),
-    mustAnswer: shortList(data.must_answer, 5),
+    mustAnswer: subQuestions.length ? subQuestions.map((part) => part.question) : mustAnswer,
+    subQuestions,
     customerFacts: shortList(data.customer_facts, 6),
     supportKind: String(data.support_kind || 'other').trim().slice(0, 60),
     wantsPerson: data.wants_person === true,
@@ -366,11 +382,11 @@ function trailingSourceLabel(line) {
     : '';
 }
 
-function groundedSourceLine(answer, sources, sourceIds, language = 'en') {
+function groundedSourceLine(answer, sources, sourceIds, language = 'en', { subQuestions = [] } = {}) {
   const urls = evidenceUrls(sources);
   const chosen = [
     ...new Set((sourceIds || []).map((id) => urls.get(String(id))).filter(Boolean)),
-  ].slice(0, 2);
+  ].slice(0, normalizeSubQuestions(subQuestions).length > 3 ? 4 : 2);
   const text = String(answer || '').split('\n').map(unwrapEmphasis).join('\n');
   const modelLabel = text.split('\n').map((line) => {
     const citation = sourceCitationSuffix(line);
@@ -432,6 +448,10 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
           content: 'Include data_loss_risk as a boolean in the JSON. Set it true only when the customer says audio, a recording, or a transcript from a session they made is missing, empty, blank, lost, or not syncing. Do not set it for a general how-to about finding, exporting, or turning off recordings. When true, the case needs a person; do not suggest reinstalling, logging out, or clearing local storage.',
         },
         {
+          role: 'system',
+          content: 'Multipart search coverage: represent every distinct sub-question in sub_questions as {"question":"neutral requirement","query":"short English official-search wording"}, in the order asked. Produce one search query for each distinct sub-question, without adding an expected answer or diagnosis. Use at most eight distinct parts; group closely related requirements only when necessary. For more than three parts, one query per part takes priority over generic search variants; otherwise keep two to four short searches. Include these pairs alongside the existing JSON fields.',
+        },
+        {
           role: 'user',
           content: `Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,
         },
@@ -476,7 +496,7 @@ async function queryAgent({
           temperature: 0.4,
           messages: [
             { role: 'system', content: `${buildSystemPrompt(route)}${handoffPlanned || route?.escalate ? `\n\n${PLANNED_HANDOFF_GUIDANCE}` : ''}` },
-            { role: 'system', content: 'Write the customer reply entirely in the language and script of the latest customer message. If it is romanized Hindi, use Latin letters rather than Devanagari. A person-needed request can still receive an official, sourced policy or how-to answer; keep escalation for the action or decision and do not promise an outcome. If understanding.dataLossRisk is true, warn in the customer language not to reinstall, log out, or clear local recordings before staff checks; do not append an English warning to a non-English reply.' },
+            { role: 'system', content: 'Write the customer reply entirely in the language and script of the latest customer message. If it is romanized Hindi, use Latin letters rather than Devanagari. A person-needed request can still receive an official, sourced policy or how-to answer; keep escalation for the action or decision and do not promise an outcome. If understanding.dataLossRisk is true, warn in the customer language not to reinstall, log out, or clear local recordings before staff checks; do not append an English warning to a non-English reply. final_answer has a hard budget of 1,500 characters including whitespace and any inline links. For multi-part questions, answer the parts the sources support briefly in the order asked, rather than writing a guide. Use one short, complete bullet per part; combine closely related steps and omit extra background before dropping a requested part. State unsupported parts briefly without guessing. Keep necessary safety warnings and material uncertainty.' },
             {
               role: 'user',
               content: buildUserPrompt({
@@ -602,6 +622,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     };
   }
   const send = post || axios.post.bind(axios);
+  const citationLimit = normalizeSubQuestions(understanding?.subQuestions).length > 3 ? 4 : 2;
   let data;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const compact = attempt === 1;
@@ -622,6 +643,10 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
           role: 'system',
           content: `Clarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. If understanding.dataLossRisk is true, retain a brief warning in the customer language not to reinstall, log out, or clear local recordings while staff checks; do not add an English warning to a non-English reply. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.${handoffPlanned ? ` ${PLANNED_HANDOFF_GUIDANCE}` : ''}`,
         },
+        ...(citationLimit === 4 ? [{
+          role: 'system',
+          content: 'This request contains more than three distinct sub-questions. Its one Source line may contain at most four exact URLs from the retrieved evidence, instead of the ordinary two, when needed to support the requested parts. Keep each supported part brief and in the order asked. Keep the answer body within 1,500 characters without removing material safety guidance or uncertainty.',
+        }] : []),
         {
           role: 'user',
           content: `Earlier thread:\n${modelThread(compact ? threadHistory.slice(-3) : threadHistory)
@@ -662,7 +687,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     ? ''
     : safety.fallback
       ? safety.answer
-      : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, understanding?.replyLanguage);
+      : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, understanding?.replyLanguage, { subQuestions: understanding?.subQuestions });
   const hasAnswer = Boolean(String(answer || '').trim());
   return {
     final_answer: answer,
