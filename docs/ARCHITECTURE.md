@@ -1,6 +1,6 @@
 # Omi Support Bot Architecture
 
-Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. The workflow foundation described below is implemented on the working branch; production rollout is tracked separately in [the roadmap](../ROADMAP.md). The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
+Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. The workflow foundation and approved Phase 2 fixes are deployed at main `8321439`; Report 1 passed and the Phase 2 smoke/report evidence is recorded in [the roadmap](../ROADMAP.md). Live staff-card status/acceptance notices described below are draft-branch work, not newly deployed behavior. The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
 
 ## Current capabilities and gaps
 
@@ -44,6 +44,14 @@ Use the existing Postgres database for support cases, jobs, claims, and delivery
 
 Do not give the bot project Owner/Editor, backend impersonation credentials, general Firestore access, audio-bucket download permission, full customer conversation scopes, arbitrary log queries, shell execution, or Railway administration. Read-only credentials can still leak private information.
 
+### Incremental access and shadow boundary
+
+The [roadmap's access ladder](../ROADMAP.md#access-ladder-and-support-voice) orders new work: reviewed public issues/releases and product facts, private verified order facts, linked-account metadata, then recording diagnostics. Public records remain sourced, versioned and freshness-checked; staff authorship alone does not prove a fact or deployment.
+
+Every new adapter starts with synthetic/customer-independent validation and an authorized staff-only shadow pilot. The application enforces customer/case ownership, consent, read-only operation, bounded output and a fixed schema before staff see a result. Keep private facts out of model inputs and normal thread posts. Kill switches and metadata audits are per capability; shadow mode neither grants authorization nor guarantees confidentiality. Existing ephemeral order commands continue to work. Account sign-in/metadata requires backend agreement and privacy review before implementation, just as diagnostics does. An unavailable offline-device count is unknown, not zero.
+
+Support-state writes and staff-approved redacted GitHub filing remain controlled exceptions for the bot's own workflow, not write permissions over customer orders, accounts or recordings. No new capability is enabled by this documentation.
+
 ### Backend diagnostics gateway
 
 Introduce a backend-owned `diagnose_recording` capability. Authenticate both the bot service and the customer. Omi sign-in issues a short-lived, revocable grant bound to the customer, case, permitted operation and expiry. Derive the customer UID on the server; a UID, email, order number or Discord staff role supplied in chat is not proof of ownership. The existing Shopify email binding is not an Omi account authorization.
@@ -85,6 +93,14 @@ Publication proceeds under one atomic claim. Save the verified GitHub receipt an
 Important later evidence in the owning customer's dedicated thread can stage a new comment proposal only when exactly one engineering issue is linked. Staff still write and approve the public summary. Ambiguous multi-issue cases and shared-channel follow-ups require manual selection. Search similarity alone does not create a case link. Webhook notices in shared channels reply only to the verified original customer message; thread fallback needs dedicated customer/handoff ownership. Legacy internal thread links support status notices only for actual threads in the original repository; public issue-body markers are not imported as new customer ownership. Historical public issues are not rewritten by this change. A merge notice names the pull request, not its referenced issue, and explicitly does not claim a released fix.
 
 Pending proposals expire for editing/publication after seven days and editors after ten minutes; uncertain actions remain reconcilable. Expiry does not yet purge stored ciphertext. Automated retention/deletion and a general delivery outbox remain roadmap work. Customer tracking notices are best-effort and do not imply staff acceptance, release or resolution.
+
+### Live staff cards and acceptance updates (draft)
+
+Keep the same five lifecycle states and active-case uniqueness rule. An accepted case has an optional `work_status` (`in_progress` or `waiting_customer`), set only through authorized staff actions. No activity/timer heuristic means a person is working. Reopening clears the previous acceptance/work state; the next acceptance gets its own generation ID while repeated clicks in that cycle retain the first actor/time.
+
+`caseCards.js` projects this state into existing bot-authored private staff cards. `support_case_cards` stores only case/channel/message references and synchronization metadata, never intake text. State-change events update immediately; a bounded startup/30-second sweep repairs unsynchronized cards after restarts or transient failures. A per-case Postgres advisory lock serializes cross-copy edits, using the locked connection for all database reads/writes. Edits preserve intake and engineering controls; deleted cards are retired instead of recreated. Public copies strip every case control and private status/identity reference.
+
+Acceptance posts a short localized update naming the actual acceptor in the bound customer destination, with all mentions disabled and no ETA or investigation/resolution claim. Shared-channel replies verify the original message's customer before sending. A durable per-acceptance-generation claim prevents repeated clicks from posting again; the Discord nonce is additional short-window deduplication, not a global exactly-once guarantee. Every unconfirmed notification result is surfaced in the accepting staff member's ephemeral response, explicitly asking them to reply in the customer's thread; a log line alone is not sufficient. Core case acceptance is not undone. This is a scoped case-state notification, not a second general delivery ledger or an extension of #29/#30.
 
 ## Communication policy
 

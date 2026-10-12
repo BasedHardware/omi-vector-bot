@@ -315,3 +315,19 @@ test('a video frame keeps the error line and the clip is not sent on', async () 
     { video: true }
   ), false);
 });
+
+test('a customer video is not left on disk after its frame is read', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const leftovers = () => fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith('vec-'));
+  const before = new Set(leftovers());
+  const lines = await videoErrorLines(
+    [{ name: 'clip.mp4', contentType: 'video/mp4', url: 'https://cdn.example/clip.mp4' }],
+    {
+      fetchImpl: async () => ({ ok: true, arrayBuffer: async () => Buffer.from('not a real video') }),
+      recognize: async () => 'server_error 1011',
+    }
+  );
+  assert.equal(lines, '');
+  assert.deepEqual(leftovers().filter((name) => !before.has(name)), []);
+});

@@ -371,12 +371,13 @@ function canAcceptCase(interaction) {
   catch { return false; }
 }
 
-async function handleAcceptCase(interaction, { cases = supportCases } = {}) {
+async function handleCaseAction(interaction, { cases = supportCases, cards = require('./caseCards') } = {}) {
   if (!canAcceptCase(interaction)) {
     await interaction.reply({ content: 'Only authorized staff can accept a case in the configured staff channel.', flags: MessageFlags.Ephemeral });
     return;
   }
-  const caseId = String(interaction.customId || '').match(/^case:accept:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)?.[1];
+  const action = String(interaction.customId || '').match(/^case:(accept|refresh|work:(?:in_progress|waiting_customer)):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+  const caseId = action?.[2];
   const botId = String(interaction.client?.user?.id || '');
   const cardCase = (interaction.message?.embeds || []).flatMap((embed) => embed.fields || embed.data?.fields || [])
     .find((field) => field.name === 'Case')?.value;
@@ -385,14 +386,43 @@ async function handleAcceptCase(interaction, { cases = supportCases } = {}) {
     return;
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const value = await cases.markAccepted(caseId, { staffId: interaction.user.id });
+  let value;
+  try {
+    value = action[1] === 'accept' ? await cases.markAccepted(caseId, { staffId: interaction.user.id })
+      : action[1] === 'refresh' ? await cases.getCaseById(caseId) : await cases.setWorkStatus(caseId, action[1].slice(5));
+  } catch {
+    console.error('[CaseCard] staff action state not confirmed');
+    await interaction.editReply({ content: 'I could not confirm the saved case state. Use Refresh status before trying the action again.', allowedMentions: { parse: [] } });
+    return;
+  }
+  if (!value) {
+    await interaction.editReply({ content: 'This action is not available in the current case state. Accept a delivered case before starting work.', allowedMentions: { parse: [] } });
+    return;
+  }
+  let refreshed = false;
+  try {
+    await cards.rememberCard(caseId, interaction.channelId, interaction.message.id);
+    refreshed = Boolean((await cards.syncCase(interaction.client, caseId))?.ok);
+  } catch { console.error('[CaseCard] staff action refresh failed; pending retry'); }
+  let notice = null;
+  if (action[1] === 'accept') {
+    try { notice = await cards.notifyAcceptance(interaction.client, value, { service: cases }); }
+    catch { console.error('[CaseCard] acceptance notice not confirmed'); notice = { ok: false }; }
+  }
+  const summary = action[1] === 'accept' ? `Case accepted by <@${value.acceptedBy}>.`
+    : action[1] === 'work:in_progress' ? 'Case marked In progress.'
+      : action[1] === 'work:waiting_customer' ? 'Case marked Waiting for customer.' : 'Case status refreshed.';
   await interaction.editReply({
-    content: value?.acceptedBy && value?.acceptedAt
-      ? `Case accepted by <@${value.acceptedBy}>.`
-      : 'This case is not awaiting acceptance. It must be delivered before staff can accept it.',
+    content: [summary,
+      refreshed ? 'The staff card is up to date.' : 'The card refresh is not confirmed; use Refresh status to check it.',
+      notice ? notice.ok ? notice.duplicate ? 'No duplicate customer notice was sent.' : 'The customer thread was updated.'
+        : 'The customer notice was not confirmed. Please reply in their thread yourself.' : '',
+    ].filter(Boolean).join(' '),
     allowedMentions: { parse: [] },
   });
 }
+
+const handleAcceptCase = (interaction, options) => handleCaseAction(interaction, options);
 
 async function handleInteraction(interaction) {
   try {
@@ -410,8 +440,8 @@ async function handleInteraction(interaction) {
       await handleRating(interaction);
       return;
     }
-    if (interaction.isButton?.() && String(interaction.customId || '').startsWith('case:accept:')) {
-      await handleAcceptCase(interaction);
+    if (interaction.isButton?.() && /^case:(?:accept|refresh|work:)/.test(String(interaction.customId || ''))) {
+      await handleCaseAction(interaction);
       return;
     }
   } catch (err) {
@@ -512,6 +542,7 @@ module.exports = {
   handleRating,
   canAcceptCase,
   handleAcceptCase,
+  handleCaseAction,
   handleInteraction,
   notifyLinkedThreads,
 };

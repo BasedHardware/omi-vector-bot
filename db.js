@@ -99,6 +99,7 @@ async function initSchema() {
     `);
     await require('./supportRuntime').initSchema(client);
     await require('./supportCases').initSchema(client);
+    await require('./caseCards').initSchema(client);
     await require('./supportIdentityStore').initSchema(client);
     await require('./supportApprovals').initSchema(client);
     await require('./supportIssueLinks').initSchema(client);

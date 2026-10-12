@@ -71,7 +71,7 @@ test('planned staff handoff tells both answer and review to keep the customer in
   }
 });
 
-test('answer and reviewer share the action-first truthful communication contract', async (t) => {
+test('the answer keeps communication guidance while both review efforts keep only grounding checks', async (t) => {
   const previousKey = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';
   t.after(() => {
@@ -90,11 +90,20 @@ test('answer and reviewer share the action-first truthful communication contract
   await queryAgent({ question: 'Please refund my purchase', route: { lane: 'money', area: 'shop' }, post });
   const reviewed = await reviewAnswer({ question: 'Please refund my purchase',
     draft: 'You want a refund. The request needs a team review.', lane: 'money', handoffPlanned: true, post });
-  assert.equal(captured.length, 2);
-  for (const system of captured) {
-    assert.ok(system.includes(SUPPORT_COMMUNICATION_POLICY));
-    assert.match(system, /before delivery is confirmed/i);
-    assert.match(system, /Never guarantee a refund, replacement, recovery/i);
+  await reviewAnswer({ question: 'Please refund my purchase',
+    draft: 'You want a refund. The request needs a team review.', lane: 'money', handoffPlanned: true,
+    reasoningEffort: null, post });
+  assert.equal(captured.length, 3);
+  assert.ok(captured[0].includes(SUPPORT_COMMUNICATION_POLICY));
+  assert.match(captured[0], /before delivery is confirmed/i);
+  assert.match(captured[0], /Never guarantee a refund, replacement, recovery/i);
+  for (const system of captured.slice(1)) {
+    assert.equal(system.includes(SUPPORT_COMMUNICATION_POLICY), false);
+    assert.match(system, /final relevance and grounding gate/i);
+    assert.match(system, /Check every concrete claim, instruction, UI path/i);
+    assert.match(system, /Never suggest reinstalling or logging out with possible unsynced recordings/i);
+    assert.match(system, /delivery succeeds/i);
+    assert.match(system, /"grounded":true,"relevant":true/);
   }
   assert.equal(reviewed.grounded, true);
   assert.equal(reviewed.relevant, true);
@@ -343,6 +352,84 @@ test('parseAgentJson reads a fenced reply and a broken one', () => {
   const broken = parseAgentJson('{"final_answer": }');
   assert.equal(broken.reason, 'model json failed');
   assert.equal(broken.escalate, true);
+});
+
+test('answer JSON preserves raw control characters inside string values', () => {
+  const text = 'First line.\nSecond line.\tNote \u0000\b\f\r\u001f.';
+  const parsed = parseAgentJson(`{\n  "final_answer": "${text}",\n  "confidence": 0.8, "escalate": false\n}`);
+  assert.equal(parsed.final_answer, text);
+  assert.equal(parsed.escalate, false);
+  assert.equal(parsed.confidence, 0.8);
+});
+
+test('all raw C0 controls are preserved inside JSON values without becoming other fields', () => {
+  for (let code = 0; code < 0x20; code += 1) {
+    const value = `Before${String.fromCharCode(code)}after`;
+    const parsed = parseAgentJson(`{"final_answer":"Useful reply.","reason":"${value}","escalate":false}`);
+    assert.equal(parsed.reason, value, `control ${code}`);
+    assert.equal(parsed.escalate, false);
+  }
+});
+
+test('search planning shares control recovery and retains its existing text normalization', () => {
+  const plan = parseSearchPlan('{"standalone_question":"Change\nthis setting","customer_goal":"Choose\ta language","search_queries":["app\nlanguage"]}', 'Fallback');
+  assert.equal(plan.standaloneQuestion, 'Change this setting');
+  assert.equal(plan.customerGoal, 'Choose a language');
+  assert.deepEqual(plan.queries, ['app language']);
+});
+
+test('answer generation uses recovered JSON on the first call without retrying', async () => {
+  let calls = 0;
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  try {
+    const answer = await queryAgent({
+      question: 'What happens to this setting?', route: { lane: 'faq' },
+      post: async () => {
+        calls += 1;
+        return { data: { choices: [{ message: { content: '{"final_answer":"The setting\nstays unchanged.","escalate":false,"confidence":0.9}' } }] } };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(answer.final_answer, 'The setting\nstays unchanged.');
+    assert.equal(answer.escalate, false);
+  } finally {
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+  }
+});
+
+test('valid JSON escapes and quote boundaries retain their original meaning', () => {
+  for (const text of ['A literal \\n, a "quote", and a trailing slash \\.', 'Before \\\\"quoted" text.\nAfter.', 'C:\\notes\\today\t雪']) {
+    assert.equal(parseAgentJson(JSON.stringify({ final_answer: text, escalate: false })).final_answer, text);
+  }
+});
+
+test('control normalization does not repair invalid JSON outside strings or invalid escapes', () => {
+  for (const raw of [
+    '{"final_answer":"Useful reply", "escalate":tr\u0001ue}',
+    '{"final_answer":"Useful reply"\u0000}',
+    '{"final_answer":"Invalid \\\ncontinuation"}',
+    '{"final_answer":"Useful reply",}',
+  ]) {
+    const parsed = parseAgentJson(raw);
+    assert.equal(parsed.reason, 'model json failed');
+    assert.equal(parsed.escalate, true);
+  }
+});
+
+test('the reviewer accepts raw string line breaks without losing grounding checks', async () => {
+  const reviewed = await reviewAnswer({
+    question: 'What happens to the selected setting?', draft: 'The setting stays unchanged.',
+    lane: 'faq', sources: '[S1 | Help]\nhttps://help.omi.me/settings\nThe setting stays unchanged.',
+    post: async () => ({ data: { choices: [{ message: { content:
+      '{\n"final_answer":"The setting\nstays unchanged.","grounded":true,"relevant":true,"escalate":false,"confidence":0.9,"sources_used":["S1"]\n}',
+    } }] } }),
+  });
+  assert.equal(reviewed.final_answer, 'The setting\nstays unchanged.\n\nSource: https://help.omi.me/settings');
+  assert.equal(reviewed.grounded, true);
+  assert.equal(reviewed.relevant, true);
+  assert.equal(reviewed.escalate, false);
 });
 
 test('search planning rewrites a follow-up into several source searches', async () => {
@@ -627,6 +714,55 @@ test('Chinese, Korean, and Russian replies retain exactly one localized source l
   }
 });
 
+test('all recognized localized source labels normalize ASCII and fullwidth colons to one citation line', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Official docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const labels = [
+    ['en', 'Source', 'Source'], ['en', 'Sources', 'Source'],
+    ['es', 'Fuente', 'Fuente'], ['es', 'Fuentes', 'Fuente'],
+    ['de', 'Quelle', 'Quelle'], ['de', 'Quellen', 'Quelle'],
+    ['pt', 'Fonte', 'Fonte'], ['pt', 'Fontes', 'Fonte'],
+    ['it', 'Fonti', 'Fonti'], ['it', 'Riferimenti', 'Riferimenti'],
+    ['id', 'Sumber', 'Sumber'], ['tr', 'Kaynak', 'Kaynak'],
+    ['hi', 'Srot', 'Srot'], ['hi', 'स्रोत', 'Srot'],
+    ['ja', '出典', '出典'], ['zh', '来源', '来源'], ['zh', '來源', '来源'],
+    ['ko', '출처', '출처'], ['ru', 'Источник', 'Источник'],
+  ];
+  for (const [language, modelLabel, finalLabel] of labels) {
+    for (const colon of [':', '：']) {
+      const answer = groundedSourceLine(
+        `Keep the selected language.\n${modelLabel} ${colon} S1，(S2)； https://help.omi.me/preferences\n${modelLabel}${colon} https://docs.omi.me/settings`,
+        evidence, ['S1', 'S2', 'S1'], language,
+      );
+      assert.equal(answer, `Keep the selected language.\n\n${finalLabel}: https://help.omi.me/preferences https://docs.omi.me/settings`, `${modelLabel}${colon}`);
+    }
+  }
+});
+
+test('mixed-width source labels and evidence-only inline groups cannot duplicate a Chinese citation', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const answer = groundedSourceLine(
+    '设置保留。 (S1，S2) [S1][S2] （S1、S2）［S1；S2］【S2】\n来源：https://help.omi.me/preferences\n来源: S1｜S2',
+    evidence, ['S1'], 'zh',
+  );
+  assert.equal(answer, '设置保留。\n\n来源: https://help.omi.me/preferences');
+});
+
+test('source cleanup preserves prose, bare ids, unknown evidence groups and inline docs links', () => {
+  const evidence = '[S1 | Official docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const body = 'Use the guide at https://docs.omi.me/settings. The source: this is a settings explanation, not an extra citation. S1 stays literal; Galaxy S21 stays a phone model. Unknown [S90], (S1，S90), and 【S90】 stay.';
+  const answer = groundedSourceLine(`${body}\nSource： S1`, evidence, ['S1']);
+  assert.ok(answer.startsWith(body));
+  assert.equal(answer, `${body}\n\nSource: https://docs.omi.me/settings`);
+  const noCitation = groundedSourceLine('The source: https://docs.omi.me/settings explains the screen.', evidence, []);
+  assert.equal(noCitation, 'The source: https://docs.omi.me/settings explains the screen.');
+});
+
+test('unfamiliar URL-only localized labels also recognize fullwidth colons', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.';
+  const answer = groundedSourceLine('Useful answer.\nRéférences：https://help.omi.me/preferences', evidence, ['S1'], 'it');
+  assert.equal(answer, 'Useful answer.\n\nRéférences: https://help.omi.me/preferences');
+});
+
 test('an unfamiliar localized source label is replaced instead of duplicated', () => {
   const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/delete-one\nDelete one item.';
   const answer = groundedSourceLine('Risposta utile.\n\nRiferimenti: https://help.omi.me/en/articles/delete-one', evidence, ['S1'], 'it');
@@ -649,6 +785,85 @@ test('source cleanup removes citation-only lines in recognized languages', () =>
     assert.doesNotMatch(answer, new RegExp(modelCitation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), language);
     assert.equal((answer.match(/https:\/\/help\.omi\.me\/article-1/g) || []).length, 1, language);
     assert.equal(answer.split('\n').filter((line) => /:\s*(?:S\d|\[S\d|\(S\d)/.test(line)).length, 0, language);
+  }
+});
+
+test('citation-only source lines accept short conjunctions between URLs and evidence ids', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Docs]\nhttps://docs.omi.me/settings\nSettings.';
+  const citations = [
+    ['es', 'Fuente: https://help.omi.me/preferences y https://docs.omi.me/settings', 'Fuente'],
+    ['fr', 'Source : https://help.omi.me/preferences et https://docs.omi.me/settings', 'Source'],
+    ['en', 'Sources: S1 and S2 or [S1]', 'Source'],
+    ['es', 'Fuentes： S1 o S2', 'Fuente'],
+    ['pt', 'Fonte: S1 e S2', 'Fonte'],
+    ['de', 'Quellen: S1 und S2', 'Quelle'],
+    ['tr', 'Kaynak: S1 ve S2', 'Kaynak'],
+    ['id', 'Sumber: S1 dan S2', 'Sumber'],
+    ['ru', 'Источник: S1 и S2', 'Источник'],
+    ['zh', '來源： [S1]和[S2]及[S1]', '来源'],
+    ['ja', '出典： (S1)と(S2)', '出典'],
+    ['ko', '출처： S1 및 S2', '출처'],
+  ];
+  for (const [language, citation, finalLabel] of citations) {
+    assert.equal(
+      groundedSourceLine(`The preference is saved.\n${citation}`, evidence, ['S1', 'S2'], language),
+      `The preference is saved.\n\n${finalLabel}: https://help.omi.me/preferences https://docs.omi.me/settings`,
+      citation,
+    );
+  }
+});
+
+test('source labels accept matching markdown emphasis around the label or label and colon', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.';
+  for (const emphasis of ['**', '__', '*', '_']) {
+    for (const colon of [':', '：']) {
+      for (const heading of [`${emphasis}Source${emphasis}${colon}`, `${emphasis}Source ${colon}${emphasis}`]) {
+        assert.equal(
+          groundedSourceLine(`The preference is saved.\n${heading} [Preferences](https://help.omi.me/preferences) and S1`, evidence, ['S1']),
+          'The preference is saved.\n\nSource: https://help.omi.me/preferences',
+          heading,
+        );
+      }
+    }
+  }
+  assert.equal(
+    groundedSourceLine('La preferenza è salvata.\n__Fonti:__ S1', evidence, ['S1'], 'it'),
+    'La preferenza è salvata.\n\nFonti: https://help.omi.me/preferences',
+  );
+});
+
+test('mid-line source citations use the same conjunction and emphasis grammar', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.\n\n[S2 | Docs]\nhttps://docs.omi.me/settings\nSettings.';
+  for (const citation of [
+    '**Fuente:** https://help.omi.me/preferences y https://docs.omi.me/settings',
+    '_Source_ : [Preferences](https://help.omi.me/preferences) et S2',
+    '出典： [S1]と[S2]',
+    'Source: S1 and S2',
+  ]) {
+    assert.equal(
+      groundedSourceLine(`Keep the selected preference. ${citation}`, evidence, ['S1']),
+      'Keep the selected preference.\n\nSource: https://help.omi.me/preferences',
+      citation,
+    );
+  }
+});
+
+test('source headings followed by prose or longer words remain untouched', () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nPreferences.';
+  for (const prose of [
+    'Source: the Help Center guide',
+    '**Source:** https://help.omi.me/preferences and keep the app open.',
+    'Fuente: S1 y comprueba el idioma seleccionado.',
+    'Source: S1 only',
+    '出典： S1と設定を確認してください。',
+    '来源：https://help.omi.me/preferences。请检查设置。',
+    'Source: and',
+    'Source: S1 and',
+    '**Source:* S1',
+    'Source: S1st',
+  ]) {
+    assert.equal(groundedSourceLine(prose, evidence, []), prose, prose);
+    assert.equal(groundedSourceLine(`Keep this detail. ${prose}`, evidence, []), `Keep this detail. ${prose}`, prose);
   }
 });
 
@@ -732,5 +947,43 @@ test('a bad model JSON is tried once more, and a usage limit is not', async () =
   } finally {
     if (prev == null) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = prev;
+  }
+});
+
+test('model citations in any shape fold into the one application Source line', () => {
+  const guide = 'https://help.omi.me/en/articles/41-lights';
+  const start = 'https://docs.omi.me/start.md';
+  const evidence = `[S1 | Official Help Center]\n${guide}\nLight colours.\n[S2 | Official docs]\n${start}\nFirst steps.`;
+  const sourceLines = (text) => text.split('\n').filter((line) => /^(?:Source|Fuente|Quelle|Fonte|来源)\s*[:：]/u.test(line.trim()));
+  const cases = [
+    ['es', `La luz azul indica búsqueda.\nFuente: ${guide} (Luces del dispositivo), ${start}`, 'La luz azul indica búsqueda.'],
+    ['it', `Riavvia l'app (fonte: ${guide}) e riprova.`, "Riavvia l'app e riprova."],
+    ['pt', `Reinicie o aplicativo.\ne ${guide}`, 'Reinicie o aplicativo.'],
+    ['en', `Restart the app.\n, ${start}`, 'Restart the app.'],
+    ['en', `Restart the app.\n${guide}`, 'Restart the app.'],
+    ['en', 'Restart the app.\n*Sources: S2*', 'Restart the app.'],
+    ['en', 'Restart the app (S1 and S2).', 'Restart the app.'],
+    ['de', `Starte die App neu.\n**Quellen:**\n- ${guide}\n- [Erste Schritte](${start})`, 'Starte die App neu.'],
+    ['zh', `请重启应用（来源：${guide}）。`, '请重启应用。'],
+  ];
+  for (const [language, text, body] of cases) {
+    const answer = groundedSourceLine(text, evidence, ['S1', 'S2'], language);
+    assert.equal(answer.split('\n\n')[0], body, text);
+    assert.equal(sourceLines(answer).length, 1, text);
+  }
+});
+
+test('links that belong to the answer and longer prose stay intact', () => {
+  const evidence = '[S1 | Official Help Center]\nhttps://help.omi.me/en/articles/41-lights\nLight colours.';
+  for (const text of [
+    'Download the guide here:\nhttps://help.omi.me/en/articles/41-lights',
+    'Steps:\n1. Open Settings\n2. https://help.omi.me/en/articles/41-lights',
+    'Restart.\nhttps://help.omi.me/en/articles/99-other-guide',
+    'Open https://help.omi.me/en/articles/99-other-guide in your browser and follow it.',
+    'Sources: the Help Center explains that the light turns blue while it looks for your phone, see https://help.omi.me/en/articles/41-lights',
+    'Check the battery (S7) and retry.',
+    'Tested on a Galaxy S23 (my own phone, not a link).',
+  ]) {
+    assert.equal(groundedSourceLine(text, evidence, ['S1']).split('\n\nSource: ')[0], text);
   }
 });

@@ -169,7 +169,7 @@ docs.relevantDocs = (...args) => docsObserver ? docsObserver(...args) : original
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
-const { app, client, handleMessage, shouldHandle, noteCustomerLead } = require('../index');
+const { app, client, handleMessage, shouldHandle, noteCustomerLead, runtime } = require('../index');
 const router = require('../router');
 const supportCases = require('../supportCases');
 const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
@@ -401,17 +401,84 @@ test.beforeEach(() => {
   github.resetGithubMemory();
 });
 
-test('/health reports missing staff delivery without revealing IDs', () => {
+test('staff cards recover on Discord ready and every 30 seconds, but not while stopping', async t => {
+  const caseCards = require('../caseCards');
+  const originals = { setInterval: global.setInterval, syncPending: caseCards.syncPending,
+    onChange: supportCases.onChange, fetch: client.channels.fetch,
+    hydrate: knowledge.hydrateFromDiscord, register: commands.registerSlashCommands, stopping: runtime.stopping };
+  t.after(() => {
+    global.setInterval = originals.setInterval; caseCards.syncPending = originals.syncPending;
+    supportCases.onChange = originals.onChange; client.channels.fetch = originals.fetch;
+    knowledge.hydrateFromDiscord = originals.hydrate; commands.registerSlashCommands = originals.register;
+    runtime.stopping = originals.stopping;
+  });
+  const timers = []; let passes = 0;
+  global.setInterval = (callback, delay) => { const timer = { callback, delay, unreferenced: false,
+    unref() { this.unreferenced = true; } }; timers.push(timer); return timer; };
+  caseCards.syncPending = async receivedClient => { assert.equal(receivedClient, client); passes++; return 0; };
+  supportCases.onChange = () => () => {};
+  client.channels.fetch = async () => null;
+  knowledge.hydrateFromDiscord = async () => 0;
+  commands.registerSlashCommands = async () => 0;
+  runtime.stopping = false;
+  const ready = client.listeners(Events.ClientReady)[0];
+  assert.equal(typeof ready, 'function');
+  await ready();
+  assert.equal(passes, 1, 'boot must repair persisted stale cards');
+  const sweep = timers.find(timer => timer.delay === 30000);
+  assert.ok(sweep); assert.equal(sweep.unreferenced, true);
+  await sweep.callback();
+  assert.equal(passes, 2, 'the timer must run another pending-card sweep');
+  runtime.stopping = true;
+  await sweep.callback();
+  assert.equal(passes, 2, 'shutdown must not start another repair');
+});
+
+test('/health stays unavailable until Discord is ready and never reveals staff IDs', (t) => {
   const health = app._router.stack.find((layer) => layer.route?.path === '/health').route.stack[0].handle;
-  let body;
-  const response = { status: (value) => { assert.equal(value, 200); return response; }, json: (value) => { body = value; } };
-  health({}, response);
-  assert.equal(body.staffHandoff, 'missing');
-  process.env.STAFF_ALERT_CHANNEL_ID = 'private-staff-room';
-  health({}, response);
-  assert.equal(body.staffHandoff, 'configured');
-  assert.equal(JSON.stringify(body).includes('private-staff-room'), false);
+  const hadOwnIsReady = Object.hasOwn(client, 'isReady');
+  const originalIsReady = client.isReady;
+  const originalStaffChannel = process.env.STAFF_ALERT_CHANNEL_ID;
+  const originalStopping = runtime.stopping;
+  t.after(() => {
+    if (hadOwnIsReady) client.isReady = originalIsReady;
+    else delete client.isReady;
+    runtime.stopping = originalStopping;
+    if (originalStaffChannel === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID;
+    else process.env.STAFF_ALERT_CHANNEL_ID = originalStaffChannel;
+  });
+  const response = () => {
+    const received = {};
+    health({}, {
+      status(code) { received.code = code; return this; },
+      json(body) { received.body = body; return this; },
+    });
+    return received;
+  };
+
+  client.isReady = () => false;
   delete process.env.STAFF_ALERT_CHANNEL_ID;
+  assert.deepEqual(response(), {
+    code: 503,
+    body: { status: 'not_ready', staffHandoff: 'missing' },
+  });
+  process.env.STAFF_ALERT_CHANNEL_ID = 'private-staff-room';
+  assert.deepEqual(response(), {
+    code: 503,
+    body: { status: 'not_ready', staffHandoff: 'configured' },
+  });
+
+  client.isReady = () => true;
+  assert.deepEqual(response(), {
+    code: 200,
+    body: { status: 'ok', staffHandoff: 'configured' },
+  });
+  assert.equal(JSON.stringify(response()).includes('private-staff-room'), false);
+  runtime.stopping = true;
+  assert.deepEqual(response(), {
+    code: 503,
+    body: { status: 'not_ready', staffHandoff: 'configured' },
+  });
 });
 
 test('the feedback dashboard reports unavailable storage without showing fake zero totals or private errors', async (t) => {

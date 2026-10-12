@@ -5,6 +5,15 @@ const STATUSES = ['queued', 'delivered', 'accepted', 'resolved', 'closed'];
 const ACTIVE = ['queued', 'delivered', 'accepted'];
 const AREAS = new Set(['general', 'shop', 'privacy', 'app', 'desktop', 'device', 'hardware', 'software', 'account', 'firmware', 'integrations', 'other', 'unknown']);
 const REASONS = new Set(['needs_person', 'low_confidence', 'data_loss_risk', 'delivery_failed', 'customer_followup', 'customer_still_needs_help', 'provider_error', 'no_official_source', 'order_lookup', 'billing', 'refund', 'replacement', 'account', 'privacy', 'bug']);
+const WORK_STATUSES = new Set(['in_progress', 'waiting_customer']);
+const changes = new (require('node:events').EventEmitter)();
+function changed(value) {
+  if (value) for (const listener of changes.listeners('change')) {
+    try { Promise.resolve(listener(value.id)).catch(() => console.error('[CaseCard] status refresh scheduling failed')); }
+    catch { console.error('[CaseCard] status refresh scheduling failed'); }
+  }
+  return value;
+}
 
 function identifier(value, required = false) {
   const out = String(value || '').trim();
@@ -25,6 +34,7 @@ function safeContext(value = {}) {
   for (const key of ['dataLossRisk', 'needsPerson']) {
     if (typeof value[key] === 'boolean') result[key] = value[key];
   }
+  if (typeof value.replyLanguage === 'string' && /^[a-z]{2,3}(?:-[A-Za-z]{4})?$/.test(value.replyLanguage)) result.replyLanguage = value.replyLanguage;
   if (Number.isInteger(value.attachmentCount) && value.attachmentCount >= 0) result.attachmentCount = Math.min(value.attachmentCount, 100);
   return result;
 }
@@ -58,6 +68,9 @@ function rowCase(row) {
     escalationId: row.escalation_id, status: row.status, context: row.context || {}, sources: row.sources || [],
     deliveryId: row.delivery_id, deliveryDestination: row.delivery_destination,
     acceptedBy: row.accepted_by, acceptedAt: row.accepted_at,
+    sourceMessageId: row.source_message_id, workStatus: row.work_status,
+    acceptanceGeneration: row.acceptance_generation,
+    acceptanceNoticeStarted: row.acceptance_notice_started, acceptanceNoticeId: row.acceptance_notice_id,
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
 }
@@ -83,6 +96,11 @@ async function initSchema(client) {
     );
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS accepted_by TEXT;
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+    ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS source_message_id TEXT;
+    ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS work_status TEXT CHECK (work_status IN ('in_progress', 'waiting_customer'));
+    ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS acceptance_notice_started BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS acceptance_notice_id TEXT;
+    ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS acceptance_generation TEXT;
     CREATE UNIQUE INDEX IF NOT EXISTS support_cases_active_scope_idx
       ON support_cases(channel_id, customer_id) WHERE status IN ('queued', 'delivered', 'accepted');
     CREATE INDEX IF NOT EXISTS support_cases_customer_thread_idx ON support_cases(customer_thread_id);
@@ -94,13 +112,14 @@ function createPostgresStore(client) {
   return {
     async getOrCreate(input) {
       const { rows } = await client.query(`
-        INSERT INTO support_cases (id, channel_id, customer_id, customer_thread_id, status, context, sources)
-        VALUES ($1, $2, $3, $4, 'queued', $5::jsonb, $6::jsonb)
+        INSERT INTO support_cases (id, channel_id, customer_id, customer_thread_id, status, context, sources, source_message_id)
+        VALUES ($1, $2, $3, $4, 'queued', $5::jsonb, $6::jsonb, $7)
         ON CONFLICT (channel_id, customer_id) WHERE status IN ('queued', 'delivered', 'accepted')
         DO UPDATE SET context = support_cases.context || EXCLUDED.context,
           sources = CASE WHEN jsonb_array_length(EXCLUDED.sources) > 0 THEN EXCLUDED.sources ELSE support_cases.sources END,
-          customer_thread_id = COALESCE(EXCLUDED.customer_thread_id, support_cases.customer_thread_id), updated_at = NOW()
-        RETURNING *`, [input.id, input.channelId, input.customerId, input.customerThreadId, JSON.stringify(input.context), JSON.stringify(input.sources)]);
+          customer_thread_id = COALESCE(EXCLUDED.customer_thread_id, support_cases.customer_thread_id),
+          source_message_id = COALESCE(support_cases.source_message_id, EXCLUDED.source_message_id), updated_at = NOW()
+        RETURNING *`, [input.id, input.channelId, input.customerId, input.customerThreadId, JSON.stringify(input.context), JSON.stringify(input.sources), input.sourceMessageId]);
       return rowCase(rows[0]);
     },
     async getActive(channelId, customerId) {
@@ -111,13 +130,29 @@ function createPostgresStore(client) {
       const { rows } = await client.query('SELECT * FROM support_cases WHERE id = $1', [caseId]);
       return rowCase(rows[0]);
     },
-    async accept(caseId, staffId) {
+    async accept(caseId, staffId, generation) {
       const { rows } = await client.query(`UPDATE support_cases SET status = 'accepted',
-        accepted_by = COALESCE(accepted_by, $2), accepted_at = COALESCE(accepted_at, NOW()), updated_at = NOW()
-        WHERE id = $1 AND status = 'delivered' RETURNING *`, [caseId, staffId]);
+        accepted_by = COALESCE(accepted_by, $2), accepted_at = COALESCE(accepted_at, NOW()),
+        acceptance_generation = $3, updated_at = NOW()
+        WHERE id = $1 AND status = 'delivered' RETURNING *`, [caseId, staffId, generation]);
       if (rows.length) return rowCase(rows[0]);
       const existing = await client.query("SELECT * FROM support_cases WHERE id = $1 AND status = 'accepted'", [caseId]);
       return rowCase(existing.rows[0]);
+    },
+    async setWorkStatus(caseId, workStatus) {
+      const { rows } = await client.query(`UPDATE support_cases SET work_status = $2, updated_at = NOW()
+        WHERE id = $1 AND status = 'accepted' RETURNING *`, [caseId, workStatus]);
+      return rowCase(rows[0]);
+    },
+    async claimAcceptanceNotice(caseId, generation) {
+      const { rows } = await client.query(`UPDATE support_cases SET acceptance_notice_started = true
+        WHERE id = $1 AND status = 'accepted' AND accepted_by IS NOT NULL AND accepted_at IS NOT NULL
+          AND acceptance_notice_started = false AND acceptance_generation = $2 RETURNING *`, [caseId, generation]);
+      return rowCase(rows[0]);
+    },
+    async saveAcceptanceNotice(caseId, generation, messageId) {
+      await client.query(`UPDATE support_cases SET acceptance_notice_id = $3
+        WHERE id = $1 AND acceptance_generation = $2 AND acceptance_notice_started = true`, [caseId, generation, messageId]);
     },
     async getByThread(threadId, customerId) {
       const { rows } = await client.query(`SELECT * FROM support_cases
@@ -137,6 +172,12 @@ function createPostgresStore(client) {
     async transition(caseId, status, from, delivery = {}) {
       try {
         const { rows } = await client.query(`UPDATE support_cases AS current_case SET status = $2,
+          accepted_by = CASE WHEN $2 = 'queued' THEN NULL ELSE accepted_by END,
+          accepted_at = CASE WHEN $2 = 'queued' THEN NULL ELSE accepted_at END,
+          work_status = CASE WHEN $2 = 'queued' THEN NULL ELSE work_status END,
+          acceptance_notice_started = CASE WHEN $2 = 'queued' THEN false ELSE acceptance_notice_started END,
+          acceptance_notice_id = CASE WHEN $2 = 'queued' THEN NULL ELSE acceptance_notice_id END,
+          acceptance_generation = CASE WHEN $2 = 'queued' THEN NULL ELSE acceptance_generation END,
           delivery_id = COALESCE($4, delivery_id), delivery_destination = COALESCE($5, delivery_destination), updated_at = NOW()
           WHERE current_case.id = $1 AND current_case.status = ANY($3::text[])
             AND ($2 NOT IN ('queued', 'delivered', 'accepted') OR NOT EXISTS (
@@ -163,9 +204,10 @@ function createMemoryStore(state = { cases: new Map() }) {
         Object.assign(existing.context, input.context);
         if (input.sources.length) existing.sources = input.sources;
         if (input.customerThreadId) existing.customerThreadId = input.customerThreadId;
+        existing.sourceMessageId ||= input.sourceMessageId;
         return clone(existing);
       }
-      const value = { ...input, handoffThreadId: null, escalationId: null, status: 'queued', deliveryId: null, deliveryDestination: null, acceptedBy: null, acceptedAt: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const value = { ...input, handoffThreadId: null, escalationId: null, status: 'queued', deliveryId: null, deliveryDestination: null, acceptedBy: null, acceptedAt: null, acceptanceGeneration: null, workStatus: null, acceptanceNoticeStarted: false, acceptanceNoticeId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       state.cases.set(value.id, value);
       return clone(value);
     },
@@ -173,16 +215,34 @@ function createMemoryStore(state = { cases: new Map() }) {
       return clone([...state.cases.values()].find((item) => item.channelId === channelId && item.customerId === customerId && ACTIVE.includes(item.status)));
     },
     async getById(caseId) { return clone(state.cases.get(caseId)); },
-    async accept(caseId, staffId) {
+    async accept(caseId, staffId, generation) {
       const value = state.cases.get(caseId);
       if (!value || !['delivered', 'accepted'].includes(value.status)) return null;
       if (value.status === 'delivered') {
         value.status = 'accepted';
         value.acceptedBy ||= staffId;
         value.acceptedAt ||= new Date().toISOString();
+        value.acceptanceGeneration = generation;
         value.updatedAt = new Date().toISOString();
       }
       return clone(value);
+    },
+    async setWorkStatus(caseId, workStatus) {
+      const value = state.cases.get(caseId);
+      if (!value || value.status !== 'accepted') return null;
+      value.workStatus = workStatus;
+      value.updatedAt = new Date().toISOString();
+      return clone(value);
+    },
+    async claimAcceptanceNotice(caseId, generation) {
+      const value = state.cases.get(caseId);
+      if (!value || value.status !== 'accepted' || !value.acceptedBy || !value.acceptedAt || value.acceptanceNoticeStarted || value.acceptanceGeneration !== generation) return null;
+      value.acceptanceNoticeStarted = true;
+      return clone(value);
+    },
+    async saveAcceptanceNotice(caseId, generation, messageId) {
+      const value = state.cases.get(caseId);
+      if (value && value.acceptanceGeneration === generation && value.acceptanceNoticeStarted) value.acceptanceNoticeId = messageId;
     },
     async getByThread(threadId, customerId) {
       const matches = [...state.cases.values()].filter((item) =>
@@ -202,6 +262,11 @@ function createMemoryStore(state = { cases: new Map() }) {
       if (!value || !from.includes(value.status)) return null;
       if (ACTIVE.includes(status) && [...state.cases.values()].some((other) => other.id !== value.id && other.channelId === value.channelId && other.customerId === value.customerId && ACTIVE.includes(other.status))) return null;
       value.status = status;
+      if (status === 'queued') {
+        value.acceptedBy = null; value.acceptedAt = null; value.workStatus = null;
+        value.acceptanceNoticeStarted = false; value.acceptanceNoticeId = null;
+        value.acceptanceGeneration = null;
+      }
       if (delivery.messageId) value.deliveryId = delivery.messageId;
       if (delivery.destination) value.deliveryDestination = delivery.destination;
       value.updatedAt = new Date().toISOString();
@@ -213,7 +278,7 @@ function createMemoryStore(state = { cases: new Map() }) {
 function createCaseService(store) {
   return {
     async getOrCreateCase(input) {
-      return store.getOrCreate({ id: randomUUID(), channelId: identifier(input.channelId, true), customerId: identifier(input.customerId, true), customerThreadId: identifier(input.customerThreadId), context: safeContext(input.context), sources: safeSources(input.sources) });
+      return store.getOrCreate({ id: randomUUID(), channelId: identifier(input.channelId, true), customerId: identifier(input.customerId, true), customerThreadId: identifier(input.customerThreadId), sourceMessageId: identifier(input.sourceMessageId), context: safeContext(input.context), sources: safeSources(input.sources) });
     },
     getActiveCase: (channelId, customerId) => store.getActive(identifier(channelId, true), identifier(customerId, true)),
     getCaseById: (caseId) => store.getById(identifier(caseId, true)),
@@ -226,24 +291,30 @@ function createCaseService(store) {
       if (!delivery.messageId && delivery.confirmed !== true) throw new Error('Confirmed delivery is required');
       return store.transition(identifier(caseId, true), 'delivered', ['queued', 'delivered'], {
         messageId: identifier(delivery.messageId), destination: identifier(delivery.destination),
-      });
+      }).then(changed);
     },
-    markAccepted: (caseId, { staffId } = {}) => store.accept(identifier(caseId, true), identifier(staffId, true)),
+    markAccepted(caseId, { staffId } = {}) { return store.accept(identifier(caseId, true), identifier(staffId, true), randomUUID()).then(changed); },
+    setWorkStatus(caseId, workStatus) {
+      if (!WORK_STATUSES.has(workStatus)) throw new Error('Invalid case work status');
+      return store.setWorkStatus(identifier(caseId, true), workStatus).then(changed);
+    },
+    claimAcceptanceNotice: (caseId, generation) => store.claimAcceptanceNotice(identifier(caseId, true), identifier(generation, true)),
+    saveAcceptanceNotice: (caseId, generation, messageId) => store.saveAcceptanceNotice(identifier(caseId, true), identifier(generation, true), identifier(messageId, true)),
     resolveCase(caseId, { close = false, deliveryId, confirmed = false } = {}) {
       if (!deliveryId && !confirmed) throw new Error('Confirmed customer delivery is required');
-      return store.transition(identifier(caseId, true), close ? 'closed' : 'resolved', STATUSES, { messageId: identifier(deliveryId) });
+      return store.transition(identifier(caseId, true), close ? 'closed' : 'resolved', STATUSES, { messageId: identifier(deliveryId) }).then(changed);
     },
     async resolveByThread(threadId, { customerId, close = false, deliveryId, confirmed = false } = {}) {
       if (!deliveryId && !confirmed) throw new Error('Confirmed customer delivery is required');
       const value = await store.getByThread(identifier(threadId, true), identifier(customerId));
       if (!value) return null;
-      return store.transition(value.id, close ? 'closed' : 'resolved', STATUSES, { messageId: identifier(deliveryId) });
+      return changed(await store.transition(value.id, close ? 'closed' : 'resolved', STATUSES, { messageId: identifier(deliveryId) }));
     },
     async reopenByThread(threadId, customerId) {
       const value = await store.getByThread(identifier(threadId, true), identifier(customerId, true));
       if (!value) return null;
       if (ACTIVE.includes(value.status)) return value;
-      return store.transition(value.id, 'queued', ['resolved', 'closed']);
+      return changed(await store.transition(value.id, 'queued', ['resolved', 'closed']));
     },
   };
 }
@@ -261,5 +332,6 @@ function service() {
 module.exports = {
   initSchema, createPostgresStore, createMemoryStore, createCaseService, safeContext, safeSources,
   setStoreForTests: (store) => { injectedStore = store; },
-  ...Object.fromEntries(['getOrCreateCase', 'getActiveCase', 'getCaseById', 'getCaseByThread', 'linkHandoff', 'markDelivered', 'markAccepted', 'resolveCase', 'resolveByThread', 'reopenByThread'].map((name) => [name, (...args) => service()[name](...args)])),
+  onChange(listener) { changes.on('change', listener); return () => changes.off('change', listener); },
+  ...Object.fromEntries(['getOrCreateCase', 'getActiveCase', 'getCaseById', 'getCaseByThread', 'linkHandoff', 'markDelivered', 'markAccepted', 'setWorkStatus', 'claimAcceptanceNotice', 'saveAcceptanceNotice', 'resolveCase', 'resolveByThread', 'reopenByThread'].map((name) => [name, (...args) => service()[name](...args)])),
 };

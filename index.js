@@ -57,6 +57,7 @@ const triage = require('./triage');
 const supportCases = require('./supportCases');
 const supportIssueLinks = require('./supportIssueLinks');
 const githubFlow = require('./githubFlow').createGithubFlow();
+const caseCards = require('./caseCards');
 const { SupportRuntime, PostgresRuntimeStore, MemoryRuntimeStore, questionFingerprint, assertCurrentOwnership, markCurrentReplySent, isLeaseLost } = require('./supportRuntime');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -70,6 +71,8 @@ let coordinationReady = !dbReady;
 let httpServer;
 let shutdownPromise;
 let recoveryTimer;
+let caseCardTimer;
+let unsubscribeCaseCards;
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
 const botReplyOwners = new Map();
@@ -84,7 +87,7 @@ const client = new Client({
 
 const app = express();
 app.get('/health', (_req, res) => {
-  const ready = coordinationReady && !runtime.stopping;
+  const ready = client.isReady() && coordinationReady && !runtime.stopping;
   res.status(ready ? 200 : 503).json({
     status: ready ? 'ok' : 'not_ready',
     staffHandoff: process.env.STAFF_ALERT_CHANNEL_ID || telegram.isReady() ? 'configured' : 'missing',
@@ -457,7 +460,7 @@ async function noteCustomerLead(channel, message) {
     const approval = await githubFlow.prepare({ message, client, supportCase: value, kind: 'comment', issueNumber: linked[0].issueNumber });
     if (!approval || approval.cardMessageId || approval.status !== 'pending') return;
     const payload = githubFlow.approvalCard(approval, message.url);
-    await sendToStaffChannel(client, payload, channel.id, { onSent: async (sent) => { await githubFlow.bindCard(approval, sent); } });
+    await sendToStaffChannel(client, payload, channel.id, null, { onSent: async (sent) => { await githubFlow.bindCard(approval, sent); } });
   } catch (err) {
     if (isLeaseLost(err)) throw err;
     console.error('[GitHubFlow] customer update staging failed');
@@ -562,7 +565,8 @@ async function handleMessage(message) {
     });
   } catch (err) {
     console.error('[SupportRuntime] request coordination failed');
-    // Never let a stale worker send after its lease has been taken by another copy.
+    // A lost lease means another copy or the recovery queue now owns this message
+    // (expired leases nobody took are resumed), so this worker must not send.
     if (err.message === 'support lease lost' || err.replyAlreadySent) return { status: 'failed' };
     try {
       await message.reply({
@@ -1035,7 +1039,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       let supportCase = await supportCases.getOrCreateCase({
         channelId: previousCase?.channelId || channel.id, customerId: message.author.id,
         customerThreadId: channel.isThread?.() ? channel.id : undefined,
+        sourceMessageId: message.id,
         context: { area: triaged.area, lane: triaged.lane, dataLossRisk, needsPerson: true,
+          replyLanguage: searchPlan.replyLanguage === 'hi'
+            ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en',
           attachmentCount: message.attachments?.size || 0, reasonCodes: dataLossRisk ? ['data_loss_risk'] : ['needs_person'] },
         sources: cleanAnswer.match(/https:\/\/[^\s)>]+/g) || [],
       });
@@ -1263,6 +1270,17 @@ async function nickOmiSupport(client) {
 }
 
 client.once(Events.ClientReady, async () => {
+  const syncCards = (caseId) => runtime.track(() => caseId ? caseCards.syncCase(client, caseId) : caseCards.syncPending(client))
+    .catch(() => console.error('[CaseCard] refresh worker failed; pending retry'));
+  unsubscribeCaseCards = supportCases.onChange(syncCards);
+  let refreshingCards = false;
+  const repairCards = async () => {
+    if (refreshingCards || runtime.stopping) return;
+    refreshingCards = true;
+    try { await syncCards(); } finally { refreshingCards = false; }
+  };
+  caseCardTimer = setInterval(repairCards, 30000); caseCardTimer.unref();
+  repairCards();
   recoveryTimer = setInterval(() => {
     runtime.track(() => runtime.recoverQueued(recoverQueuedRequest)).catch(() => console.error('[SupportRuntime] queued request lookup failed'));
   }, 1000);
@@ -1343,9 +1361,11 @@ async function shutdown(signal) {
     console.log(`[Bot] Received ${signal}, draining replies...`);
     runtime.stopAccepting();
     clearInterval(recoveryTimer);
+    clearInterval(caseCardTimer);
     telegram.stopPolling();
     const [drained, telegramDrained] = await Promise.all([runtime.drain(), telegram.drainPolling()]);
     console.log(`[SupportRuntime] drain completed=${drained} telegram_completed=${telegramDrained}`);
+    unsubscribeCaseCards?.();
     client.destroy();
     if (dbReady) await db.shutdown();
     httpServer?.close();

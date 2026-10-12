@@ -1,11 +1,11 @@
 # Omi Support Bot Implementation Checklist
 
-Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. The first workflow foundation is implemented and tested on the branch; rollout and future diagnostics remain separate. Each runtime change needs regression checks and release verification. No cloud access grants accompany this foundation.
+Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. The foundation and approved Phase 2 fixes are deployed at `8321439`; Report 1 passed and Report 2 awaits grading. Live staff-card status and acceptance notices are implemented only on a separate draft branch. Each runtime change needs regression checks and release verification. No cloud access grants accompany this foundation.
 
 ## Release and security prerequisites
 
-- [ ] Complete and report the outstanding PR #24 smoke test before the approved PR #25 readiness rollout. Do not use this architecture work to bypass that gate.
-- [ ] Confirm that previously exposed credentials have been rotated or revoked. Never reuse, print or commit exposed values. Plan encryption-key migration without discarding encrypted state.
+- [x] PR #24's smoke test was reported before #25's verified readiness rollout. Keep subsequent releases gated on their own review, evaluation and production smoke tests; the roadmap records the evidence.
+- [ ] **Deferred by Aryan (Oct 9), accepted risk.** Previously exposed credential rotation remains unconfirmed. Plan encryption-key migration without discarding encrypted state; never print or commit secret values.
 - [ ] Inventory actual installed GitHub, Shopify and Discord permissions without exposing values. Existing credentials being configured does not prove their scopes or end-to-end capability.
 - [ ] Define support owners, response targets, diagnostic consent, retention and an emergency disable procedure before making customer-facing commitments.
 
@@ -25,10 +25,23 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Add read-only GitHub receipt reconciliation and idempotent private-link repair; never infer trusted ownership from a public marker.
 - [x] Validate actual Discord staff audience and bot permissions before full-card delivery and GitHub actions, failing closed on unknown audience grants.
 - [ ] Add automatic draft retention cleanup, a general delivery outbox and Telegram destination verification. The bounded GitHub reconciliation flow is not the complete outbox.
+- [x] Draft: project accepted/work/waiting/resolved/closed state into the existing private cards; persist message references, serialize edits and recover missed updates after restart. Retire deleted cards without reposting.
+- [x] Draft: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.
+- [x] Phase 3 correction: every unconfirmed acceptance notification explicitly tells staff to reply in the customer's thread, in an ephemeral response. Confirmed boot/30-second sweep wiring and stale-card repair after a failed edit; Phase 2 main merged without a rebase. Combined unit suite 661 pass, offline 8/8.
+- [ ] Review and run the full protected gate for the new canned acceptance wording, then smoke-test real accept/start/wait/close/reopen and restart recovery. No deployment or protected-file read accompanies this implementation.
 - [x] Correct exact order targeting: an explicit number not found stays a miss, never another order. Move the retired Shopify API version to a supported tested contract and verify the actual response version. Shopify documents [version fallback](https://shopify.dev/docs/api/usage/versioning) and [order-access scopes](https://shopify.dev/docs/api/usage/access-scopes).
 - [ ] Add bounded historical-order pagination and explain accessible history privately.
 
 Acceptance: restart during OTP, overlapping copies, provider slowdown, failed/uncertain sends, repeated webhooks, staff-button use after restart and termination during a reply produce neither false completion nor uncontrolled duplicate work. Existing customer routing/privacy regressions stay green.
+
+## Access prerequisites before metadata diagnostics
+
+- [ ] After #26 and separately verified #28, add the reviewed public known-issues/releases list and product facts sheet, with official sources, versions, review/freshness ownership and deployment evidence.
+- [ ] Use AGENTS.md's support voice without inventing access, receipt, acceptance, investigations or outcomes. Runtime prompt/canned-answer changes require the full protected gate.
+- [ ] For each new adapter, define a fixed allowlist, customer/case authorization where needed, consent, limits, kill switch and metadata-only audit; validate synthetically, then pilot in the private staff card before reviewed customer enablement.
+- [ ] Extend order facts only through exact-owner-verified private/ephemeral delivery, never a normal customer-thread message or model prompt. Keep existing `/order` self-service enabled; do not add order/account writes.
+- [ ] Obtain backend-team agreement and privacy review before linked-account metadata/sign-in implementation. Define available/stale/unknown states for device/version/sync/plan and any provable unsynced count; exclude content and unrelated customers.
+- [ ] Follow the latest staged order: Phase 2 → reviewed #41 → routing/intake comparison → reviewed/private-preflight #28 → reviewed #29 → reviewed #30. The previous two-week go/no-go order is superseded, not a reason to bypass review. Keep deployments separate, with 24 clean hours unless Aryan explicitly says go; add only the authorized phase corrections. Other open queue/monitoring/retention work remains deferred.
 
 ## Phase 2 Verified metadata diagnostics
 

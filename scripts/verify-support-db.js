@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { randomUUID, createCipheriv, createHmac } = require('node:crypto');
 const runtime = require('../supportRuntime');
 const cases = require('../supportCases');
+const cards = require('../caseCards');
 const { SupportIdentityStore, initSchema: initIdentity } = require('../supportIdentityStore');
 const approvals = require('../supportApprovals');
 const issueLinks = require('../supportIssueLinks');
@@ -36,11 +37,27 @@ async function isolatedPool() {
 }
 
 async function verify(pool) {
+
+  const prefix = `test-${randomUUID()}`;
+  // Exercise an additive upgrade without dropping existing rows or state.
+  await pool.query(`CREATE TABLE IF NOT EXISTS support_cases (
+    id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, customer_id TEXT NOT NULL,
+    customer_thread_id TEXT, handoff_thread_id TEXT, escalation_id INTEGER,
+    status TEXT NOT NULL CHECK (status IN ('queued','delivered','accepted','resolved','closed')),
+    context JSONB NOT NULL DEFAULT '{}', sources JSONB NOT NULL DEFAULT '[]',
+    delivery_id TEXT, delivery_destination TEXT, accepted_by TEXT, accepted_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  const legacyId = randomUUID();
+  await pool.query(`INSERT INTO support_cases (id, channel_id, customer_id, status, accepted_by, accepted_at)
+    VALUES ($1,$2,$3,'accepted',$4,NOW())`, [legacyId, `${prefix}-legacy`, `${prefix}-legacy-customer`, `${prefix}-legacy-staff`]);
   for (let count = 0; count < 2; count++) {
-    await runtime.initSchema(pool); await cases.initSchema(pool); await initIdentity(pool);
+    await runtime.initSchema(pool); await cases.initSchema(pool); await cards.initSchema(pool); await initIdentity(pool);
     await approvals.initSchema(pool); await issueLinks.initSchema(pool);
   }
-  const prefix = `test-${randomUUID()}`;
+  const legacy = (await pool.query('SELECT * FROM support_cases WHERE id=$1', [legacyId])).rows[0];
+  assert.equal(legacy.status, 'accepted'); assert.equal(legacy.accepted_by, `${prefix}-legacy-staff`);
+  assert.equal(legacy.acceptance_notice_started, false); assert.equal(legacy.work_status, null);
   const store = new runtime.PostgresRuntimeStore(pool);
   const job = { messageId: `${prefix}-message`, caseKey: `${prefix}:alice`, owner: `${prefix}-owner`, fingerprint: runtime.questionFingerprint('synthetic private input') };
   const duplicate = { ...job, owner: `${prefix}-second` };
@@ -60,6 +77,34 @@ async function verify(pool) {
   const resumed = { ...queued, owner: `${prefix}-resumed` };
   assert.equal(await store.claim(resumed), true); await store.finish(resumed, 'ignored');
 
+  // A stalled worker resumes an expired claim nobody took; a dead one's unsent request is requeued.
+  const expire = (messageId) => pool.query("UPDATE support_message_claims SET lease_until=NOW() - INTERVAL '1 second' WHERE message_id=$1", [messageId]);
+  const stalled = { messageId: `${prefix}-stalled`, caseKey: `${prefix}:carol`, owner: `${prefix}-stalled-owner`, fingerprint: null };
+  assert.equal(await store.claim(stalled), true); assert.equal(await store.acquire(stalled), true);
+  await pool.query("UPDATE support_case_leases SET lease_until=NOW() - INTERVAL '1 second' WHERE case_key=$1", [stalled.caseKey]);
+  await pool.query("UPDATE support_worker_slots SET lease_until=NOW() - INTERVAL '1 second' WHERE owner=$1", [stalled.owner]);
+  await expire(stalled.messageId);
+  assert.equal(await store.owned(stalled), false); assert.equal(await store.renew(stalled), false);
+  assert.equal(await store.reclaim(stalled), true); assert.notEqual(stalled.slot, null);
+  assert.equal(await store.owned(stalled), true); assert.equal(await store.markDelivering(stalled), true);
+  await store.finish(stalled, 'answered');
+  const orphan = { messageId: `${prefix}-orphan`, caseKey: `${prefix}:dave`, owner: `${prefix}-dead-owner`, fingerprint: null };
+  const partial = { messageId: `${prefix}-partial`, caseKey: `${prefix}:erin`, owner: `${prefix}-dead-owner-2`, fingerprint: null };
+  const local = { messageId: `${prefix}-local`, caseKey: `${prefix}:frank`, owner: `${prefix}-local-owner`, fingerprint: null };
+  for (const job of [orphan, partial, local]) assert.equal(await store.claim(job), true);
+  assert.equal(await store.markDelivering(partial), true);
+  for (const job of [orphan, partial, local]) await expire(job.messageId);
+  const swept = await store.abandoned({ exclude: [local.owner] });
+  assert.ok(swept.some((item) => item.messageId === orphan.messageId && item.state === 'queued'));
+  assert.ok(!swept.some((item) => [partial.messageId, local.messageId].includes(item.messageId)));
+  assert.equal(await store.reclaim(orphan), false);
+  assert.equal(await store.reclaim(local), true);
+  assert.ok((await store.queued(100)).some((item) => item.messageId === orphan.messageId));
+  const sweptLater = await store.abandoned({ exclude: [local.owner], uncertainGraceMs: 0 });
+  assert.ok(sweptLater.some((item) => item.messageId === partial.messageId && item.state === 'uncertain'));
+  assert.equal(await store.reclaim(partial), false);
+  await store.finish(local, 'answered');
+
   const service = cases.createCaseService(cases.createPostgresStore(pool));
   const aliceInput = { channelId: `${prefix}-general`, customerId: `${prefix}-alice`, context: { area: 'app', summary: 'private content must not persist' } };
   const [first, second] = await Promise.all([service.getOrCreateCase(aliceInput), service.getOrCreateCase(aliceInput)]);
@@ -73,8 +118,41 @@ async function verify(pool) {
   const accepted = await service.markAccepted(first.id, { staffId: `${prefix}-staff` });
   assert.equal(accepted.acceptedBy, `${prefix}-staff`);
   assert.equal((await service.markAccepted(first.id, { staffId: `${prefix}-other-staff` })).acceptedBy, `${prefix}-staff`);
-  await service.resolveCase(first.id, { close: true, confirmed: true });
-  assert.equal((await service.reopenByThread(`${prefix}-handoff`, aliceInput.customerId)).status, 'queued');
+  await service.setWorkStatus(first.id, 'in_progress');
+  assert.equal((await service.getCaseById(first.id)).workStatus, 'in_progress');
+  const claimedNotices = await Promise.all([service.claimAcceptanceNotice(first.id, accepted.acceptanceGeneration), service.claimAcceptanceNotice(first.id, accepted.acceptanceGeneration)]);
+  assert.equal(claimedNotices.filter(Boolean).length, 1);
+  await service.saveAcceptanceNotice(first.id, accepted.acceptanceGeneration, `${prefix}-acceptance-receipt`);
+  assert.equal((await service.getCaseById(first.id)).acceptanceNoticeId, `${prefix}-acceptance-receipt`);
+  const cardStore = cards.createPostgresStore(pool);
+  // Native Postgres retains sub-millisecond precision; JS Date does not.
+  await pool.query("UPDATE support_cases SET updated_at=date_trunc('milliseconds', NOW()) + INTERVAL '456 microseconds' WHERE id=$1", [first.id]);
+  const cardService = cards.createCardService(cardStore, { service });
+  const staffChannelId = '234567890123456789'; const staffCardId = '534567890123456789';
+  const previousStaffChannel = process.env.STAFF_ALERT_CHANNEL_ID; process.env.STAFF_ALERT_CHANNEL_ID = staffChannelId;
+  let lastCard;
+  try {
+    await cardService.rememberCard(first.id, staffChannelId, staffCardId);
+    const message = { author: { id: 'fixture-bot' }, embeds: [{ fields: [{ name: 'Case', value: first.id }] }],
+      edit: async payload => { lastCard = payload; message.embeds = payload.embeds; message.components = payload.components; } };
+    const client = { user: { id: 'fixture-bot' }, channels: { fetch: async () => ({ messages: { fetch: async () => message } }) } };
+    assert.equal(await cardService.syncPending(client), 1);
+    assert.match(lastCard.embeds[0].title, /In progress/);
+    assert.equal(await cardService.syncPending(client), 0);
+    const staleSnapshot = await service.getCaseById(first.id);
+    await service.setWorkStatus(first.id, 'waiting_customer');
+    await cardStore.synced({ caseId: first.id, messageId: staffCardId }, staleSnapshot);
+    assert.ok((await cardStore.dirty(service, 25)).includes(first.id));
+    await cardService.syncPending(client); assert.match(lastCard.embeds[0].title, /Waiting for customer/);
+    await service.resolveCase(first.id, { close: true, confirmed: true });
+    await cardService.syncPending(client); assert.match(lastCard.embeds[0].title, /Closed/);
+    const reopened = await service.reopenByThread(`${prefix}-handoff`, aliceInput.customerId);
+    assert.equal(reopened.status, 'queued'); assert.equal(reopened.acceptedBy, null); assert.equal(reopened.workStatus, null);
+    await cardService.syncPending(client); assert.match(lastCard.embeds[0].title, /Handoff pending/);
+    assert.equal(await service.claimAcceptanceNotice(first.id, accepted.acceptanceGeneration), null);
+  } finally {
+    if (previousStaffChannel === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID; else process.env.STAFF_ALERT_CHANNEL_ID = previousStaffChannel;
+  }
 
   const identity = new SupportIdentityStore({ pool, key: Buffer.alloc(32, 17) });
   const restarted = new SupportIdentityStore({ pool, key: Buffer.alloc(32, 17) });
@@ -158,7 +236,7 @@ async function verify(pool) {
     await migration.query('ROLLBACK');
     migration.release();
   }
-  console.log('Support database integration: schema, claims, queue, case isolation, verification and revocation passed');
+  console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, acceptance notices, verification and revocation passed');
   console.log('GitHub approval integration: encrypted drafts, case-insensitive source uniqueness, single dispatch, private links and fail-safe migration passed');
 }
 

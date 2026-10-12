@@ -3,6 +3,10 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 
 const LEASE_MS = 120_000;
 const REPEAT_MS = 10 * 60_000;
+// A worker that began customer-visible delivery may still be finishing it after a
+// stall, so it keeps its claim this long before the request is counted as uncertain.
+const UNCERTAIN_GRACE_MS = 10 * 60_000;
+const SWEEP_MS = 15_000;
 const context = new AsyncLocalStorage();
 
 function questionFingerprint(text) {
@@ -28,6 +32,7 @@ async function initSchema(client) {
       slot INTEGER PRIMARY KEY, owner TEXT, lease_until TIMESTAMPTZ
     );
     INSERT INTO support_worker_slots (slot) VALUES (1), (2), (3) ON CONFLICT DO NOTHING;
+    ALTER TABLE support_message_claims ADD COLUMN IF NOT EXISTS delivery_started BOOLEAN NOT NULL DEFAULT false;
   `);
 }
 
@@ -38,7 +43,7 @@ class PostgresRuntimeStore {
       INSERT INTO support_message_claims (message_id, case_key, owner, fingerprint, lease_until)
       VALUES ($1,$2,$3,$4,NOW() + $5 * INTERVAL '1 millisecond')
       ON CONFLICT (message_id) DO UPDATE SET owner=$3, lease_until=EXCLUDED.lease_until
-        , state='processing', fingerprint=EXCLUDED.fingerprint
+        , state='processing', fingerprint=EXCLUDED.fingerprint, delivery_started=false
       WHERE support_message_claims.state='queued'
       RETURNING message_id`, [job.messageId, job.caseKey, job.owner, job.fingerprint, LEASE_MS]);
     return rows.length > 0;
@@ -106,6 +111,43 @@ class PostgresRuntimeStore {
       WHERE slot=$1 AND owner=$2 AND lease_until > NOW() RETURNING slot`, [job.slot, job.owner, LEASE_MS]);
     return Boolean(caseLease.rows.length && slot.rows.length);
   }
+  // Resume a claim whose lease expired while its worker was stalled, unless another
+  // worker or the recovery queue has taken the message since.
+  async reclaim(job) {
+    const { rows } = await this.pool.query(`UPDATE support_message_claims SET lease_until=NOW() + $3 * INTERVAL '1 millisecond'
+      WHERE message_id=$1 AND owner=$2 AND state='processing' RETURNING message_id`, [job.messageId, job.owner, LEASE_MS]);
+    if (!rows.length) return false;
+    if (job.slot == null) return true;
+    const caseLease = await this.pool.query(`INSERT INTO support_case_leases (case_key,owner,lease_until)
+      VALUES ($1,$2,NOW() + $3 * INTERVAL '1 millisecond')
+      ON CONFLICT (case_key) DO UPDATE SET owner=$2, lease_until=EXCLUDED.lease_until
+      WHERE support_case_leases.lease_until < NOW() OR support_case_leases.owner=$2
+      RETURNING case_key`, [job.caseKey, job.owner, LEASE_MS]);
+    const slot = caseLease.rows.length ? await this.pool.query(`UPDATE support_worker_slots SET owner=$2,
+      lease_until=NOW() + $3 * INTERVAL '1 millisecond'
+      WHERE slot=$1 AND (owner=$2 OR owner IS NULL OR lease_until < NOW()) RETURNING slot`, [job.slot, job.owner, LEASE_MS]) : { rows: [] };
+    // Answering the customer's message outranks follow-up ordering and slot accounting.
+    if (!slot.rows.length) { await this.release(job); job.slot = null; }
+    return true;
+  }
+  async markDelivering(job) {
+    const { rows } = await this.pool.query(`UPDATE support_message_claims SET delivery_started=true
+      WHERE message_id=$1 AND owner=$2 AND state='processing' AND lease_until > NOW() RETURNING message_id`, [job.messageId, job.owner]);
+    return rows.length > 0;
+  }
+  // Requeue requests whose worker vanished before any customer-visible send; record
+  // the rest as uncertain so they are counted instead of silently resent or lost.
+  async abandoned({ exclude = [], uncertainGraceMs = UNCERTAIN_GRACE_MS } = {}) {
+    const { rows } = await this.pool.query(`UPDATE support_message_claims SET
+        state=CASE WHEN delivery_started THEN 'uncertain' ELSE 'queued' END,
+        owner=CASE WHEN delivery_started THEN owner ELSE 'queued' END,
+        finished_at=CASE WHEN delivery_started THEN NOW() ELSE NULL END,
+        lease_until=NOW()
+      WHERE state='processing' AND NOT (owner = ANY($1::text[]))
+        AND lease_until < NOW() - (CASE WHEN delivery_started THEN $2 ELSE 0 END) * INTERVAL '1 millisecond'
+      RETURNING message_id, state`, [exclude, uncertainGraceMs]);
+    return rows.map((row) => ({ messageId: row.message_id, state: row.state }));
+  }
   async finish(job, state) {
     await this.pool.query(`UPDATE support_message_claims SET state=$3, finished_at=NOW()
       WHERE message_id=$1 AND owner=$2 AND state='processing'`, [job.messageId, job.owner, state]);
@@ -128,7 +170,7 @@ class MemoryRuntimeStore {
     // An expired started request can have an unknown external delivery outcome.
     // Only explicitly queued work is safe to resume automatically.
     if (previous && previous.state !== 'queued') return false;
-    this.messages.set(job.messageId, { ...job, until: this.now() + LEASE_MS, state: 'processing' });
+    this.messages.set(job.messageId, { ...job, until: this.now() + LEASE_MS, state: 'processing', deliveryStarted: false });
     return true;
   }
   async enqueue(input) {
@@ -175,6 +217,37 @@ class MemoryRuntimeStore {
     }
     return true;
   }
+  async reclaim(job) {
+    const message = this.messages.get(job.messageId);
+    if (message?.owner !== job.owner || message.state !== 'processing') return false;
+    message.until = this.now() + LEASE_MS;
+    if (job.slot == null) return true;
+    const lease = this.cases.get(job.caseKey);
+    const slot = this.slots.get(job.slot);
+    const free = (item) => !item || item.owner === job.owner || item.until <= this.now();
+    if (free(lease) && free(slot)) {
+      const item = { owner: job.owner, until: this.now() + LEASE_MS };
+      this.cases.set(job.caseKey, item); this.slots.set(job.slot, { ...item });
+    } else { await this.release(job); job.slot = null; }
+    return true;
+  }
+  async markDelivering(job) {
+    const message = this.messages.get(job.messageId);
+    if (message?.owner !== job.owner || message.state !== 'processing' || message.until <= this.now()) return false;
+    message.deliveryStarted = true;
+    return true;
+  }
+  async abandoned({ exclude = [], uncertainGraceMs = UNCERTAIN_GRACE_MS } = {}) {
+    const result = [];
+    for (const item of this.messages.values()) {
+      if (item.state !== 'processing' || exclude.includes(item.owner)) continue;
+      if (item.until >= this.now() - (item.deliveryStarted ? uncertainGraceMs : 0)) continue;
+      if (item.deliveryStarted) Object.assign(item, { state: 'uncertain', at: this.now() });
+      else Object.assign(item, { state: 'queued', owner: 'queued', until: this.now() });
+      result.push({ messageId: item.messageId, state: item.state });
+    }
+    return result;
+  }
   async finish(job, state) {
     const message = this.messages.get(job.messageId);
     if (message?.owner === job.owner && message.state === 'processing') Object.assign(message, { state, at: this.now() });
@@ -189,10 +262,11 @@ class MemoryRuntimeStore {
 
 class SupportRuntime {
   constructor({ store = new MemoryRuntimeStore(), concurrency = 3, maxQueued = 24,
-    waitMs = 60_000, heartbeatMs = 15_000, log = console.error } = {}) {
+    waitMs = 60_000, heartbeatMs = 15_000, sweepMs = SWEEP_MS, log = console.error } = {}) {
     this.store = store; this.concurrency = concurrency; this.maxQueued = maxQueued;
     this.waitMs = waitMs; this.heartbeatMs = heartbeatMs; this.log = log;
     this.running = 0; this.waiting = []; this.tasks = new Set(); this.jobs = new Map(); this.caseTails = new Map(); this.stopping = false; this.recovering = false;
+    this.sweepMs = sweepMs; this.lastSweep = 0;
   }
   run(input, work) {
     if (this.stopping) return Promise.resolve({ status: 'stopping' });
@@ -228,8 +302,10 @@ class SupportRuntime {
     const renew = async () => {
       if (runningRenewal || job.lost) return;
       runningRenewal = true;
+      // A transient database error is retried on the next heartbeat; ownership is
+      // checked again before every customer-visible send.
       try { if (!(await this.store.renew(job))) job.lost = true; }
-      catch { job.lost = true; this.log('[SupportRuntime] lease renewal failed'); }
+      catch { this.log('[SupportRuntime] lease renewal failed; retrying'); }
       finally { runningRenewal = false; }
     };
     const run = (fn) => context.run({ runtime: this, job }, fn);
@@ -244,7 +320,7 @@ class SupportRuntime {
       localSlot = true;
       const until = Date.now() + this.waitMs;
       while (!(await this.store.acquire(job))) {
-        if (job.lost) throw new Error('support lease lost');
+        if (job.lost && !(await this.regain(job))) throw new Error('support lease lost');
         if (Date.now() >= until) {
           await this.store.defer(job);
           return { status: 'queued' };
@@ -281,8 +357,35 @@ class SupportRuntime {
       }
     }
   }
+  async regain(job) {
+    if (!(await this.store.reclaim(job))) return false;
+    job.lost = false;
+    this.log(`[SupportRuntime] reclaimed expired lease message=${job.messageId}`);
+    return true;
+  }
+  // Fence before every customer-visible send. An expired lease that nobody else took
+  // is resumed rather than dropped; only a message another worker or the recovery
+  // queue now owns is left to that owner.
   async assertOwned(job) {
-    if (job.lost || !(await this.store.owned(job))) throw new Error('support lease lost');
+    let owned;
+    try {
+      owned = !job.lost && await this.store.owned(job);
+      if (!owned) owned = await this.regain(job);
+      if (owned && job.started && !job.deliveryMarked) {
+        if (!(await this.store.markDelivering(job))) owned = await this.regain(job) && await this.store.markDelivering(job);
+        if (owned) job.deliveryMarked = true;
+      }
+    } catch (err) {
+      // Before work starts the caller still has an honest fallback reply. Once an
+      // answer exists, a possible duplicate is better than silence.
+      if (!job.started) throw err;
+      this.log(`[SupportRuntime] delivered without confirmed ownership message=${job.messageId}`);
+      return;
+    }
+    if (!owned) {
+      this.log(`[SupportRuntime] standing down message=${job.messageId}: another worker or the recovery queue owns it`);
+      throw new Error('support lease lost');
+    }
   }
   stopAccepting() { this.stopping = true; }
   async recoverQueued(handler) {
@@ -291,6 +394,14 @@ class SupportRuntime {
     if (available <= 0) return;
     this.recovering = true;
     try {
+      if (Date.now() - this.lastSweep >= this.sweepMs) {
+        this.lastSweep = Date.now();
+        for (const item of await this.store.abandoned({ exclude: [...this.jobs.keys()] })) {
+          this.log(item.state === 'queued'
+            ? `[SupportRuntime] requeued abandoned request message=${item.messageId}`
+            : `[SupportRuntime] abandoned request with uncertain delivery message=${item.messageId}`);
+        }
+      }
       const queued = await this.store.queued(Math.min(this.concurrency, available));
       await Promise.all(queued.map(handler));
     } finally { this.recovering = false; }

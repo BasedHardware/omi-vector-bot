@@ -519,6 +519,14 @@ function whenModelDown(route, question) {
   };
 }
 
+function orderLookupLive() {
+  try {
+    return require('./orderFlow').isLive();
+  } catch {
+    return false;
+  }
+}
+
 function shopStatusReply(route, question) {
   if (route?.wantHuman || looksLikeSupportNudge(question)) {
     return [
@@ -527,7 +535,11 @@ function shopStatusReply(route, question) {
       "Please don't post your address or payment details here.",
     ].join(' ');
   }
-  return `${ORDER_STATUS_OPENING} An order status or delivery date needs a verified order check. Please keep your address and payment details private.`;
+  const head = `${ORDER_STATUS_OPENING} An order status or delivery date needs a verified order check. Please keep your address and payment details private.`;
+  if (orderLookupLive()) {
+    return `${head}\n\nUse /order to check your own orders privately. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.`;
+  }
+  return head;
 }
 
 function shippingQuoteReply() {

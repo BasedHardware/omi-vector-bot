@@ -1,4 +1,4 @@
-# Omi Support bot
+# Omi Support Bot
 
 Discord support agent for Omi. Customers see it as **Omi Support**. It answers product questions from retrieved Omi sources, verifies model-written answers against those sources, and hands account or device-specific work to a person without inventing a status or a ping.
 
