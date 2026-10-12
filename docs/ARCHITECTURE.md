@@ -1,6 +1,8 @@
 # Omi Support Bot Architecture
 
-Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. The workflow foundation and approved Phase 2 fixes are deployed at main `8321439`; Report 1 passed and the Phase 2 smoke/report evidence is recorded in [the roadmap](../ROADMAP.md). Live staff-card status/acceptance notices described below are draft-branch work, not newly deployed behavior. The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
+Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. Reports 1–3 passed; #41's live staff-card status/acceptance notices are deployed at main `b9eeb16`, as recorded in [the roadmap](../ROADMAP.md). The separate closing-card localization is implemented on a draft branch, not deployed. The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
+
+Closing-card language follows the same persisted `context.replyLanguage` used by acceptance notices: case lookup → deterministic localized card → confirmed customer send → durable case closure → thread archive. `closingCopy.js` covers the acceptance language set with an English fallback. Feedback identity, ownership, review URLs and optional-review semantics are unchanged; staff locale does not override the customer language. This draft change localizes card content only, not `/done` acknowledgments or subsequent feedback responses.
 
 ## Current capabilities and gaps
 

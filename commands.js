@@ -4,6 +4,7 @@ const github = require('./github');
 const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
 const { appReviewButtons } = require('./appReviews');
+const { closingCopy } = require('./closingCopy');
 
 const OMI_LOGO_URL =
   process.env.OMI_LOGO_URL ||
@@ -72,26 +73,23 @@ async function registerSlashCommands(client) {
   return guildIds.size;
 }
 
-function closeNotice(user) {
-  const who = user?.id ? `<@${user.id}>` : 'staff';
-  return [
-    'Thank you for giving us the chance to help.',
-    'Did we help solve your problem? Your honest feedback helps us improve.',
-    'If you still need help, use the button below. If the thread cannot be reopened, open a new post in Help.',
-    `Marked resolved by ${who}. Only the customer who opened this post can submit support feedback.`,
-  ].join('\n\n');
+function closeNotice(user, language = 'en') {
+  const copy = closingCopy(language);
+  const who = user?.id ? `<@${user.id}>` : copy.staff;
+  return copy.description(who).join('\n\n');
 }
 
-function closePayload(user) {
+function closePayload(user, language = 'en') {
+  const copy = closingCopy(language);
   const embed = {
     author: { name: 'Omi Support', iconURL: OMI_LOGO_URL },
-    title: 'How did we do?',
+    title: copy.title,
     color: 0x111111,
-    description: closeNotice(user),
+    description: closeNotice(user, language),
     thumbnail: { url: OMI_LOGO_URL },
     fields: [{
-      name: 'Share an honest app review · optional',
-      value: "We'd appreciate an honest rating or review of the Omi app on your store. It's optional and does not affect your support.\nOn Google Play, choose **Write a review** after opening the page.",
+      name: copy.reviewTitle,
+      value: copy.reviewText,
     }],
   };
   return {
@@ -100,11 +98,11 @@ function closePayload(user) {
       {
         type: 1,
         components: [
-          { type: 2, style: 3, label: 'Yes, my issue is resolved', custom_id: 'rate:yes' },
-          { type: 2, style: 2, label: 'Still need help', custom_id: 'rate:no' },
+          { type: 2, style: 3, label: copy.resolved, custom_id: 'rate:yes' },
+          { type: 2, style: 2, label: copy.needsHelp, custom_id: 'rate:no' },
         ],
       },
-      appReviewButtons(),
+      appReviewButtons(copy),
     ],
     allowedMentions: { parse: [] },
   };
@@ -274,7 +272,7 @@ async function closeHandoff(channel, user, options = {}) {
   }
   let delivered;
   try {
-    delivered = await channel.send(closePayload(user));
+    delivered = await channel.send(closePayload(user, storedCase?.context?.replyLanguage));
   } catch (err) {
     console.error('[Bot] /done notice failed:', err.message);
     return { ok: false, reason: 'Could not post the resolved message.' };
