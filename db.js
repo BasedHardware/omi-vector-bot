@@ -99,6 +99,7 @@ async function initSchema() {
     `);
     await require('./supportRuntime').initSchema(client);
     await require('./supportCases').initSchema(client);
+    await require('./caseCards').initSchema(client);
     await require('./supportIdentityStore').initSchema(client);
     const chunks = await client.query(`SELECT count(*)::int AS n FROM doc_chunks`);
     const pages = await client.query(`SELECT count(*)::int AS n FROM doc_pages`);

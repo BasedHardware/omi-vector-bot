@@ -86,6 +86,14 @@ Phase 4 damaged-item/replacement intake requests photos or video, the order emai
 
 The current case states are `queued`, `delivered`, `accepted`, `resolved`, and `closed`, with an explicit reopening transition. An authenticated staff acceptance records its actor and time; delivery alone does not count. Delivery failure is an attempt outcome, not resolution. Staff get the current intake and a link to the conversation; a retained cumulative summary and a distinct `awaiting_customer` state are follow-up work. Reminders and target response times belong to a real staffed queue; do not publish an SLA before an owner commits to it.
 
+### Live staff cards and acceptance updates (draft)
+
+Keep the same five lifecycle states and active-case uniqueness rule. An accepted case has an optional `work_status` (`in_progress` or `waiting_customer`), set only through authorized staff actions. No activity/timer heuristic means a person is working. Reopening clears the previous acceptance/work state; the next acceptance gets its own generation ID while repeated clicks in that cycle retain the first actor/time.
+
+`caseCards.js` projects this state into existing bot-authored private staff cards. `support_case_cards` stores only case/channel/message references and synchronization metadata, never intake text. State-change events update immediately; a bounded startup/30-second sweep repairs unsynchronized cards after restarts or transient failures. A per-case Postgres advisory lock serializes cross-copy edits, using the locked connection for all database reads/writes. Edits preserve intake and engineering controls; deleted cards are retired instead of recreated. Public copies strip every case control and private status/identity reference.
+
+Acceptance posts a short localized update naming the actual acceptor in the bound customer destination, with all mentions disabled and no ETA or investigation/resolution claim. Shared-channel replies verify the original message's customer before sending. A durable per-acceptance-generation claim prevents repeated clicks from posting again; the Discord nonce is additional short-window deduplication, not a global exactly-once guarantee. Every unconfirmed notification result is surfaced in the accepting staff member's ephemeral response, explicitly asking them to reply in the customer's thread; a log line alone is not sufficient. Core case acceptance is not undone. This is a scoped case-state notification, not a second general delivery ledger or an extension of #29/#30.
+
 ## Communication policy
 
 Lead with acknowledgment and a useful action, not repeated capability disclaimers. Use one clear next step and the customer's language. State important limits briefly without concealing uncertainty or data-loss risk. Never invent an investigation, staff receipt, acceptance, fix, deadline or guaranteed outcome.
