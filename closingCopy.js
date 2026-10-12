@@ -20,7 +20,7 @@ const CLOSING_COPY = {
       'Gracias por darnos la oportunidad de ayudarte.',
       '¿Te ayudamos a resolver el problema? Tus comentarios sinceros nos ayudan a mejorar.',
       'Si aún necesitas ayuda, usa el botón de abajo. Si no se puede reabrir el hilo, crea una nueva publicación en Help.',
-      `Resuelto por ${who}. Solo la persona que abrió esta publicación puede enviar comentarios sobre el soporte.`,
+      `Marcado como resuelto por ${who}. Solo la persona que abrió esta publicación puede enviar comentarios sobre el soporte.`,
     ],
     reviewTitle: 'Comparte una reseña sincera · opcional',
     reviewText: 'Agradecemos una valoración o reseña sincera de la app Omi en tu tienda. Es opcional y no afecta a tu soporte.\nEn Google Play, abre la página y elige **Escribir una reseña**.',

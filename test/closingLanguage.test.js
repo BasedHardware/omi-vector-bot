@@ -9,7 +9,7 @@ test('Spanish closing card localizes every customer-facing section and button', 
   const embed = payload.embeds[0];
   assert.equal(embed.title, '¿Cómo lo hicimos?');
   assert.match(embed.description, /Gracias.*ayudarte/);
-  assert.match(embed.description, /Resuelto por <@staff-1>/);
+  assert.match(embed.description, /Marcado como resuelto por <@staff-1>/);
   assert.match(embed.description, /Solo.*abrió.*comentarios/);
   assert.match(embed.fields[0].name, /reseña sincera.*opcional/);
   assert.match(embed.fields[0].value, /opcional y no afecta.*soporte/);
