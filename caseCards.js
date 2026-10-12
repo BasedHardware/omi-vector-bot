@@ -214,7 +214,7 @@ function service() {
   const store = injected || (process.env.DATABASE_URL ? (postgres ||= createPostgresStore(require('./db').pool)) : memory);
   return createCardService(store);
 }
-module.exports = { initSchema, createMemoryStore, createPostgresStore, createCardService, renderCaseCard, notifyAcceptance,
+module.exports = { ACCEPTANCE_COPY, initSchema, createMemoryStore, createPostgresStore, createCardService, renderCaseCard, notifyAcceptance,
   setStoreForTests: store => { injected = store; },
   ...Object.fromEntries(['rememberCard', 'syncCase', 'syncPending'].map(name => [name, (...args) => service()[name](...args)])),
 };

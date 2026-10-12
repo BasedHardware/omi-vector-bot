@@ -1,6 +1,6 @@
 # Omi Support Bot Implementation Checklist
 
-Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. The foundation and approved Phase 2 fixes are deployed at `8321439`; Report 1 passed and Report 2 awaits grading. Live staff-card status and acceptance notices are implemented only on a separate draft branch. Each runtime change needs regression checks and release verification. No cloud access grants accompany this foundation.
+Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. Reports 1–3 passed; #41's live staff-card status and acceptance notices are deployed at `b9eeb16`. Closing-card localization is a separate local draft correction, not deployed. Each runtime change needs regression checks and release verification. No cloud access grants accompany this work.
 
 ## Release and security prerequisites
 
@@ -18,10 +18,11 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Stop new work on shutdown; drain accepted work and queue unstarted requests. Coordinate overlapping copies through Postgres claims. Started requests with uncertain delivery remain an operator-reconciliation task.
 - [x] Make `/done`, ratings/reopening and Telegram delivery operate on the same case state. Failed customer delivery must not resolve a case.
 - [x] Record real staff acceptance through an authenticated private-card action; preserve the first accepting actor/time.
-- [x] Draft: project accepted/work/waiting/resolved/closed state into the existing private cards; persist message references, serialize edits and recover missed updates after restart. Retire deleted cards without reposting.
-- [x] Draft: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.
+- [x] Shipped #41: project accepted/work/waiting/resolved/closed state into the existing private cards; persist message references, serialize edits and recover missed updates after restart. Retire deleted cards without reposting.
+- [x] Shipped #41: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.
 - [x] Phase 3 correction: every unconfirmed acceptance notification explicitly tells staff to reply in the customer's thread, in an ephemeral response. Confirmed boot/30-second sweep wiring and stale-card repair after a failed edit; Phase 2 main merged without a rebase. Combined unit suite 661 pass, offline 8/8.
-- [ ] Review and run the full protected gate for the new canned acceptance wording, then smoke-test real accept/start/wait/close/reopen and restart recovery. No deployment or protected-file read accompanies this implementation.
+- [x] Report 3 review and production smoke accepted: English/Spanish acceptance/start/wait/refresh-after-restart and `/done` closure. No extra live double-click test required; reopening remains a later #30 smoke prerequisite.
+- [x] Phase 4b draft: localize the closing card from stored case language for the 14 acceptance languages, with English fallback; preserve all feedback IDs, links and delivery/ownership checks. Seven new tests (five red before), 668 unit tests pass; review and deployment remain pending after #42.
 - [ ] Persist staff-approved issue drafts and action results so a restart does not invalidate the File workflow. Decide whether approved customer updates should reach linked GitHub issues; do not document an inactive path as working.
 - [x] Correct exact order targeting: an explicit number not found stays a miss, never another order. Move the retired Shopify API version to a supported tested contract and verify the actual response version. Shopify documents [version fallback](https://shopify.dev/docs/api/usage/versioning) and [order-access scopes](https://shopify.dev/docs/api/usage/access-scopes).
 - [ ] Add bounded historical-order pagination and explain accessible history privately.
@@ -35,7 +36,7 @@ Acceptance: restart during OTP, overlapping copies, provider slowdown, failed/un
 - [ ] For each new adapter, define a fixed allowlist, customer/case authorization where needed, consent, limits, kill switch and metadata-only audit; validate synthetically, then pilot in the private staff card before reviewed customer enablement.
 - [ ] Extend order facts only through exact-owner-verified private/ephemeral delivery, never a normal customer-thread message or model prompt. Keep existing `/order` self-service enabled; do not add order/account writes.
 - [ ] Obtain backend-team agreement and privacy review before linked-account metadata/sign-in implementation. Define available/stale/unknown states for device/version/sync/plan and any provable unsynced count; exclude content and unrelated customers.
-- [ ] Follow the latest staged order: Phase 2 → reviewed #41 → routing/intake comparison → reviewed/private-preflight #28 → reviewed #29 → reviewed #30. The previous two-week go/no-go order is superseded, not a reason to bypass review. Keep deployments separate, with 24 clean hours unless Aryan explicitly says go; add only the authorized phase corrections. Other open queue/monitoring/retention work remains deferred.
+- [ ] Follow the remaining staged order: reviewed/gated #42 → reviewed closing-card localization → reviewed/private-preflight #28 → reviewed #29 → reviewed #30. The previous two-week go/no-go order is superseded, not a reason to bypass review. Keep deployments separate, with 24 clean hours unless Aryan explicitly says go; add only the authorized phase corrections. Other open queue/monitoring/retention work remains deferred.
 
 ## Phase 2 Verified metadata diagnostics
 

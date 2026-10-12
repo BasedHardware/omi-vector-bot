@@ -4,7 +4,15 @@ This is the living implementation record. A checked implementation item means co
 
 ## Release-only mode and merge gates
 
-The latest staged-release brief governs release order. #28–#30 remain unchanged by this work. Aryan explicitly requested live staff-card status and an acceptance notice on October 11; that narrow feature is on the separate `feat/live-staff-case-status` draft branch, not deployed or blanket-approved for release. No diagnostics or new backend access accompanies it.
+The latest staged-release brief governs release order. #28–#30 remain unchanged by this work. Live staff-card status and acceptance notices shipped in #41; Report 3 was graded PASS. No diagnostics or new backend access accompanies that release or the closing-card localization below.
+
+### October 12 current production and closing-card correction
+
+- Reports 2 and 3 were graded PASS. Current production is `4a8e93d5-771c-486e-91f6-335839f05be4`, main `b9eeb16`; rollback `6ddd1673-2e45-4cac-9d0d-28c71a9107fd`. Earlier release entries below are history. The retained synthetic English/Spanish retry cases verified acceptance, localized pickup notices, start/wait, status persistence through restart/refresh, and `/done` closure. Aryan intentionally deleted the cards afterward; do not recreate them. Accept disappears after the first processed acceptance and the database claim prevents another notice for that acceptance; no additional live double-click test is required by the latest review.
+- **Phase 4b implemented locally, not deployed:** `fix/localized-closing-card` localizes the `/done` closing card using the case's stored `context.replyLanguage`, not the staff member's locale. All 14 acceptance-copy languages have a title, description, optional honest-review field and button labels; unknown/missing languages fall back to the identical existing English card. Regional tags fall back to the base language; the two supported Hindi scripts remain distinct.
+- Five of seven new localization tests failed before implementation; all pass afterward. Full suite 668/668. Store URLs, feedback custom IDs, customer-only voting, no-ping mentions and send-before-close ordering are unchanged. This correction adds no provider call or new private capability. Human language/copy review and release smoke remain pending.
+
+**Remaining deploy order:** #42 after its fresh same-day main-versus-branch gate and review → closing-card fix after review → #28 after live read-only private-destination preflight/review → #29 → #30. One deploy at a time, 24 clean hours unless Aryan explicitly says go. No merge or deployment accompanies this local implementation.
 
 ### October 11 current production and review gate
 
@@ -18,7 +26,7 @@ The latest staged-release brief governs release order. #28–#30 remain unchange
 - All four Phase 2 synthetic posts have one observed bot reply. The extra long-guide reply exercises the 1,900-character limit: the body ends in an ellipsis and one complete Source line retains both Help Center URLs. Both handoff cards were screenshot-confirmed, then intentionally removed by Aryan; do not recreate them. Phone hidden on private intake, order retained by explicit approval. The public filing formatter hides both in an offline check, but no live GitHub draft was inspected or issue filed. No missing-env, boot, model, review, staff-delivery or unhandled errors, and no second looks, in the checked smoke window. Full replies and timing lines are retained outside Git in `phase2-production-smoke-oct11.json`.
 - Phase 2 quality exceptions: the first guide omitted documented language/deletion steps; the clipped guide is incomplete despite preserving citations. The suggested test title containing “privacy” changed the crash report's route to privacy; a synthetic body-only comparison routes app, and Phase 2 did not change that classifier. Replacement intake still asks for tracking. These are not a blanket quality pass or evidence that the redaction fixes caused a new routing regression. #35 received the requested Changes requested review and remains unmerged.
 
-**Current staged release order:** Phase 2 → #41 live staff status (review first) → `fix/howto-not-escalated` (same-day 81×2/concurrency-3 main comparison and review) → #28 durable filing/private-destination checks (live read-only preflight and review) → #29 → #30. Each deploy has its own smoke report and 24 clean hours unless Aryan explicitly says go. #28–#30 receive only their separately authorized phase corrections; this #41 work does not modify them. Broader knowledge/access work remains after these reliability gates, with diagnostics still parked.
+**October 11 staged release order (superseded):** Phase 2 → #41 → routing comparison → #28 → #29 → #30. The October 12 brief adds the separate closing-card correction after #42. Each deploy retains its own review, smoke and clean interval; broader knowledge/access work remains parked.
 
 ### Historical release plan (superseded by the staged order above)
 
