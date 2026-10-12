@@ -12,7 +12,10 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the answe
 - [x] Phase 4 multipart planning/retrieval/citation coverage uses up to four pages within existing evidence caps; production/eval joint coverage and unchanged ordinary evidence paths have offline fixtures.
 - [x] Phase 4 replacement intake requests damage evidence, private order email and delivery date while preserving account and missing-delivery intake.
 - [x] Current-main merge and structural navigation/conditional correction: 707 unit tests pass. Own six how-tos/six failures plus clause-boundary guards supplement the earlier red-before coverage.
-- [ ] Run the same-day 81×2/concurrency-3 main/branch comparison, preserve both JSONs and per-case escalation outcomes for review; branch latency p50 ≤ main +2 s, p95 ≤ main +6 s. No protected-case inspection or tuning.
+- [x] Five serial candidate cases finish under 90 s, then both fresh same-day 81×2/concurrency-3 arms complete. Preserve private JSONs, all rows, percentiles, per-case escalation deltas and supervised exit/heartbeat provenance. Numerical limits pass; this is not independent answer-quality approval.
+- [ ] Obtain independent #42 factual/how-to/protected-escalation/clipping grading. Unwanted handoff flags increased 12 → 15, missing flags remain 2 per arm; no code tuning from protected results and no merge/deploy while held.
+- [x] Separate closing-card localization draft #43 uses stored case language with English fallback and unchanged feedback/link semantics; 668 tests and hosted CI pass. Review/release smoke remain pending after #42.
+- [ ] Resolve #28's actual `untrusted_role_can_view` audience stop before another approved preflight/review/merge. Its scoped corrections are retained locally (750 tests and isolated SQL pass), not pushed/deployed. No server permission change; #29/#30 remain untouched.
 - [ ] Review/deploy gated #42, then the separate localized closing-card PR, then #28, #29 and #30 in order, each with review, smoke and 24 clean hours.
 
 ## Release and security prerequisites

@@ -2,6 +2,8 @@
 
 Omi Support Bot solves documented problems and routes unresolved cases toward a person. Reassurance describes verified actions and evidence. The foundation, approved Phase 2 fixes and #41 are live at main `b9eeb16`; reports 1–3 passed. Phase 4 is implemented on its review branch, not deployed. [The roadmap](../ROADMAP.md) separates implementation, validation and release. Recording diagnostics remain a target design, not granted access.
 
+The fresh Phase 4 comparison is complete and meets numerical latency/structural-score limits, not the independent escalation/answer-quality gate. More unwanted-handoff flags require review before shipping. Closing-card localization is a separate draft #43, not part of this runtime snapshot. #28's local audience checker rejected the real configured staff destination (`untrusted_role_can_view`); its optional engineering workflow is not released, and no permissions/allowlists were changed to make the check pass.
+
 ## Current capabilities and gaps
 
 The bot already retrieves official knowledge, checks answers, reads verified Shopify orders, sends private staff cards, and supports staff-approved GitHub filing. It has no customer recording-diagnostics integration. Personal access to GCP does not authorize the bot.

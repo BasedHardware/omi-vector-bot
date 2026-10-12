@@ -2,6 +2,8 @@
 
 Operate the capabilities that are actually enabled. The [roadmap](../ROADMAP.md) distinguishes implemented, validated and deployed work. Never paste credentials, verification codes, customer messages, private identifiers or raw backend logs into public issues or operational chat.
 
+October 12 release holds: #42's fresh comparison is complete and meets numerical limits, but factual/how-to/protected-escalation/clipping review is pending; do not approve it from pass-both or latency alone. #43 closing-card localization is a separate draft. #28's actual read-only preflight returned `untrusted_role_can_view`, so stop its rollout and obtain administrator/direction review of the real audience; never add unverified roles, change permissions or silently repeat a failed private-destination check. No deployment accompanied these checks.
+
 ## Startup and deployment
 
 Production uses the existing `DATABASE_URL` for support state as well as knowledge. Startup applies additive, repeatable schemas before Discord login. If database initialization fails, the process must not start answering with a memory-only coordination or identity store. Development/evaluation without `DATABASE_URL` uses isolated in-memory stores.
