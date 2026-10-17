@@ -2,6 +2,8 @@
 
 Read ROADMAP.md, docs/ARCHITECTURE.md and docs/RUNBOOK.md before changing support workflows. Keep the roadmap current: distinguish code implemented, tests passed, rollout pending and production verified. Do not present plans as implementation or implementation as deployment.
 
+For continuing the support-product goal, read docs/SUPPORT_MASTER_PLAN.md first. It is the persistent acceptance checklist across review rounds. Map feedback to it, record evidence/decisions, and return to the next unfinished product item; a second opinion does not silently replace Aryan's goal. Preserve every unfinished item and its real approval blocker. Keep architecture and the implementation checklist in sync. Do not mark the overall goal achieved merely because a PR merged or tests passed.
+
 ## Purpose
 Omi Support answers Omi customers in Discord. Every customer message must end one of two ways: a correct answer from official Omi sources that solves the problem, or a handoff to a person who receives the full case. Be fast and honest, and never expose anything private. A smaller bot that works end to end beats a bigger one that doesn't.
 

@@ -2,6 +2,14 @@
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
+## October 18: persistent product goal and current execution
+
+[SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Aryan clarified that reviews are evidence for improving the product, not a replacement goal. Map each finding to an item, keep unfinished work visible, and return to the next product item after corrections. Built/tested/live remain separate; no invented completion percentage.
+
+The updated Release 1 candidate [#47](https://github.com/BasedHardware/omi-vector-bot/pull/47) merges #45 `d60236c` and #42 `c8d23df`, with the single shared voice contract replacing the separate 1,500-character prompt instruction. It preserves whole-item clipping, capped multipart evidence and damage intake. #46 was rechecked (670 tests/offline 8/8 plus hosted checks) and merged as `273550c`, without deploying. Candidate `e7601a3` passes 755 local tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres. Its fresh 81×2 per arm/concurrency-three comparison is running with frozen checkouts and an awake host; no protected input is inspected or used for tuning. Memory/context/fix-inbox flags stay off.
+
+This master-plan documentation is prepared separately from the frozen runtime checkout, so it cannot change the running comparison. No deployment, permission update, data capture or automatic publication accompanies it. Next: comparison/grading and Release 1; then approved memory pilot, reviewed fix inbox and queued reliability work with their own gates. Older dated instructions below are history.
+
 ## October 17: concise support and case-memory foundation — draft only
 
 Aryan authorized renewed implementation of a simpler, more natural and reliable support experience. This supersedes release-only restrictions on preparing this separate branch, not the outstanding review/deployment gates. #42 remains held; #28 still awaits Aryan's explicit permissions-fixed confirmation before its read-only preflight. No protected evaluation, production permission/configuration change, training job or deployment accompanies this work.
