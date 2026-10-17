@@ -150,7 +150,28 @@ function rememberBotReply(sent, message) {
   }
 }
 
+// Discord hides a typing indicator after about ten seconds, while a reviewed
+// answer takes far longer. Keep it visible until the first reply. It is only a
+// courtesy: a failed typing call must never cost the customer their answer.
+const TYPING_REFRESH_MS = 8_000;
+const typingStops = new WeakMap();
+
+function keepTyping(message, channel, intervalMs = TYPING_REFRESH_MS) {
+  let stopped = false;
+  const ping = () => {
+    if (stopped || typeof channel?.sendTyping !== 'function') return;
+    Promise.resolve().then(() => channel.sendTyping()).catch(() => {});
+  };
+  const timer = setInterval(ping, intervalMs);
+  timer.unref?.();
+  const stop = () => { stopped = true; clearInterval(timer); typingStops.delete(message); };
+  typingStops.set(message, stop);
+  ping();
+  return stop;
+}
+
 async function replySafe(message, content, { pingAuthor = false } = {}) {
+  typingStops.get(message)?.();
   await assertCurrentOwnership();
   let text = ensureNonEmptyAnswer(rewriteUserMentions(ensureNonEmptyAnswer(content), message));
   if (pingAuthor) text = attachAuthorMention(text, message);
@@ -622,9 +643,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
 
   console.log(`[Bot] Processing in ${channel.id}`);
 
+  const stopTyping = keepTyping(message, channel);
   try {
-    await channel.sendTyping();
-
     const useThreadMetadata =
       isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel);
     const routeSource = [useThreadMetadata && channel.isThread?.() ? channel.name : '', question]
@@ -1183,6 +1203,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       console.error('[Bot] Reply failed:', replyErr.message);
     }
   } finally {
+    stopTyping();
     const total = Math.round(performance.now() - startedAt);
     if (didReply) console.log(timingLogLine({ ...stageMs, total }, stageUsage));
     process.emit('omiSupportTimings', { messageId: message.id, stages: { ...stageMs, total } });
@@ -1361,4 +1382,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, client, handleMessage, shouldHandle, runtime };
+module.exports = { app, client, handleMessage, shouldHandle, runtime, keepTyping };
