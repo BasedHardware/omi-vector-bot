@@ -18,6 +18,8 @@ Customers can use `/forget-support-history` in their own support post. It delete
 
 Capture being off does not stop expiry cleanup or deletes for previously known stored posts. If the encryption key is unavailable, only capture/context use is disabled with a fixed diagnostic; core answering and keyless erasure/expiry cleanup remain available. Restore a valid reviewed configuration before enabling memory again; never pretend missing encryption is a working capture mode.
 
+Deleting a post/message in an enabled pilot takes precedence over its queued first capture. Outside the capture pilot, only previously stored posts get deletion records. Mandatory expiry sweeps are independent of optional observation capacity; simultaneous local sweeps coalesce rather than creating an unbounded backlog.
+
 For approved local/private operations only, `node scripts/support-quality-report.js` reads aggregate outcome counts and prioritized review actions. It prints no case text/IDs, makes no model call and publishes nothing. Disabled is reported as disabled, and a database failure is unavailable—not zero events. Counts are event-level and incomplete after missed/dropped observations; they are not customer resolution, accuracy, or improvement-rate measurements. No prompt update or model retraining follows automatically.
 
 Production uses the existing `DATABASE_URL` for support state as well as knowledge. Startup applies additive, repeatable schemas before Discord login. If database initialization fails, the process must not start answering with a memory-only coordination or identity store. Development/evaluation without `DATABASE_URL` uses isolated in-memory stores.

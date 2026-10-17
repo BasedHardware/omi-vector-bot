@@ -12,6 +12,7 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Separately gate retained-context use, enforce requesting customer ownership and uncached revalidation, and cap additional reads/time.
 - [x] Record fixed operational outcome categories and produce read-only aggregate, review-required improvement suggestions.
 - [x] Add synthetic adapter and SQL checks for restart, concurrency, edits, privacy/deletion and failure behavior; no manual customer posts needed for these checks.
+- [x] Delete-before-first-capture regression and SQL coverage; expiry cleanup bypasses a full optional queue with coalesced sweeps. Three new regressions failed before the repair.
 - [ ] Pass independent answer-quality review and the required protected gate before merge. #42 remains held; do not reuse its grade or run it again as a side effect.
 - [ ] Obtain privacy/processor/retention/security approval, publish a deletion/retention notice and resolve any Discord App Review requirement before enabling capture. Key/security risk remains a prerequisite, not resolved by adding encryption code.
 - [ ] Staff-only shadow pilot, then separately approved context reuse and a one-release-at-a-time smoke. No production settings change in this implementation.

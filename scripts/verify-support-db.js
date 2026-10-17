@@ -7,6 +7,7 @@ const cards = require('../caseCards');
 const { SupportIdentityStore, initSchema: initIdentity } = require('../supportIdentityStore');
 const supportMemory = require('../supportMemory');
 const memoryStore = require('../supportMemoryStore');
+const { createObserver } = require('../supportLearning');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -194,6 +195,20 @@ async function verify(pool) {
   const laterJournal = supportMemory.createSupportMemory({ ...memoryOptions, now: () => laterTime });
   await laterJournal.prune();
   assert.equal(await laterJournal.capture({ ...message, id: `${prefix}-after-opt-out`, createdTimestamp: laterTime }), false);
+  for (const deletion of ['message', 'thread']) {
+    const channel = { ...memoryChannel, id: `${prefix}-queued-${deletion}` };
+    const pending = { ...message, channel, id: `${prefix}-before-${deletion}` };
+    let release;
+    const waiting = new Promise(resolve => { release = resolve; });
+    const observer = createObserver({ ...journal, capture: async item => { await waiting; return journalRestart.capture(item); } });
+    const saving = observer.capture(pending);
+    try {
+      if (deletion === 'message') await observer.forgetMessage(pending);
+      else await observer.forgetThread(channel);
+    } finally { release(); }
+    assert.equal(await saving, false);
+    assert.deepEqual(await journalRestart.history(journal.scopeFor(channel)), []);
+  }
   console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, encrypted support memory, edit/delete races and revocation passed');
 }
 

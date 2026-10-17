@@ -5,6 +5,7 @@ const { createSupportMemory, configFromEnv, mergeHistory, safeMemoryText } = req
 function createObserver(memory, { historyBudgetMs = 2000, maxPendingWrites = 100 } = {}) {
   let failures = 0, droppedWrites = 0, pendingWrites = 0;
   let writeTail = Promise.resolve();
+  let cleanup;
   async function safe(operation, fallback) {
     try { return await operation(); }
     catch {
@@ -48,13 +49,15 @@ function createObserver(memory, { historyBudgetMs = 2000, maxPendingWrites = 100
     forgetMessage(message) {
       return safe(async () => {
         const scope = (memory.deletionScopeFor || memory.scopeFor)(message?.channel);
-        if (scope) await memory.forgetMessage({ ...scope, messageId: message.id }, { onlyKnown: true });
+        // An approved capture may still be queued before its first scope row.
+        // Persist its tombstone now; non-pilot posts remain known-only.
+        if (scope) await memory.forgetMessage({ ...scope, messageId: message.id }, { onlyKnown: !memory.scopeFor(message?.channel) });
       }, false);
     },
     forgetThread(channel) {
       return safe(async () => {
         const scope = (memory.deletionScopeFor || memory.scopeFor)(channel);
-        if (scope) await memory.forgetThread(scope, { onlyKnown: true });
+        if (scope) await memory.forgetThread(scope, { onlyKnown: !memory.scopeFor(channel) });
       }, false);
     },
     signal(channel, input, customerId) {
@@ -96,7 +99,12 @@ function createObserver(memory, { historyBudgetMs = 2000, maxPendingWrites = 100
         })]), mergeHistory([], live, excludeId));
       } finally { clearTimeout(timer); }
     },
-    prune: () => write(() => memory.prune()),
+    prune() {
+      // Retention cleanup is mandatory, not a droppable optional observation.
+      // Coalesce timer/startup overlap without competing for capture capacity.
+      if (!cleanup) cleanup = safe(() => memory.prune(), false).finally(() => { cleanup = null; });
+      return cleanup;
+    },
     report: () => safe(() => memory.report(), []),
   };
 }

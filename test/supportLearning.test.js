@@ -120,6 +120,50 @@ test('unrelated channels cannot occupy the optional support-write queue', async 
   assert.equal(observer.health().pendingWrites, 0);
 });
 
+for (const deletion of ['message', 'thread']) {
+  test(`${deletion} deletion wins before the first queued capture registers its thread`, async () => {
+    const { memory, store, channel, message } = fixture();
+    let release;
+    const blocked = new Promise(resolve => { release = resolve; });
+    const delayed = createObserver({ ...memory, capture: async item => { await blocked; return memory.capture(item); } });
+    const saving = delayed.capture(message('pending', 'alice', 'Remove this before retention starts.'));
+    try {
+      if (deletion === 'message') await delayed.forgetMessage(message('pending', 'alice', ''));
+      else await delayed.forgetThread(channel);
+    } finally { release(); }
+    assert.equal(await saving, false);
+    assert.equal(store.rows.size, 0);
+  });
+}
+
+test('deletions outside the capture pilot do not register never-retained threads', async () => {
+  const { store, message, channel } = fixture();
+  const memory = createSupportMemory({ store, policy: { enabled: true, forumIds: ['pilot'], deleteForumIds: ['help', 'pilot'], staffIds: [] } });
+  const observer = createObserver(memory);
+  await observer.forgetMessage(message('outside', 'alice', ''));
+  await observer.forgetThread(channel);
+  const later = createSupportMemory({ store, policy: { enabled: true, forumIds: ['help'], staffIds: [] }, key: Buffer.alloc(32, 3) });
+  assert.equal(await later.capture(message('outside', 'alice', 'Not suppressed by unrelated deletion observation.')), true);
+});
+
+test('expiry cleanup bypasses a full optional write queue and concurrent sweeps coalesce', async t => {
+  t.mock.method(console, 'error', () => {});
+  let releaseWrite, releasePrune, prunes = 0;
+  const writing = new Promise(resolve => { releaseWrite = resolve; });
+  const pruning = new Promise(resolve => { releasePrune = resolve; });
+  const observer = createObserver({ enabled: true, scopeFor: () => ({ guildId: 'g', threadId: 't', customerId: 'c' }),
+    capture: async () => { await writing; return true; },
+    prune: async () => { prunes++; await pruning; } }, { maxPendingWrites: 1 });
+  const saving = observer.capture({});
+  const first = observer.prune(), second = observer.prune();
+  await new Promise(resolve => setImmediate(resolve));
+  const concurrentSweeps = prunes;
+  releaseWrite(); releasePrune();
+  await Promise.all([saving, first, second]);
+  assert.equal(concurrentSweeps, 1);
+  assert.equal(observer.health().droppedWrites, 0);
+});
+
 test('aggregate improvement suggestions contain no case text and cannot publish themselves', () => {
   const { improvementCandidates } = require('../supportLearning');
   const candidates = improvementCandidates([
