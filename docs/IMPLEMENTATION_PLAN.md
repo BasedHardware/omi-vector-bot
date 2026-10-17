@@ -1,6 +1,6 @@
 # Omi Support Bot Implementation Checklist
 
-Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. Reports 1–3 passed; #41's live staff-card status and acceptance notices are deployed at `b9eeb16`. Closing-card localization is a separate local draft correction, not deployed. Each runtime change needs regression checks and release verification. No cloud access grants accompany this work.
+Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. Reports 1–3 passed; approved #43 is deployed at `dad2505` after #41. Its live smoke/report remains pending. #42 is held for per-case grading; #28 awaits Aryan's staff-audience repair confirmation. No cloud access grants accompany this work.
 
 ## Release and security prerequisites
 
@@ -22,7 +22,8 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Shipped #41: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.
 - [x] Phase 3 correction: every unconfirmed acceptance notification explicitly tells staff to reply in the customer's thread, in an ephemeral response. Confirmed boot/30-second sweep wiring and stale-card repair after a failed edit; Phase 2 main merged without a rebase. Combined unit suite 661 pass, offline 8/8.
 - [x] Report 3 review and production smoke accepted: English/Spanish acceptance/start/wait/refresh-after-restart and `/done` closure. No extra live double-click test required; reopening remains a later #30 smoke prerequisite.
-- [x] Phase 4b draft: localize the closing card from stored case language for the 14 acceptance languages, with English fallback; preserve all feedback IDs, links and delivery/ownership checks. Seven new tests (five red before), 668 unit tests pass; review and deployment remain pending after #42.
+- [x] #43 approved and deployed independently before held #42: stored case language for 14 acceptance languages, English fallback, unchanged IDs/links/ownership/delivery order. 668 tests and branch/main CI pass; two-parent merge `dad2505`, deployment `a6c7c577`, rollback `4a8e93d5`.
+- [ ] Verify actual Spanish/Chinese handoff → `/done` cards fully localized, then Spanish “Still need help” reopening and staff-card update. Await synthetic posts; do not call deployment a smoke PASS.
 - [ ] Persist staff-approved issue drafts and action results so a restart does not invalidate the File workflow. Decide whether approved customer updates should reach linked GitHub issues; do not document an inactive path as working.
 - [x] Correct exact order targeting: an explicit number not found stays a miss, never another order. Move the retired Shopify API version to a supported tested contract and verify the actual response version. Shopify documents [version fallback](https://shopify.dev/docs/api/usage/versioning) and [order-access scopes](https://shopify.dev/docs/api/usage/access-scopes).
 - [ ] Add bounded historical-order pagination and explain accessible history privately.
@@ -36,7 +37,7 @@ Acceptance: restart during OTP, overlapping copies, provider slowdown, failed/un
 - [ ] For each new adapter, define a fixed allowlist, customer/case authorization where needed, consent, limits, kill switch and metadata-only audit; validate synthetically, then pilot in the private staff card before reviewed customer enablement.
 - [ ] Extend order facts only through exact-owner-verified private/ephemeral delivery, never a normal customer-thread message or model prompt. Keep existing `/order` self-service enabled; do not add order/account writes.
 - [ ] Obtain backend-team agreement and privacy review before linked-account metadata/sign-in implementation. Define available/stale/unknown states for device/version/sync/plan and any provable unsynced count; exclude content and unrelated customers.
-- [ ] Follow the remaining staged order: reviewed/gated #42 → reviewed closing-card localization → reviewed/private-preflight #28 → reviewed #29 → reviewed #30. The previous two-week go/no-go order is superseded, not a reason to bypass review. Keep deployments separate, with 24 clean hours unless Aryan explicitly says go; add only the authorized phase corrections. Other open queue/monitoring/retention work remains deferred.
+- [ ] Finish the explicitly authorized #43 smoke/report; keep #42 held without new evaluations. Rerun only #28's read-only preflight after Aryan confirms fixed permissions; require `private_staff_destination` before any push, then review before merge. #29/#30 remain later separate releases. Subsequent deployments require 24 clean hours unless explicitly waived; unrelated queue/monitoring/retention work remains deferred.
 
 ## Phase 2 Verified metadata diagnostics
 
