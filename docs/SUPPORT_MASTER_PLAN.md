@@ -47,6 +47,8 @@ Implementation: shared voice, routing, retrieval, answer/review, honesty filters
 
 Keep existing verified private order self-service working. Do not add broad customer-account access as a shortcut for reliable handoffs.
 
+Inspected B2 follow-up: `utils.js` still uses “a person ... has this now” for a delivery-confirmed handoff, while `caseCards.js` has a separate durable acceptance notice naming the real acceptor. Review the delivery acknowledgment against that distinction: delivery copy must not imply an individual accepted the case. Cover delivered-but-unaccepted, accepted, repeated follow-up and failed-delivery wording in the customer's language. Do not change the currently frozen candidate or silently reuse its grade for a later canned-copy change.
+
 ## C. Remember the case safely
 
 - [ ] **C1 — Clear the real data-use/security gates.** Obtain Omi approval for the necessary retention period (proposed maximum 30 days), accurate published privacy/retention/deletion notice, processor terms, backup erasure procedure, encryption/key-risk review and any required platform review. An environment flag or a pinned sentence is not approval. Resolve or explicitly authorize remaining security risks before new capture. Do not rotate encryption keys without preserving existing data.
