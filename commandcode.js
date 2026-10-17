@@ -4,6 +4,7 @@ const { stripStaffLies } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING, hasUnsyncedDataRisk } = require('./answerPipeline');
 const { isInstructionSentence, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 const { redactSensitive } = require('./privacy');
+const { SUPPORT_VOICE } = require('./supportVoice');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
 
@@ -620,7 +621,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
         },
         {
           role: 'system',
-          content: `Clarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. If understanding.dataLossRisk is true, retain a brief warning in the customer language not to reinstall, log out, or clear local recordings while staff checks; do not add an English warning to a non-English reply. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.${handoffPlanned ? ` ${PLANNED_HANDOFF_GUIDANCE}` : ''}`,
+          content: `${SUPPORT_VOICE}\n\nClarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. If understanding.dataLossRisk is true, retain a brief warning in the customer language not to reinstall, log out, or clear local recordings while staff checks; do not add an English warning to a non-English reply. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.${handoffPlanned ? ` ${PLANNED_HANDOFF_GUIDANCE}` : ''}`,
         },
         {
           role: 'user',

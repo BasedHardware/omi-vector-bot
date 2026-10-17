@@ -5,6 +5,7 @@ const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
 const { appReviewButtons } = require('./appReviews');
 const { closingCopy } = require('./closingCopy');
+const { SUPPORT_DISPLAY_NAME } = require('./supportVoice');
 
 const OMI_LOGO_URL =
   process.env.OMI_LOGO_URL ||
@@ -13,6 +14,11 @@ const OMI_LOGO_URL =
 const doneCommand = new SlashCommandBuilder()
   .setName('done')
   .setDescription('Mark this Handoff or help thread resolved. Staff only.')
+  .toJSON();
+
+const forgetSupportHistoryCommand = new SlashCommandBuilder()
+  .setName('forget-support-history')
+  .setDescription('Delete retained support history for your post and stop saving it.')
   .toJSON();
 
 const testCommand = new SlashCommandBuilder()
@@ -67,6 +73,7 @@ async function registerSlashCommands(client) {
         orderFlow.orderCommand,
         orderFlow.ordersCommand,
         orderFlow.unlinkCommand,
+        forgetSupportHistoryCommand,
       ],
     });
   }
@@ -82,7 +89,7 @@ function closeNotice(user, language = 'en') {
 function closePayload(user, language = 'en') {
   const copy = closingCopy(language);
   const embed = {
-    author: { name: 'Omi Support', iconURL: OMI_LOGO_URL },
+    author: { name: SUPPORT_DISPLAY_NAME, iconURL: OMI_LOGO_URL },
     title: copy.title,
     color: 0x111111,
     description: closeNotice(user, language),
@@ -218,6 +225,16 @@ async function handleRating(interaction, options = {}) {
     ? 'This thread is reopened, but I could not finish updating the case. You can continue here. Your feedback is recorded.'
     : 'Your feedback is recorded. This thread has not been reopened; open a new Help post if you still need help.';
   await respond(note);
+  // Optional quality collection cannot delay the feedback acknowledgment.
+  const learning = require('./supportLearning').getObserver(interaction.client?.user?.id);
+  if (feedbackSaved) await learning.signal(interaction.channel, {
+    eventId: `${interaction.message?.id || interaction.id || threadId}-${helped ? 'yes' : 'no'}`,
+    kind: helped ? 'resolved' : 'needs_help', area: storedCase?.context?.area,
+  });
+  if (reopened) await learning.signal(interaction.channel, {
+    eventId: `${interaction.message?.id || interaction.id || threadId}-reopened`,
+    kind: 'reopened', area: storedCase?.context?.area,
+  });
 }
 
 function resolvedTagId(channel) {
@@ -491,6 +508,10 @@ const handleAcceptCase = (interaction, options) => handleCaseAction(interaction,
 async function handleInteraction(interaction) {
   try {
     if (await orderFlow.handleOrderInteraction(interaction)) return;
+    if (interaction.isChatInputCommand?.() && interaction.commandName === 'forget-support-history') {
+      await handleForgetSupportHistory(interaction);
+      return;
+    }
     if (interaction.isChatInputCommand?.() && interaction.commandName === 'test') {
       await handleTest(interaction);
       return;
@@ -525,6 +546,22 @@ async function handleInteraction(interaction) {
   }
 }
 
+async function handleForgetSupportHistory(interaction, { forget = require('./supportLearning').forgetOwnedThread } = {}) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const respond = content => interaction.editReply({ content, allowedMentions: { parse: [] } });
+  const customerId = String(interaction.user?.id || '');
+  if (!customerId || String(interaction.channel?.ownerId || '') !== customerId) {
+    await respond('Use this command in your own support post.'); return;
+  }
+  try {
+    if (await forget(interaction.channel, customerId)) {
+      await respond('Retained support history for this post was deleted. I won’t save new history here. Your messages in Discord are unchanged.');
+      return;
+    }
+  } catch { console.error('[SupportMemory] customer erasure not confirmed'); }
+  await respond('I couldn’t confirm deletion of retained history here. Please contact help@omi.me for a data-deletion request.');
+}
+
 async function notifyLinkedThreads(client, event) {
   const nums = event?.numbers || (event?.number ? [event.number] : []);
   const ids = new Set();
@@ -549,6 +586,8 @@ async function notifyLinkedThreads(client, event) {
 
 module.exports = {
   doneCommand,
+  forgetSupportHistoryCommand,
+  handleForgetSupportHistory,
   testCommand,
   registerSlashCommands,
   setTestQuestionHandler,

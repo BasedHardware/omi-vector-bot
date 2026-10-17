@@ -1,5 +1,6 @@
 const { describe } = require('./router');
 const { askedWhereRecordingsWent } = require('./honesty');
+const { SUPPORT_VOICE } = require('./supportVoice');
 
 const HOWTO_FAQ = [
   'Omi works with iPhone and Android. Keep the Omi app open. If you fully close it (swipe it away), it stops writing down what was said and the device disconnects.',
@@ -133,7 +134,7 @@ function buildToolFacts({ route, shopifyText, githubText, docsText, releaseText 
 
 function buildSystemPrompt(route) {
   const lane = route?.lane || '';
-  return `You are Omi Support, a support agent in Discord. You are a bot. Never claim to be a human named Vector.
+  return `${SUPPORT_VOICE}
 
 ${SUPPORT_POLICY}
 

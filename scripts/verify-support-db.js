@@ -5,6 +5,8 @@ const runtime = require('../supportRuntime');
 const cases = require('../supportCases');
 const cards = require('../caseCards');
 const { SupportIdentityStore, initSchema: initIdentity } = require('../supportIdentityStore');
+const supportMemory = require('../supportMemory');
+const memoryStore = require('../supportMemoryStore');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -50,6 +52,7 @@ async function verify(pool) {
     VALUES ($1,$2,$3,'accepted',$4,NOW())`, [legacyId, `${prefix}-legacy`, `${prefix}-legacy-customer`, `${prefix}-legacy-staff`]);
   for (let count = 0; count < 2; count++) {
     await runtime.initSchema(pool); await cases.initSchema(pool); await cards.initSchema(pool); await initIdentity(pool);
+    await memoryStore.initSchema(pool);
   }
   const legacy = (await pool.query('SELECT * FROM support_cases WHERE id=$1', [legacyId])).rows[0];
   assert.equal(legacy.status, 'accepted'); assert.equal(legacy.accepted_by, `${prefix}-legacy-staff`);
@@ -162,7 +165,36 @@ async function verify(pool) {
   const encrypted = (await pool.query('SELECT * FROM support_verified_emails WHERE discord_user_id=$1', [user])).rows[0];
   assert.doesNotMatch(JSON.stringify(encrypted), /fixture@example\.test/);
   await restarted.revoke(user); assert.equal(await identity.getBinding(user), null);
-  console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, acceptance notices, verification and revocation passed');
+  const memoryOptions = { store: memoryStore.createPostgresStore(pool), key: Buffer.alloc(32, 19),
+    policy: { enabled: true, forumIds: ['fixture-help'], staffIds: [], botId: 'fixture-bot' } };
+  const journal = supportMemory.createSupportMemory(memoryOptions);
+  const journalRestart = supportMemory.createSupportMemory(memoryOptions);
+  const memoryChannel = { id: `${prefix}-memory-thread`, guildId: `${prefix}-guild`, ownerId: `${prefix}-customer`, parentId: 'fixture-help', isThread: () => true };
+  const message = { id: `${prefix}-memory-message`, channel: memoryChannel, author: { id: memoryChannel.ownerId },
+    content: 'Synthetic private support text. Email fixture@example.test.', createdTimestamp: Date.now() };
+  await Promise.all([journal.capture(message), journalRestart.capture(message)]);
+  const scope = journal.scopeFor(memoryChannel);
+  assert.equal((await journalRestart.history(scope)).length, 1);
+  const encryptedMemory = (await pool.query('SELECT * FROM support_memory_messages WHERE thread_id=$1', [memoryChannel.id])).rows;
+  assert.doesNotMatch(JSON.stringify(encryptedMemory), /Synthetic private|fixture@example/);
+  await journal.capture({ ...message, content: 'Corrected attempt', editedTimestamp: Date.now() + 10 });
+  await journalRestart.capture(message);
+  assert.equal((await journal.history(scope))[0].content, 'Corrected attempt');
+  await assert.rejects(journal.forgetThread({ ...scope, customerId: `${prefix}-stranger` }));
+  const signal = { ...scope, eventId: `${prefix}-feedback`, kind: 'needs_help', area: 'app' };
+  await Promise.all([journal.signal(signal), journalRestart.signal(signal)]);
+  assert.ok((await journal.report()).some(row => row.kind === 'needs_help' && row.count >= 1));
+  await journal.forgetMessage({ ...scope, messageId: message.id });
+  assert.equal(await journalRestart.capture(message), false);
+  await journal.forgetThread(scope, { optOut: true });
+  assert.equal(await journal.capture({ ...message, id: `${prefix}-delayed` }), false);
+  assert.deepEqual(await journalRestart.history(scope), []);
+  await journal.prune();
+  const laterTime = Date.now() + 31 * 86400000;
+  const laterJournal = supportMemory.createSupportMemory({ ...memoryOptions, now: () => laterTime });
+  await laterJournal.prune();
+  assert.equal(await laterJournal.capture({ ...message, id: `${prefix}-after-opt-out`, createdTimestamp: laterTime }), false);
+  console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, encrypted support memory, edit/delete races and revocation passed');
 }
 
 (async () => {
