@@ -174,6 +174,34 @@ const router = require('../router');
 const supportCases = require('../supportCases');
 const { unreadMediaSentence } = require('../attachments');
 
+test('quiet staff replies enter optional case memory without becoming customer questions', async t => {
+  const observed = [];
+  t.mock.method(require('../supportLearning'), 'getObserver', () => ({
+    enabled: true, capture: async message => { observed.push(message); },
+  }));
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'A support case' });
+  const message = makeMessage('Please keep the app installed while we check.', {
+    channel, authorId: '900000000000000009', member: { permissions: { has: () => true } },
+  });
+  const before = modelCalls.length;
+  await handleMessage(message);
+  assert.equal(observed.length, 1);
+  assert.equal(modelCalls.length, before);
+  assert.equal(message.replies.length, 0);
+});
+
+test('optional memory writes cannot hold up the core support handler', async t => {
+  let release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  t.mock.method(require('../supportLearning'), 'getObserver', () => ({ enabled: true, capture: () => waiting }));
+  const message = makeMessage('Thanks!', { channel: testChannel() });
+  const operation = handleMessage(message);
+  const completed = await Promise.race([operation.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 30))]);
+  release(); await operation;
+  assert.equal(completed, true);
+  assert.equal(message.replies.length, 0);
+});
+
 client.user = new User(client, { id: BOT_ID, username: 'vector', bot: true });
 
 let seq = 0;

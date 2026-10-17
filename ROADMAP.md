@@ -2,7 +2,25 @@
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
-## Release-only mode and merge gates
+## October 17: concise support and case-memory foundation — draft only
+
+Aryan authorized renewed implementation of a simpler, more natural and reliable support experience. This supersedes release-only restrictions on preparing this separate branch, not the outstanding review/deployment gates. #42 remains held; #28 still awaits Aryan's explicit permissions-fixed confirmation before its read-only preflight. No protected evaluation, production permission/configuration change, training job or deployment accompanies this work.
+
+- [x] One short/plain-language voice contract for answer and review, with a 40–80-word default and preserved safety/source/coverage exceptions. Proposed display identity: **Mira · Omi AI support**. It must not impersonate a human. These are prompt instructions, not a guarantee every generated reply meets the length target.
+- [x] Optional encrypted, redacted support-thread text history in Postgres, isolated by guild/thread/customer. Only the post owner, named staff and this bot are captured; other participants, other bots, webhooks, unrelated channels and attachment contents are excluded. Existing reply-trigger policy stays intact, including quiet staff replies.
+- [x] Edits, delete/bulk-delete/thread-delete handling, per-thread caps, bounded expiry cleanup, cross-copy SQL locking and deletion tombstones. A customer command deletes retained history and stops new retention for that post, even after the capture kill switch is off. Minimal suppression references persist to honor opt-out; Discord messages themselves are not deleted.
+- [x] Separate capture and reply-context switches, both off by default. Optional writes are serialized/bounded and do not hold up the core answer handler. Reuse requires the current owner and live uncached Discord revalidation; at most five older references and a two-second history budget. This is bounded context, not a promise to remember every message forever.
+- [x] Automatic operational outcome signals for missing source evidence, rejected review, staff-delivery success/failure, sent replies, customer feedback and reopening. A read-only aggregate report produces prioritized **needs_review** actions, not factual fixes, retraining, prompt edits or knowledge publication. Event counts are not a resolution rate and can be incomplete after outages/queue drops.
+- [x] Synthetic unit and isolated database checks exercise the integration without requiring Aryan to create Discord posts. October 17: `npm test` 698/698, offline customer check 8/8, and isolated PostgreSQL/PGlite checks pass, including permanent post opt-out and owner-bound outcomes. The earlier Node 20 run passed its then-current 694 tests; hosted CI must validate the final head on supported versions. Unit/SQL success is not live answer-quality approval.
+- [x] Follow-up privacy review reproduced delete-before-first-capture and cleanup-starvation failures. Tombstones now precede queued first writes in the approved pilot; unrelated forums remain known-only. Cleanup bypasses optional queue capacity and coalesces overlapping sweeps. Four additional synthetic tests cover the repair and scope boundary; updated validation is recorded in the PR after execution.
+- [ ] Review and run the required protected answer-quality gate before merge. Never inspect protected inputs, retune from their results, or treat #42's held comparison as approval for this branch.
+- [ ] Approve/publish a privacy notice, necessary retention period (proposed maximum 30 days), processor terms, deletion/backups procedure, security/key review and any required Discord App Review before capturing real conversations. An environment approval flag is not proof these obligations were fulfilled. No permission or key is changed here.
+- [ ] Pilot capture in staff-only shadow mode first; separately approve contextual use after deletion/isolation/latency checks. Verify the staff audience before any new private destination is used. Outstanding #43 live localization/reopen smoke remains pending; no new rollout is authorized by this draft.
+- [ ] Later: privacy-reviewed, de-identified issue clustering and correction drafting; officially sourced, versioned/expiring knowledge proposals; authorized staff approval/rejection; regression tests before publishing; rollback/revocation. None of those is implemented by the aggregate report. No model self-training is enabled.
+
+Research and design rationale: [Support experience](docs/SUPPORT_EXPERIENCE.md). Architecture, operations and the implementation checklist below distinguish implemented, disabled and verified behavior.
+
+## Historical release-only mode and merge gates
 
 The latest staged-release brief governs release order. #28–#30 remain unchanged by this work. Live staff-card status and acceptance notices shipped in #41; Report 3 was graded PASS. No diagnostics or new backend access accompanies that release or the closing-card localization below.
 
