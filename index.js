@@ -797,7 +797,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       );
       if (!String(retrievedEvidence || '').trim()) observeSupport(observer => observer.signal(channel, {
         eventId: `${message.id}-no-source`, kind: 'no_official_source', area: route.area,
-      }));
+      }, message.author.id));
       const toolFacts = buildToolFacts({
         route,
         shopifyText,
@@ -867,7 +867,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             const approved = approvedReview(checked);
             if (!approved) observeSupport(observer => observer.signal(channel, {
               eventId: `${message.id}-review`, kind: 'review_rejected', area: route.area,
-            }));
+            }, message.author.id));
             reviewedGrounded = Boolean(approved);
             aiResponse.final_answer = approved
               ? github.reviewedPullMention(checked.final_answer, relatedPull)
@@ -1121,7 +1121,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             confirmed: true, destination: handoff.deliveredVia || handoff.via,
           });
           observeSupport(observer => observer.signal(channel, { eventId: `${message.id}-handoff`,
-            kind: handoff.ok ? 'handoff_delivered' : 'delivery_failed', area: triaged.area }));
+            kind: handoff.ok ? 'handoff_delivered' : 'delivery_failed', area: triaged.area }, message.author.id));
           if (handoff.thread && handoff.ok) {
             rememberOpenHandoff(channel.id, message.author?.id, handoff.thread);
             await applyThreadName(handoff.thread, nameMeta);
@@ -1137,7 +1137,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           deliveryFailed = !pinged;
           if (deliveryFailed) observeSupport(observer => observer.signal(channel, {
             eventId: `${message.id}-handoff`, kind: 'delivery_failed', area: triaged.area,
-          }));
+          }, message.author.id));
           console.error('[Bot] Handoff failed:', err.message);
         }
       }
@@ -1190,7 +1190,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (stayInPost) await noteCustomerLead(channel, message);
-    observeSupport(observer => observer.signal(channel, { eventId: `${message.id}-answer`, kind: 'answer_sent', area: triaged.area }));
+    observeSupport(observer => observer.signal(channel, { eventId: `${message.id}-answer`, kind: 'answer_sent', area: triaged.area }, message.author.id));
     markReplied(`${channel.id}:${message.author.id}`);
     if (channel.isThread?.()) markAnsweredText(channel.id, message.author.id, message.content);
     if (dbReady) {

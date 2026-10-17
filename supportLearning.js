@@ -57,10 +57,10 @@ function createObserver(memory, { historyBudgetMs = 2000, maxPendingWrites = 100
         if (scope) await memory.forgetThread(scope, { onlyKnown: true });
       }, false);
     },
-    signal(channel, input) {
+    signal(channel, input, customerId) {
       return write(async () => {
         const scope = memory.scopeFor(channel);
-        return scope ? memory.signal({ ...input, ...scope }) : false;
+        return scope && scope.customerId === String(customerId || '') ? memory.signal({ ...input, ...scope }) : false;
       });
     },
     async history(channel, excludeId, liveMessages, customerId) {

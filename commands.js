@@ -230,11 +230,11 @@ async function handleRating(interaction, options = {}) {
   if (feedbackSaved) await learning.signal(interaction.channel, {
     eventId: `${interaction.message?.id || interaction.id || threadId}-${helped ? 'yes' : 'no'}`,
     kind: helped ? 'resolved' : 'needs_help', area: storedCase?.context?.area,
-  });
+  }, clicker);
   if (reopened) await learning.signal(interaction.channel, {
     eventId: `${interaction.message?.id || interaction.id || threadId}-reopened`,
     kind: 'reopened', area: storedCase?.context?.area,
-  });
+  }, clicker);
 }
 
 function resolvedTagId(channel) {

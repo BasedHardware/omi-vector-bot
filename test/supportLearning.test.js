@@ -81,9 +81,15 @@ test('partial edits fetch only an approved support thread; general-channel edits
 
 test('quality inputs cannot replace the approved thread scope', async () => {
   const { observer, channel, store } = fixture();
-  await observer.signal(channel, { guildId: 'unrelated', threadId: 'stranger', customerId: 'bob', eventId: 'event', kind: 'needs_help', area: 'app' });
+  await observer.signal(channel, { guildId: 'unrelated', threadId: 'stranger', customerId: 'bob', eventId: 'event', kind: 'needs_help', area: 'app' }, 'alice');
   const [row] = [...store.signals.values()];
   assert.equal(row.guildId, 'guild'); assert.equal(row.threadId, 'thread'); assert.equal(row.customerId, 'alice');
+});
+
+test('another participant cannot be counted as an outcome for the post owner', async () => {
+  const { observer, channel, store } = fixture();
+  assert.equal(await observer.signal(channel, { eventId: 'other', kind: 'review_rejected', area: 'app' }, 'bob'), false);
+  assert.equal(store.signals.size, 0);
 });
 
 test('optional writes are serialized and bounded without dropping customer deletion', async t => {
