@@ -23,18 +23,45 @@ function clip(text) {
   return plain.length > 280 ? `${plain.slice(0, 280)}…` : plain;
 }
 
+// Words a version question shares with every release note. They do not say which release is meant.
+const GENERIC = new Set(
+  ('the and for with from that this what whats which where when how are was can does did you your any there have has get ' +
+    'new newest latest current version versions release releases note notes update updates fix fixed fixes bug bugs ' +
+    'app apps omi download downloads install installer firmware desktop mac macos macbook windows computer phone ' +
+    'mobile android ios iphone ipad testflight').split(' ')
+);
+
+// The one product a text names, or '' when it names none or more than one.
+function productOf(text) {
+  const s = String(text || '');
+  const named = [];
+  if (/\bfirmware\b/i.test(s)) named.push('firmware');
+  if (/\b(?:desktop|mac(?!\s+address)|macos|macbook|windows|computer)\b/i.test(s)) named.push('desktop');
+  if (/\b(?:phone|mobile|android|ios|iphone|ipad|testflight)\b/i.test(s)) named.push('phone');
+  return named.length === 1 ? named[0] : '';
+}
+
+function publishedTime(note) {
+  const time = Date.parse(note?.publishedAt || '');
+  return Number.isFinite(time) ? time : 0;
+}
+
 function bestNote(question, notes) {
-  const wanted = new Set(words(question));
+  const product = productOf(question);
+  const eligible = (notes || []).filter((note) => !product || productOf(`${note.name} ${note.tag}`) === product);
+  const wanted = new Set(words(question).filter((word) => !GENERIC.has(word)));
   let best = null;
-  let score = 0;
-  for (const note of notes || []) {
-    const shared = words(`${note.name} ${note.body}`).filter((word) => wanted.has(word)).length;
-    if (shared > score) {
+  let score = -1;
+  for (const note of eligible) {
+    const shared = new Set(words(`${note.name} ${note.body}`).filter((word) => wanted.has(word))).size;
+    // Lists arrive newest first, so on a tie the earlier note stays unless a later one is dated newer.
+    if (shared > score || (shared === score && publishedTime(note) > publishedTime(best))) {
       best = note;
       score = shared;
     }
   }
-  if (!best || score < 1) return '';
+  // A question about one change needs a note that mentions it. A plain "latest version" takes the newest.
+  if (!best || (wanted.size && score < 1)) return '';
   const releaseUrl = best.tag
     ? `https://github.com/BasedHardware/omi/releases/tag/${encodeURIComponent(best.tag)}`
     : '';
