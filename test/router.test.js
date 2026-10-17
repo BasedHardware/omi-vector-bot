@@ -3,6 +3,93 @@ const test = require('node:test');
 const router = require('../router');
 const orderFlow = require('../orderFlow');
 
+test('technical setup questions retain their topic lane without a handoff', () => {
+  const questions = [
+    ['I am setting up transcription on my iPhone and would like the setup steps.', 'app', 'tech'],
+    ['I want to choose the recording language in the Android app.', 'app', 'tech'],
+    ['Please explain sharing a transcript from the desktop app.', 'desktop', 'tech'],
+    ['Tell me the recommended way to check the installed firmware version.', 'firmware', 'firmware'],
+    ['Quiero configurar la transcripción en mi iPhone; explica los pasos.', 'app', 'tech'],
+    ['Necesito instrucciones para elegir el idioma en Android.', 'app', 'tech'],
+    ['Explícame las opciones de grabación en Omi Desktop.', 'desktop', 'tech'],
+    ['Busco una guía para actualizar el firmware de mi Omi.', 'firmware', 'firmware'],
+  ];
+  for (const [question, area, lane] of questions) {
+    const route = router.classify(question);
+    assert.equal(route.area, area, question);
+    assert.equal(route.lane, lane, question);
+    assert.equal(route.escalate, false, question);
+    assert.equal(router.skipModel(route), false, question);
+  }
+});
+
+test('reported technical failures still escalate in their topic lane', () => {
+  const failures = [
+    ['My iPhone app freezes with an error whenever I open a recording.', 'app'],
+    ['Transcription stopped working during our call.', 'app'],
+    ["Android doesn't save my new transcript.", 'app'],
+    ["My macOS app can't open the saved conversation.", 'desktop'],
+    ['The desktop app crashes when I start a recording.', 'desktop'],
+    ['The firmware update failed before it finished.', 'firmware'],
+    ['El firmware se queda atascado y no termina la actualización.', 'firmware'],
+    ['La aplicación en mi iPhone dejó de funcionar al abrir una conversación.', 'app'],
+  ];
+  for (const [question, area] of failures) {
+    const route = router.classify(question);
+    assert.equal(route.area, area, question);
+    assert.equal(route.escalate, true, question);
+  }
+});
+
+test('question-shaped failure reports do not lose their technical escalation', () => {
+  for (const question of [
+    'How do I use transcription again? It stopped on my iPhone.',
+    'Where is the transcript? Android says it failed to sync.',
+  ]) {
+    const route = router.classify(question);
+    assert.equal(route.area, 'app', question);
+    assert.equal(route.escalate, true, question);
+  }
+});
+
+test('capability and diagnostic-guide questions do not report an incident', () => {
+  for (const question of [
+    'Can I record offline in the Android app?',
+    'How do I record offline in the Android app?',
+    'How do I read error logs from the Android app when developing an integration?',
+    'Where can I find documentation about crash logs in the desktop app?',
+  ]) assert.equal(router.classify(question).escalate, false, question);
+});
+
+test('asking for a guide alongside an observed error or disconnect still escalates', () => {
+  for (const question of [
+    'Where can I find crash logs? The Android app crashes when I open a recording.',
+    'Can I record offline? My Android app keeps showing disconnected.',
+    'How do I inspect error logs? The desktop app gives an error when I open it.',
+  ]) assert.equal(router.classify(question).escalate, true, question);
+});
+
+test('quiet technical lanes do not invent a problem in routing guidance or fallback', () => {
+  for (const route of [
+    { area: 'app', lane: 'tech', escalate: false },
+    { area: 'desktop', lane: 'tech', escalate: false },
+    { area: 'firmware', lane: 'firmware', escalate: false },
+  ]) {
+    assert.doesNotMatch(router.describe(route), /failing|reporting a problem|bug/i);
+    assert.doesNotMatch(router.cannedReply(route, 'Please explain the setup'), /isn.t working|problem|cause/i);
+  }
+});
+
+test('topic-only routing does not weaken explicit staff, replacement or protected requests', () => {
+  for (const question of [
+    'I want to configure transcription on my iPhone. I need a person to help.',
+    'Please explain the firmware update; I need a replacement device.',
+    'The desktop app is fine, but I want a refund.',
+    'I want to delete my data in the Android app.',
+    'I recorded a call on my iPhone and the recordings are missing.',
+  ]) assert.equal(router.classify(question).escalate, true, question);
+});
+
 test('tax, duties, and customs stay shop/money and never skip as tech', () => {
   const tax = router.classify('import tax on order #20716');
   assert.equal(tax.area, 'shop');

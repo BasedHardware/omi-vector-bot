@@ -40,6 +40,7 @@ const modelCalls = [];
 let modelReply = {};
 let modelDown = false;
 let searchPlanQueries = [];
+let plannerSubQuestions = [];
 const plannerCalls = [];
 let plannerSupportKind = 'other';
 let plannerMessageKind = 'question';
@@ -84,6 +85,7 @@ commandcode.understandQuestion = async ({ question, onUsage }) => {
     wantsPerson: plannerWantsPerson,
     dataLossRisk: plannerDataLossRisk,
     queries: searchPlanQueries,
+    subQuestions: plannerSubQuestions,
   };
 };
 commandcode.reviewAnswer = async (args) => {
@@ -173,6 +175,34 @@ const { app, client, handleMessage, shouldHandle, runtime, keepTyping } = requir
 const router = require('../router');
 const supportCases = require('../supportCases');
 const { unreadMediaSentence } = require('../attachments');
+
+test('quiet staff replies enter optional case memory without becoming customer questions', async t => {
+  const observed = [];
+  t.mock.method(require('../supportLearning'), 'getObserver', () => ({
+    enabled: true, capture: async message => { observed.push(message); },
+  }));
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'A support case' });
+  const message = makeMessage('Please keep the app installed while we check.', {
+    channel, authorId: '900000000000000009', member: { permissions: { has: () => true } },
+  });
+  const before = modelCalls.length;
+  await handleMessage(message);
+  assert.equal(observed.length, 1);
+  assert.equal(modelCalls.length, before);
+  assert.equal(message.replies.length, 0);
+});
+
+test('optional memory writes cannot hold up the core support handler', async t => {
+  let release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  t.mock.method(require('../supportLearning'), 'getObserver', () => ({ enabled: true, capture: () => waiting }));
+  const message = makeMessage('Thanks!', { channel: testChannel() });
+  const operation = handleMessage(message);
+  const completed = await Promise.race([operation.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 30))]);
+  release(); await operation;
+  assert.equal(completed, true);
+  assert.equal(message.replies.length, 0);
+});
 
 client.user = new User(client, { id: BOT_ID, username: 'vector', bot: true });
 
@@ -373,6 +403,7 @@ test.beforeEach(() => {
   modelReply = {};
   modelDown = false;
   searchPlanQueries = [];
+  plannerSubQuestions = [];
   plannerCalls.length = 0;
   plannerSupportKind = 'other';
   plannerMessageKind = 'question';
@@ -647,6 +678,33 @@ test('large docs evidence still passes later Help Center blocks to the answer st
     if (previousKey === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previousKey;
   }
+});
+
+test('multi-part planning reaches production retrieval without dropping individual sub-questions', async t => {
+  const previousKey = process.env.CMD_API_KEY;
+  t.after(() => {
+    docsObserver = null;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY; else process.env.CMD_API_KEY = previousKey;
+  });
+  process.env.CMD_API_KEY = 'test-only-key';
+  plannerSubQuestions = [
+    { question: 'Start a phone recording', query: 'Omi phone microphone recording instructions' },
+    { question: 'Choose a transcription language', query: 'Omi app transcription language settings' },
+    { question: 'Read a conversation summary', query: 'Omi conversation summary view' },
+    { question: 'Remove one saved conversation', query: 'Omi individual conversation deletion' },
+  ];
+  searchPlanQueries = plannerSubQuestions.map(part => part.query);
+  const lookups = [];
+  docsObserver = async (question, options) => {
+    lookups.push({ question, options });
+    return '[S1 | Official Help Center | authoritative]\nApp controls\nhttps://help.omi.me/en/articles/fixture-controls\nThe app provides recording, language and conversation controls.';
+  };
+  const result = await ask('Please explain phone recording, transcription language selection, reading summaries and removing one saved conversation.');
+  assert.equal(result.modelCalled, true);
+  assert.equal(lookups.length, 1);
+  assert.deepEqual(lookups[0].options.subQuestions, plannerSubQuestions);
+  assert.deepEqual(lookups[0].options.queries, searchPlanQueries);
+  assert.deepEqual(modelCalls.at(-1).understanding.subQuestions, plannerSubQuestions);
 });
 
 test('a how-to question in #vector-test gets the model answer and no Handoff', async () => {
