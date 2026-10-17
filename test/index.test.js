@@ -169,7 +169,7 @@ docs.relevantDocs = (...args) => docsObserver ? docsObserver(...args) : original
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
-const { app, client, handleMessage, shouldHandle, runtime } = require('../index');
+const { app, client, handleMessage, shouldHandle, runtime, keepTyping } = require('../index');
 const router = require('../router');
 const supportCases = require('../supportCases');
 const { unreadMediaSentence } = require('../attachments');
@@ -1446,16 +1446,41 @@ test('two customers asking at once in one channel both get an answer', async () 
   assert.match(textOf(second.replies[0]), /center button/);
 });
 
+test('a failed typing indicator never costs the customer their answer', async () => {
+  const channel = generalChannel();
+  channel.sendTyping = async () => { throw new Error('Discord typing unavailable'); };
+  const message = makeMessage(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true });
+  await handleMessage(message);
+  assert.match(textOf(message.replies[0]), /center button/);
+  assert.doesNotMatch(replyText(message), /Something broke/);
+});
+
+test('typing stays visible during a long answer and stops at the first reply', async () => {
+  let typed = 0;
+  const channel = { sendTyping: async () => { typed++; } };
+  const message = {};
+  const stop = keepTyping(message, channel, 5);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.ok(typed >= 3, `typing refreshed ${typed} times`);
+  stop();
+  const after = typed;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(typed, after);
+});
+
 test('after a failed answer the customer can ask again right away', async () => {
   const channel = generalChannel();
   const authorId = nextId();
-  channel.sendTyping = async () => {
-    throw new Error('Discord is down');
-  };
   const failed = makeMessage(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true, authorId });
+  const deliver = failed.reply;
+  let attempts = 0;
+  failed.reply = async (payload) => {
+    attempts++;
+    if (attempts === 1) throw new Error('Discord is down');
+    return deliver(payload);
+  };
   await handleMessage(failed);
   assert.match(replyText(failed), /Something broke/);
-  channel.sendTyping = async () => {};
   const retry = makeMessage(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true, authorId });
   await handleMessage(retry);
   assert.match(textOf(retry.replies[0]), /center button/);
