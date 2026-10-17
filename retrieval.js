@@ -190,7 +190,7 @@ function queryTerms(text, limit = 14) {
   return terms;
 }
 
-function uniqueQueries(question, planned = []) {
+function uniqueQueries(question, planned = [], limit = 5) {
   const seen = new Set();
   const out = [];
   for (const value of [question, ...(planned || [])]) {
@@ -199,7 +199,7 @@ function uniqueQueries(question, planned = []) {
     if (!clean || seen.has(key)) continue;
     seen.add(key);
     out.push(clean);
-    if (out.length >= 5) break;
+    if (out.length >= limit) break;
   }
   return out;
 }
@@ -222,7 +222,27 @@ function isDeveloperPageCompatibleQuestion(question) {
     /\b(?:firmware|flash\w*|dev\s*kit|devkit|developer|compil\w*|source|repos?itor\w*|repos?|github|npm|flutter)\b/i.test(String(question || ''));
 }
 
-function supportQueries(question, planned = []) {
+function normalizeSubQuestions(value) {
+  const seen = new Set();
+  const parts = [];
+  for (const item of Array.isArray(value) ? value : []) {
+    const rawQuestion = typeof item === 'string' ? item : item?.question;
+    if (typeof rawQuestion !== 'string') continue;
+    const question = rawQuestion
+      .replace(/\s+/g, ' ').trim().slice(0, 240);
+    const key = question.toLowerCase();
+    if (!question || seen.has(key)) continue;
+    const rawQuery = typeof item === 'string' ? item : item?.query ?? item?.search_query;
+    const query = (typeof rawQuery === 'string' ? rawQuery : question)
+      .replace(/\s+/g, ' ').trim().slice(0, 180) || question.slice(0, 180);
+    seen.add(key);
+    parts.push({ question, query });
+    if (parts.length >= 8) break;
+  }
+  return parts;
+}
+
+function supportQueries(question, planned = [], { subQuestions = [] } = {}) {
   const text = [question, ...(planned || [])].filter(Boolean).join(' ');
   const variants = [];
   if (isDeveloperIntent(question) && /\bapps?\b/i.test(question) && /\bomi\b/i.test(question)) {
@@ -249,7 +269,68 @@ function supportQueries(question, planned = []) {
       'delete conversation transcript cloud phone local synced recording copies Offline Sync Manage Storage'
     );
   }
-  return uniqueQueries(question, [...variants, ...(planned || [])]);
+  const parts = normalizeSubQuestions(subQuestions);
+  // Preserve every interpreted part before optional synonyms or generic searches.
+  // Ordinary requests keep the existing five-query budget. Multipart requests
+  // have at most eight part queries plus the customer's original wording.
+  return parts.length > 3
+    ? uniqueQueries(question, [...parts.map((part) => part.query), ...(planned || []), ...variants], 9)
+    : uniqueQueries(question, [...variants, ...(planned || [])]);
+}
+
+function queryMatchScore(query, row) {
+  const terms = queryTerms(query, 20);
+  const title = String(row.title || '').toLowerCase();
+  const body = String(row.body || row.blurb || '').toLowerCase();
+  return terms.reduce((score, term) => score + (title.includes(term) ? 4 : body.includes(term) ? 1 : 0), 0);
+}
+
+function selectSubQuestionEvidence(rows, subQuestions, limit = 8) {
+  const parts = normalizeSubQuestions(subQuestions);
+  if (parts.length <= 3) return rows.slice(0, limit);
+  const byPage = new Map();
+  for (const [index, part] of parts.entries()) {
+    const matches = rows.map((row) => ({ row, score: queryMatchScore(part.query, row) }))
+      .filter((hit) => hit.score > 0)
+      .sort((a, b) => b.score - a.score ||
+        sourceAuthority(b.row.source || sourceKind(b.row.url)) - sourceAuthority(a.row.source || sourceKind(a.row.url)));
+    const row = matches[0]?.row;
+    if (!row) continue;
+    const key = String(row.url || row.title || '');
+    const page = byPage.get(key) || { key, firstPart: index, rows: [] };
+    page.rows.push(row);
+    byPage.set(key, page);
+  }
+  // Prefer pages answering several parts, then preserve the requested order.
+  // One useful chunk per page goes first so the unchanged character cap cannot
+  // spend its budget on repeats before complementary guidance arrives.
+  const selectedPages = [...byPage.values()]
+    .sort((a, b) => b.rows.length - a.rows.length || a.firstPart - b.firstPart)
+    .slice(0, 4);
+  const allowedPages = new Set(selectedPages.map((page) => page.key));
+  for (const row of rows) {
+    const key = String(row.url || row.title || '');
+    if (allowedPages.size >= 4) break;
+    if (!allowedPages.has(key)) {
+      allowedPages.add(key);
+      selectedPages.push({ key, rows: [row] });
+    }
+  }
+  const selected = [];
+  const seen = new Set();
+  for (const row of [
+    ...selectedPages.map((page) => page.rows[0]),
+    ...selectedPages.flatMap((page) => page.rows.slice(1)),
+    ...rows,
+  ]) {
+    const page = String(row.url || row.title || '');
+    const key = `${page}#${row.chunk_index ?? row.chunkIndex ?? 0}`;
+    if (!allowedPages.has(page) || seen.has(key)) continue;
+    seen.add(key);
+    selected.push(row);
+    if (selected.length >= limit) break;
+  }
+  return selected;
 }
 
 function diverseTop(rows, limit, maxPerPage = 2) {
@@ -288,7 +369,7 @@ function mergeRanked(resultSets, limit = 8) {
   return diverseTop(ranked, limit);
 }
 
-function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '' } = {}) {
+function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQuestions = [] } = {}) {
   const wanted = (queries || []).map((query) => new Set(queryTerms(query, 20)));
   const consumerQuestion = !isDeveloperIntent(customerQuestion || queries?.[0] || '');
   const singleItemDeletion = consumerQuestion && isSingleItemDeletionQuestion(customerQuestion || queries?.[0] || '');
@@ -320,7 +401,9 @@ function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '' } = {
     })
     .filter((row) => row.rank > 0)
     .sort((a, b) => b.rank - a.rank || b.authority - a.authority);
-  return diverseTop(ranked, limit);
+  return normalizeSubQuestions(subQuestions).length > 3
+    ? selectSubQuestionEvidence(ranked, subQuestions, limit)
+    : diverseTop(ranked, limit);
 }
 
 function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2 } = {}) {
@@ -343,9 +426,10 @@ function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2 } = {}) {
     const body = cleanDocument(row.body, 1_700);
     if (!body) continue;
     const block = `[${id} | ${sourceLabel(kind)} | ${trust}]\n${row.title || 'Untitled'}${section}\n${url}\n${body}`;
-    if (used + block.length > maxChars && blocks.length) break;
+    const separatorChars = blocks.length ? 2 : 0;
+    if (used + separatorChars + block.length > maxChars && blocks.length) break;
     blocks.push(block);
-    used += block.length;
+    used += separatorChars + block.length;
     perPage.set(url, count + 1);
   }
   return blocks.join('\n\n');
@@ -359,6 +443,39 @@ function combineEvidence(...values) {
     .filter(Boolean)
     .map((value) => value.replace(/\[S\d+\s*\|/g, () => `[S${++next} |`))
     .join('\n\n');
+}
+
+function evidenceChunkRows(evidence) {
+  const text = String(evidence || '');
+  const markers = [...text.matchAll(/^\[S\d+\s*\|[^\n]*\]\s*$/gm)];
+  const chunks = [];
+  for (const [index, marker] of markers.entries()) {
+    const block = text.slice(marker.index, markers[index + 1]?.index ?? text.length).trim().split('\n');
+    const url = String(block[2] || '').trim();
+    const source = sourceKind(url);
+    // Authority comes from the known URL, never from a prose trust label.
+    if (!['docs', 'help', 'website', 'github'].includes(source)) continue;
+    const body = block.slice(3).join('\n').trim();
+    if (!body) continue;
+    chunks.push({ url, title: String(block[1] || '').trim(), body, source, chunkIndex: `fetched-${index}` });
+  }
+  return chunks;
+}
+
+function jointMultipartEvidence(question, docsEvidence, officialChunks, { queries = [], subQuestions = [] } = {}) {
+  const parts = normalizeSubQuestions(subQuestions);
+  const seen = new Set();
+  const chunks = [];
+  for (const row of [...evidenceChunkRows(docsEvidence), ...(officialChunks || [])]) {
+    const key = `${row.url || ''}\n${cleanDocument(row.body)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    chunks.push(row);
+  }
+  return formatEvidence(rankLocalChunks(
+    supportQueries(question, queries, { subQuestions: parts }), chunks, 8,
+    { customerQuestion: question, subQuestions: parts }
+  ));
 }
 
 module.exports = {
@@ -376,8 +493,11 @@ module.exports = {
   isDeveloperIntent,
   isDeveloperPageCompatibleQuestion,
   supportQueries,
+  normalizeSubQuestions,
+  selectSubQuestionEvidence,
   mergeRanked,
   rankLocalChunks,
   formatEvidence,
   combineEvidence,
+  jointMultipartEvidence,
 };

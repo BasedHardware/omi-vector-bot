@@ -804,7 +804,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       );
       const retrievalStart = performance.now();
       const [docsText, officialCodeText, feedbackText, releaseText] = await Promise.all([
-        relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
+        relevantDocs(sourceQuestion, { queries: searchPlan.queries, subQuestions: searchPlan.subQuestions }),
         route.area === 'shop' ? '' : github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
         router.isTechLane(route) || route.lane === 'unknown'
           ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })

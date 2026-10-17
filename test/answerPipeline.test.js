@@ -8,6 +8,7 @@ const {
   addUnsyncedDataWarning,
   hasUnsyncedDataRisk,
   stripUnverifiedOrderClaims,
+  UNSYNCED_DATA_WARNING,
 } = require('../answerPipeline');
 
 test('reviewed answers preserve legitimate conjunctions and link lines', () => {
@@ -184,6 +185,63 @@ test('an answer that fits is not clipped, with or without a source line', () => 
   assert.ok(sourced.endsWith('Source: https://help.omi.me/en/articles/10401566'));
   assert.equal(sourced.includes('…'), false);
   const long = presentReviewedAnswer(`${step} `.repeat(30));
-  assert.equal(long.length, 1900);
+  assert.ok(long.length <= 1900);
   assert.ok(long.endsWith('…'));
+  assert.ok(long.slice(0, -2).endsWith(step));
+});
+
+test('overflow keeps whole numbered steps and their wrapped continuation lines', () => {
+  const source = 'Source: https://help.omi.me/en/articles/recording-reference';
+  const first = '1. Start the recording with the microphone button.';
+  const continuation = '   Keep the app recording while the meeting is in progress.';
+  const oversized = `2. ${'Review the transcript and make sure the meeting has finished. '.repeat(40)}`;
+  const shown = presentReviewedAnswer(`${first}\n${continuation}\n${oversized}\n3. Open the summary.\n\n${source}`);
+  assert.equal(shown, `${first}\n${continuation.trim()}\n…\n${source}`);
+  assert.ok(shown.length <= 1900);
+});
+
+test('overflow never retains part of a bullet even when its first line fits', () => {
+  const source = 'Fuente: https://help.omi.me/es/articles/recording-reference';
+  const complete = '- Abre la conversación y revisa el resumen.';
+  const shown = presentReviewedAnswer(`${complete}\n- Comprueba los detalles de la grabación.\n  ${'Espera a que termine el procesamiento. '.repeat(70)}\n- Guarda los cambios.\n\n${source}`);
+  assert.equal(shown, `${complete}\n…\n${source}`);
+  assert.doesNotMatch(shown, /Comprueba|procesamiento|Guarda/);
+});
+
+test('overflow clips prose at a whole sentence and does not split a word', () => {
+  const sentence = 'Open the conversation and read its summary.';
+  const shown = presentReviewedAnswer(`${sentence} ${'supercalifragilisticexpialidocious '.repeat(80)}`);
+  assert.equal(shown, `${sentence}\n…`);
+});
+
+test('a first item too long to display is not partially shown and keeps complete sources', () => {
+  const source = '来源：https://help.omi.me/en/articles/recording-reference';
+  const shown = presentReviewedAnswer(`- ${'A single long checklist item with no safe item boundary. '.repeat(50)}\n\n${source}`);
+  assert.ok(shown.length <= 1900);
+  assert.ok(shown.endsWith(source));
+  assert.doesNotMatch(shown, /checklist item/);
+});
+
+test('four long source URLs remain complete while numbered steps fit the shared reply limit', () => {
+  const urls = [1, 2, 3, 4].map((part) => `https://help.omi.me/en/articles/${part}-${'official-guide-'.repeat(12)}`);
+  const source = `Fuente: ${urls.join(' ')}`;
+  const steps = [
+    `1) Open the app and check the recording controls. ${'Read each control carefully. '.repeat(10)}`,
+    `2) Review the completed conversation. ${'Read the transcript before continuing. '.repeat(10)}`,
+    `3) Choose the appropriate language. ${'Check the saved choice before the meeting. '.repeat(30)}`,
+  ];
+  const shown = presentReviewedAnswer(`${steps.join('\n')}\n\n${source}`);
+  assert.ok(shown.length <= 1900);
+  assert.equal(shown, `${steps.slice(0, 2).map((step) => step.trim()).join('\n')}\n…\n${source}`);
+  assert.equal((shown.match(/^Fuente:/gmu) || []).length, 1);
+  for (const url of urls) assert.ok(shown.includes(url));
+});
+
+test('making room for the data-loss warning also keeps whole steps and complete sources', () => {
+  const source = 'Source: https://help.omi.me/en/articles/recording-reference';
+  const first = '1. Keep the existing recordings in place.';
+  const oversized = `2. ${'Review the stored recording before continuing. '.repeat(50)}`;
+  const shown = addUnsyncedDataWarning(`${first}\n${oversized}\n\n${source}`, 'The recording from my meeting is missing.');
+  assert.equal(shown, `${first}\n…\n\n${UNSYNCED_DATA_WARNING}\n\n${source}`);
+  assert.ok(shown.length <= 1750);
 });

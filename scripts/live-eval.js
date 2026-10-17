@@ -181,6 +181,18 @@ function makeMessage(content, channel, history, authorId) {
   return message;
 }
 
+function evaluationDocsEvidence(retrieval, question, options, officialDocs, officialChunks) {
+  if (retrieval.normalizeSubQuestions?.(options.subQuestions).length > 3) {
+    return retrieval.jointMultipartEvidence(question, officialDocs, officialChunks, options);
+  }
+  const official = retrieval.formatEvidence(
+    retrieval.rankLocalChunks(retrieval.supportQueries(question, options.queries), officialChunks, 7, {
+      customerQuestion: options.customerQuestion || question,
+    })
+  );
+  return retrieval.combineEvidence(officialDocs, official);
+}
+
 async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () => {} } = {}) {
   // These overrides make it impossible for the harness to contact actual
   // customers or staff. They are set before index.js captures env values.
@@ -217,17 +229,12 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   const officialChunks = [...helpPages, ...websitePages].flatMap((page) => retrieval.chunkDocument(page));
   const realRelevantDocs = docs.relevantDocs;
   docs.relevantDocs = async (question, options = {}) => {
-    const official = retrieval.formatEvidence(
-      retrieval.rankLocalChunks(retrieval.supportQueries(question, options.queries), officialChunks, 7, {
-        customerQuestion: options.customerQuestion || question,
-      })
-    );
     const officialDocs = await realRelevantDocs(question, options);
     // The live harness has no Postgres index, so it loads Help Center and docs
     // separately. Put the directly matched docs chunks before the broad local
     // Help Center matches so the answer/reviewer context limits retain both.
     // Source authority is still carried by each block and enforced by policy.
-    return retrieval.combineEvidence(officialDocs, official);
+    return evaluationDocsEvidence(retrieval, question, options, officialDocs, officialChunks);
   };
   const utils = inRoot('utils.js');
   utils.typingDelay = async () => {};
@@ -354,4 +361,4 @@ async function main() {
 
 if (require.main === module) main().catch((err) => { console.error(err.message); process.exitCode = 1; });
 
-module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, makeChannel, makeMessage, run };
+module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, makeChannel, makeMessage, evaluationDocsEvidence, run };
