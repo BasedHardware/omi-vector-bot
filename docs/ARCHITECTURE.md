@@ -30,6 +30,8 @@ Capture requires `SUPPORT_MEMORY_ENABLED=1`, `SUPPORT_MEMORY_POLICY_APPROVED=1`,
 
 Outcome collection uses fixed categories, not text, exception messages or private tool results. Those case-bound records support operational follow-through; only aggregate category/area counts enter improvement suggestions. `scripts/support-quality-report.js` is operator-only and read-only. Suggestions always need review and cannot change prompts, product instructions, routing, model weights or deployments. A fully reviewed knowledge-proposal worker, provenance/freshness approval UI and automatic regression promotion remain future work.
 
+The reviewed-fix target must extend `knowledge.js`, not blindly call the legacy database insertion. Current `index.js:searchKnowledge` deliberately excludes unprovenanced legacy database notes; `handleFaqSave` adds a bounded in-process note, and boot hydration can reconstruct notes from named-staff `faq:` messages. The future durable record therefore needs source evidence, actual approver, version, publication/revocation state, expiry/recheck and internal deletion-aware provenance. Normal retrieval and startup hydration must enforce that state so a revoked/expired fix cannot return from an older Discord note or cache. Migration must preserve existing behavior without promoting legacy rows. This is an architectural prerequisite for the fix inbox, not a newly enabled knowledge path.
+
 ## Current capabilities and gaps
 
 The bot already retrieves official knowledge, checks answers, reads verified Shopify orders, sends private staff cards, and supports staff-approved GitHub filing. It has no customer recording-diagnostics integration. Personal access to GCP does not authorize the bot.

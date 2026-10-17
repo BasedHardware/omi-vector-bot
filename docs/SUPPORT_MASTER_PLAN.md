@@ -69,6 +69,8 @@ Build as a separate `feat/fix-inbox` change on the approved foundation, default 
 
 The existing aggregate report is a foundation only: **it does not complete any of D1–D6.** Staff review is intentional; the system automates detection, preparation, checks and follow-up, not blind learning from chat.
 
+Implementation finding (October 18): the current `faq:` handler saves a bounded in-process staff note and can rebuild notes from named-staff messages at startup. Its legacy database table has no author/provenance/expiry and is deliberately excluded from model lookup. Simply inserting an approved fix there would neither make a durable reviewed fact usable nor support reliable revocation. D5 must add structured durable approval/source/version/expiry state to the existing knowledge service, make its normal lookup consume only eligible reviewed records, and prevent startup hydration/caches from resurrecting revoked or expired fixes. Preserve existing staff-note behavior and keep legacy unreviewed rows excluded; do not activate all old notes as a migration shortcut. This is an inspected dependency, not completed implementation.
+
 ## E. Know whether customers are actually helped
 
 - [ ] **E1 — Honest weekly scorecard.** Monday report: answered without *observed* staff intervention, still-need-help clicks/rate with its denominator, repeat questions, approved/published fixes and three unresolved topics. Include traffic, coverage gaps and unknown outcomes. No staff reply, a positive click, or a quiet thread is not verified resolution. Raw counts are not accuracy or causal proof of improvement.

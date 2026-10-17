@@ -10,6 +10,8 @@ The updated Release 1 candidate [#47](https://github.com/BasedHardware/omi-vecto
 
 This master-plan documentation is prepared separately from the frozen runtime checkout, so it cannot change the running comparison. No deployment, permission update, data capture or automatic publication accompanies it. Next: comparison/grading and Release 1; then approved memory pilot, reviewed fix inbox and queued reliability work with their own gates. Older dated instructions below are history.
 
+Architecture inspection for master item D5 found that `faq:` currently adds a bounded process-local note, boot hydration can reconstruct staff notes, and legacy database notes are deliberately excluded for lacking provenance. The reviewed loop needs additive durable approval/source/version/expiry/revocation and normal lookup/hydration enforcement; merely writing an approved line to the old table would not complete it. No knowledge behavior changed during the frozen comparison.
+
 ## October 17: concise support and case-memory foundation — draft only
 
 Aryan authorized renewed implementation of a simpler, more natural and reliable support experience. This supersedes release-only restrictions on preparing this separate branch, not the outstanding review/deployment gates. #42 remains held; #28 still awaits Aryan's explicit permissions-fixed confirmation before its read-only preflight. No protected evaluation, production permission/configuration change, training job or deployment accompanies this work.
