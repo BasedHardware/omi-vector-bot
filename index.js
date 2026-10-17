@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, Partials } = require('discord.js');
 const express = require('express');
 const db = require('./db');
 const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion, officialHandoffLinks } = require('./commandcode');
@@ -55,6 +55,14 @@ const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const triage = require('./triage');
 const supportCases = require('./supportCases');
 const caseCards = require('./caseCards');
+const { ensureSupportIdentity } = require('./supportVoice');
+const supportLearning = require('./supportLearning');
+const learning = () => supportLearning.getObserver(client.user?.id);
+const observeSupport = operation => {
+  const observer = learning();
+  if (!observer.enabled) return;
+  runtime.track(() => operation(observer)).catch(() => console.error('[SupportMemory] optional observation failed'));
+};
 const { SupportRuntime, PostgresRuntimeStore, MemoryRuntimeStore, questionFingerprint, assertCurrentOwnership, markCurrentReplySent, isLeaseLost } = require('./supportRuntime');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -70,11 +78,13 @@ let shutdownPromise;
 let recoveryTimer;
 let caseCardTimer;
 let unsubscribeCaseCards;
+let supportMemoryTimer;
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
 const botReplyOwners = new Map();
 
 const client = new Client({
+  partials: [Partials.Message],
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
@@ -381,12 +391,13 @@ async function hasEarlierMessages(channel, messageId) {
   }
 }
 
-async function getHistory(channel, excludeId) {
+async function getHistory(channel, excludeId, customerId) {
   // Parent #vector-test is a pile of unrelated tickets. Only follow-ups
   // inside an existing Handoff or help post may see prior messages.
   const samePost = channel.isThread?.() && (isHelpThread(channel) || isTestChannel(channel));
   if (!isTrustedHandoffThread(channel) && !samePost) return [];
   const messages = await channel.messages.fetch({ limit: 50 });
+  if (learning().contextEnabled && learning().supports(channel)) return clipThreadHistory(await learning().history(channel, excludeId, [...messages.values()], customerId));
   const entries = [...messages.values()]
     .reverse()
     .filter((m) => m.id !== excludeId)
@@ -502,6 +513,9 @@ function redactStaffQuestion(text) {
 
 async function handleMessage(message) {
   if (runtime.stopping || !coordinationReady) return { status: 'stopping' };
+  // Observe quiet staff/customer continuations too, without making them reply
+  // triggers. The observer independently enforces its approved forum boundary.
+  observeSupport(observer => observer.capture(message));
   if (
     !directlyMentionsBot(message.content) &&
     (isHelpThread(message.channel) || isTrustedHandoffThread(message.channel)) &&
@@ -637,7 +651,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       (isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel))
     ) {
       try {
-        contextHistory = await getHistory(channel, message.id);
+        contextHistory = await getHistory(channel, message.id, message.author.id);
         prior = contextHistory.map((entry) => entry.content).join('\n');
       } catch (err) {
         console.error('[Bot] thread context failed:', err.message);
@@ -781,6 +795,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       const retrievedEvidence = await canonicalizeGithubDocsEvidence(
         combineEvidence(docsText, feedbackText, officialCodeText)
       );
+      if (!String(retrievedEvidence || '').trim()) observeSupport(observer => observer.signal(channel, {
+        eventId: `${message.id}-no-source`, kind: 'no_official_source', area: route.area,
+      }, message.author.id));
       const toolFacts = buildToolFacts({
         route,
         shopifyText,
@@ -848,6 +865,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               stageMs.review += Math.round(performance.now() - reviewStart);
             }
             const approved = approvedReview(checked);
+            if (!approved) observeSupport(observer => observer.signal(channel, {
+              eventId: `${message.id}-review`, kind: 'review_rejected', area: route.area,
+            }, message.author.id));
             reviewedGrounded = Boolean(approved);
             aiResponse.final_answer = approved
               ? github.reviewedPullMention(checked.final_answer, relatedPull)
@@ -1100,6 +1120,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           if (handoff.ok) await supportCases.markDelivered(supportCase.id, {
             confirmed: true, destination: handoff.deliveredVia || handoff.via,
           });
+          observeSupport(observer => observer.signal(channel, { eventId: `${message.id}-handoff`,
+            kind: handoff.ok ? 'handoff_delivered' : 'delivery_failed', area: triaged.area }, message.author.id));
           if (handoff.thread && handoff.ok) {
             rememberOpenHandoff(channel.id, message.author?.id, handoff.thread);
             await applyThreadName(handoff.thread, nameMeta);
@@ -1113,6 +1135,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         } catch (err) {
           if (isLeaseLost(err)) throw err;
           deliveryFailed = !pinged;
+          if (deliveryFailed) observeSupport(observer => observer.signal(channel, {
+            eventId: `${message.id}-handoff`, kind: 'delivery_failed', area: triaged.area,
+          }, message.author.id));
           console.error('[Bot] Handoff failed:', err.message);
         }
       }
@@ -1165,6 +1190,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (stayInPost) await noteCustomerLead(channel, message);
+    observeSupport(observer => observer.signal(channel, { eventId: `${message.id}-answer`, kind: 'answer_sent', area: triaged.area }, message.author.id));
     markReplied(`${channel.id}:${message.author.id}`);
     if (channel.isThread?.()) markAnsweredText(channel.id, message.author.id, message.content);
     if (dbReady) {
@@ -1209,6 +1235,13 @@ client.on(Events.MessageCreate, async (message) => {
   await handleMessage(message);
 });
 
+client.on(Events.MessageUpdate, (_old, message) => observeSupport(observer => observer.update(message)));
+client.on(Events.MessageDelete, message => runtime.track(() => learning().forgetMessage(message)));
+client.on(Events.MessageBulkDelete, messages => runtime.track(async () => {
+  for (const message of messages.values()) await learning().forgetMessage(message);
+}));
+client.on(Events.ThreadDelete, thread => runtime.track(() => learning().forgetThread(thread)));
+
 client.on(Events.InteractionCreate, (interaction) => {
   return runtime.track(() => commands.handleInteraction(interaction)).catch(() => {
     console.error('[Bot] interaction handling failed');
@@ -1231,19 +1264,16 @@ commands.setTestQuestionHandler(async (interaction, question) => {
 });
 
 async function nickOmiSupport(client) {
-  if (!VECTOR_TEST_CHANNEL_ID) return;
-  try {
-    const ch = await client.channels.fetch(VECTOR_TEST_CHANNEL_ID);
-    const me = ch?.guild?.members?.me;
-    if (me && typeof me.setNickname === 'function' && me.nickname !== 'Omi Support') {
-      await me.setNickname('Omi Support', 'Customers should see Omi Support');
-    }
-  } catch (err) {
-    console.error('[Bot] nickname Omi Support failed:', err.message);
-  }
+  await ensureSupportIdentity(client, [HELP_FORUM_CHANNEL_ID, VECTOR_TEST_CHANNEL_ID]);
 }
 
 client.once(Events.ClientReady, async () => {
+  const memory = learning();
+  if (memory.cleanupEnabled) {
+    runtime.track(() => memory.prune());
+    supportMemoryTimer = setInterval(() => runtime.track(() => memory.prune()), 60000);
+    supportMemoryTimer.unref();
+  }
   const syncCards = (caseId) => runtime.track(() => caseId ? caseCards.syncCase(client, caseId) : caseCards.syncPending(client))
     .catch(() => console.error('[CaseCard] refresh worker failed; pending retry'));
   unsubscribeCaseCards = supportCases.onChange(syncCards);
@@ -1336,6 +1366,7 @@ async function shutdown(signal) {
     runtime.stopAccepting();
     clearInterval(recoveryTimer);
     clearInterval(caseCardTimer);
+    clearInterval(supportMemoryTimer);
     telegram.stopPolling();
     const [drained, telegramDrained] = await Promise.all([runtime.drain(), telegram.drainPolling()]);
     console.log(`[SupportRuntime] drain completed=${drained} telegram_completed=${telegramDrained}`);
