@@ -6,7 +6,7 @@ October 12 release holds: #42's fresh comparison is complete and meets numerical
 
 ## Startup and deployment
 
-The October 17 support-experience branch is a draft, not a new release. It leaves #42 held and #28's audience check stopped. No protected run, training job, permission/configuration update or deployment accompanies it. The retained #43 release record and its pending live smoke are not overwritten by unit/SQL results.
+The October 17 updated brief authorizes combining #42/#45 into Release 1 and running a fresh same-day comparison after #46's verified merge (`273550c`). It does not authorize deployment before independent grading, memory enablement or model training. #28's audience check stays stopped. Keep capture/context switches off; Release 2's approved private pilot is separate. The retained #43 release record and its pending live smoke are not overwritten by unit/SQL results.
 
 ### Optional support memory — off until approved
 

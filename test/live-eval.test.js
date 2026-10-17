@@ -12,6 +12,17 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+test('comparison instrumentation captures only actual escalation lines in the current case', () => {
+  const { captureEscalation } = require('../scripts/live-eval');
+  const first = { escalationSignals: [] }, second = { escalationSignals: [] };
+  const line = '[Bot] Escalating channel=synthetic area=app signals=reported-failure';
+  captureEscalation(first, [line]);
+  captureEscalation(second, ['[Bot] unrelated log']);
+  captureEscalation(null, [line]);
+  assert.deepEqual(first.escalationSignals, [line]);
+  assert.deepEqual(second.escalationSignals, []);
+});
+
 test('held-out cases accept only structural fields and ignore answer-specific expectations', () => {
   const scene = parseCaseLine(JSON.stringify({ id: 'external-1', ask: 'How does this work?', first: 'answer', must: ['secret'] }));
   assert.equal(scene.heldout, true);

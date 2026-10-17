@@ -4,6 +4,15 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 
 ## Release and security prerequisites
 
+### Combined Release 1 (updated October 17 brief)
+
+- [x] Recheck and merge #46 with a merge commit, without deploying.
+- [x] Merge #45 and #42 into an isolated release candidate; preserve live closing-card localization and quiet/mention behavior.
+- [x] Replace competing character-budget instructions with the shared concise voice; navigation/conditional and actual-failure regressions pass.
+- [x] Preserve whole-item clipping, evidence caps, multipart coverage and damage intake; memory stays disabled.
+- [ ] Fresh same-day main/candidate 81×2 comparison, concurrency three, awake host, exact provenance and actual per-case signals/replies; provide all artifacts and word-count summary.
+- [ ] Independent grading before release merge/deployment. Private memory pilot and fix inbox remain later releases with their own approval/privacy gates.
+
 ### October 17 support-experience draft
 
 - [x] Central concise/plain-language voice and transparent Mira identity; preserve factual/safety/source rules.

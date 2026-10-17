@@ -497,7 +497,7 @@ async function queryAgent({
           temperature: 0.4,
           messages: [
             { role: 'system', content: `${buildSystemPrompt(route)}${handoffPlanned || route?.escalate ? `\n\n${PLANNED_HANDOFF_GUIDANCE}` : ''}` },
-            { role: 'system', content: 'Write the customer reply entirely in the language and script of the latest customer message. If it is romanized Hindi, use Latin letters rather than Devanagari. A person-needed request can still receive an official, sourced policy or how-to answer; keep escalation for the action or decision and do not promise an outcome. If understanding.dataLossRisk is true, warn in the customer language not to reinstall, log out, or clear local recordings before staff checks; do not append an English warning to a non-English reply. final_answer has a hard budget of 1,500 characters including whitespace and any inline links. For multi-part questions, answer the parts the sources support briefly in the order asked, rather than writing a guide. Use one short, complete bullet per part; combine closely related steps and omit extra background before dropping a requested part. State unsupported parts briefly without guessing. Keep necessary safety warnings and material uncertainty.' },
+            { role: 'system', content: 'Write the customer reply entirely in the language and script of the latest customer message. If it is romanized Hindi, use Latin letters rather than Devanagari. A person-needed request can still receive an official, sourced policy or how-to answer; keep escalation for the action or decision and do not promise an outcome. If understanding.dataLossRisk is true, warn in the customer language not to reinstall, log out, or clear local recordings before staff checks; do not append an English warning to a non-English reply. For multi-part questions, answer the parts the sources support briefly in the order asked, rather than writing a guide. Use one short, complete bullet per part; combine closely related steps and omit extra background before dropping a requested part. State unsupported parts briefly without guessing. Keep necessary safety warnings and material uncertainty.' },
             {
               role: 'user',
               content: buildUserPrompt({
@@ -646,7 +646,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
         },
         ...(citationLimit === 4 ? [{
           role: 'system',
-          content: 'This request contains more than three distinct sub-questions. Its one Source line may contain at most four exact URLs from the retrieved evidence, instead of the ordinary two, when needed to support the requested parts. Keep each supported part brief and in the order asked. Keep the answer body within 1,500 characters without removing material safety guidance or uncertainty.',
+          content: 'This request contains more than three distinct sub-questions. Its one Source line may contain at most four exact URLs from the retrieved evidence, instead of the ordinary two, when needed to support the requested parts. Keep each supported part brief and in the order asked.',
         }] : []),
         {
           role: 'user',

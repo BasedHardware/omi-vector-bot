@@ -2,7 +2,21 @@
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
-## October 17: concise support and case-memory foundation — draft only
+## October 17: combined Release 1 — comparison pending, not deployed
+
+Aryan's updated brief authorizes one combined candidate and one fresh same-day comparison, not deployment. #46 was rechecked locally (670 tests/offline 8/8) and in hosted Node 20/24/Postgres CI, marked ready and merged with a merge commit as `273550c`. No Railway deployment followed. The candidate merges #45 (`d60236c`) and #42 (`c8d23df`) with merge commits, preserving their history; neither source PR is separately approved for release by this integration.
+
+- [x] Combine the plain-language Mira voice with structural failure-only routing, whole-item clipping, capped multipart retrieval and damage-photo/private purchase intake. Remove #42's separate 1,500-character prompt instructions from answer and review; the shared voice contract governs length without dropping safety/coverage.
+- [x] Own navigation/confusion/hypothetical regressions in `test/router-reporting.test.js` pass, including six how-tos/six failures and independent-incident guards. Existing ordinary source paths and the 9,000-character evidence cap remain unchanged.
+- [x] Preserve default-off memory/capture/context flags and the follow-up deletion/cleanup repairs. No real conversation capture, new permission, model training, fix-inbox worker or automatic fact publication.
+- [x] Instrument the evaluation harness to retain each turn's reply and actual case-scoped `[Bot] Escalating` lines, without changing the judge or answer policy.
+- [x] Combined local validation: 755/755 unit tests, offline 8/8 and isolated SQL pass. Navigation/conditional, shared-length-contract and comparison-instrumentation regressions are covered; new instrumentation/length checks were red before correction. The new comparator is tested against synthetic deltas, missing/duplicate/unscored rows and multilingual word counts. Hosted checks and protected grading remain separate.
+- [ ] Freeze baseline/candidate/harness provenance, keep the machine awake, run both fresh 81×2/concurrency-3 arms, and deliver raw JSONs, all changed cases with verbatim replies/signals/judge problems, and median/p90 word counts. Never inspect protected input or tune from the results. Stop for independent grading before merge/deploy.
+- [ ] Release 2: Omi privacy/security approval and a published accurate notice/deletion route; private-test capture-only pilot for at least 48 clean hours with verified edits/deletes/opt-out/restart, then separately approved context use and public expansion. No elapsed timer alone enables it.
+- [ ] Release 3: a separate `feat/fix-inbox` branch for reviewed, officially sourced correction proposals, approval/edit/reject/snooze, synthetic regression checks and honest raw-count scorecards. Aggregate counts alone are not this loop; one approval cannot guarantee a mistake never recurs. Staff authorship cannot replace official product evidence.
+- [ ] Reliability queue remains #28 after Aryan's permissions-fixed confirmation and successful read-only audience check, then #29 and #30. Do not rerun/push #28 or change channel permissions here.
+
+## Earlier October 17 foundation record — draft only
 
 Aryan authorized renewed implementation of a simpler, more natural and reliable support experience. This supersedes release-only restrictions on preparing this separate branch, not the outstanding review/deployment gates. #42 remains held; #28 still awaits Aryan's explicit permissions-fixed confirmation before its read-only preflight. No protected evaluation, production permission/configuration change, training job or deployment accompanies this work.
 

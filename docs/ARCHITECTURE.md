@@ -6,7 +6,7 @@ Closing-card language follows the same persisted `context.replyLanguage` used by
 
 ## Draft support-experience integration — not enabled in production
 
-`supportVoice.js` provides one plain-language, concise answer/reviewer contract and the proposed Mira identity, with an explicit AI label. Existing policy, source ranking, deterministic safety checks and human-controlled case transitions still govern correctness. No new clipping algorithm or routing fix from held #42 is copied into this branch.
+`supportVoice.js` provides one plain-language, concise answer/reviewer contract and the proposed Mira identity, with an explicit AI label. Existing policy, source ranking, deterministic safety checks and human-controlled case transitions still govern correctness. Aryan's updated Release 1 brief combines #42 and #45 via merge commits: topic lanes escalate only on reported failure, navigation/conditional grammar does not manufacture failures, complete-item clipping preserves citations/warnings, multipart coverage uses at most four pages within the existing 9,000-character evidence cap, and damaged-item intake requests damage evidence, private purchase email and delivery date. The old separate 1,500-character prompt budget is removed in favor of the shared voice contract. #46's non-blocking, refreshed typing indicator is in the main baseline and candidate. Release 1 still requires a fresh comparison and grading; nothing is deployed by this integration.
 
 ```text
 Scoped support event ──→ existing answer/review/delivery pipeline
