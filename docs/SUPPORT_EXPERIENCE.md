@@ -29,6 +29,12 @@ This draft does not train/fine-tune, build a training dataset, make embeddings, 
 
 ## Implemented foundation versus next phase
 
+### Inspected documentation conflict — October 18
+
+The official [Language Support article](https://help.omi.me/en/articles/9942181-language-support-in-omi), dated October 1, 2024, says a conversation cannot detect multiple languages. The newer [recording/language troubleshooting article](https://help.omi.me/en/articles/13154896-recording-transcription-apps-and-tasks), dated December 14, 2025, describes selectable multi-language transcription under Profile. The [app guide](https://help.omi.me/en/articles/13153540-using-the-omi-app), dated January 6, 2026, also describes simultaneous multi-language support. These pages currently disagree; dates suggest a stale older page but do not prove current behavior on every app/version.
+
+Master item D3 needs the documentation owner to confirm supported versions and update/archive the conflicting guidance. Do not create an unconditional staff fact to hide the conflict, claim the Help Center was fixed, or change the frozen Release 1 runtime from this inspection. No external ticket/message or Help Center edit was made.
+
 Implemented and disabled: a shared voice contract; scoped encrypted text history; edit/deletion/expiry and customer post opt-out; independent capture/context switches; bounded optional work; synthetic regression and SQL checks; fixed operational signals and aggregate review actions. Existing official retrieval, answer review, private capability rules, staff case transitions and public filing approval remain authoritative.
 
 Still needed: a privacy-reviewed de-identification process for improvement inputs; more specific issue grouping; official-source-backed correction drafts with provenance, owner, version and expiry; approval/rejection controls; synthetic regression generation and validation; controlled publication/revocation; and measured before/after outcomes. Customer reports and staff replies can suggest a question to investigate, but cannot become authoritative product facts on their own. Those capabilities are not supplied by the initial aggregate report.
