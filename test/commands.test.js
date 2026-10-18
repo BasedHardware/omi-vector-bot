@@ -23,6 +23,24 @@ test('/test is a guild slash command named test', () => {
   assert.equal(question.required, true);
 });
 
+test('customers can delete retained history only for their own support post, with a private acknowledgment', async () => {
+  const { handleForgetSupportHistory } = require('../commands');
+  const replies = []; const removed = [];
+  const interaction = { channel: { id: 'own-thread', ownerId: 'customer' }, user: { id: 'customer' },
+    deferReply: async value => replies.push(value), editReply: async value => replies.push(value) };
+  await handleForgetSupportHistory(interaction, { forget: async (channel, userId) => { removed.push([channel.id, userId]); return true; } });
+  assert.equal(removed.length, 1);
+  assert.match(replies.at(-1).content, /won.t save new history here/);
+  assert.match(replies.at(-1).content, /Discord.*unchanged/);
+  const before = replies.length;
+  await handleForgetSupportHistory({ ...interaction, user: { id: 'other-customer' } }, { forget: async () => { throw Error('must not be called'); } });
+  assert.match(replies.at(-1).content, /own support post/i);
+  assert.ok(replies.length > before);
+  await handleForgetSupportHistory(interaction, { forget: async () => false });
+  assert.doesNotMatch(replies.at(-1).content, /was deleted|won.t save/);
+  assert.match(replies.at(-1).content, /couldn.t confirm/i);
+});
+
 test('/test only runs in the #vector-test parent channel', async () => {
   const prev = process.env.VECTOR_TEST_CHANNEL_ID;
   process.env.VECTOR_TEST_CHANNEL_ID = '1550182642874589194';

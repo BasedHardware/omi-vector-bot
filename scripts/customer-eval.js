@@ -190,7 +190,7 @@ async function replyFor(scene, route) {
     const sourceQuestion = searchPlan.standaloneQuestion || scene.ask;
     const usePublicSource = process.env.EVAL_PUBLIC_SOURCE === '1';
     const [pages, code, feedback, publicSource] = await Promise.all([
-      usePublicSource ? '' : relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
+      usePublicSource ? '' : relevantDocs(sourceQuestion, { queries: searchPlan.queries, subQuestions: searchPlan.subQuestions }),
       github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
       router.isTechLane(route) || route.lane === 'unknown'
         ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })
@@ -201,7 +201,8 @@ async function replyFor(scene, route) {
             await loadOfficialSource(fetch, { saveDocPage: async (page) => sourcePages.push(page) });
             const chunks = sourcePages.flatMap((page) => chunkDocument(page));
             return formatEvidence(
-              rankLocalChunks(supportQueries(sourceQuestion, searchPlan.queries), chunks, 8)
+              rankLocalChunks(supportQueries(sourceQuestion, searchPlan.queries, { subQuestions: searchPlan.subQuestions }), chunks, 8,
+                { customerQuestion: sourceQuestion, subQuestions: searchPlan.subQuestions })
             );
           })()
         : '',

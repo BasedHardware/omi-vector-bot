@@ -5,6 +5,8 @@ const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
 const { appReviewButtons } = require('./appReviews');
 const githubFlow = require('./githubFlow').createGithubFlow();
+const { closingCopy } = require('./closingCopy');
+const { SUPPORT_DISPLAY_NAME } = require('./supportVoice');
 
 const OMI_LOGO_URL =
   process.env.OMI_LOGO_URL ||
@@ -13,6 +15,11 @@ const OMI_LOGO_URL =
 const doneCommand = new SlashCommandBuilder()
   .setName('done')
   .setDescription('Mark this Handoff or help thread resolved. Staff only.')
+  .toJSON();
+
+const forgetSupportHistoryCommand = new SlashCommandBuilder()
+  .setName('forget-support-history')
+  .setDescription('Delete retained support history for your post and stop saving it.')
   .toJSON();
 
 const testCommand = new SlashCommandBuilder()
@@ -67,32 +74,30 @@ async function registerSlashCommands(client) {
         orderFlow.orderCommand,
         orderFlow.ordersCommand,
         orderFlow.unlinkCommand,
+        forgetSupportHistoryCommand,
       ],
     });
   }
   return guildIds.size;
 }
 
-function closeNotice(user) {
-  const who = user?.id ? `<@${user.id}>` : 'staff';
-  return [
-    'Thank you for giving us the chance to help.',
-    'Did we help solve your problem? Your honest feedback helps us improve.',
-    'If you still need help, use the button below. If the thread cannot be reopened, open a new post in Help.',
-    `Marked resolved by ${who}. Only the customer who opened this post can submit support feedback.`,
-  ].join('\n\n');
+function closeNotice(user, language = 'en') {
+  const copy = closingCopy(language);
+  const who = user?.id ? `<@${user.id}>` : copy.staff;
+  return copy.description(who).join('\n\n');
 }
 
-function closePayload(user) {
+function closePayload(user, language = 'en') {
+  const copy = closingCopy(language);
   const embed = {
-    author: { name: 'Omi Support', iconURL: OMI_LOGO_URL },
-    title: 'How did we do?',
+    author: { name: SUPPORT_DISPLAY_NAME, iconURL: OMI_LOGO_URL },
+    title: copy.title,
     color: 0x111111,
-    description: closeNotice(user),
+    description: closeNotice(user, language),
     thumbnail: { url: OMI_LOGO_URL },
     fields: [{
-      name: 'Share an honest app review · optional',
-      value: "We'd appreciate an honest rating or review of the Omi app on your store. It's optional and does not affect your support.\nOn Google Play, choose **Write a review** after opening the page.",
+      name: copy.reviewTitle,
+      value: copy.reviewText,
     }],
   };
   return {
@@ -101,11 +106,11 @@ function closePayload(user) {
       {
         type: 1,
         components: [
-          { type: 2, style: 3, label: 'Yes, my issue is resolved', custom_id: 'rate:yes' },
-          { type: 2, style: 2, label: 'Still need help', custom_id: 'rate:no' },
+          { type: 2, style: 3, label: copy.resolved, custom_id: 'rate:yes' },
+          { type: 2, style: 2, label: copy.needsHelp, custom_id: 'rate:no' },
         ],
       },
-      appReviewButtons(),
+      appReviewButtons(copy),
     ],
     allowedMentions: { parse: [] },
   };
@@ -221,6 +226,16 @@ async function handleRating(interaction, options = {}) {
     ? 'This thread is reopened, but I could not finish updating the case. You can continue here. Your feedback is recorded.'
     : 'Your feedback is recorded. This thread has not been reopened; open a new Help post if you still need help.';
   await respond(note);
+  // Optional quality collection cannot delay the feedback acknowledgment.
+  const learning = require('./supportLearning').getObserver(interaction.client?.user?.id);
+  if (feedbackSaved) await learning.signal(interaction.channel, {
+    eventId: `${interaction.message?.id || interaction.id || threadId}-${helped ? 'yes' : 'no'}`,
+    kind: helped ? 'resolved' : 'needs_help', area: storedCase?.context?.area,
+  }, clicker);
+  if (reopened) await learning.signal(interaction.channel, {
+    eventId: `${interaction.message?.id || interaction.id || threadId}-reopened`,
+    kind: 'reopened', area: storedCase?.context?.area,
+  }, clicker);
 }
 
 function resolvedTagId(channel) {
@@ -275,7 +290,7 @@ async function closeHandoff(channel, user, options = {}) {
   }
   let delivered;
   try {
-    delivered = await channel.send(closePayload(user));
+    delivered = await channel.send(closePayload(user, storedCase?.context?.replyLanguage));
   } catch (err) {
     console.error('[Bot] /done notice failed:', err.message);
     return { ok: false, reason: 'Could not post the resolved message.' };
@@ -428,6 +443,10 @@ async function handleInteraction(interaction) {
   try {
     if (await orderFlow.handleOrderInteraction(interaction)) return;
     if (await githubFlow.handleInteraction(interaction)) return;
+    if (interaction.isChatInputCommand?.() && interaction.commandName === 'forget-support-history') {
+      await handleForgetSupportHistory(interaction);
+      return;
+    }
     if (interaction.isChatInputCommand?.() && interaction.commandName === 'test') {
       await handleTest(interaction);
       return;
@@ -457,6 +476,22 @@ async function handleInteraction(interaction) {
       /* ignore */
     }
   }
+}
+
+async function handleForgetSupportHistory(interaction, { forget = require('./supportLearning').forgetOwnedThread } = {}) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const respond = content => interaction.editReply({ content, allowedMentions: { parse: [] } });
+  const customerId = String(interaction.user?.id || '');
+  if (!customerId || String(interaction.channel?.ownerId || '') !== customerId) {
+    await respond('Use this command in your own support post.'); return;
+  }
+  try {
+    if (await forget(interaction.channel, customerId)) {
+      await respond('Retained support history for this post was deleted. I won’t save new history here. Your messages in Discord are unchanged.');
+      return;
+    }
+  } catch { console.error('[SupportMemory] customer erasure not confirmed'); }
+  await respond('I couldn’t confirm deletion of retained history here. Please contact help@omi.me for a data-deletion request.');
 }
 
 async function notifyLinkedThreads(client, event, options = {}) {
@@ -531,6 +566,8 @@ async function notifyLinkedThreads(client, event, options = {}) {
 
 module.exports = {
   doneCommand,
+  forgetSupportHistoryCommand,
+  handleForgetSupportHistory,
   testCommand,
   registerSlashCommands,
   setTestQuestionHandler,

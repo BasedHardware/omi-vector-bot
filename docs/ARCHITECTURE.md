@@ -1,8 +1,58 @@
 # Omi Support Bot Architecture
 
-October 12 status: #41 is deployed at main `b9eeb16`; Reports 2 and 3 passed. #28's engineering approvals/audience checks are draft work, not production capabilities. After an explicitly approved REST-only SDK hydration repair, its live read-only preflight returned `untrusted_role_can_view`; release is stopped pending audience reconciliation, not approved because local tests passed.
+October 18: Release 1 main `7fe0e0a` is deployed with live smoke still pending. #28's current-main integration passes 844 local tests, offline 8/8 and isolated SQL; the fresh production-configured read-only audience gate passes. Engineering approvals/send-time/startup privacy checks remain unshipped, pending hosted checks and independent re-review. No new permissions, deployment, retained customer text or enabled memory/inbox is implied.
 
-Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. The workflow foundation, Phase 2 fixes and #41 live cards are deployed at main `b9eeb16`; Reports 1–3 passed. The engineering approvals/audience corrections below are draft #28, not deployed. The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
+Product acceptance is governed by [SUPPORT_MASTER_PLAN.md](SUPPORT_MASTER_PLAN.md), not a succession of unrelated review fixes. The target loop is scoped support → sourced answer/review → confirmed delivery/case state → approved case context → minimized review signals → officially evidenced correction → staff authorization → automatic regression validation → controlled publication/revocation → honest outcome measurement. The memory and fix-inbox stages remain disabled/unimplemented as recorded below; this is the coherent target pipeline, not a claim that the loop is live. New review findings map back to a master-plan item and its evidence.
+
+Omi Support Bot solves documented problems and routes unresolved cases toward a person. Customer reassurance must describe actions and evidence the system can verify. Reports 1–3 passed. The retained October 12 release record has #43 merged at `dad2505` and deployed as `a6c7c577-4cc5-47b9-bf05-ba63444425e4`, with its live Spanish/Chinese close/reopen smoke still pending. This branch does not perform a new production check or release. The recording-diagnostics gateway remains a target design, not newly granted access. The existing official-source answer and review pipeline remains in place.
+
+Closing-card language follows the same persisted `context.replyLanguage` used by acceptance notices: case lookup → deterministic localized card → confirmed customer send → durable case closure → thread archive. `closingCopy.js` covers the acceptance language set with an English fallback. Feedback identity, ownership, review URLs and optional-review semantics are unchanged; staff locale does not override the customer language. Localization covers card content only, not `/done` acknowledgments or subsequent feedback responses.
+
+## Draft support-experience integration — not enabled in production
+
+`supportVoice.js` provides one plain-language, concise answer/reviewer contract and the proposed Mira identity, with an explicit AI label. Existing policy, source ranking, deterministic safety checks and human-controlled case transitions still govern correctness. Aryan's updated Release 1 brief combines #42 and #45 via merge commits: topic lanes escalate only on reported failure, navigation/conditional grammar does not manufacture failures, complete-item clipping preserves citations/warnings, multipart coverage uses at most four pages within the existing 9,000-character evidence cap, and damaged-item intake requests damage evidence, private purchase email and delivery date. The old separate 1,500-character prompt budget is removed in favor of the shared voice contract. #46's non-blocking, refreshed typing indicator is in the main baseline and candidate. The authorized fresh comparison completed October 18 and subsequent independent review approved deployment, explicitly accepting the borderline increased handoff flag. Actual rollout/staff-audience verification remain open; nothing is deployed by this integration. See the roadmap for results and limitations.
+
+### Release 2 target — references only, not yet implemented
+
+Aryan approved 30-day support memory and replaced the encrypted-text design below. Implement after Release 1's deployment on `feat/memory-references` from main. Persist only scoped guild/forum/thread/owner/message references, role, message time/expiry and text-free outcomes. Migrate away memory ciphertext/IV/tag idempotently without touching encrypted identity/order state. Minimal customer/forum suppression state is still necessary to honor opt-out; identifiers and outcomes remain protected customer-related data.
+
+The optional context adapter finds at most two other recent posts by the same owner in the same allowlisted forum/guild, then validates live scope/ownership and reads the live title, last three owner messages and this bot's last reply. It never enters staff/handoff channels or another owner's post. Mark it `conversation_only`, excluded from official evidence/citations; it only avoids repeated intake or already-tried steps. The whole extra lookup/read path has a 1.5-second deadline, fixed metadata-only diagnostics and normal current-post fallback. A timeout must prevent late content from entering the answer. Core `/health` and delivery do not depend on this optional path.
+
+The existing capture/policy/context/forum flags remain off by default. Turning off capture/context stops new writes/use while erasure and mandatory expiry remain available. Forgetting removes all of that owner's forum references/signals and blocks future/queued saving across posts and restarts. Live deletion errors remove references; denied/unavailable reads merely omit context. No text, prompt, title, attachment, embedding or raw exception is added to memory tables. Outcome categories feed the reviewed improvement loop, never automatic product knowledge or training.
+
+```text
+Scoped support event → existing answer/review/delivery pipeline
+         └─ optional observer → bounded queue → expiring references + outcomes
+New owner post → scoped pointer lookup → live Discord reads (≤1.5 s)
+              → untrusted remembered attempts, or current-post fallback
+Review signals → authorized reviewer → sourced fix → regression → publication
+```
+
+The replacement requires unit/SQL/CI checks, memory-off comparison and independent grading before merge/deploy. Enabled behavior needs an approved isolated test runtime or reviewed test-only deployment, then 48 clean hours **and** functional checks before reviewed help-forum expansion. The notice is drafted, not confirmed pinned. This is the target architecture; the encrypted-text foundation below describes the code still present and disabled.
+
+### Existing disabled foundation — superseded for enablement
+
+```text
+Scoped support event ──→ existing answer/review/delivery pipeline
+         └─ optional observer → bounded write queue → encrypted case text
+Customer follow-up → separately gated, owner-scoped/live-validated context
+Operational outcomes → private metadata events → aggregate review actions
+                                               (no auto-publication)
+```
+
+`supportMemory.js` enforces guild/thread/customer isolation, permitted authors, redaction, message age and AES-GCM authenticated encryption. Ciphertext is bound to the scope, message and role. `supportMemoryStore.js` uses the same Postgres service with per-thread advisory transactions, idempotent versions and deletion tombstones; no database-error fallback to process memory exists. The in-memory adapter is for tests only. New tables are additive and contain no attachment contents. Proposed text retention is at most 30 days from message creation, with 200 messages per thread, 2,000 redacted characters per message and bounded cleanup batches. Regex redaction is defense in depth, not complete anonymization.
+
+`supportLearning.js` observes configured forum posts only, including otherwise quiet staff messages, without broadening reply triggers. Only the post owner, explicitly named staff and this bot are captured. Retained context never crosses customers and is untrusted conversation history, not an official fact or an instruction. Each older message used in a reply is revalidated with an uncached Discord read; denied/missing reads omit it. Context retrieval uses a two-second deadline and at most five older references. Missed events, caps, dropped optional writes, unavailable Discord and expiry can reduce coverage; this is not an exhaustive archive or a guarantee against all deleted-data retention.
+
+The capture kill switch does not disable deletion/expiry cleanup for known stored posts. Invalid encryption disables the optional capture/context capability, not core support. Physical cleanup runs in bounded batches even with capture off; inaccessible/expired text is never eligible for contextual reads. Per-post opt-out intentionally keeps only the minimum suppression identifiers needed to prevent recapture.
+
+Deletion events in the explicitly enabled capture pilot persist a tombstone even before a queued first capture has registered its post. Outside that pilot, deletion handling remains restricted to previously stored posts, avoiding ambient deletion metadata. Expiry sweeps bypass the optional capture queue and concurrent local sweeps coalesce, so a full queue cannot drop mandatory retention cleanup.
+
+Capture requires `SUPPORT_MEMORY_ENABLED=1`, `SUPPORT_MEMORY_POLICY_APPROVED=1`, an explicit `SUPPORT_MEMORY_FORUM_IDS` subset of the configured help/test forums, durable storage and a valid encryption key. No forum is included by default. Reply reuse additionally requires `SUPPORT_MEMORY_CONTEXT_ENABLED=1`. All are disabled by default and remain so here. The first enablement is a reviewed, limited shadow pilot, not automatic public context use. Customer `/forget-support-history` is private and owner-checked; it deletes the post's retained text/signals and persists only the suppression identifiers needed to prevent recapture. It works after capture is disabled and does not delete Discord messages.
+
+Outcome collection uses fixed categories, not text, exception messages or private tool results. Those case-bound records support operational follow-through; only aggregate category/area counts enter improvement suggestions. `scripts/support-quality-report.js` is operator-only and read-only. Suggestions always need review and cannot change prompts, product instructions, routing, model weights or deployments. A fully reviewed knowledge-proposal worker, provenance/freshness approval UI and automatic regression promotion remain future work.
+
+The reviewed-fix target must extend `knowledge.js`, not blindly call the legacy database insertion. Current `index.js:searchKnowledge` deliberately excludes unprovenanced legacy database notes; `handleFaqSave` adds a bounded in-process note, and boot hydration can reconstruct notes from named-staff `faq:` messages. The future durable record therefore needs source evidence, actual approver, version, publication/revocation state, expiry/recheck and internal deletion-aware provenance. Normal retrieval and startup hydration must enforce that state so a revoked/expired fix cannot return from an older Discord note or cache. Migration must preserve existing behavior without promoting legacy rows. This is an architectural prerequisite for the fix inbox, not a newly enabled knowledge path.
 
 ## Current capabilities and gaps
 
@@ -72,6 +122,10 @@ For later log correlation, a dedicated gateway identity can read only an approve
 
 Use the current question plus relevant case context. Retrieve official evidence, answer the actual goal, and retain the review and source formatting checks. Preserve what the customer tried; do not repeat failed steps. Pure thanks receive no reply. Clarify only when the missing detail changes the answer.
 
+Phase 4 separates technical topics from reported failures. APP/DESKTOP/FIRMWARE still select their retrieval lane, but a deterministic handoff requires an observed failure or an independently protected person-required signal. Capability questions and diagnostic-guide topics are not failures by themselves; a real fault inside a question still is. Model/reviewer rejection, human requests and data-loss signals remain independent handoff grounds, not suppressed by a how-to label. Navigation/confusion predicates are removed as failure signals, not the rest of the message. Conditional clauses do not assert a fault; independent main-clause failures still do, including when the customer omits a comma.
+
+Multipart planning retains bounded neutral `{question, query}` pairs in the requested order. With more than three distinct parts, retrieval selects up to four complementary pages, without increasing the eight-chunk/9,000-character output budget. Stored and in-memory evaluation corpora use the same coverage selector before formatting; the ordinary concatenation path remains untouched. Grounded multipart citations may include four exact retrieved URLs, while ordinary replies retain two. Release 1's shared plain-language word contract replaces the earlier separate 1,500-character prompt budget. Overflow presentation keeps complete bullets/steps or prose sentences plus the intact Source line; data-loss warnings use the same boundary and are never shortened away.
+
 ### Missing recordings
 
 Acknowledge the impact and immediately protect potentially unsynced data. Provide a private verification step, obtain diagnostic consent, and inspect the permitted pipeline metadata. Explain observed facts without guessing root cause or promising recovery. If unresolved, deliver one staff case containing the diagnostic timeline, attempted steps and missing information. Logs can locate a failure stage; they cannot recreate absent audio.
@@ -79,6 +133,8 @@ Acknowledge the impact and immediately protect potentially unsynced data. Provid
 ### Orders and other person-required requests
 
 Use the exact verified order privately when available. Refund, replacement, billing, account and privacy decisions remain with staff. Give safe documented steps where applicable and one next step. Once staff delivery succeeds, do not also tell the customer to email another channel. If delivery fails, use the existing honest fallback.
+
+Phase 4 damaged-item/replacement intake requests photos or video, the order email privately and the delivery date. This requires a physical-item damage/replacement signal, not replacing an account field, receipt or redemption code. Ordinary missing-delivery intake keeps its tracking details; private order retention and public redaction boundaries are unchanged.
 
 ### Human handoff and closure
 

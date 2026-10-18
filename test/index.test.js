@@ -40,6 +40,7 @@ const modelCalls = [];
 let modelReply = {};
 let modelDown = false;
 let searchPlanQueries = [];
+let plannerSubQuestions = [];
 const plannerCalls = [];
 let plannerSupportKind = 'other';
 let plannerMessageKind = 'question';
@@ -84,6 +85,7 @@ commandcode.understandQuestion = async ({ question, onUsage }) => {
     wantsPerson: plannerWantsPerson,
     dataLossRisk: plannerDataLossRisk,
     queries: searchPlanQueries,
+    subQuestions: plannerSubQuestions,
   };
 };
 commandcode.reviewAnswer = async (args) => {
@@ -169,11 +171,39 @@ docs.relevantDocs = (...args) => docsObserver ? docsObserver(...args) : original
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
-const { app, client, handleMessage, shouldHandle, noteCustomerLead, runtime } = require('../index');
+const { app, client, handleMessage, shouldHandle, noteCustomerLead, runtime, keepTyping } = require('../index');
 const router = require('../router');
 const supportCases = require('../supportCases');
 const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
 const { unreadMediaSentence } = require('../attachments');
+
+test('quiet staff replies enter optional case memory without becoming customer questions', async t => {
+  const observed = [];
+  t.mock.method(require('../supportLearning'), 'getObserver', () => ({
+    enabled: true, capture: async message => { observed.push(message); },
+  }));
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'A support case' });
+  const message = makeMessage('Please keep the app installed while we check.', {
+    channel, authorId: '900000000000000009', member: { permissions: { has: () => true } },
+  });
+  const before = modelCalls.length;
+  await handleMessage(message);
+  assert.equal(observed.length, 1);
+  assert.equal(modelCalls.length, before);
+  assert.equal(message.replies.length, 0);
+});
+
+test('optional memory writes cannot hold up the core support handler', async t => {
+  let release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  t.mock.method(require('../supportLearning'), 'getObserver', () => ({ enabled: true, capture: () => waiting }));
+  const message = makeMessage('Thanks!', { channel: testChannel() });
+  const operation = handleMessage(message);
+  const completed = await Promise.race([operation.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 30))]);
+  release(); await operation;
+  assert.equal(completed, true);
+  assert.equal(message.replies.length, 0);
+});
 
 client.user = new User(client, { id: BOT_ID, username: 'vector', bot: true });
 
@@ -374,6 +404,7 @@ test.beforeEach(() => {
   modelReply = {};
   modelDown = false;
   searchPlanQueries = [];
+  plannerSubQuestions = [];
   plannerCalls.length = 0;
   plannerSupportKind = 'other';
   plannerMessageKind = 'question';
@@ -653,6 +684,33 @@ test('large docs evidence still passes later Help Center blocks to the answer st
     if (previousKey === undefined) delete process.env.CMD_API_KEY;
     else process.env.CMD_API_KEY = previousKey;
   }
+});
+
+test('multi-part planning reaches production retrieval without dropping individual sub-questions', async t => {
+  const previousKey = process.env.CMD_API_KEY;
+  t.after(() => {
+    docsObserver = null;
+    if (previousKey === undefined) delete process.env.CMD_API_KEY; else process.env.CMD_API_KEY = previousKey;
+  });
+  process.env.CMD_API_KEY = 'test-only-key';
+  plannerSubQuestions = [
+    { question: 'Start a phone recording', query: 'Omi phone microphone recording instructions' },
+    { question: 'Choose a transcription language', query: 'Omi app transcription language settings' },
+    { question: 'Read a conversation summary', query: 'Omi conversation summary view' },
+    { question: 'Remove one saved conversation', query: 'Omi individual conversation deletion' },
+  ];
+  searchPlanQueries = plannerSubQuestions.map(part => part.query);
+  const lookups = [];
+  docsObserver = async (question, options) => {
+    lookups.push({ question, options });
+    return '[S1 | Official Help Center | authoritative]\nApp controls\nhttps://help.omi.me/en/articles/fixture-controls\nThe app provides recording, language and conversation controls.';
+  };
+  const result = await ask('Please explain phone recording, transcription language selection, reading summaries and removing one saved conversation.');
+  assert.equal(result.modelCalled, true);
+  assert.equal(lookups.length, 1);
+  assert.deepEqual(lookups[0].options.subQuestions, plannerSubQuestions);
+  assert.deepEqual(lookups[0].options.queries, searchPlanQueries);
+  assert.deepEqual(modelCalls.at(-1).understanding.subQuestions, plannerSubQuestions);
 });
 
 test('a how-to question in #vector-test gets the model answer and no Handoff', async () => {
@@ -1452,16 +1510,41 @@ test('two customers asking at once in one channel both get an answer', async () 
   assert.match(textOf(second.replies[0]), /center button/);
 });
 
+test('a failed typing indicator never costs the customer their answer', async () => {
+  const channel = generalChannel();
+  channel.sendTyping = async () => { throw new Error('Discord typing unavailable'); };
+  const message = makeMessage(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true });
+  await handleMessage(message);
+  assert.match(textOf(message.replies[0]), /center button/);
+  assert.doesNotMatch(replyText(message), /Something broke/);
+});
+
+test('typing stays visible during a long answer and stops at the first reply', async () => {
+  let typed = 0;
+  const channel = { sendTyping: async () => { typed++; } };
+  const message = {};
+  const stop = keepTyping(message, channel, 5);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.ok(typed >= 3, `typing refreshed ${typed} times`);
+  stop();
+  const after = typed;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(typed, after);
+});
+
 test('after a failed answer the customer can ask again right away', async () => {
   const channel = generalChannel();
   const authorId = nextId();
-  channel.sendTyping = async () => {
-    throw new Error('Discord is down');
-  };
   const failed = makeMessage(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true, authorId });
+  const deliver = failed.reply;
+  let attempts = 0;
+  failed.reply = async (payload) => {
+    attempts++;
+    if (attempts === 1) throw new Error('Discord is down');
+    return deliver(payload);
+  };
   await handleMessage(failed);
   assert.match(replyText(failed), /Something broke/);
-  channel.sendTyping = async () => {};
   const retry = makeMessage(`<@${BOT_ID}> How do I pair my Omi with a new phone?`, { channel, mention: true, authorId });
   await handleMessage(retry);
   assert.match(textOf(retry.replies[0]), /center button/);

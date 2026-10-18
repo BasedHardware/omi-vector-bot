@@ -11,6 +11,7 @@ const {
   isSingleItemDeletionQuestion,
   isDeveloperIntent,
   isDeveloperPageCompatibleQuestion,
+  normalizeSubQuestions,
 } = require('./retrieval');
 let indexCache = { at: 0, text: '' };
 let indexLookup = null;
@@ -116,10 +117,10 @@ async function rememberPages(store, pages) {
   }));
 }
 
-async function storedDocs(question, store, plannedQueries = []) {
+async function storedDocs(question, store, plannedQueries = [], { subQuestions = [] } = {}) {
   if (!store?.searchDocPages) return '';
   try {
-    const queries = supportQueries(question, plannedQueries);
+    const queries = supportQueries(question, plannedQueries, { subQuestions });
     const batches = await Promise.all(
       queries.map((query) =>
         Promise.all([
@@ -133,7 +134,12 @@ async function storedDocs(question, store, plannedQueries = []) {
     const helpSets = batches.map((batch) => batch[1].filter((row) => compatibleDevicePage(question, row)));
     const githubSets = batches.map((batch) => batch[2].filter((row) => compatibleDevicePage(question, row)));
     const developerQuestion = isDeveloperIntent(question);
-    const ranked = mergeRanked([...allSets, ...helpSets, ...githubSets], developerQuestion ? 24 : 12);
+    const multipart = normalizeSubQuestions(subQuestions).length > 3;
+    const resultSets = [...allSets, ...helpSets, ...githubSets];
+    // All candidate rows were already fetched under the existing per-search
+    // limits. Multipart selection happens before the eight-chunk output cap.
+    const candidateLimit = multipart ? resultSets.reduce((count, rows) => count + rows.length, 0) : developerQuestion ? 24 : 12;
+    const ranked = mergeRanked(resultSets, candidateLimit);
     if (developerQuestion) {
       const developerPage = (row) => /^https:\/\/docs\.omi\.me\/(?:api-reference|docs?\/developer)\//i.test(String(row.url || ''));
       ranked.sort((a, b) => Number(developerPage(b)) - Number(developerPage(a)) || b.fusedScore - a.fusedScore);
@@ -148,18 +154,18 @@ async function storedDocs(question, store, plannedQueries = []) {
       rows.push(row);
       if (rows.length >= 8) break;
     }
-    return formatEvidence(rows);
+    return formatEvidence(multipart ? rankLocalChunks(queries, ranked, 8, { customerQuestion: question, subQuestions }) : rows);
   } catch (err) {
     console.error('[Docs] stored lookup failed:', err.message);
     return '';
   }
 }
 
-async function relevantDocs(question, { fetchImpl, store, queries: plannedQueries = [] } = {}) {
+async function relevantDocs(question, { fetchImpl, store, queries: plannedQueries = [], subQuestions = [] } = {}) {
   const fetchFn = fetchImpl || fetch;
   const saved = activeStore(store);
-  const queries = supportQueries(question, plannedQueries);
-  const stored = await storedDocs(question, saved, plannedQueries);
+  const queries = supportQueries(question, plannedQueries, { subQuestions });
+  const stored = await storedDocs(question, saved, plannedQueries, { subQuestions });
   if (stored) return stored;
   try {
     const indexText = await docsIndexText(fetchFn);
@@ -167,6 +173,17 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
     const allPages = pagesFromIndex(indexText);
     const picked = [];
     const seen = new Set();
+    const parts = normalizeSubQuestions(subQuestions);
+    // Give each part a chance before a broad overview consumes six fetch slots.
+    if (parts.length > 3) {
+      for (const part of parts) {
+        const page = topPages(part.query, allPages, 1, question)[0];
+        if (!page || seen.has(page.url)) continue;
+        seen.add(page.url);
+        picked.push(page);
+        if (picked.length >= 4) break;
+      }
+    }
     for (const query of queries) {
       for (const page of topPages(query, allPages, 3, question)) {
         if (seen.has(page.url)) continue;
@@ -191,7 +208,7 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
     const pages = fetched.filter(Boolean);
     const chunks = pages.flatMap((page) => chunkDocument(page));
     await rememberPages(saved, pages);
-    return formatEvidence(rankLocalChunks(queries, chunks, 8, { customerQuestion: question }));
+    return formatEvidence(rankLocalChunks(queries, chunks, 8, { customerQuestion: question, subQuestions }));
   } catch (err) {
     console.error('[Docs] lookup failed:', err.message);
     return '';
