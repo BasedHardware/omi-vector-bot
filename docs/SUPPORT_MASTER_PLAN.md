@@ -2,6 +2,12 @@
 
 Updated October 18, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
+## Progress: 5 / 100 verified complete
+
+**1 of 21 product checks is fully done.** More work is built and tested, but it stays **in progress** until its required review and live checks pass. This score measures completed work, not answer accuracy or time spent.
+
+Score = completed A–E checkboxes ÷ 21 × 100, rounded. Recalculate it whenever a checkbox changes; do not guess or award points for merely opening a PR. Current completed check: **B1 — private staff-channel audience verified**. Next: finish the current release's live checks.
+
 ## Start here — priorities and status
 
 The goal: **short, clear help that works, remembers what the customer already tried, and reaches a real person when needed.** Mira must be friendly and clearly identified as AI. Memory is not model training.
