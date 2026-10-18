@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage } = require('../scripts/live-eval');
+const { parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, evaluationDocsEvidence } = require('../scripts/live-eval');
 
 test('live-eval keeps per-call model usage next to stage timings', () => {
   const state = { timings: { planner: 10 }, modelCalls: [] };
@@ -11,6 +11,17 @@ const { hasTroubleshootingStep } = require('../supportSteps');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+
+test('comparison instrumentation captures only actual escalation lines in the current case', () => {
+  const { captureEscalation } = require('../scripts/live-eval');
+  const first = { escalationSignals: [] }, second = { escalationSignals: [] };
+  const line = '[Bot] Escalating channel=synthetic area=app signals=reported-failure';
+  captureEscalation(first, [line]);
+  captureEscalation(second, ['[Bot] unrelated log']);
+  captureEscalation(null, [line]);
+  assert.deepEqual(first.escalationSignals, [line]);
+  assert.deepEqual(second.escalationSignals, []);
+});
 
 test('held-out cases accept only structural fields and ignore answer-specific expectations', () => {
   const scene = parseCaseLine(JSON.stringify({ id: 'external-1', ask: 'How does this work?', first: 'answer', must: ['secret'] }));
@@ -53,4 +64,25 @@ test('three-run scoring accepts two passes and lists that case as flaky', () => 
   assert.deepEqual(summary.flaky, ['a']);
   assert.deepEqual(summary.fail, []);
   assert.deepEqual(summary.latency.planner, { p50: 2, p95: 3 });
+});
+
+test('multi-part live evidence uses one joint corpus while ordinary lookup keeps later Help Center blocks', () => {
+  const parts = ['recording', 'language', 'summaries', 'deletion'].map(question => ({ question, query: question }));
+  const calls = [];
+  const chunks = [{ url: 'https://help.omi.me/en/articles/fixture-guide', body: 'Fixture guidance' }];
+  const docs = '[Documentation blocks]\n' + 'D'.repeat(9000);
+  const help = '[Help Center blocks]\n' + 'H'.repeat(8000);
+  const retrieval = {
+    normalizeSubQuestions: subQuestions => subQuestions || [],
+    jointMultipartEvidence: (...args) => { calls.push(args); return 'joint coverage'; },
+    supportQueries: () => ['neutral query'], rankLocalChunks: () => chunks,
+    formatEvidence: () => help, combineEvidence: (...blocks) => blocks.join('\n\n'),
+  };
+  const options = { queries: parts.map(part => part.query), subQuestions: parts };
+  assert.equal(evaluationDocsEvidence(retrieval, 'A multi-part request', options, docs, chunks), 'joint coverage');
+  assert.deepEqual(calls[0], ['A multi-part request', docs, chunks, options]);
+  const ordinary = evaluationDocsEvidence(retrieval, 'One ordinary request', {}, docs, chunks);
+  assert.ok(ordinary.length > 17000);
+  assert.ok(ordinary.includes('[Help Center blocks]'));
+  assert.equal(calls.length, 1, 'ordinary evidence must not be re-budgeted or merged through multipart policy');
 });

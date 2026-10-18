@@ -674,6 +674,87 @@ test('parseSearchPlan clips and deduplicates unsafe output shape', () => {
   assert.deepEqual(parsed.customerFacts, ['has Omi']);
 });
 
+test('multipart planning preserves one neutral query for each distinct requested part', async (t) => {
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.CMD_API_KEY;
+    else process.env.CMD_API_KEY = previousKey;
+  });
+  const parts = [
+    { question: 'Start a phone recording', query: 'Omi phone microphone recording' },
+    { question: 'Choose a transcription language', query: 'Omi transcription language settings' },
+    { question: 'Find completed conversations', query: 'Omi completed conversations list' },
+    { question: 'Delete an individual conversation', query: 'Omi app individual conversation deletion' },
+    { question: 'Find action items', query: 'Omi conversation action items tasks' },
+    { question: 'Set up a speech profile', query: '' },
+  ];
+  const plan = await planSearch({
+    question: 'Please explain recording, language, conversations, deletion, tasks and speech profile.',
+    post: async (_url, body) => {
+      assert.match(body.messages[0].content, /one search query for each distinct sub-question/i);
+      return { data: { choices: [{ message: { content: JSON.stringify({
+        standalone_question: 'How do I use the recording and conversation features?',
+        sub_questions: [...parts, parts[1]], search_queries: ['Omi getting started'],
+      }) } }] } };
+    },
+  });
+  assert.equal(plan.subQuestions.length, 6);
+  assert.deepEqual(plan.mustAnswer, parts.map((part) => part.question));
+  for (const part of plan.subQuestions) {
+    assert.ok(plan.queries.includes(part.query), part.question);
+    assert.ok(part.query.trim(), 'a missing query falls back to the neutral question, not an answer');
+  }
+});
+
+test('multipart planner fields stay bounded, deduplicated and safe for malformed shapes', () => {
+  const parts = Array.from({ length: 10 }, (_, index) => ({ question: `Feature ${index + 1}`, query: `Search feature ${index + 1}` }));
+  const plan = parseSearchPlan(JSON.stringify({ sub_questions: [
+    { question: {}, query: 'invalid shape' }, { question: ' ', query: 'blank part' },
+    { question: 'Feature 1', query: {} }, { question: 'FEATURE 1', query: 'duplicate' }, ...parts,
+  ] }), 'Fallback');
+  assert.equal(plan.subQuestions.length, 8);
+  assert.equal(plan.queries.length, 8);
+  assert.deepEqual(plan.subQuestions[0], { question: 'Feature 1', query: 'Feature 1' });
+  assert.ok(plan.queries.every((query) => !query.includes('[object Object]')));
+  assert.deepEqual(plan.mustAnswer, plan.subQuestions.map((part) => part.question));
+  const legacy = parseSearchPlan(JSON.stringify({ must_answer: ['First', 'Second', 'Third', 'Fourth'], search_queries: 'bad shape' }), 'Fallback');
+  assert.deepEqual(legacy.queries, ['First', 'Second', 'Third', 'Fourth']);
+});
+
+test('paired planner queries cannot be crowded out by generic searches on a shorter request', () => {
+  const parts = [
+    { question: 'Change the language', query: 'Omi transcription language' },
+    { question: 'Find saved summaries', query: 'Omi conversation summaries' },
+    { question: 'Remove one conversation', query: 'Omi individual conversation deletion' },
+  ];
+  const plan = parseSearchPlan(JSON.stringify({ sub_questions: parts, search_queries: ['overview', 'guide', 'basics', 'introduction'] }), 'Fallback');
+  assert.equal(plan.queries.length, 4, 'ordinary planner query cap stays unchanged');
+  for (const part of parts) assert.ok(plan.queries.includes(part.query));
+});
+
+test('multipart review may cite four retrieved pages while ordinary review still cites two', async () => {
+  const evidence = Array.from({ length: 5 }, (_, index) =>
+    `[S${index + 1} | Official Help Center]\nPart ${index + 1}\nhttps://help.omi.me/en/articles/fixture-${index + 1}\nOfficial instructions.`).join('\n\n');
+  const subQuestions = Array.from({ length: 4 }, (_, index) => ({ question: `Requested part ${index + 1}`, query: `Topic ${index + 1}` }));
+  const sourceIds = ['S1', 'S2', 'S3', 'S4', 'S5'];
+  const multipart = groundedSourceLine('Here are the four requested steps.', evidence, sourceIds, 'en', { subQuestions });
+  const ordinary = groundedSourceLine('Here is the requested step.', evidence, sourceIds);
+  assert.equal((multipart.match(/https:\/\/help\.omi\.me\//g) || []).length, 4);
+  assert.equal((ordinary.match(/https:\/\/help\.omi\.me\//g) || []).length, 2);
+  await reviewAnswer({
+    question: 'Explain four app features.', draft: 'Here are the four requested steps.', sources: evidence,
+    understanding: { subQuestions }, lane: 'faq',
+    post: async (_url, body) => {
+      assert.match(body.messages[0].content, /at most four exact URLs/i);
+      return { data: { choices: [{ message: { content: JSON.stringify({
+        final_answer: 'Here are the four requested steps.', grounded: true, relevant: true,
+        sources_used: sourceIds, confidence: 0.9,
+      }) } }] } };
+    },
+  }).then((reviewed) => assert.equal((reviewed.final_answer.match(/https:\/\/help\.omi\.me\//g) || []).length, 4));
+});
+
 test('source lines can only use URLs from retrieved evidence blocks', () => {
   const answer = groundedSourceLine(
     'Hold the button.\n\nSource: https://docs.omi.me',
