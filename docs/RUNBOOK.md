@@ -1,6 +1,6 @@
 # Omi Support Bot Operations Runbook
 
-October 18: #28 is not deployed. Its earlier audience rejection was superseded by the fresh production-configured `private_staff_destination` result after Aryan's permission repair. Current-main integration passes 844 local tests, offline 8/8 and isolated SQL; hosted checks and independent re-review remain pending. Do not change permissions/allowlists or relax checks. Release 1 main `7fe0e0a` is live but its customer smoke remains unfinished, so no second deployment is authorized here. The roadmap preserves historical checks separately.
+October 18: #28 is not deployed. Its earlier audience rejection was superseded by the fresh production-configured `private_staff_destination` result after Aryan's permission repair. Current-main integration passes 844 local tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres at runtime merge `758808a`; independent re-review remains pending. Do not change permissions/allowlists or relax checks. Release 1 main `7fe0e0a` is live but its customer smoke remains unfinished, so no second deployment is authorized here. The roadmap preserves historical checks separately.
 
 Operate the capabilities that are actually enabled. The [roadmap](../ROADMAP.md) distinguishes implemented, validated and deployed work. Never paste credentials, verification codes, customer messages, private identifiers or raw backend logs into public issues or operational chat.
 

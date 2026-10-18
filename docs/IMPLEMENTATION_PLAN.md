@@ -1,6 +1,6 @@
 # Omi Support Bot Implementation Checklist
 
-October 18: #28 integrates deployed main `7fe0e0a`; 844 unit tests, offline 8/8, isolated SQL and the fresh production-configured read-only staff audience gate pass. Hosted checks and independent re-review remain pending. Earlier October 12 audience rejection is historical, not a request for another permissions change. Release 1 live smoke still precedes another deployment. All memory/context/inbox switches stay off.
+October 18: #28 integrates deployed main `7fe0e0a`; 844 unit tests, offline 8/8, isolated SQL, hosted Node 20/24/Postgres at runtime merge `758808a` and the fresh production-configured read-only staff audience gate pass. Independent re-review remains pending. Earlier October 12 audience rejection is historical, not a request for another permissions change. Release 1 live smoke still precedes another deployment. All memory/context/inbox switches stay off.
 
 The controlling product acceptance checklist is [SUPPORT_MASTER_PLAN.md](SUPPORT_MASTER_PLAN.md). This file maps implementation details; checked engineering work does not complete the product's live acceptance. Maintain the A–E workstreams across second-opinion reviews and preserve unfinished work, authorization blockers and the next concrete step. The current combined runtime candidate is #47; this documentation update does not alter its frozen comparison.
 
@@ -66,7 +66,8 @@ The encrypted-text implementation below is historical implementation evidence, *
 - [x] Draft #28: validate actual Discord staff audience and bot permissions before full-card delivery and GitHub actions; fetch only an unconfigured direct grantee uncached and fail closed on unknown/stale proof. Add boot validation and a bounded metadata-only Telegram alert; preserve existing readiness and shutdown.
 - [x] Obtain `private_staff_destination` from the approved production-configured read-only audience check after Aryan's permission repair. This does not approve #28's release.
 - [x] Reverify #28's current-main integration locally and repeat the read-only audience gate: 844 tests, offline 8/8, isolated SQL and `private_staff_destination` pass.
-- [ ] Pass hosted checks and obtain independent re-review before merging #28. Never add unverified roles or relax checks to force a pass.
+- [x] Pass hosted Node 20/24/Postgres checks for runtime merge `758808a`.
+- [ ] Obtain independent re-review and check the latest head before merging #28. Never add unverified roles or relax checks to force a pass.
 - [ ] Add automatic draft retention cleanup, a general delivery outbox and Telegram destination verification. The bounded GitHub reconciliation flow is not the complete outbox.
 - [x] Shipped #41: project accepted/work/waiting/resolved/closed state into the existing private cards; persist message references, serialize edits and recover missed updates after restart. Retire deleted cards without reposting.
 - [x] Shipped #41: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.
