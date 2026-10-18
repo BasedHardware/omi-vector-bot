@@ -1,6 +1,6 @@
 # Omi Support Bot: master product plan
 
-Updated October 18, 2026, 12:33 pm IST. Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+Updated October 18, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
 ## Start here — priorities and status
 
@@ -9,9 +9,10 @@ The goal: **short, clear help that works, remembers what the customer already tr
 | Priority | Work | Status | Next step |
 | --- | --- | --- | --- |
 | **1 — Release reliability** | Check the update already running | **Live; customer tests pending** | Verify short answers, languages, staff delivery, typing and restart behavior in the test forum. Roll back on a new customer-visible failure. |
-| **2 — Better answers** | [#48: choose the right source](https://github.com/BasedHardware/omi-vector-bot/pull/48) | **Local fix and tests pass; not released** | Finish checks and get review. Run its new comparison only after Release 1's live checks. Handoff rules are unchanged. |
+| **2a — Better answers** | [#48: choose the right source](https://github.com/BasedHardware/omi-vector-bot/pull/48) | **Local and hosted checks pass; not released** | Get review and run its new comparison after Release 1's live checks. Handoff rules are unchanged. |
+| **2b — Consistent personality** | [#59: Mira's elegant, warm and charming voice](https://github.com/BasedHardware/omi-vector-bot/pull/59) | **Local and hosted checks pass; not released** | Review the shared answer/reviewer instructions and quality-check them. The portrait/name are already live; startup persistence is still pending. |
 | **3 — Safe memory** | Remember earlier attempts across a customer's posts | **Not started; switched off** | After Release 1's checks pass, build references-only memory on main. Review and test before enabling it. |
-| **4 — Learn from problems safely** | [#49: reviewed improvement inbox](https://github.com/BasedHardware/omi-vector-bot/pull/49) | **Foundation built; switched off** | Fix the two review findings, then build detection, daily review cards and automatic checks. No automatic facts or retraining. |
+| **4 — Learn from problems safely** | [#49: reviewed improvement inbox](https://github.com/BasedHardware/omi-vector-bot/pull/49) | **Review fixes pass locally and in hosted checks; switched off** | Get review, then build detection, daily review cards and automatic checks. No automatic facts or retraining. |
 | **Release queue — reliability** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28) → [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29) → [#30](https://github.com/BasedHardware/omi-vector-bot/pull/30) | **Not shipped** | Finish privacy/startup checks, reply recovery and close/reopen checks, with review before each release. Do not forget these while building memory. |
 
 Local work can continue while a live test or review is waiting. **A review finding adds to this plan; it does not replace the goal.** No new release, data capture or private access is approved by a status update.
@@ -23,7 +24,9 @@ Local work can continue while a live test or review is waiting. **A review findi
 - **Release 1:** reviewed, merged and deployed. It includes shorter, simpler answers, routing/retrieval fixes and the typing repair. Health/startup checks pass; the customer tests below still need to finish.
 - **Memory decision:** 30 days approved; Aryan is the daily fix reviewer. The new references-only implementation is not built or enabled.
 - **Parked work:** nine GitHub issues opened, [#50–#58](https://github.com/BasedHardware/omi-vector-bot/issues?q=is%3Aissue%20is%3Aopen%20%22Parked%3A%22). Nothing parked is marked complete.
-- **Local source-ranking correction:** eight new synthetic checks; six reproduced the bug before the fix. All 57 focused checks and 786 full tests pass. Relevance comes before page audience/domain preference. This is test evidence, not a deployed quality improvement.
+- **Source-ranking correction:** draft #48 updated as `e8c4c6f`; 786 tests, offline 8/8 and hosted Node 20/24/Postgres checks pass. Eight new synthetic checks include six observed failures before the fix. This is test evidence, not a deployed quality improvement.
+- **Mira's profile:** short name and selected fictional adult portrait applied and verified. AI disclosure remains in the profile. Draft #59 (`d913611`) passes 758 local tests, offline 8/8 and hosted Node 20/24/Postgres checks, but its elegant/charming reply contract is not deployed. Two name/disclosure checks and three personality checks had observed failures before their changes. Research, character rules and the exact portrait prompt are in #59's personality/asset documents.
+- **Improvement-inbox review fixes:** #49 (`c491d9c`) now avoids database calls when off and preserves existing staff notes on a registry outage, excluding hashes already known to be governed. Six new checks failed before; 785 full tests, focused 29, offline 8/8, isolated SQL and hosted Node 20/24/Postgres checks pass. Unknown remote governance cannot be discovered during an outage or while off; do not claim otherwise. Independent review and the full inbox are still pending.
 
 ## Still needed for the live release
 
@@ -42,6 +45,7 @@ Native Discord input did not work reliably; the browser needs sign-in. Two test-
 
 - For the live checks only: the requested test posts or a signed-in test-forum browser. No repeat memory approval or permissions repair request is needed.
 - Independent review of #48 after its correction and required comparison. No new comparison has started.
+- Review of Mira's new reply character before release. The profile change does not approve the changed answer instructions or bypass the current release checks.
 - Later: approve each memory/inbox pilot and publish its accurate notice. Existing approval does not turn the features on.
 
 ## Current release record
@@ -123,7 +127,7 @@ The public security reminder deliberately omits findings, severity, provider/ide
 
 ## A. Short, clear, humane and correct answers
 
-- [ ] **A1 — One consistent voice and identity, verified live.** Normally 40–80 words, simple language, short paragraphs and one useful next action. Acknowledge the actual disruption and avoid repetitive greetings/apologies. Use the working name Mira with a visible AI label, not a fictional employee. Preserve necessary warnings, uncertainty, sources and requested parts; detailed developer questions can be longer. Verify English, Spanish and Chinese examples without declaring prompt instructions a guarantee.
+- [ ] **A1 — One consistent voice and identity, verified live.** Normally 40–80 words, simple language, short paragraphs and one useful next action. Acknowledge the actual disruption and avoid repetitive greetings/apologies. Use Mira's elegant, warm, gently charming fictional feminine persona consistently across languages, without flirting, gender stereotypes or an invented biography. The short name and fictional portrait do not claim a human employee; keep explicit AI disclosure in the profile/introduction. Stay calm for serious problems. Preserve necessary warnings, uncertainty, sources and requested parts; detailed developer questions can be longer. Verify English, Spanish and Chinese examples without declaring prompt instructions a guarantee.
 - [ ] **A2 — Correct help, not automatic technical handoffs.** Navigation/confusion and hypothetical conditions are not failures; independent crashes, missing recordings and other actual failures remain failures. Money/account/privacy/replacement decisions still need a person. Retrieve each supported part of a multipart question within the existing evidence cap; preserve whole steps and source URLs when clipping. Damage intake asks for damage photos/video, private purchase email and delivery date, not unnecessary tracking details. Review real answer quality as well as routing flags.
 - [ ] **A3 — Complete the Release 1 gate and rollout.** Deliver both fresh result JSONs, all changed cases/runs, signals, judge problems, word-count median/p90 and provenance for independent grading. Relative gate: pass-both ≥ main −2, p50 ≤ main +2 s, p95 ≤ main +6 s; also require fewer false how-to handoffs, no missed protected handoffs and no mid-item clipping. After approval, release one version, record rollback, verify customer answers/staff receipt and preserved existing behavior. Do not deploy merely because CI is green.
 - [ ] **A4 — Honest progress while waiting.** Verify the refreshed typing indicator and cosmetic-error isolation after release. Never invent an investigation, accepted case, deadline, recovery or fix to fill the wait. Retain evidence for the previously pending localized closing/reopen smoke before calling it verified.
@@ -162,6 +166,8 @@ Build as a separate `feat/fix-inbox` change on the approved foundation, default 
 - [ ] **D6 — Close the loop automatically.** Run the synthetic regression set nightly offline, including approved-fact retrieval and revoked/expired facts. Alert the verified staff destination on regressions and make job/alert failures visible. Separate provider-based quality evaluation/cost approvals from offline checks. Maintain a tested kill switch; held failures must not silently publish a correction or claim successful improvement.
 
 The existing aggregate report is a foundation only: **it does not complete any of D1–D6.** Staff review is intentional; the system automates detection, preparation, checks and follow-up, not blind learning from chat.
+
+Draft #49 implements part of D5: guild-scoped review versions, named approvers, validation claims/proof, 90-day recheck, revocation and expiring internal provenance. The real validator, review UI, signals, jobs and privacy-adapter wiring are unfinished. Its optional answer lookup now returns existing local staff notes without database calls when off; while on, an unavailable registry falls back to those notes minus governed hashes already observed in the same guild/process. This is a denial-only cache, not durable approval state or a claim to know unseen revocations. The current quality/review/release and security gates still apply.
 
 Implementation finding (October 18): the current `faq:` handler saves a bounded in-process staff note and can rebuild notes from named-staff messages at startup. Its legacy database table has no author/provenance/expiry and is deliberately excluded from model lookup. Simply inserting an approved fix there would neither make a durable reviewed fact usable nor support reliable revocation. D5 must add structured durable approval/source/version/expiry state to the existing knowledge service, make its normal lookup consume only eligible reviewed records, and prevent startup hydration/caches from resurrecting revoked or expired fixes. Preserve existing staff-note behavior and keep legacy unreviewed rows excluded; do not activate all old notes as a migration shortcut. This is an inspected dependency, not completed implementation.
 
