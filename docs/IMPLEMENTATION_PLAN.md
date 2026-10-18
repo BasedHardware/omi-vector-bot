@@ -11,7 +11,8 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Apply the specifically authorized short account/server name and fictional portrait, preserving explicit AI disclosure in the profile; verify by fresh REST reads. No runtime deployment or data-use change.
 - [x] Revise the shared persona to **calm, warm and practical**, retaining visible **Mira · Omi AI support** and all safety, evidence, language, serious-case and truthful-capability limits. Six observed red assertions before this correction; eight focused, 760 full tests and offline 8/8 pass afterward. This supersedes the earlier short-name/elegant-persona preparation.
 - [x] Record primary conversation-design research, fictional-image prompt/provenance and the limitations of prompt-presence tests.
-- [ ] Hosted checks, independent review, required quality checks and controlled release before claiming the changed voice is live. Release 1's accepted restart already restored the full AI-labelled nickname. Hold #59's comparison until #48 is graded; the waived 24-hour delay removes no other gate.
+- [x] Push correction runtime `698609f` after full `npm test`; hosted Node 20/24/Postgres run `39125817220` passes.
+- [ ] Independent review, required quality checks and controlled release before claiming the changed voice is live. Release 1's accepted restart already restored the full AI-labelled nickname. Hold #59's comparison until #48 is graded; the waived 24-hour delay removes no other gate.
 
 ### Combined Release 1 (updated October 17 brief)
 
