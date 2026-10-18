@@ -2,11 +2,17 @@
 
 ## Latest review checkpoint — October 18
 
+- [x] Independent reviewer approved #64; merge test-only repair into main now with a merge commit (`adf016c`). Automatic deployment disabled; no deploy/runtime change. Fresh local 755/offline8 and hosted checks pass.
+- [ ] Merge that exact main commit into #61 with its snapshot guard intact, resolve documentation-only conflicts, then verify/push fresh full tests/offline/SQL and hosted CI. This is not the later #61-to-main merge.
+
+Main's test-only follow-up (#63/#64) is preserved here: controlled callbacks replace the typing test's wall-clock assumption while retaining interval, notification, unref/clear, late-stop and cleanup coverage. No customer behavior changes. Earlier review-pending entries below are historical; #64 needs no repeated approval.
+
 - [x] Record independent approvals: #60; #48's completed comparison with accepted non-protected flags; #61 code with memory off. Published heads/hosted checks were reverified; no merge or deployment.
 - [x] Read the live product source: Apple Watch recording support is explicitly present. Diagnose available short-answer evidence without opening protected inputs; reproduce two unchanged whole-sentence filter erasure paths in four synthetic checks and track #62.
 - [ ] Exact historical answer-loss stage: unavailable from saved final-only logs; do not claim the synthetic path proves it. Preserve the evidence limit for release review.
 - [x] Record the explicit off-only #61 comparison waiver; no provider run is claimed passed. Add one baseline-snapshot regression for histories 0/3/24/30/60 and all five requested boundaries. Eight focused/full 792/offline8/isolated SQL pass; five in-memory mutations each trigger the guard.
-- [ ] Commit/push that regression and verify hosted CI before the reviewed merge. No runtime behavior change; enabled memory scenario/pilot remains mandatory.
+- [x] Commit/push the parity regression as #61 `9dfd18a`; it passes in hosted Node 20/24. No runtime behavior change; enabled memory scenario/pilot remains mandatory.
+- [ ] Overall CI: review/integrate separate test-only #64 (#63), not a third blind rerun. The existing typing timer-count assertion fails twice on Node 20. Repair branch `8b6dc75` passes local 755/focused2/offline8/SQL and hosted Node 20/24/Postgres run `39140603602`; independent review/integration remains. No main merge approval follows from the other reviewed PRs.
 - [ ] October 19 after 15:54 IST, health summary first; then merge #60 → #48 → #61, verify final-SHA tests/CI/SQL and deploy from GitHub with rollback `e1f76a93`, flags off. Aryan submits five live smoke scenarios; failure rolls back.
 - [ ] After release, one-problem no-email-redirect PR with truthful same-thread follow-up escalation, red-before tests and separate new-baseline comparison; persona comparison stays separate.
 - [ ] No earlier than 24 clean hours after that release and required data-use checks, enable test-forum-only memory/context for the scripted pilot. Public expansion still needs 48 clean pilot hours, functional checks, notice and review.
