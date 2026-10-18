@@ -4,7 +4,15 @@ This is the living implementation record. A checked implementation item means co
 
 ## October 18: persistent product goal and current execution
 
+Latest checkpoint: Release 1 is deployed as `e1f76a93` from approved main `7fe0e0a`; health/startup checks pass, live smoke remains pending, and memory/context/fix-inbox flags remain off. This supersedes the older release and audience holds below. #48's ranking correction is active; its confidence-only policy is unchanged. Aryan explicitly parked the pre-existing no-handoff closing-language correction. Open issues #50–#58 now preserve that gap and the deferred delivery reconciliation, cumulative-summary evaluation, staff queue, verification abuse controls, Telegram destination verification, operational monitoring, recording diagnostics and authorized credential maintenance. [The master plan](docs/SUPPORT_MASTER_PLAN.md#parked-work--durable-return-points) links each issue and its resumption gate. Existing queued PRs were not duplicated; sensitive security scope stays private. These are backlog records, not completed implementation or approval to resume deferred capabilities.
+
 [SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Aryan clarified that reviews are evidence for improving the product, not a replacement goal. Map each finding to an item, keep unfinished work visible, and return to the next product item after corrections. Built/tested/live remain separate; no invented completion percentage.
+
+### Current #48 ranking correction — local tests pass, review/release pending
+
+Merged deployed main `7fe0e0a` into #48 with merge commit `93f2488`; no direct main push or deployment. The reviewer-found source-fit bug is corrected across rank fusion, local chunks, multipart selection and index selection. Phone relevance is compared before authority/audience preferences; source fit only demotes developer/SDK/desktop pages on ties and never grants a Help Center/docs bonus. Existing non-phone/developer/desktop policy and the reviewed confidence-only handoff decision are unchanged. We corrected older synthetic assertions that required a weaker consumer page to leapfrog stronger retrieval evidence, retaining cap checks and an equally relevant SDK-demotion test.
+
+Eight new synthetic tests: six failed before the implementation and all pass afterward. The 57 focused checks and full 786-test suite pass. Local evidence is outside Git at `/Users/astar/omi-eval/ranking-local-20261018.i8Fiib/`. No protected input was opened. The plain-language master plan now separates done, in progress, next, waiting and parked work, with technical evidence folded below. #48 is not merged/deployed; its fresh comparison waits for Release 1's remaining live checks. Memory and fix-inbox flags remain off.
 
 ### Latest Release 2 decision — specified, not implemented
 

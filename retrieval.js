@@ -285,19 +285,21 @@ function queryMatchScore(query, row) {
   return terms.reduce((score, term) => score + (title.includes(term) ? 4 : body.includes(term) ? 1 : 0), 0);
 }
 
-function consumerSourceFit(question, row) {
+function isConsumerPhoneQuestion(question) {
   const text = String(question || '');
-  if (isDeveloperIntent(text) || !/\b(?:phone|iphone|android|ios|mobile)\b/i.test(text) ||
-      /\b(?:desktop|macos|windows|computer|laptop)\b|\bmac\b(?!\s+(?:address|id)\b)/i.test(text)) return 0;
-  if (!queryMatchScore(text, row)) return 0;
+  return !isDeveloperIntent(text) && /\b(?:phone|iphone|android|ios|mobile)\b/i.test(text) &&
+    !/\b(?:desktop|macos|windows|computer|laptop)\b|\bmac\b(?!\s+(?:address|id)\b)/i.test(text);
+}
+
+function consumerSourceFit(question, row) {
+  if (!isConsumerPhoneQuestion(question)) return 0;
   // Classify the page, not incidental terms inside a cross-platform guide.
-  // Lower-fit pages remain available; they do not outrank a relevant app guide.
+  // Fit only breaks relevance ties: incompatible audiences get a demotion,
+  // never a positive domain bonus for an otherwise unrelated page.
   let metadata = `${row.title || ''} ${row.url || ''}`;
   try { metadata = decodeURIComponent(metadata); } catch { /* Keep literal metadata. */ }
   metadata = metadata.replace(/[_-]+/g, ' ');
-  if (/\b(?:developer|sdk|api|python|javascript|typescript|curl|desktop|macos|windows)\b|\bmac\b(?!\s+(?:address|id)\b)/i.test(metadata)) return 0;
-  const kind = sourceKind(row.url);
-  return kind === 'help' ? 2 : kind === 'docs' ? 1 : 0;
+  return /\b(?:developer|sdk|api|python|javascript|typescript|curl|desktop|macos|windows)\b|\bmac\b(?!\s+(?:address|id)\b)/i.test(metadata) ? -1 : 0;
 }
 
 function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQuestion = '' } = {}) {
@@ -307,7 +309,7 @@ function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQues
   for (const [index, part] of parts.entries()) {
     const matches = rows.map((row) => ({ row, score: queryMatchScore(part.query, row) }))
       .filter((hit) => hit.score > 0)
-      .sort((a, b) => consumerSourceFit(customerQuestion, b.row) - consumerSourceFit(customerQuestion, a.row) || b.score - a.score ||
+      .sort((a, b) => b.score - a.score || consumerSourceFit(customerQuestion, b.row) - consumerSourceFit(customerQuestion, a.row) ||
         sourceAuthority(b.row.source || sourceKind(b.row.url)) - sourceAuthority(a.row.source || sourceKind(a.row.url)));
     const row = matches[0]?.row;
     if (!row) continue;
@@ -368,25 +370,33 @@ function diverseTop(rows, limit, maxPerPage = 2) {
 }
 
 function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
+  const phoneQuestion = isConsumerPhoneQuestion(customerQuestion);
   const merged = new Map();
   for (const rows of resultSets || []) {
     (rows || []).forEach((row, index) => {
       const key = `${row.url || ''}#${row.chunk_index ?? row.chunkIndex ?? index}`;
       const authority = Number(row.authority || sourceAuthority(row.source || sourceKind(row.url)));
+      const relevanceScore = 1 / (60 + index + 1) + Number(row.rank || 0) * 0.01;
+      // Keep the existing non-phone score and recall fusion unchanged. Phone
+      // questions compare relevance without an authority/domain bonus first.
       const score = 1 / (60 + index + 1) + authority * 0.0005 + Number(row.rank || 0) * 0.01;
       const prior = merged.get(key);
-      if (prior) prior.fusedScore += score;
-      else merged.set(key, { ...row, authority, fusedScore: score });
+      if (prior) {
+        prior.relevanceScore += relevanceScore;
+        prior.fusedScore += score;
+      } else merged.set(key, { ...row, authority, relevanceScore, fusedScore: score });
     });
   }
   const ranked = [...merged.values()]
-    .sort((a, b) => consumerSourceFit(customerQuestion, b) - consumerSourceFit(customerQuestion, a) ||
+    .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
+      consumerSourceFit(customerQuestion, b) - consumerSourceFit(customerQuestion, a) ||
       b.fusedScore - a.fusedScore || b.authority - a.authority);
   return diverseTop(ranked, limit);
 }
 
 function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQuestions = [] } = {}) {
   const wanted = (queries || []).map((query) => new Set(queryTerms(query, 20)));
+  const phoneQuestion = isConsumerPhoneQuestion(customerQuestion || queries?.[0]);
   const consumerQuestion = !isDeveloperIntent(customerQuestion || queries?.[0] || '');
   const singleItemDeletion = consumerQuestion && isSingleItemDeletionQuestion(customerQuestion || queries?.[0] || '');
   const ranked = (rows || [])
@@ -407,16 +417,18 @@ function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQ
         }
         if (terms.size && covered === terms.size) score += 5;
       }
+      const relevanceScore = score;
       if (consumerQuestion && (row.source || sourceKind(row.url)) === 'help') score += 4;
       if (consumerQuestion && /\/api-reference\//i.test(String(row.url || ''))) score -= 8;
       if (!consumerQuestion && score > 0 && /docs\.omi\.me\/(?:api-reference|docs?\/developer)\//i.test(String(row.url || ''))) score += 12;
       if (singleItemDeletion && (row.source || sourceKind(row.url)) === 'help' &&
           /\b(?:delete|remove|erase)\b/i.test(body) &&
           /\b(?:individual|single|one)\s+(?:conversations?|memories|memory|recordings?|transcripts?)\b/i.test(body)) score += 16;
-      return { ...row, authority: sourceAuthority(row.source || sourceKind(row.url)), rank: score };
+      return { ...row, authority: sourceAuthority(row.source || sourceKind(row.url)), relevanceScore, rank: score };
     })
     .filter((row) => row.rank > 0)
-    .sort((a, b) => consumerSourceFit(customerQuestion || queries?.[0], b) - consumerSourceFit(customerQuestion || queries?.[0], a) ||
+    .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
+      consumerSourceFit(customerQuestion || queries?.[0], b) - consumerSourceFit(customerQuestion || queries?.[0], a) ||
       b.rank - a.rank || b.authority - a.authority);
   return normalizeSubQuestions(subQuestions).length > 3
     ? selectSubQuestionEvidence(ranked, subQuestions, limit, { customerQuestion: customerQuestion || queries?.[0] })

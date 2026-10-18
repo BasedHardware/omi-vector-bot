@@ -1,6 +1,8 @@
 # Omi Support Bot Implementation Checklist
 
-The controlling product acceptance checklist is [SUPPORT_MASTER_PLAN.md](SUPPORT_MASTER_PLAN.md). This file maps implementation details; checked engineering work does not complete the product's live acceptance. Maintain the A–E workstreams across second-opinion reviews and preserve unfinished work, authorization blockers and the next concrete step. The current combined runtime candidate is #47; this documentation update does not alter its frozen comparison.
+The controlling product acceptance checklist is [SUPPORT_MASTER_PLAN.md](SUPPORT_MASTER_PLAN.md). This file maps implementation details; checked engineering work does not complete the product's live acceptance. Maintain the A–E workstreams across second-opinion reviews and preserve unfinished work, authorization blockers and the next concrete step. Release 1 (#47) is deployed from approved main `7fe0e0a`; live smoke is still pending. This documentation does not change its runtime.
+
+Parked work has durable [GitHub issue links and resumption gates](SUPPORT_MASTER_PLAN.md#parked-work--durable-return-points), #50–#58. The no-handoff closing-language correction is explicitly parked as #50, not completed. Existing queued PRs remain their trackers. Do not resume deferred access, retention, security or delivery work merely because its issue is open; preserve review and authorization gates. The detailed older checkpoints below remain implementation history.
 
 Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. Reports 1–3 passed. The retained #43 release record has localization deployed at `dad2505`, but its live close/reopen smoke is still pending; this branch does not recheck production. The support-experience foundation below is a separate draft. Each runtime change needs regression checks and release verification. No cloud access grants accompany this work.
 
@@ -44,6 +46,8 @@ The encrypted-text implementation below is historical implementation evidence, *
 
 ### Isolated confidence/source-fit correction — draft preparation
 
+- [x] October 18 review correction: relevance first across all four selectors; phone audience fit is a tie-only demotion, not a domain boost. Eight new synthetic checks, six red before; focused 57/full 786 pass locally. Corrected contradictory older stronger-SDK fixtures without dropping retention/cap checks. The confidence-only handoff policy is unchanged.
+- [ ] Review the corrected #48 and finish its hosted checks/comparison. It is not released; live Release 1 checks still precede the new comparison. Older 778-test/source-fit evidence below describes the superseded first draft.
 - [x] Strict approved review plus an exact actually returned/cited official source may clear confidence alone; independent signals and protected topics preserve the existing handoff decision.
 - [x] Carry selected-source metadata outside prose, through official-code cache hits, canonical docs URLs and release identities; Feedback title/body links and forged blocks cannot grant the exception. Forward metadata in the offline-tested comparison adapter without changing the judge.
 - [x] Prefer relevant consumer phone-app guides before candidate/output caps, without dropping lower-fit evidence or overriding explicit SDK/developer/desktop requests. Keep existing evidence budgets.

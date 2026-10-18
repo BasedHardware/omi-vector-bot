@@ -14,18 +14,18 @@ function mobileActionPages(question) {
   ];
 }
 
-test('stored phone-app evidence ranks consumer help first despite a stronger SDK or desktop match', async () => {
+test('stored phone-app evidence preserves stronger retrieval matches without dropping consumer guidance', async () => {
   const question = 'Arrange action items in the Android phone app.';
   const pages = mobileActionPages(question);
   const evidence = await storedDocs(question, {
     searchDocPages: async (_query, _limit, sources = []) => sources.length
       ? pages.filter(page => sources.includes(page.source)) : pages,
   });
-  assert.ok(evidence.indexOf(pages[2].url) < evidence.indexOf(pages[0].url));
-  assert.ok(evidence.indexOf(pages[2].url) < evidence.indexOf(pages[1].url));
+  assert.ok(evidence.indexOf(pages[1].url) < evidence.indexOf(pages[2].url));
+  for (const page of pages) assert.ok(evidence.includes(page.url));
 });
 
-test('consumer source fit applies before the stored candidate cap can drop the only app guide', async () => {
+test('the stored candidate cap does not reserve space for a much weaker app guide', async () => {
   const question = 'Arrange action items in the Android phone app.';
   const developer = Array.from({ length: 16 }, (_, index) => ({
     title: 'Android phone app action items SDK', url: `https://docs.omi.me/sdk/tasks/${index}`,
@@ -36,10 +36,19 @@ test('consumer source fit applies before the stored candidate cap can drop the o
   const evidence = await storedDocs(question, {
     searchDocPages: async (_query, _limit, sources = []) => sources.length ? [] : [...developer, guide],
   });
-  assert.match(evidence, /user-guide\/synthetic-actions/);
-  assert.ok(evidence.indexOf(guide.url) < evidence.indexOf(developer[0].url));
+  assert.doesNotMatch(evidence, /user-guide\/synthetic-actions/);
+  assert.ok(evidence.includes(developer[0].url));
   assert.ok(evidence.length <= 9_000);
   assert.ok((evidence.match(/^\[S\d+ \|/gm) || []).length <= 8);
+
+  const relevantGuide = { ...guide, title: question, rank: 2 };
+  const improvedEvidence = await storedDocs(question, {
+    searchDocPages: async (_query, _limit, sources = []) => sources.length ? [] : [...developer, relevantGuide],
+  });
+  assert.ok(improvedEvidence.indexOf(relevantGuide.url) < improvedEvidence.indexOf(developer[0].url));
+  assert.ok(improvedEvidence.includes(relevantGuide.url), 'a genuinely better app guide survives the cap');
+  assert.ok(improvedEvidence.length <= 9_000);
+  assert.ok((improvedEvidence.match(/^\[S\d+ \|/gm) || []).length <= 8);
 });
 
 test('index selection uses the same phone-app source fit without overriding developer or desktop requests', () => {
@@ -47,7 +56,7 @@ test('index selection uses the same phone-app source fit without overriding deve
   const pages = mobileActionPages(question).map(({ blurb, ...page }, index) => ({
     ...page, blurb: index === 2 ? 'Actions in the mobile app' : blurb,
   }));
-  assert.equal(topPages(question, pages, 3)[0].url, pages[2].url);
+  assert.equal(topPages(question, pages, 3)[0].url, pages[0].url);
   assert.equal(topPages('Build an Android app with the SDK for action items.', pages, 3)[0].url, pages[0].url);
   assert.equal(topPages('Arrange action items on the macOS desktop app.', pages, 3)[0].url, pages[1].url);
 });

@@ -17,7 +17,7 @@ const {
 } = require('../retrieval');
 const { pages: developerPages } = require('./fixtures/developer-docs');
 
-test('phone-app retrieval prefers relevant consumer guidance over SDK and desktop-only pages', () => {
+test('phone-app retrieval does not promote weaker consumer guidance over a stronger match', () => {
   const question = 'Arrange action items in the Android phone app.';
   const consumer = { title: 'Action items', body: question, source: 'help',
     url: 'https://help.omi.me/en/articles/synthetic-mobile-actions', chunk_index: 0 };
@@ -26,7 +26,7 @@ test('phone-app retrieval prefers relevant consumer guidance over SDK and deskto
   const desktop = { title: 'Android phone app action items on macOS desktop', body: question, source: 'help',
     url: 'https://help.omi.me/en/articles/synthetic-desktop-actions', chunk_index: 0 };
   const rows = rankLocalChunks([question], [desktop, sdk, consumer], 3, { customerQuestion: question });
-  assert.equal(rows[0].url, consumer.url);
+  assert.equal(rows[0].url, desktop.url);
   assert.equal(rows.length, 3, 'lower-fit evidence remains available, not silently discarded');
 });
 
@@ -34,7 +34,7 @@ test('URL-only SDK markers are not mistaken for consumer app pages', () => {
   const question = 'Arrange action items in the Android phone app.';
   const sdk = { title: 'Android phone app action items', body: question, source: 'docs',
     url: 'https://docs.omi.me/python_sdk/tasks', chunk_index: 0 };
-  const app = { title: 'Action items', body: question, source: 'docs',
+  const app = { title: sdk.title, body: question, source: 'docs',
     url: 'https://docs.omi.me/user-guide/synthetic-actions', chunk_index: 0 };
   assert.equal(rankLocalChunks([question], [sdk, app], 2, { customerQuestion: question })[0].url, app.url);
 });

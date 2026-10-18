@@ -96,7 +96,7 @@ function topPages(question, pages, limit = 2, compatibilityQuestion = question) 
         (deviceControl && /\bomi\b/i.test(page.title) && /\bsetup\b/i.test(page.title) ? 1 : 0),
     }))
     .filter((hit) => hit.score > 0)
-    .sort((a, b) => consumerSourceFit(compatibilityQuestion, b.page) - consumerSourceFit(compatibilityQuestion, a.page) || b.score - a.score)
+    .sort((a, b) => b.score - a.score || consumerSourceFit(compatibilityQuestion, b.page) - consumerSourceFit(compatibilityQuestion, a.page))
     .slice(0, limit)
     .map((hit) => hit.page);
 }
