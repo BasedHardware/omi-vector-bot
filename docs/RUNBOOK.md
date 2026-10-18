@@ -8,9 +8,23 @@ October 12 release holds: #42's fresh comparison is complete and meets numerical
 
 The October 17 updated brief authorizes combining #42/#45 into Release 1 and running a fresh same-day comparison after #46's verified merge (`273550c`). It does not authorize deployment before independent grading, memory enablement or model training. #28's audience check stays stopped. Keep capture/context switches off; Release 2's approved private pilot is separate. The retained #43 release record and its pending live smoke are not overwritten by unit/SQL results.
 
-### Optional support memory — off until approved
+### Release 2 approval and replacement — do not enable existing text retention
 
-Before enabling anything, obtain Omi's privacy/security approval, publish the notice/deletion route, decide necessary retention and backup erasure, confirm processor restrictions and any Discord App Review requirement, and review the encryption-key risk. Do not set the approval flag as a substitute. Model training on Discord API message content still requires Discord's express permission. Do not scrape channel history or export identifiable cases into an evaluation/training set.
+Aryan approved 30-day support memory and is the daily fix-card reviewer. The approved target saves references, not message text; it is **not implemented yet**. Start its branch from main after Release 1's deployment. Current channel permissions are explicitly not fixed, so Release 1's staff-only smoke and #28 preflight remain stopped. Do not repeat the check or change permissions without the required confirmation.
+
+Before enabling Release 2, independently review the replacement, no-text schema migration, same-owner cross-post isolation, 1.5-second failure fallback, forum-wide erasure/opt-out and creation-based 30-day pruning. Preserve the four existing capture/policy/context/forum controls with no enabled defaults and no dependency on the identity encryption key. The live two-post scenario requires an approved isolated test runtime or the reviewed test-only deployment; never start an extra production bot to test an ungraded branch. Memory-off comparison success does not verify enabled context.
+
+After grading, release to the private test forum only; verify edits/deletes, opt-out across posts, restart, expiry, timeouts and immediate switch-off behavior, and observe at least 48 clean hours before reviewed expansion. Review processor/privacy/backup-erasure and any required platform arrangements; no repeat retention approval is needed. Publish the following exact notice when the behavior is implemented and the help-forum expansion is approved; it is **drafted, not confirmed pinned**:
+
+> I'm Mira, Omi's AI support assistant. So you don't have to repeat yourself, I can look back at your support posts from the last 30 days. I don't copy your messages or use them to train AI. Type /forget-support-history to clear this anytime.
+
+Explain the command precisely in its private confirmation: remove the customer's references/signals across their forum posts and stop future saving, retaining only necessary opt-out state. It does not delete Discord posts or erase unrelated support systems/backups. References/outcomes still require data protection; avoiding message copies does not make them anonymous. Never log the fetched text.
+
+### Existing optional text-memory foundation — disabled, superseded
+
+The paragraphs below describe the old disabled implementation for maintenance/erasure, **not instructions to enable it**. Its valid encryption key does not clear the new references-only requirement or any release gate. Do not rotate or remove the key used by existing order/identity records as part of the memory replacement.
+
+Before any future enablement, publish the accurate notice/deletion route, establish backup erasure, confirm processor restrictions and any Discord App Review requirement, and resolve applicable security risks. Do not set the approval flag as a substitute. Model training on Discord API message content still requires Discord's express permission. Do not scrape channel history or export identifiable cases into an evaluation/training set.
 
 Capture is disabled unless `SUPPORT_MEMORY_ENABLED=1` and `SUPPORT_MEMORY_POLICY_APPROVED=1`, with `DATABASE_URL`, a valid existing encryption key and an explicit `SUPPORT_MEMORY_FORUM_IDS` allowlist. That allowlist can only select the configured help/test forums; the default is none. Use only the approved private test forum for the shadow pilot, not the public Help forum. Proposed `SUPPORT_MEMORY_RETENTION_DAYS` defaults to 30 and is capped at 30; edits cannot extend a message's creation-based expiry. `SUPPORT_MEMORY_CONTEXT_ENABLED` stays off until separate approval for customer reply use. Disabling capture also disables retained-context reuse; it does not itself erase retained data. Do not rotate the existing data key without preserving existing encrypted records.
 

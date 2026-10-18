@@ -25,7 +25,17 @@ Reliability means correct sourced answers, preserved customer context, truthful 
 
 The [Discord Developer Policy](https://support-dev.discord.com/hc/en-us/articles/8563934450327-Discord-Developer-Policy) limits API data to stated app functionality, restricts improvement use to aggregate/de-identified data, prohibits scraping and requires Discord's express permission for training models on API message content. A public post, server ownership or removing names does not by itself grant that permission. The [Developer Terms](https://support-dev.discord.com/hc/en-us/articles/8562894815383-Discord-Developer-Terms-of-Service) also require an accurate accessible privacy policy, appropriate security, necessary retention, user-requested deletion and applicable App Review. Obtain a qualified policy/privacy review for the actual deployment; do not label a workaround compliant merely because it is called memory or retrieval.
 
-This draft does not train/fine-tune, build a training dataset, make embeddings, bulk-backfill a server, replay real customer cases or auto-publish answers. For supporting an individual active case, proposed bounded encrypted memory preserves relevant context and checks Discord again before reuse. For improvement, only aggregate operational categories produce review actions. Identifiable case content does not enter those suggestions. Regex redaction alone is not a proof of de-identification.
+This draft does not train/fine-tune, build a training dataset, make embeddings, bulk-backfill a server, replay real customer cases or auto-publish answers. The original disabled foundation stores bounded encrypted text but re-fetches messages before use. Aryan's latest approved 30-day memory direction replaces that with references only and live, owner-scoped reads across posts. For improvement, only minimized operational signals enter review; neither live conversation context nor staff authorship establishes an official fact. Regex redaction alone is not a proof of de-identification.
+
+### October 18 memory decision — design approved, replacement pending
+
+Inspection confirms saved text is not used by `supportLearning.history()` as reply context: retained entries select IDs, then the observer fetches live messages. The existing foundation is also limited to the current post. Release 2 must remove unnecessary text/ciphertext/IV/tag, retain expiring references and text-free outcomes, and use at most two other same-owner posts in the same forum/guild. Only live titles, the owner's last three messages, this bot's last reply and stored outcome enter `conversation_only` context; never official evidence, citations, other customers' posts or staff channels. Database/Discord failure or the total 1.5-second deadline falls back to normal current-post history.
+
+`/forget-support-history` must clear that owner's references/signals across their forum posts and stop future saving, with minimal persistent opt-out state. Edits/deletes are checked live, delete events retire references, and references expire/prune after 30 days. References remain customer-related data, not anonymity. Identity/order encryption is unchanged; memory no longer needs an encryption key. These are requirements, not claims that replacement code/tests or rollout exist.
+
+Aryan is the daily fix-card reviewer. Start `feat/memory-references` from main after Release 1 deploys; keep all flags off. Unit/SQL/CI and a fresh memory-off main/branch comparison precede grading. An enabled two-post scenario needs an approved isolated runtime or the reviewed test-only deployment. After grading, pilot test-only for 48 clean hours plus functional checks, then reviewed public expansion. Do not say the following exact notice is pinned until publication is confirmed:
+
+> I'm Mira, Omi's AI support assistant. So you don't have to repeat yourself, I can look back at your support posts from the last 30 days. I don't copy your messages or use them to train AI. Type /forget-support-history to clear this anytime.
 
 ## Implemented foundation versus next phase
 
@@ -44,7 +54,7 @@ A future fine-tuning project is separate: identify suitable training rights and 
 ## Enablement gates
 
 1. Finish code review and the required answer-quality gate, leaving protected inputs unopened. Do not treat unit success as real answer quality or bypass held #42/#28 work.
-2. Approve and publish the data-use notice, necessary retention (proposed maximum 30 days), processors, deletion/backups and security/key handling. Resolve any App Review requirement.
-3. Pilot capture in an authorized staff-only shadow setting; verify coverage, edits, deletes, opt-out, retention and database/restart behavior without collecting unrelated people.
-4. Separately enable owner-scoped contextual use after isolation, prompt-injection, latency and source-ranking checks. Staff history is conversation context, never policy.
+2. Thirty-day memory is approved. Replace the disabled text-retention foundation, review remaining processor/deletion/backups/security/platform requirements, and publish the accurate notice at approved expansion. Approval is not a claim that these checks are complete.
+3. Pilot references/live context only in the approved private test forum after grading; verify coverage, edits, deletes, customer/forum-wide opt-out, retention, timeout and database/restart behavior without collecting unrelated people. Require 48 clean hours and functional checks.
+4. Context reuse remains separately switchable and owner/forum-scoped after isolation, prompt-injection, latency and source-ranking checks. Conversation context is never policy.
 5. Ship one reviewed release with rollback and real receipt/closure checks. Routine regressions should run automatically; do not repeatedly ask Aryan to manufacture Discord posts for unit-level evidence.
