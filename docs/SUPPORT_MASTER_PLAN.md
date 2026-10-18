@@ -6,10 +6,12 @@ Updated October 18, 2026 (IST). Codex keeps this plan current; Aryan sets priori
 
 **Built and tested: 12/25 · Reviewed: 8/25 · Verified live: 4/25.**
 
-Each of the 25 milestones below earns one point for being built, tested, independently reviewed and verified live: 100 possible points. Draft code is not a finished feature. This is delivery progress, **not answer accuracy, model speed or hours of effort**. The earlier 5/100 counted only whole A–E acceptance items and hid partial work; this is the same evidence measured more usefully, not 31 points of new work.
+This measures delivery work, **not answer accuracy or model speed**. The earlier 5/100 hid partial work; changing the count does not mean more work suddenly shipped.
 
 <details>
 <summary>How the score is counted — evidence, not estimates</summary>
+
+Each of the 25 milestones earns one point for being built, tested, independently reviewed and verified live: 100 possible points. Draft code is not a finished feature. This uses the same evidence as the earlier score, not 31 points of new work.
 
 Keep these milestones fixed unless the product scope actually changes. Recalculate the score from the four columns whenever evidence changes. A yes in Built/Tested covers the named milestone only, not every requirement in its wider A–E workstream. Existing draft checks count as local evidence, not proof of current-main integration or live quality. Review does not mean deployment. Live means the relevant operation was actually verified; for read-only checks and evaluation tooling, it does not imply new bot behavior was deployed.
 
@@ -56,7 +58,7 @@ The goal: **short, clear help that works, remembers what the customer already tr
 | **2b — Consistent personality** | [#59: Mira's elegant, warm and charming voice](https://github.com/BasedHardware/omi-vector-bot/pull/59) | **Local and hosted checks pass; not released** | Review the shared answer/reviewer instructions and quality-check them. The portrait/name are already live; startup persistence is still pending. |
 | **3 — Safe memory** | Remember earlier attempts across a customer's posts | **Not started; switched off** | After Release 1's checks pass, build references-only memory on main. Review and test before enabling it. |
 | **4 — Learn from problems safely** | [#49: reviewed improvement inbox](https://github.com/BasedHardware/omi-vector-bot/pull/49) | **Review fixes pass locally and in hosted checks; switched off** | Get review, then build detection, daily review cards and automatic checks. No automatic facts or retraining. |
-| **Release queue — reliability** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28) → [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29) → [#30](https://github.com/BasedHardware/omi-vector-bot/pull/30) | **#28 integration passes locally; not shipped** | Get hosted checks and review of the current-main integration; then reply recovery and close/reopen checks. No second release before Release 1's live checks. |
+| **Release queue — reliability** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28) → [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29) → [#30](https://github.com/BasedHardware/omi-vector-bot/pull/30) | **#28 local and hosted checks pass; not shipped** | Independent review of the current-main integration; then reply recovery and close/reopen checks. No second release before Release 1's live checks. |
 
 Local work can continue while a live test or review is waiting. **A review finding adds to this plan; it does not replace the goal.** No new release, data capture or private access is approved by a status update.
 
@@ -64,7 +66,7 @@ Local work can continue while a live test or review is waiting. **A review findi
 
 - **Staff case tracking:** Report 3 passed. Acceptance, work/wait states, restart refresh and closure have accepted live evidence.
 - **Private staff-channel check:** the production-configured check passed; the four required bot permissions are allowed. This does not mean all of #28 is released.
-- **#28 current-main integration:** preserved Release 1's concise voice, typing, localized case closure, disabled memory cleanup and readiness checks alongside durable private engineering approvals. The combined suite passes 844/844, offline 8/8 and isolated SQL; a fresh production-configured read-only gate returns `private_staff_destination`. Hosted checks and independent review are still pending. No merge to main, deployment, settings/permission change or memory enablement.
+- **#28 current-main integration:** preserved Release 1's concise voice, typing, localized case closure, disabled memory cleanup and readiness checks alongside durable private engineering approvals. The combined suite passes 844/844, offline 8/8 and isolated SQL; a fresh production-configured read-only gate returns `private_staff_destination`. Hosted Node 20/24/Postgres checks pass at runtime merge `758808a`; independent review is still pending. No merge to main, deployment, settings/permission change or memory enablement.
 - **Release 1:** reviewed, merged and deployed. It includes shorter, simpler answers, routing/retrieval fixes and the typing repair. Health/startup checks pass; the customer tests below still need to finish.
 - **Memory decision:** 30 days approved; Aryan is the daily fix reviewer. The new references-only implementation is not built or enabled.
 - **Parked work:** nine GitHub issues opened, [#50–#58](https://github.com/BasedHardware/omi-vector-bot/issues?q=is%3Aissue%20is%3Aopen%20%22Parked%3A%22). Nothing parked is marked complete.
