@@ -4,6 +4,14 @@ This is the living implementation record. A checked implementation item means co
 
 ## October 18: persistent product goal and current execution
 
+Release 1 is live at main `7fe0e0a` / deployment `e1f76a93`, reviewer-accepted 6/6. Aryan waived the 24-hour timer, not the tests or independent review. Future deployment uses the GitHub commit rather than a local upload. A read-only counts-only health comparison is scheduled for October 19, 15:55 IST. Optional flags stay off; no new release is approved by this update.
+
+### Closing language after an ordinary answer — draft, not deployed
+
+`fix/closing-language-no-case` starts from deployed main, not the unmerged ranking/personality branches. `supportThreadLanguage.js` adds a language-code-only Postgres preference keyed by guild/thread/current owner with 30-day expiry. Successful owner answers in configured help/test posts save the already-computed planner language, including the existing Hindi script rule. Case context wins at closure; otherwise the matching preference is used, then English. Language-database errors never use a process-memory copy and emit fixed metadata only. Thread deletion and independent bounded expiry sweeps remain active with memory off. Existing case-state safety, feedback IDs, copy, links and archive ordering remain unchanged.
+
+Observed red before green: Spanish and Chinese no-case closing plus the read-error diagnostic (3 failures), answer-language/script saving, save-error handling and thread deletion (5 failures); isolated SQL failed with missing schema before registration. Final local suite 771/771, offline 8/8, isolated SQL passed. Hosted CI and independent review pending; draft PR only. Next is #48's fresh comparison against deployed `7fe0e0a`, then #59's calm/warm/practical revision; its comparison waits for #48 grading. #28/#29/#49 stay held. Progress remains 38/100, not an accuracy percentage.
+
 [SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Aryan clarified that reviews are evidence for improving the product, not a replacement goal. Map each finding to an item, keep unfinished work visible, and return to the next product item after corrections. Built/tested/live remain separate; no invented completion percentage.
 
 ### Latest Release 2 decision — specified, not implemented

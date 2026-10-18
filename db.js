@@ -102,6 +102,7 @@ async function initSchema() {
     await require('./caseCards').initSchema(client);
     await require('./supportIdentityStore').initSchema(client);
     await require('./supportMemoryStore').initSchema(client);
+    await require('./supportThreadLanguage').initSchema(client);
     const chunks = await client.query(`SELECT count(*)::int AS n FROM doc_chunks`);
     const pages = await client.query(`SELECT count(*)::int AS n FROM doc_pages`);
     if ((chunks.rows[0]?.n || 0) === 0 && (pages.rows[0]?.n || 0) > 0) {
