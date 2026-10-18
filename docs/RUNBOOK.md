@@ -6,6 +6,8 @@ October 12 release holds: #42's fresh comparison is complete and meets numerical
 
 ## Startup and deployment
 
+**October 18 profile update:** Aryan authorized a short **Mira** display name and selected fictional portrait. These cosmetic account/server changes are verified live, with explicit AI disclosure in the application description. They do not change permissions, answer policy or memory settings. The drafted startup-name/personality source change is not deployed; the currently deployed startup can restore the older long nickname on restart. Do not silently bundle the changed answer instructions into a same-image restart test. Review/release it separately and preserve the current release's rollback/smoke gates. The image and final prompt are documented in `assets/MIRA_AVATAR.md`.
+
 The October 17 updated brief authorizes combining #42/#45 into Release 1 and running a fresh same-day comparison after #46's verified merge (`273550c`). It does not authorize deployment before independent grading, memory enablement or model training. #28's audience check stays stopped. Keep capture/context switches off; Release 2's approved private pilot is separate. The retained #43 release record and its pending live smoke are not overwritten by unit/SQL results.
 
 ### Release 2 approval and replacement — do not enable existing text retention

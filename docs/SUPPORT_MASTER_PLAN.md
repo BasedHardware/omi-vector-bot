@@ -1,6 +1,65 @@
 # Omi Support Bot: master product plan
 
-Updated October 18, 2026 (IST). Owner: Codex implementation, Aryan product decisions, Omi authorization and named staff operational review.
+Updated October 18, 2026, 12:49 pm IST. Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+
+## Start here — priorities and status
+
+The goal: **short, clear help that works, remembers what the customer already tried, and reaches a real person when needed.** Mira must be friendly and clearly identified as AI. Memory is not model training.
+
+| Priority | Work | Status | Next step |
+| --- | --- | --- | --- |
+| **1 — Release reliability** | Check the update already running | **Live; customer tests pending** | Verify short answers, languages, staff delivery, typing and restart behavior in the test forum. Roll back on a new customer-visible failure. |
+| **2a — Better answers** | [#48: choose the right source](https://github.com/BasedHardware/omi-vector-bot/pull/48) | **Local and hosted checks pass; not released** | Get review and run its new comparison after Release 1's live checks. Handoff rules are unchanged. |
+| **2b — Consistent personality** | Mira's elegant, warm and charming voice | **Draft tested locally; not released** | Review the shared answer/reviewer instructions and quality-check them. The portrait/name are already live; startup persistence is still pending. |
+| **3 — Safe memory** | Remember earlier attempts across a customer's posts | **Not started; switched off** | After Release 1's checks pass, build references-only memory on main. Review and test before enabling it. |
+| **4 — Learn from problems safely** | [#49: reviewed improvement inbox](https://github.com/BasedHardware/omi-vector-bot/pull/49) | **Two review fixes pass locally; switched off** | Finish review/hosted checks, then build detection, daily review cards and automatic checks. No automatic facts or retraining. |
+| **Release queue — reliability** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28) → [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29) → [#30](https://github.com/BasedHardware/omi-vector-bot/pull/30) | **Not shipped** | Finish privacy/startup checks, reply recovery and close/reopen checks, with review before each release. Do not forget these while building memory. |
+
+Local work can continue while a live test or review is waiting. **A review finding adds to this plan; it does not replace the goal.** No new release, data capture or private access is approved by a status update.
+
+## Done — with limits clearly stated
+
+- **Staff case tracking:** Report 3 passed. Acceptance, work/wait states, restart refresh and closure have accepted live evidence.
+- **Private staff-channel check:** the production-configured check passed; the four required bot permissions are allowed. This does not mean all of #28 is released.
+- **Release 1:** reviewed, merged and deployed. It includes shorter, simpler answers, routing/retrieval fixes and the typing repair. Health/startup checks pass; the customer tests below still need to finish.
+- **Memory decision:** 30 days approved; Aryan is the daily fix reviewer. The new references-only implementation is not built or enabled.
+- **Parked work:** nine GitHub issues opened, [#50–#58](https://github.com/BasedHardware/omi-vector-bot/issues?q=is%3Aissue%20is%3Aopen%20%22Parked%3A%22). Nothing parked is marked complete.
+- **Source-ranking correction:** draft #48 updated as `e8c4c6f`; 786 tests, offline 8/8 and hosted Node 20/24/Postgres checks pass. Eight new synthetic checks include six observed failures before the fix. This is test evidence, not a deployed quality improvement.
+- **Mira's profile:** short name and selected fictional adult portrait applied and verified. AI disclosure remains in the profile. The new elegant/charming reply contract passes 758 local tests and offline 8/8, but is not deployed. Two name/disclosure checks and three personality checks had observed failures before their changes.
+- **Improvement-inbox review fixes:** #49 now avoids database calls when off and preserves existing staff notes on a registry outage, excluding hashes already known to be governed. Six new checks failed before; 785 full tests, focused 29 and isolated SQL pass locally. Unknown remote governance cannot be discovered during an outage or while off; do not claim otherwise. Hosted recheck/review and the full inbox are still pending.
+
+## Still needed for the live release
+
+- [ ] English how-to: short answer, official link, no unnecessary handoff.
+- [ ] Spanish answer; Spanish handoff followed by a Spanish closing card.
+- [ ] Refund/order request: verified private staff delivery and an honest customer update.
+- [ ] Three-part question: answer or hand off every part, without cutting a step in half.
+- [ ] Slow answer: typing stays visible until the reply.
+- [ ] Restart during a reply: one reply, no duplicate and no silent loss.
+
+The English closing card after a Spanish **no-handoff** answer is a known older gap, accepted for this release and parked as [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50). Customer answer languages are unchanged.
+
+Native Discord input did not work reliably; the browser needs sign-in. Two test-post instructions were already sent. Their replies have not been verified. No extra manual posts are needed for local regression tests.
+
+## What I need from Aryan / Omi now
+
+- For the live checks only: the requested test posts or a signed-in test-forum browser. No repeat memory approval or permissions repair request is needed.
+- Independent review of #48 after its correction and required comparison. No new comparison has started.
+- Review of Mira's new reply character before release. The profile change does not approve the changed answer instructions or bypass the current release checks.
+- Later: approve each memory/inbox pilot and publish its accurate notice. Existing approval does not turn the features on.
+
+## Current release record
+
+| Item | Evidence |
+| --- | --- |
+| Release 1 source | Main `7fe0e0a`; 755 local tests passed; hosted checks passed |
+| Deployment | `e1f76a93-3b3c-41c8-9c59-267790c6432f`, October 18 at 12:05:32 pm IST |
+| Startup | Deployment successful; Discord login; health HTTP 200 / `ok` |
+| Rollback | `0eabf17b-9b43-4d33-8210-ead5320a84f2` |
+| Memory / context / fix inbox | **All off** |
+| Customer release tests | **Pending — not passed** |
+
+Keep the full acceptance requirements below. Update this front page whenever implementation, tests, review, deployment or a blocker changes. Use **done / in progress / waiting / parked**, and always distinguish built from live.
 
 ## The goal stays the same
 
@@ -17,21 +76,54 @@ This is the controlling product checklist. [ROADMAP.md](../ROADMAP.md) records d
 3. Fix the cause, add a failing regression first, verify the whole affected workflow, and record the evidence.
 4. Return to the next unfinished product item. Do not silently drop an item because a new review arrived.
 5. If scope or order genuinely changes, record the decision and its effect on the remaining checklist. Do not add disconnected features or rewrite the system unnecessarily.
+6. Give parked work a durable GitHub issue with the customer failure, resumption gate and acceptance checks. Reuse an existing tracker/PR rather than duplicating it. Link the issue here; parking never means completed or approved. Public trackers contain no customer text, private identifiers, secret values or sensitive security findings.
 
 Code, tests, approval and production are different states. **A master checkbox is complete only when its acceptance checks and required rollout are verified.** Marking code implemented elsewhere does not complete it here. A blocked item stays visible with the exact missing approval; work on independent safe tasks can continue. There is no promise that an outside party will approve something or that every customer can be helped automatically.
 
-## Current checkpoint
+## Detailed evidence from earlier checkpoints
 
+<details>
+<summary>Engineering history — the status above supersedes older holds below</summary>
+
+These are dated implementation/review records, not fresh instructions or current approval blockers. In particular, Release 1 is now deployed and the staff audience check has passed. Do not ask Aryan to repeat either approval.
+
+- **Latest October 18 execution:** the production-configured audience gate now passes and all four required bot permissions are allowed. Aryan authorized Release 1: #47 merged as `7fe0e0a`, matching the approved tree, with 755 local tests and hosted Node 20/24/Postgres green. Manual deployment `e1f76a93-3b3c-41c8-9c59-267790c6432f` is SUCCESS, created 06:35:32 UTC / 12:05:32 IST; Discord login and HTTP 200 `/health`/status `ok`/staff route `configured` are confirmed. All memory/context/policy/fix-inbox flags remain off and no settings/permissions changed. Live smoke a–f is **pending**, not passed; user-created test posts were requested because native Discord input failed and the browser needs sign-in. ROLLBACK_1 is `0eabf17b`. An additional synthetic probe found English closure after a Spanish no-handoff answer; review confirmed the same gap in old production `dad2505` and explicitly accepted it as a non-regression. Aryan subsequently **parked the closing-language correction** and asked for issues for deferred work. No closing-language code/PR was implemented; the empty local branch is retained. Customer answers still use their existing language. #48's source-ranking correction is the active engineering item; its confidence-only handoff policy stays unchanged and no new comparison/merge/deploy is approved by this status. Earlier audience/release holds below are historical, superseded by this checkpoint.
 - Release 1 draft [#47](https://github.com/BasedHardware/omi-vector-bot/pull/47), runtime `e7601a3`, combines #42's routing/retrieval/clipping/intake and #45's concise voice/default-off memory. Local 755/755 tests, offline 8/8 and isolated SQL pass; hosted Node 20/24/Postgres pass. This is implementation/testing evidence, not customer-quality approval or deployment.
 - Typing repair [#46](https://github.com/BasedHardware/omi-vector-bot/pull/46) merged as `273550c`; it is in both comparison arms. Merge is not deployment.
 - First comparison attempt is preserved but incomplete: main completed 162 rows, candidate 46. macOS recorded lid-closed sleep at 00:48:57 IST for 963 seconds despite active keep-awake assertions; the runner's no-progress watchdog sent SIGTERM on wake. Completed candidate rows had no crash/empty/error flags and a maximum 54.226-second latency, not a verified provider hang. No protected input was inspected. Aryan explicitly authorized a fresh same-day two-arm rerun with the Mac plugged in and lid open; both versions/harness remain frozen. Do not grade the partial comparison or tune from it.
 - The authorized fresh comparison completed October 18, 02:20:53–03:27:52 UTC: main `273550c` and candidate `e7601a3`, each 81×2/concurrency 3, no invalid rows or recorded host sleep. Structural pass-both/flaky/fail-both: 70/4/7 → 71/3/7; unwanted-handoff flags 16 → 14, but missing-handoff flags **2 → 3**. Total p50/p95: 34.049/69.443 s → 30.715/51.541 s. Delivered-reply median/p90 words: 130/191 → 79/108. Numerical relative checks pass, not factual/safety approval; independent protected-handoff and clipping review remains required. All slow rows are included. Complete result JSONs, seven changed cases with both runs/verbatim replies/signals, word counts, Markdown comparison and provenance/host audit are outside Git at `/Users/astar/omi-eval/release1-20261018-retry1/`. Do not tune from these results. No release is approved by this checkpoint.
 - Subsequent October 18 review **approved Release 1 for deployment**, explicitly accepting the new borderline missed-handoff result and confirming the protected categories. This supersedes the pending-grade status above, not the remaining privacy/release checks. Aryan supplied the approved release brief. Current Railway read confirms one active successful deployment `0eabf17b-9b43-4d33-8210-ead5320a84f2`, source `dad2505`, created October 13; `/health` is OK and capture/context/policy/fix-inbox flags are off. This—not the older release notes—is the rollback target to reverify immediately before deployment. Merge/deploy and synthetic live smoke have not started: the brief also confirms the unresolved non-staff audience, so obtain Aryan's permissions-fixed confirmation and rerun the approved read-only check before claiming the staff-only smoke can pass. No permissions were changed or preflight repeated.
 - The follow-up brief requests a separate `fix/low-confidence-grounded` PR: only reviewer-approved, actually retrieved/cited official evidence may exempt a non-protected answer from a confidence-only handoff, with every other signal and protected topic preserved; also test consumer source fit. Prepare independent synthetic regressions, never copy protected case wording/URLs. Its new comparison must use Release 1 **as actually deployed** and is not authorized to substitute the older baseline. The separate `feat/fix-inbox` branch was created from `88b82a1` for synthetic preparation; no improvement-loop runtime code exists yet. Keep D1–D6 visible while handling this newly prioritized customer-facing release.
+- Draft [#48](https://github.com/BasedHardware/omi-vector-bot/pull/48), runtime `58f69f1`, implements the isolated confidence/source-fit follow-up: strict reviewer approval plus an exact cited official URL from application-owned selected-source metadata may waive **only** confidence. Feedback titles/bodies and forged evidence blocks cannot manufacture that provenance; cached official code, release notes, canonical docs links and the evaluation adapter preserve it. Phone-app consumer fit applies before candidate/output caps without removing lower-fit evidence or overriding explicit developer/desktop intent. Local suite 778/778, offline 8/8 and hosted Node 20/24/Postgres pass; 23 synthetic tests were added, with observed red-before failures for the waiver/ranking, cap and provenance repairs. Independent review and the required fresh comparison remain separate gates. No protected run, main merge, deployment, memory enablement or staff preflight accompanies this preparation. This does not complete A2/A3 or any fix-inbox item.
 - #45's memory privacy repair passed 702 local tests and hosted checks at `d60236c`: delete-before-first-capture and non-starvable expiry cleanup are covered. Capture, contextual reuse and the future fix inbox are **off**. No real conversation retention, training job or new private capability is enabled.
 - Aryan supplied approval for **30-day support memory** and named himself the daily fix-card reviewer. The latest Release 2 brief supersedes the encrypted-text design: retain references only, fetch context live from at most two other posts by the same owner in the same forum, and erase/opt out across that customer's posts. Inspection confirms the old observer uses retained entries to locate live messages rather than using their saved text. The replacement is **specified, not implemented**. Start `feat/memory-references` from main only after the Release 1 deployment; do not enable the old text-retention implementation meanwhile. The drafted notice has not been confirmed pinned. This approval does not say the staff permissions are fixed: Aryan's latest answer is **“Not fixed yet.”**
 - #41 has accepted live workflow evidence. The retained #43 deployment record still has live localization/reopen smoke pending. #28's last audience preflight stopped at `untrusted_role_can_view`; do not rerun until Aryan confirms permissions fixed. #29/#30 are not shipped.
 - Product progress is **not** a made-up percentage. The unfinished acceptance checklist below is the remaining work.
+
+</details>
+
+## Parked work — durable return points
+
+Aryan requested GitHub tracking for parked work on October 18. These issues preserve scope; they do not move deferred work ahead of the active release/reliability plan or authorize private data use. Existing #28/#29/#30/#48/#49 PRs remain their own trackers and were not duplicated.
+
+| Parked item | Issue | Resume only when |
+| --- | --- | --- |
+| Customer closing language after a no-handoff answer | [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50) | Aryan reprioritizes the explicitly parked, pre-existing gap; one small reviewed PR |
+| Full uncertain-send reconciliation/outbox beyond queued work | [#51](https://github.com/BasedHardware/omi-vector-bot/issues/51) | Existing #29/#30 scope/evidence reviewed; no parallel delivery rewrite |
+| Minimized cumulative case summaries | [#52](https://github.com/BasedHardware/omi-vector-bot/issues/52) | References-only context demonstrates a real gap and additional retention/security approval is obtained |
+| Staff queue, operating ownership and reminders | [#53](https://github.com/BasedHardware/omi-vector-bot/issues/53) | Team agrees ownership/coverage; no invented response-time commitments |
+| Cross-identity verification abuse controls | [#54](https://github.com/BasedHardware/omi-vector-bot/issues/54) | Scoped security review and synthetic checks, preserving existing ownership/limits |
+| Telegram staff-destination verification | [#55](https://github.com/BasedHardware/omi-vector-bot/issues/55) | Approved read-only verification before any expanded private-data capability |
+| Capability/outage/backlog/freshness monitoring | [#56](https://github.com/BasedHardware/omi-vector-bot/issues/56) | Alert ownership, coverage/denominators and privacy-safe thresholds agreed |
+| Customer-authorized recording diagnostics | [#57](https://github.com/BasedHardware/omi-vector-bot/issues/57) | Omi backend agreement plus privacy/security authorization before implementation/access |
+| Authorized credential lifecycle maintenance | [#58](https://github.com/BasedHardware/omi-vector-bot/issues/58) | Explicit owner authorization and the private security checklist; public issue is a neutral reminder only |
+
+The public security reminder deliberately omits findings, severity, provider/identity inventories and access details. The retained private-context N12 decision remains unchanged; opening an issue does not resolve or downgrade it. None of these issues enables training, capture, access, monitoring, deployment or automatic work scheduling.
+
+## Detailed acceptance checklist
+
+<details>
+<summary>Full requirements and safety checks — nothing unfinished is discarded</summary>
 
 ## A. Short, clear, humane and correct answers
 
@@ -44,7 +136,7 @@ Implementation: shared voice, routing, retrieval, answer/review, honesty filters
 
 ## B. Reliable support from question to real follow-through
 
-- [ ] **B1 — Verify the staff audience.** After Aryan confirms the permission repair, run only #28's approved read-only preflight. Stop unless it returns `private_staff_destination`. Do not broaden allowlists or permissions to manufacture a pass. Review before pushing/merging/releasing the prepared workflow.
+- [x] **B1 — Verify the staff audience.** Aryan confirmed the permission repair and the approved production-configured read-only check returned `private_staff_destination`; all four required bot permissions are allowed. No permissions or allowlists were changed by this check. #28's implementation/review/release remain separate unfinished work, not completed by this audience result.
 - [ ] **B2 — Keep one durable, truthful case.** Preserve customer ownership, private intake/approved issue drafts, actual staff receipt, first acceptor, accepted/in-progress/waiting/closed state, customer-language pickup notice and safe reopening. Preserve suggested specialist versus actual owner. Verify restarts, duplicate clicks, access loss and notice failure; never recreate intentionally deleted staff cards.
 - [ ] **B3 — Finish queued delivery recovery.** Review #29's same-nonce retries, database-ledger-outage send behavior and a staff-visible alert for every held/blocked customer reply. Then review #30's close/reopen behavior. Test uncertain-send windows, overlapping workers, boot/drain failures and repeated actions. Do not claim global exactly-once delivery without resolving the database/Discord boundary.
 - [ ] **B4 — Operate the workflow, not just the code.** Establish a named staff owner and a usable queue/alert route. Surface failed delivery and unconfirmed pickup notices with a concrete staff action. Confirm who sees the alert and how outages are handled; do not promise response times without a staffed commitment. Record rollback/kill-switch behavior and one-release-at-a-time verification.
@@ -75,6 +167,8 @@ Build as a separate `feat/fix-inbox` change on the approved foundation, default 
 
 The existing aggregate report is a foundation only: **it does not complete any of D1–D6.** Staff review is intentional; the system automates detection, preparation, checks and follow-up, not blind learning from chat.
 
+Draft #49 implements part of D5: guild-scoped review versions, named approvers, validation claims/proof, 90-day recheck, revocation and expiring internal provenance. The real validator, review UI, signals, jobs and privacy-adapter wiring are unfinished. Its optional answer lookup now returns existing local staff notes without database calls when off; while on, an unavailable registry falls back to those notes minus governed hashes already observed in the same guild/process. This is a denial-only cache, not durable approval state or a claim to know unseen revocations. The current quality/review/release and security gates still apply.
+
 Implementation finding (October 18): the current `faq:` handler saves a bounded in-process staff note and can rebuild notes from named-staff messages at startup. Its legacy database table has no author/provenance/expiry and is deliberately excluded from model lookup. Simply inserting an approved fix there would neither make a durable reviewed fact usable nor support reliable revocation. D5 must add structured durable approval/source/version/expiry state to the existing knowledge service, make its normal lookup consume only eligible reviewed records, and prevent startup hydration/caches from resurrecting revoked or expired fixes. Preserve existing staff-note behavior and keep legacy unreviewed rows excluded; do not activate all old notes as a migration shortcut. This is an inspected dependency, not completed implementation.
 
 Inspected D3 dependency: official Help Center articles 9942181 and 13154896 currently disagree about simultaneous multi-language transcription; the January 2026 app guide also describes multi-language support. Exact links/dates and the documentation-owner action are recorded in [SUPPORT_EXPERIENCE.md](SUPPORT_EXPERIENCE.md). Newer dates alone do not establish behavior for every app version. No Help Center edit or product-fact override has been made.
@@ -85,13 +179,13 @@ Inspected D3 dependency: official Help Center articles 9942181 and 13154896 curr
 - [ ] **E2 — Automatic checks replace routine manual probes.** CI covers existing workflows, synthetic multi-turn cases, languages, source conflicts, injection, privacy/ownership, edits/deletes, restarts, concurrent clicks, delivery failures, provider outages and rollback. Keep protected cases sealed, preserve baseline/provenance and require independent release grading. Aryan should not have to write test posts for unit/regression evidence. Only necessary authorized staging/live checks remain.
 - [ ] **E3 — Demonstrate the finished workflow.** After staged enablement, verify one end-to-end path from question → correct short reply or real handoff → remembered follow-up → truthful closure/reopen → review signal → sourced correction → authorized approval → passing regression → controlled publication → later use → revocation. Record operational failures and representative quality outcomes. Do not call the product complete just because its component PRs merged.
 
-## What is needed from Aryan / Omi
+## Later decisions and operating ownership
 
 Ask only when the relevant stage reaches the gate; do not repeatedly request manual test conversations.
 
-- Release 1's quality approval is recorded; merge/deploy/smoke are still pending the known staff-audience repair. No repeat grade or permission question is needed while that state is unchanged.
+- Release 1's quality approval, merge, deployment and audience check are recorded. Only its remaining live checks are pending; do not ask again for permissions repair or release approval.
 - Thirty-day support-memory approval is recorded. Remaining implementation/security/policy/processor/deletion checks and publication of the accurate notice precede enablement; do not ask again for the retention decision.
-- Confirmation that the staff-channel audience is repaired, plus an approved private pilot destination.
+- An approved private pilot destination and reviewed enablement when the memory/inbox implementation is ready. The staff-channel audience repair is already confirmed.
 - Aryan is the daily fix-card reviewer. Operational coverage for delivery failures/exceptions remains to be established; reviewer assignment does not prove a staffed response commitment. Mira remains the working name unless Aryan changes it.
 - Documentation-owner action for verified official-source conflicts. Never invent authority to edit the Help Center.
 
@@ -102,3 +196,5 @@ No new account/backend access, permission changes, secret rotation, production v
 The first product version is complete only when A–E are checked with evidence, required gates are cleared, rollout is verified and operating ownership exists. Until then, report the next open item and exact blockers; retain this plan across reviews and chat handoffs. Codex owns maintaining and progressing it, not asking Aryan to restate the goal.
 
 Potential future capabilities—customer-authorized backend diagnostics, refunds/account writes, a native app or training on separately licensed data—are not hidden prerequisites for this version and are not authorized here. Keep them in the existing roadmap/access ladder until separately scoped and approved. This plan improves the existing ecosystem; it is not a rewrite or an unlimited feature wishlist.
+
+</details>

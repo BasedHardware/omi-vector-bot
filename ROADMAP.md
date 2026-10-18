@@ -4,6 +4,10 @@ This is the living implementation record. A checked implementation item means co
 
 ## October 18: persistent product goal and current execution
 
+Latest persona request: Aryan asked for Mira's short name, an attractive/modest fictional adult portrait, and a consistent elegant/charming personality. The account/server name and selected portrait were explicitly authorized, applied and verified by fresh REST reads; the profile identifies Mira as Omi's AI support assistant. No bot permissions, runtime deployment, capture, context or fact-publication setting changed. Private before-state metadata and operation outcome stay outside Git; no secrets/customer text are in this asset or report.
+
+The separate `feat/mira-personality` draft branches from deployed main `7fe0e0a`, not #48/#49. It preserves product/technical identifiers and adds a shared persona to the existing answer/reviewer voice, not a second prompt or training pipeline. Name persistence after restart is implemented in source but not deployed. Two name/disclosure checks and three personality checks had observed failures before their changes; six focused checks, full 758 and offline 8/8 pass. Research uses primary Google conversation-design guidance, Microsoft's HAX guidelines and author-published customer-service findings; the guide distinguishes original design choices from proven product outcomes. See `docs/MIRA_PERSONALITY.md` and `assets/MIRA_AVATAR.md`. Independent review/quality/release gates still apply; live Release 1 checks and #48 remain priorities rather than being replaced by this request.
+
 [SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Aryan clarified that reviews are evidence for improving the product, not a replacement goal. Map each finding to an item, keep unfinished work visible, and return to the next product item after corrections. Built/tested/live remain separate; no invented completion percentage.
 
 ### Latest Release 2 decision — specified, not implemented

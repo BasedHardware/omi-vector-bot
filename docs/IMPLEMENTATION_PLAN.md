@@ -6,6 +6,13 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 
 ## Release and security prerequisites
 
+### Mira's identity and personality — requested October 18
+
+- [x] Apply the specifically authorized short account/server name and fictional portrait, preserving explicit AI disclosure in the profile; verify by fresh REST reads. No runtime deployment or data-use change.
+- [x] Prepare short startup nickname persistence and one shared elegant/warm/charming persona in the answer/reviewer contract; preserve safety, evidence, language and truthful capability limits. Two observed name/disclosure failures and three personality failures before the changes; six focused and 758 full tests/offline 8/8 pass locally.
+- [x] Record primary conversation-design research, fictional-image prompt/provenance and the limitations of prompt-presence tests.
+- [ ] Independent review, required quality checks and controlled release before claiming the changed voice or startup persistence is live. Current deployed startup still has the older long nickname; another restart can restore it until this draft ships.
+
 ### Combined Release 1 (updated October 17 brief)
 
 - [x] Recheck and merge #46 with a merge commit, without deploying.
