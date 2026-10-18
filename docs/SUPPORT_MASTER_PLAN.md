@@ -60,6 +60,8 @@ The goal: **short, clear help that works, remembers what the customer already tr
 | **4 — Learn from problems safely** | [#49: reviewed improvement inbox](https://github.com/BasedHardware/omi-vector-bot/pull/49) | **Review fixes pass locally and in hosted checks; switched off** | Get review, then build detection, daily review cards and automatic checks. No automatic facts or retraining. |
 | **Release queue — reliability** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28) → [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29) → [#30](https://github.com/BasedHardware/omi-vector-bot/pull/30) | **#28 local and hosted checks pass; not shipped** | Independent review of the current-main integration; then reply recovery and close/reopen checks. No second release before Release 1's live checks. |
 
+**In progress — #29, not ready for release:** integrated the existing draft with current #28/main and repaired four tested card/privacy/observer integration gaps. 909 tests, offline 8/8 and isolated SQL pass. The requested bounded retries, database-outage send path and staff-visible held-reply alerts are still next. This preparation does not complete the delivery milestone or increase the score.
+
 Local work can continue while a live test or review is waiting. **A review finding adds to this plan; it does not replace the goal.** No new release, data capture or private access is approved by a status update.
 
 ## Done — with limits clearly stated
