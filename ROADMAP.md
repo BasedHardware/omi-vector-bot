@@ -2,7 +2,35 @@
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
-## October 17: combined Release 1 — comparison pending, not deployed
+## October 18: persistent product goal and current execution
+
+[SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Aryan clarified that reviews are evidence for improving the product, not a replacement goal. Map each finding to an item, keep unfinished work visible, and return to the next product item after corrections. Built/tested/live remain separate; no invented completion percentage.
+
+The updated Release 1 candidate [#47](https://github.com/BasedHardware/omi-vector-bot/pull/47) merges #45 `d60236c` and #42 `c8d23df`, with the single shared voice contract replacing the separate 1,500-character prompt instruction. It preserves whole-item clipping, capped multipart evidence and damage intake. #46 was rechecked (670 tests/offline 8/8 plus hosted checks) and merged as `273550c`, without deploying. Candidate `e7601a3` passes 755 local tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres. Its authorized fresh 81×2 per arm/concurrency-three comparison is complete; no protected input was inspected or used for tuning. Memory/context/fix-inbox flags stay off.
+
+This master-plan documentation was prepared separately from the frozen runtime checkout and merged here only after the comparison completed. Only Markdown files differ from tested runtime `e7601a3`; the full test suite is rerun before pushing this documentation merge. No deployment, permission update, data capture or automatic publication accompanies it. Next: independent grading and Release 1; independent synthetic improvement-loop preparation can continue while real-data/release gates remain closed. Older dated instructions below are history.
+
+Architecture inspection for master item D5 found that `faq:` currently adds a bounded process-local note, boot hydration can reconstruct staff notes, and legacy database notes are deliberately excluded for lacking provenance. The reviewed loop needs additive durable approval/source/version/expiry/revocation and normal lookup/hydration enforcement; merely writing an approved line to the old table would not complete it. No knowledge behavior changed during the frozen comparison.
+
+Release 1 interruption audit: the first attempt's baseline completed all 162 rows; the candidate saved 46 before macOS clamshell sleep (October 18, 00:48:57–01:05:00 IST, 963 s). Power logs show keep-awake assertions present before sleep; they did not override lid closure on battery. The runner stopped its child with SIGTERM on wake for no progress. No completed candidate row reached 90 s or had crash/empty/error flags (maximum 54.226 s); twelve documentation-fetch timeout log lines lack individual timestamps and are not proof of a pre-sleep model hang. Preserve the incomplete artifacts unmodified; the partial file's `incomplete:false` is not completion evidence without 162 rows and normal process completion. Aryan explicitly authorized rerunning both arms with AC power/lid open after this diagnosis. No runtime or scoring change, protected-input inspection, deployment or data enablement accompanies the rerun.
+
+### October 18 fresh Release 1 comparison — complete, independent review pending
+
+Frozen main `273550c` and candidate `e7601a3` each completed all 162 rows on October 18 UTC, with no provider-invalid rows or interrupted child process. The five independent timing probes completed below 90 s each. The full run lasted 02:20:53–03:27:52 UTC (07:50:53–08:57:52 IST), under keep-awake assertions; macOS recorded no sleep/wake transition in that window and the longest heartbeat gap was 32.744 s. Full-arm exit 1 records structural case failures, not a process crash. Checkouts, shared harness, input metadata and dependency lockfile guards held throughout.
+
+| Measure | Main | Release 1 |
+| --- | ---: | ---: |
+| Pass both / flaky / fail both | 70 / 4 / 7 | 71 / 3 / 7 |
+| Unwanted handoff flags, rows | 16 | 14 |
+| Missing handoff flags, rows | 2 | 3 |
+| Total p50 / p95, seconds | 34.049 / 69.443 | 30.715 / 51.541 |
+| Delivered-reply median / p90, words | 130 / 191 | 79 / 108 |
+
+All numerical relative checks pass; **this is not factual/safety approval**. Missing-handoff flags increased, so the independent per-case grade must check protected data-loss/money/privacy/account cases, how-to false handoffs and whole-item clipping before any merge/release. Seven cases changed on pass/handoff; the result-only comparison includes both runs, verbatim final/all-turn replies, actual `[Bot] Escalating` lines and judge problems. No rows were excluded: main maximum 143.708 s (three ≥90 s), candidate maximum 92.702 s (one ≥90 s). Nonempty delivered turns have the word counts above; eight empty turns per arm remain in scoring/timing and are counted separately. All raw files, result hashes, host audit and a Markdown review summary are retained outside Git at `/Users/astar/omi-eval/release1-20261018-retry1/`; the first interrupted directory is preserved separately. Known local secret-value scanning matched zero artifact files.
+
+Both arms fetched official sources live independently, not from an identical frozen corpus, and handoffs were stubbed—not real staff receipt. Memory capture/context/fix-inbox stayed off. Candidate runtime is unchanged from `e7601a3`; subsequent documentation does not extend this evidence to later behavior changes. No new protected run, deployment or privacy enablement is authorized by the score. Keep the complete master plan active while independent grading is pending.
+
+### October 17 combined Release 1 implementation record — not deployed
 
 Aryan's updated brief authorizes one combined candidate and one fresh same-day comparison, not deployment. #46 was rechecked locally (670 tests/offline 8/8) and in hosted Node 20/24/Postgres CI, marked ready and merged with a merge commit as `273550c`. No Railway deployment followed. The candidate merges #45 (`d60236c`) and #42 (`c8d23df`) with merge commits, preserving their history; neither source PR is separately approved for release by this integration.
 
@@ -10,8 +38,9 @@ Aryan's updated brief authorizes one combined candidate and one fresh same-day c
 - [x] Own navigation/confusion/hypothetical regressions in `test/router-reporting.test.js` pass, including six how-tos/six failures and independent-incident guards. Existing ordinary source paths and the 9,000-character evidence cap remain unchanged.
 - [x] Preserve default-off memory/capture/context flags and the follow-up deletion/cleanup repairs. No real conversation capture, new permission, model training, fix-inbox worker or automatic fact publication.
 - [x] Instrument the evaluation harness to retain each turn's reply and actual case-scoped `[Bot] Escalating` lines, without changing the judge or answer policy.
-- [x] Combined local validation: 755/755 unit tests, offline 8/8 and isolated SQL pass. Navigation/conditional, shared-length-contract and comparison-instrumentation regressions are covered; new instrumentation/length checks were red before correction. The new comparator is tested against synthetic deltas, missing/duplicate/unscored rows and multilingual word counts. Hosted checks and protected grading remain separate.
-- [ ] Freeze baseline/candidate/harness provenance, keep the machine awake, run both fresh 81×2/concurrency-3 arms, and deliver raw JSONs, all changed cases with verbatim replies/signals/judge problems, and median/p90 word counts. Never inspect protected input or tune from the results. Stop for independent grading before merge/deploy.
+- [x] Combined local validation: 755/755 unit tests, offline 8/8 and isolated SQL pass. Navigation/conditional, shared-length-contract and comparison-instrumentation regressions are covered; new instrumentation/length checks were red before correction. The new comparator is tested against synthetic deltas, missing/duplicate/unscored rows and multilingual word counts. Hosted Node 20/24/Postgres checks pass at `e7601a3`; protected grading remains separate.
+- [x] Freeze baseline/candidate/harness provenance, complete both fresh 81×2/concurrency-3 arms, and prepare raw JSONs, all changed cases with verbatim replies/signals/judge problems, and median/p90 word counts. See the complete October 18 record above. Protected inputs remain unopened and are not tuning inputs.
+- [ ] Independent grading and subsequent release approval. No merge/deploy follows from numerical checks alone.
 - [ ] Release 2: Omi privacy/security approval and a published accurate notice/deletion route; private-test capture-only pilot for at least 48 clean hours with verified edits/deletes/opt-out/restart, then separately approved context use and public expansion. No elapsed timer alone enables it.
 - [ ] Release 3: a separate `feat/fix-inbox` branch for reviewed, officially sourced correction proposals, approval/edit/reject/snooze, synthetic regression checks and honest raw-count scorecards. Aggregate counts alone are not this loop; one approval cannot guarantee a mistake never recurs. Staff authorship cannot replace official product evidence.
 - [ ] Reliability queue remains #28 after Aryan's permissions-fixed confirmation and successful read-only audience check, then #29 and #30. Do not rerun/push #28 or change channel permissions here.
