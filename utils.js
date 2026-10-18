@@ -1,5 +1,6 @@
 const { stripStaffLies, stripInventedLookup } = require('./honesty');
 const { createHash } = require('node:crypto');
+const { isPreviousPost } = require('./supportContextFormat');
 
 const ESCALATION_PATTERNS = [
   /\bbilling\b/i,
@@ -280,14 +281,20 @@ function attachAuthorMention(text, message) {
 function clipThreadHistory(entries, maxEach = 800, maxItems = 24) {
   const clipped = (entries || [])
     .map((m) => {
-      const content = clipForDiscord(String(m.content || '').trim(), maxEach);
+      const previous = isPreviousPost(m);
+      const content = clipForDiscord(String(m.content || '').trim(), previous ? 2000 : maxEach);
       if (!content) return null;
-      return { author: m.author, content };
+      return { author: m.author, content, ...(previous ? { source: 'previous_post', trust: 'conversation_only' } : {}) };
     })
     .filter(Boolean);
-  if (clipped.length <= maxItems) return clipped;
-  const openingCount = Math.min(2, Math.max(1, maxItems - 1));
-  return [...clipped.slice(0, openingCount), ...clipped.slice(-(maxItems - openingCount))];
+  const previous = clipped.filter(isPreviousPost).slice(0, Math.min(2, Math.max(0, maxItems - 2)));
+  const current = clipped.filter(entry => !isPreviousPost(entry));
+  const remaining = Math.max(0, maxItems - previous.length);
+  if (current.length <= remaining) return [...previous, ...current];
+  if (!remaining) return previous;
+  const openingCount = Math.min(2, Math.max(1, remaining - 1));
+  const tail = remaining - openingCount;
+  return [...previous, ...current.slice(0,openingCount), ...(tail > 0 ? current.slice(-tail) : [])];
 }
 
 function clipForDiscord(text, max = DISCORD_REPLY_MAX) {

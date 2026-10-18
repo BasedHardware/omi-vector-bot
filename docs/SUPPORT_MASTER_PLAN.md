@@ -2,9 +2,9 @@
 
 Updated October 18, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
-## Progress: 40 / 100 delivery milestones
+## Progress: 42 / 100 delivery milestones
 
-**Built and tested: 13/25 · Reviewed: 8/25 · Verified live: 6/25.**
+**Built and tested: 14/25 · Reviewed: 8/25 · Verified live: 6/25.**
 
 This measures delivery work, **not answer accuracy or model speed**. The earlier 5/100 hid partial work; changing the count does not mean more work suddenly shipped.
 
@@ -31,7 +31,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 12 | Close/reopen hardening — #30 / B3; not reverified for this score | — | — | — | — |
 | 13 | Operational queue, alert ownership and coverage — B4 | — | — | — | — |
 | 14 | References-only memory store — C1; local storage/migration evidence, full context pilot still pending | yes | yes | — | — |
-| 15 | Bounded same-owner context reuse — C2 | — | — | — | — |
+| 15 | Bounded same-owner context reuse — C2; local reader/prompt/handler evidence, rollout pending | yes | yes | — | — |
 | 16 | Forum-wide forgetting, deletion, expiry and isolation — C3 | — | — | — | — |
 | 17 | Reviewed memory pilot and controlled expansion — C4 | — | — | — | — |
 | 18 | Versioned reviewed-fact store and revocation foundation — #49 / D5 | yes | yes | — | — |
@@ -43,7 +43,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 24 | Existing automated regression/SQL checks and independently graded comparison tooling — E2 | yes | yes | yes | yes |
 | 25 | Full support → memory → reviewed fix → revocation demonstration — E3 | — | — | — | — |
 
-Total: **13 built + 13 tested + 8 reviewed + 6 live = 40/100**. The latest two points are the implemented/tested reference-only store, not a completed memory feature or release. Earlier live short-reply and sustained-typing evidence accounted for the move to 38. Cosmetic-error isolation has automated regression evidence; no production fault was deliberately injected. Technical-failure routing, forced-overflow clipping and damage-intake groups do not gain separate live points from this limited smoke. Full A–E acceptance is **2/21** (B1 and A3); every other unfinished checkbox remains open. Mira's character still needs independent review/comparison/live checks. Existing automation does not complete all future E2 scenarios.
+Total: **14 built + 14 tested + 8 reviewed + 6 live = 42/100**. The latest two points are the implemented/tested bounded context reader; the reference-only store brought the prior total to 40. Neither is a completed memory rollout. Earlier live short-reply/typing evidence accounted for 38. Cosmetic-error isolation has automated regression evidence; no production fault was deliberately injected. Technical-failure routing, forced-overflow clipping and damage-intake groups do not gain separate live points from the limited smoke. Full A–E acceptance remains **2/21** (B1 and A3); every unfinished checkbox stays open. Mira's character still needs independent review/comparison/live checks. Existing automation does not complete all future E2 scenarios.
 
 </details>
 
@@ -57,17 +57,21 @@ The goal: **short, clear help that works, remembers what the customer already tr
 | **2 — Closing language** | [#60: language after an ordinary answer](https://github.com/BasedHardware/omi-vector-bot/pull/60), tracked by #50 | **Draft built/tested; waiting for independent review** | 771 local tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres checks pass. No merge/deploy. |
 | **3 — Better answers** | [#48: choose the right source](https://github.com/BasedHardware/omi-vector-bot/pull/48) | **Comparison complete; independent grade pending** | Both arms completed 81×2. Numerical limits pass, but missing-handoff flags rose **2 → 5**. Review all seven changed cases before any release. |
 | **4 — Consistent personality** | [#59: Mira's voice](https://github.com/BasedHardware/omi-vector-bot/pull/59) | **Correction pushed; local and hosted checks pass; not released** | Calm, warm and practical; visible `Mira · Omi AI support` retained. Eight focused, 760 full, eight offline and hosted Node 20/24/Postgres checks pass at runtime `698609f`. Independent review and its own comparison remain; no personality comparison until #48 is graded. |
-| **In progress — Remember earlier attempts** | `feat/memory-references`, from deployed main | **Reference storage, migration and forum erasure built/tested locally; not pushed or enabled** | 764 local tests, offline 8/8 and isolated SQL pass. Next: bounded live reads from two earlier owner posts and prompt isolation; then CI, quality gate and independent review. |
+| **In progress — Remember earlier attempts** | `feat/memory-references`, from deployed main | **Storage, scoped reader and prompt boundary built/tested locally; publication/quality/review pending** | 791 local tests, offline 8/8 and isolated SQL pass. Two earlier owner posts, uncached reads, 1.5-second fallback and no routing/evidence promotion are covered. Next: draft PR/CI, required comparison and independent review. Memory stays off. |
 | **Held — reliability and learning** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28), [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29), [#49](https://github.com/BasedHardware/omi-vector-bot/pull/49) | **Preserved; no work until items 1–3 finish** | #28 review follows 24 clean hours for Release 1. #30, references-only memory and the reviewed improvement loop remain unfinished, not discarded. |
 
 **No fixed deployment wait:** Aryan waived the 24-hour delay. The next update still needs #60's independent review and #48's completed comparison/grade. Memory stays off. The health report is scheduled for October 19 at 15:55 IST; it cannot deploy anything.
 
 **Latest release result — review needed:** #48's comparison is finished, not approved. Both result JSONs, the full seven-case comparison and word counts are ready in `/Users/astar/omi-eval/ranking-20261018`. Unwanted-handoff flags fell **13 → 10**, but missing-handoff flags rose **2 → 5**. #59's requested correction passes local/hosted checks; its own comparison stays held until #48 is graded. There is no new deployment. Memory preparation below does not clear these release gates.
 
-**Latest product progress:** the references-only store now saves no message copies and needs no encryption key. Forum-wide forgetting also blocks queued/future captures and outcomes. Local regression and isolated SQL evidence earns the store milestone's two points: **40/100**, still **2/21** full acceptance items. Looking back across posts is not yet wired; memory stays off.
+**Latest product progress:** the local memory draft can now look back at two other posts by the same owner without copying messages. It preserves edited live text, excludes other owners/forums, falls back within 1.5 seconds and keeps remembered attempts out of routing and product evidence. Full suite **791/791**, offline **8/8** and isolated SQL pass. The bounded-reader milestone adds two points: **42/100**, still **2/21** full acceptance items. No real memory use or deployment.
 
 <details>
 <summary>Current work: technical evidence, decisions and limits</summary>
+
+**Release 2 reader checkpoint — local, not enabled:** the existing observer now performs at most two earlier-post lookups for the same live owner/forum/guild, using uncached post and message reads. A role-ranked SQL query selects the owner's last three messages and this bot's last reply without staff chatter crowding them out. Current-post context is preserved, with up to five previously retained same-post references still revalidated inside the same extra-work deadline. Confirmed missing posts/messages retire references; denied reads only omit them. Deleting a referenced message invalidates the copied outcome for that response, and opt-out is rechecked between stages and before using context. The 1.5-second ceiling covers the extra database/Discord work, with at most three underlying read operations outstanding even after caller timeouts. Already-issued SDK/database requests are not claimed cancelled; late results cannot enter a reply or schedule later stages.
+
+Application-owned `previous_post`/`conversation_only` markers survive clipping into separate answer/reviewer blocks. They may avoid repeated intake/steps, never establish product facts, staff ownership or resolution. Routing, intent/search interpretation and official retrieval receive only the current post; a handler regression catches an old refund incorrectly rerouting a new how-to. Current-post opening/latest context retains space. A database-failure handler test still produces one normal reply without raw exception text. Local evidence: 27 new tests, 17 observed red-before checks across reader/capacity/prompt/handler/deletion groups; 62 focused memory/prompt tests plus two handler checks pass, full 791/791, offline 8/8 and isolated SQL (including role ranking after 55 staff references) pass. This is synthetic engineering evidence, not proof of generated-answer quality or a live two-post pilot. Hosted CI, protected comparison, independent review and all C1–C4 rollout/data-use gates remain. Earlier checkpoint statuses/counts below are historical; the front page controls current status.
 
 **Release 2 storage checkpoint — local only:** `feat/memory-references` was created from verified current/deployed main `7fe0e0a`, without modifying the held PRs or production. Capture now reads no message text, attachment data or identity encryption key and persists only scoped reference fields. Postgres adds forum scope and a customer/forum suppression barrier before each thread write, so erasure serializes against first capture/outcomes. Deletion markers are owner/forum-attributable and are erased with that owner's rows; minimal persistent opt-out remains. Legacy ciphertext columns/copies are removed idempotently, unknown-forum metadata outcomes are quarantined until a live scope is observed, and legacy permanent opt-outs are preserved conservatively across the guild if their old forum is unknown. Existing identity/order encryption is untouched.
 

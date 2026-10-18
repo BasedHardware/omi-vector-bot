@@ -67,6 +67,14 @@ function createMemoryStore() {
       return [...rows.values()].filter(r => threadKey(r) === threadKey(scope) && sameOwner(r, scope) && r.expiresAt > now)
         .sort((a, b) => a.at - b.at || a.messageId.localeCompare(b.messageId)).slice(-50).map(clone);
     },
+    async contextReferences(scope, now) {
+      if (blocked(scope, now)) return [];
+      const counts = { customer: 0, bot: 0 };
+      return [...rows.values()].filter(r => threadKey(r) === threadKey(scope) && sameOwner(r, scope) && r.expiresAt > now)
+        .sort((a, b) => b.at - a.at || b.messageId.localeCompare(a.messageId))
+        .filter(row => row.role in counts && ++counts[row.role] <= (row.role === 'customer' ? 3 : 1)).reverse().map(clone);
+    },
+    async isSuppressed(scope, now) { return blocked(scope, now); },
     async otherThreads(scope, now) {
       if (optedOut(scope)) return [];
       return [...scopes.values()].filter(row => sameOwner(row, scope) && row.threadId !== scope.threadId && row.expiresAt > now && !blocked(row, now))
@@ -164,6 +172,18 @@ function createSupportMemory({ store, policy = configFromEnv(), now = () => Date
       if (!current().enabled) return [];
       const scope = permitted(input);
       return scope ? store.otherThreads(scope, now()) : [];
+    },
+    async contextReferences(input) {
+      if (!current().enabled || !current().contextEnabled) return [];
+      const scope = permitted(input);
+      return scope ? (await store.contextReferences(scope, now())).map(row => ({ id: row.messageId, author: row.role, at: row.at, trust: 'conversation_only' })) : [];
+    },
+    async allowsContext(input) {
+      if (!current().enabled || !current().contextEnabled) return false;
+      const scope = permitted(input);
+      if (!scope) return false;
+      const suppressed = await store.isSuppressed(scope, now());
+      return !suppressed && Boolean(current().enabled && current().contextEnabled && current().forumIds.includes(scope.forumId));
     },
     async forgetMessage(input, { onlyKnown = false } = {}) {
       if (store) await store.forget(scopeOf(input), id(input.messageId), now() + ttl(), { onlyKnown });

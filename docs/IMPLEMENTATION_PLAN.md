@@ -6,6 +6,14 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 
 ## Release and security prerequisites
 
+### Release 2 bounded reader — local implementation complete, gates pending
+
+- [x] Select two other same-owner/forum/guild posts, fetch uncached live metadata and role-ranked last three owner messages/last bot reply, retire confirmed deletes and recheck opt-out before use.
+- [x] Share a 1.5-second extra-work ceiling across DB/REST reads; preserve current-post fallback, bound outstanding work to three even after timeout, prevent late-stage reads/results and keep public `/health` independent.
+- [x] Preserve `conversation_only` markers into separate answer/reviewer blocks, exclude earlier posts from routing/search/evidence, and reserve current-post opening/latest context. Fix the reproduced old-refund routing leak and deletion/opt-out races.
+- [x] 27 new tests, 17 observed red-before checks; 62 focused plus two handler checks, full 791, offline 8/8 and isolated SQL pass. Master score 42/100 (reader Built/Tested only); full acceptance remains 2/21.
+- [ ] Draft publication, hosted multi-connection checks, required memory-off comparison and independent grading. A stubbed handler test is not generated-answer quality or a live two-post memory scenario. No merge/deploy/enablement without the separate gates/pilot below.
+
 ### Release 2 storage checkpoint — local only
 
 - [x] Create `feat/memory-references` from verified current/deployed main `7fe0e0a`; preserve held PRs and dirty documents.
@@ -13,7 +21,7 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Idempotently remove legacy ciphertext fields/copies, preserve text-free outcomes without guessing forum scope, and preserve legacy permanent opt-outs conservatively.
 - [x] Implement forum/owner locking and customer/forum-wide erasure, including attributable deletion markers, queued writes and outcomes; keep minimal persistent opt-out, deletion and expiry with flags off.
 - [x] Red-before store/switch/no-key/command/schema/erasure evidence, then 764 local tests, focused 37, offline 8/8 and isolated SQL passes. Master milestone 14 Built/Tested only: 40/100, full acceptance still 2/21.
-- [ ] Complete live context from two other same-owner posts, scope revalidation, timeout/database fallback within 1.5 seconds and explicit `conversation_only` prompt handling. Current same-post adapter is not this feature.
+- [x] Subsequent checkpoint: complete the two-post live reader, scope/deadline/fallback and prompt separation, with the 791-test evidence above. Review, enabled scenario and rollout remain open.
 - [ ] Finish hosted multi-connection checks, quality comparison and independent review before merge. Verify the enabled two-post scenario only in an approved isolated runtime or reviewed test-only deployment, then a 48-hour functional pilot and reviewed expansion. No push/PR or enablement at this checkpoint.
 
 ### Combined Release 1 (updated October 17 brief)

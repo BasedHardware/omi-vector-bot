@@ -148,6 +148,19 @@ function createPostgresStore(pool) {
       return rows.map(row => ({ guildId: row.guild_id, forumId: row.forum_id, threadId: row.thread_id,
         customerId: row.customer_id, at: Number(row.at), outcome: row.outcome }));
     },
+    async contextReferences(scope, now) {
+      const { rows } = await pool.query(`WITH ranked AS (
+        SELECT guild_id,forum_id,thread_id,customer_id,message_id,role,at,expires_at,
+          ROW_NUMBER() OVER(PARTITION BY role ORDER BY at DESC,message_id DESC) AS position
+        FROM support_memory_messages m WHERE guild_id=$1 AND forum_id=$2 AND thread_id=$3 AND customer_id=$4
+          AND expires_at>$5 AND role IN ('customer','bot')
+          AND NOT EXISTS(SELECT 1 FROM support_memory_opt_outs o WHERE o.guild_id=m.guild_id AND o.forum_id IN (m.forum_id,'*') AND o.customer_id=m.customer_id)
+          AND NOT EXISTS(SELECT 1 FROM support_memory_deletions d WHERE d.guild_id=m.guild_id AND d.thread_id=m.thread_id AND d.message_id IN ('*',m.message_id) AND d.expires_at>$5)
+        ) SELECT guild_id,forum_id,thread_id,customer_id,message_id,role,at,expires_at FROM ranked
+        WHERE position<=CASE WHEN role='customer' THEN 3 ELSE 1 END ORDER BY at,message_id`, [...args(scope),now]);
+      return rows.map(map);
+    },
+    async isSuppressed(scope, now) { return blocked(pool,scope,now); },
     async forget(scope, messageId, until, { onlyKnown = false } = {}) {
       return locked(scope, async client => {
         const { rows } = await client.query('SELECT customer_id,forum_id FROM support_memory_scopes WHERE guild_id=$1 AND thread_id=$2', [scope.guildId,scope.threadId]);

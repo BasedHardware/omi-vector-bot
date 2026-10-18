@@ -203,7 +203,7 @@ async function verify(pool) {
   assert.doesNotMatch(JSON.stringify(encrypted), /fixture@example\.test/);
   await restarted.revoke(user); assert.equal(await identity.getBinding(user), null);
   const memoryOptions = { store: memoryStore.createPostgresStore(pool),
-    policy: { enabled: true, forumIds: ['fixture-help','fixture-other-forum'], staffIds: [], botId: 'fixture-bot' } };
+    policy: { enabled: true, contextEnabled: true, forumIds: ['fixture-help','fixture-other-forum'], staffIds: ['fixture-staff'], botId: 'fixture-bot' } };
   const journal = supportMemory.createSupportMemory(memoryOptions);
   const journalRestart = supportMemory.createSupportMemory(memoryOptions);
   const memoryChannel = { id: `${prefix}-memory-thread`, guildId: `${prefix}-guild`, ownerId: `${prefix}-customer`, parentId: 'fixture-help', isThread: () => true };
@@ -238,6 +238,18 @@ async function verify(pool) {
   await journal.capture({ ...message, channel: anotherForum, id: `${prefix}-other-forum-message` });
   assert.deepEqual((await journalRestart.otherThreads(scope)).map(row => row.threadId), previousPosts.map(ch => ch.id));
   assert.equal((await journalRestart.otherThreads(scope))[0].outcome, 'resolved');
+  const contextPost = { ...memoryChannel, id: `${prefix}-context-post`, ownerId: `${prefix}-context-owner` };
+  const contextAt = Date.now() - 10000;
+  for (let i = 0; i < 4; i++) await journal.capture({ ...message, channel: contextPost, author: { id: contextPost.ownerId }, id: `${prefix}-context-owner-${i}`, createdTimestamp: contextAt + i });
+  for (let i = 0; i < 2; i++) await journal.capture({ ...message, channel: contextPost, author: { id: 'fixture-bot', bot: true }, id: `${prefix}-context-bot-${i}`, createdTimestamp: contextAt + 10 + i });
+  for (let i = 0; i < 55; i++) await journal.capture({ ...message, channel: contextPost, author: { id: 'fixture-staff' }, id: `${prefix}-context-staff-${i}`, createdTimestamp: contextAt + 20 + i });
+  const contextScope = journal.scopeFor(contextPost);
+  const contextReferences = await journalRestart.contextReferences(contextScope);
+  assert.deepEqual(contextReferences.map(row => row.id), [1,2,3].map(i => `${prefix}-context-owner-${i}`).concat(`${prefix}-context-bot-1`));
+  assert.equal(await journalRestart.allowsContext(contextScope), true);
+  await journal.forgetCustomer(contextScope);
+  assert.equal(await journalRestart.allowsContext(contextScope), false);
+  assert.deepEqual(await journalRestart.contextReferences(contextScope), []);
   await journal.forgetMessage({ ...scope, messageId: message.id });
   assert.equal(await journalRestart.capture(message), false);
   await journal.forgetThread(scope, { optOut: true });

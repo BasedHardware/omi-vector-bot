@@ -6,7 +6,7 @@ const { createSupportMemory, createMemoryStore } = require('../supportMemory');
 const now = Date.now();
 function fixture() {
   const store = createMemoryStore();
-  const policy = { enabled: true, forumIds: ['help'], staffIds: ['staff'], botId: 'bot' };
+  const policy = { enabled: true, contextEnabled: true, forumIds: ['help'], staffIds: ['staff'], botId: 'bot' };
   const memory = createSupportMemory({ store, policy, key: Buffer.alloc(32, 3) });
   const channel = { id: 'thread', guildId: 'guild', ownerId: 'alice', parentId: 'help', isThread: () => true };
   const message = (id, author, content, at = now) => ({ id, channel, guildId: 'guild', author: { id: author, bot: author === 'bot' }, content, createdTimestamp: at });
