@@ -80,3 +80,42 @@ test('ordinary history and prompts do not acquire memory instructions when no ea
 test('a one-item context budget stays bounded instead of treating a zero tail as the entire history', () => {
   assert.equal(clipThreadHistory([{ author: 'customer', content: 'opening' }, { author: 'bot', content: 'later' }], 800, 1).length, 1);
 });
+
+test('memory-off histories match pre-memory main snapshots across every prompt and history boundary', async t => {
+  providerFixture(t);
+  // Captured once from clean main before this feature, never regenerated from
+  // the candidate. Inputs are synthetic; no network or repository checkout is
+  // needed by CI. Prior-post behavior has separate tests above.
+  const snapshot = require('./fixtures/supportContextPrompt.preMemory.json');
+  assert.equal(snapshot.baselineCommit, '7fe0e0a614e3843a47598a1e25d71ed27bddd148');
+  assert.deepEqual(snapshot.cases.map(item => item.history.length), [0, 3, 24, 30, 60]);
+  for (const item of snapshot.cases) {
+    const { history, expected } = item;
+    assert.ok(history.every(entry => entry.source !== 'previous_post'));
+    const label = `history length ${history.length}`;
+    assert.deepEqual(clipThreadHistory(history), expected.clippedHistory, `${label}: clipping`);
+    assert.equal(buildUserPrompt({ ...snapshot.promptInput, threadHistory: history }), expected.answerUserPrompt, `${label}: full answer prompt`);
+    assert.equal(contextualQuestion(snapshot.question, history), expected.contextualQuestion, `${label}: contextual question`);
+
+    let plannerText;
+    await understandQuestion({ question: snapshot.question, route: snapshot.route, threadHistory: history,
+      post: async (_url, body) => {
+        plannerText = body.messages.find(message => message.role === 'user').content;
+        return { data: { choices: [{ message: { content: JSON.stringify({ standalone_question: snapshot.question, reply_language: 'en', search_queries: ['synthetic microphone permission'] }) } }] } };
+      },
+    });
+    assert.equal(plannerText, expected.plannerUserText, `${label}: planner history and request`);
+
+    let reviewerText;
+    await reviewAnswer({ question: snapshot.question, threadHistory: history, lane: 'faq', draft: 'Synthetic draft for the snapshot check.', sources: '',
+      post: async (_url, body) => {
+        const user = body.messages.find(message => message.role === 'user').content;
+        const boundary = user.indexOf('\n\nNewest customer message:');
+        assert.ok(boundary >= 0, 'reviewer history boundary must remain explicit');
+        reviewerText = user.slice(0, boundary);
+        return { data: { choices: [{ message: { content: JSON.stringify({ final_answer: 'Synthetic reviewed answer.', grounded: true, relevant: true, escalate: false, confidence: 0.9, sources_used: [] }) } }] } };
+      },
+    });
+    assert.equal(reviewerText, expected.reviewerEarlierThread, `${label}: reviewer Earlier thread`);
+  }
+});
