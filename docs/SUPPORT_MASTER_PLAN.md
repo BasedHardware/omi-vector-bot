@@ -2,9 +2,9 @@
 
 Updated October 18, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
-## Progress: 36 / 100 delivery milestones
+## Progress: 38 / 100 delivery milestones
 
-**Built and tested: 12/25 · Reviewed: 8/25 · Verified live: 4/25.**
+**Built and tested: 12/25 · Reviewed: 8/25 · Verified live: 6/25.**
 
 This measures delivery work, **not answer accuracy or model speed**. The earlier 5/100 hid partial work; changing the count does not mean more work suddenly shipped.
 
@@ -17,12 +17,12 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 
 | # | Milestone / evidence | Built | Tested | Reviewed | Live |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Short, plain replies — Release 1 / A1 | yes | yes | yes | — |
+| 1 | Short, plain replies — Release 1 / A1 | yes | yes | yes | yes |
 | 2 | How-to versus failure routing — Release 1 / A2 | yes | yes | yes | — |
 | 3 | Multipart sources, whole-item clipping and damage intake — Release 1 / A2 | yes | yes | yes | — |
 | 4 | Source-ranking/confidence follow-up — #48 / A2 | yes | yes | — | — |
-| 5 | Consistent elegant Mira character — #59 / A1 | yes | yes | — | — |
-| 6 | Typing and cosmetic-error isolation — #46 / A4 | yes | yes | yes | — |
+| 5 | Consistent calm, warm and practical Mira character — #59 / A1 | yes | yes | — | — |
+| 6 | Typing and cosmetic-error isolation — #46 / A4 | yes | yes | yes | yes |
 | 7 | Production-configured read-only staff audience check — B1 | yes | yes | yes | yes |
 | 8 | Durable staff-card lifecycle and restart refresh — #41 / B2 | yes | yes | yes | yes |
 | 9 | Localized, deduplicated pickup notices and visible notice failures — #41 / B2 | yes | yes | yes | yes |
@@ -43,7 +43,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 24 | Existing automated regression/SQL checks and independently graded comparison tooling — E2 | yes | yes | yes | yes |
 | 25 | Full support → memory → reviewed fix → revocation demonstration — E3 | — | — | — | — |
 
-Total: **12 built + 12 tested + 8 reviewed + 4 live = 36/100**. Full A–E acceptance remains **1/21**; no unfinished checkbox is changed by this score. Mira's name/portrait are live, but the whole character milestone still needs review and live reply checks. Existing automation does not complete all future E2 scenarios.
+Total: **12 built + 12 tested + 8 reviewed + 6 live = 38/100**. Two new points come from actual live short-reply and sustained-typing evidence, not new code or a changed rubric. Cosmetic-error isolation has automated regression evidence; no production fault was deliberately injected. Technical-failure routing, forced-overflow clipping and damage-intake groups do not gain separate live points from this limited smoke. Full A–E acceptance is **2/21** (B1 and now A3); every other unfinished checkbox remains open. Mira's name/portrait are live, but the whole character milestone still needs its requested revision, review and live reply checks. Existing automation does not complete all future E2 scenarios.
 
 </details>
 
@@ -53,48 +53,103 @@ The goal: **short, clear help that works, remembers what the customer already tr
 
 | Priority | Work | Status | Next step |
 | --- | --- | --- | --- |
-| **1 — Release reliability** | Check the update already running | **Live; customer tests pending** | Verify short answers, languages, staff delivery, typing and restart behavior in the test forum. Roll back on a new customer-visible failure. |
-| **2a — Better answers** | [#48: choose the right source](https://github.com/BasedHardware/omi-vector-bot/pull/48) | **Local and hosted checks pass; not released** | Get review and run its new comparison after Release 1's live checks. Handoff rules are unchanged. |
-| **2b — Consistent personality** | [#59: Mira's elegant, warm and charming voice](https://github.com/BasedHardware/omi-vector-bot/pull/59) | **Local and hosted checks pass; not released** | Review the shared answer/reviewer instructions and quality-check them. The portrait/name are already live; startup persistence is still pending. |
-| **3 — Safe memory** | Remember earlier attempts across a customer's posts | **Not started; switched off** | After Release 1's checks pass, build references-only memory on main. Review and test before enabling it. |
-| **4 — Learn from problems safely** | [#49: reviewed improvement inbox](https://github.com/BasedHardware/omi-vector-bot/pull/49) | **Review fixes pass locally and in hosted checks; switched off** | Get review, then build detection, daily review cards and automatic checks. No automatic facts or retraining. |
-| **Release queue — reliability** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28) → [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29) → [#30](https://github.com/BasedHardware/omi-vector-bot/pull/30) | **#28 local and hosted checks pass; not shipped** | Independent review of the current-main integration; then reply recovery and close/reopen checks. No second release before Release 1's live checks. |
+| **1 — Release reliability** | Check the update already running | **Done: reviewer accepted 6/6 live checks** | Keep the rollback ready and optional flags off. Read-only 24-hour health comparison is scheduled for October 19, 15:55 IST. |
+| **2 — Closing language** | [#60: language after an ordinary answer](https://github.com/BasedHardware/omi-vector-bot/pull/60), tracked by #50 | **Draft built/tested; waiting for independent review** | 771 local tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres checks pass. No merge/deploy. |
+| **3 — Better answers** | [#48: choose the right source](https://github.com/BasedHardware/omi-vector-bot/pull/48) | **Comparison complete; independent grade pending** | Both arms completed 81×2. Numerical limits pass, but missing-handoff flags rose **2 → 5**. Review all seven changed cases before any release. |
+| **4 — Consistent personality** | [#59: Mira's voice](https://github.com/BasedHardware/omi-vector-bot/pull/59) | **Requested correction built/tested; not released** | Calm, warm and practical; visible `Mira · Omi AI support` retained. Eight focused, 760 full and eight offline checks pass. Hosted checks/review and its own comparison remain; no personality comparison until #48 is graded. |
+| **Held — reliability and learning** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28), [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29), [#49](https://github.com/BasedHardware/omi-vector-bot/pull/49) | **Preserved; no work until items 1–3 finish** | #28 review follows 24 clean hours for Release 1. #30, references-only memory and the reviewed improvement loop remain unfinished, not discarded. |
 
-Local work can continue while a live test or review is waiting. **A review finding adds to this plan; it does not replace the goal.** No new release, data capture or private access is approved by a status update.
+**No fixed deployment wait:** Aryan waived the 24-hour delay. The next update still needs #60's independent review and #48's completed comparison/grade. Memory stays off. The health report is scheduled for October 19 at 15:55 IST; it cannot deploy anything.
+
+**Latest result — review needed:** #48's comparison is finished, not approved. Both result JSONs, the full seven-case comparison and word counts are ready in `/Users/astar/omi-eval/ranking-20261018`. Unwanted-handoff flags fell **13 → 10**, but missing-handoff flags rose **2 → 5**. #59's requested wording/name correction now passes local checks; its own comparison stays held until #48 is graded. No new deployment or delivery-score change.
+
+<details>
+<summary>Current work: technical evidence, decisions and limits</summary>
+
+**#59 correction built/tested:** the shared persona is now calm, warm and practical, and the visible display name remains `Mira · Omi AI support`. Six focused assertions failed on the old code before the two-line runtime correction, including two new regressions for the persona contract and unnecessary rewriting of an already disclosed nickname. All eight focused, 760 full and eight offline checks pass afterward. Existing fictional identity, no flirting/pet names, serious-case tone, language, word budget, sources and truthful-capability boundaries are retained. No profile/avatar or production change, provider run or protected comparison. Hosted checks/review remain separate; its own comparison waits for #48's grade. This revises milestone 5's wording, not its scope, evidence score or live status.
+
+**Held — #29, not ready for release:** the pushed integration has 909 tests. Subsequent uncommitted retries, receipt-ledger-outage handling and immediate staff-alert preparation pass 937 local tests, offline 8/8 and isolated SQL. Failed alerts do not yet have durable retry coverage; none of this follow-up is pushed, reviewed or live. Preserve it without further work under the latest priority order. The delivery milestone and score are unchanged.
+
+**Latest explicit order is serial:** finish and report Release 1 first, then the closing-language draft, then #48's comparison. Do not use a live-test wait to work on the held PRs. This supersedes the earlier independent-work allowance, not the full product goal. No new data capture or private access is approved by a status update.
+
+**Latest decision: no fixed deployment delay.** Aryan explicitly requested deployment without waiting, waiving the 24-hour time hold. Release 1 is already live and accepted; there is no new reviewed candidate ready to deploy. Continue the closing-language draft, #48 comparison/review and #59 wording in order. This removes the timer, not the tests or independent review. The one-off October 19 health report remains scheduled, read-only and counts-only; it never deploys automatically. Future deployments must use the GitHub commit so Railway records its hash, not a local upload. The reviewer's minor Spanish background-app citation note is nonurgent; do not expand this fix to address it.
+
+**Closing-language draft completed:** #60 (`7b15974`) adds exactly guild/thread/current-owner identifiers, the existing planner language code and 30-day expiry to Postgres after successful ordinary owner answers. Case language wins, then matching thread language, then English. Existing Hindi script handling is reused; staff locale is ignored. Language query errors use fixed metadata logs/English, with no process-memory preference copy; existing case-state lookup failures retain safe no-archive behavior. Thread deletion erases the row and independent bounded sweeps prune expiry with memory off. Eight new behavior regressions were observed red before wiring the repair; the SQL extension also failed before schema registration. Sixteen added checks bring the local suite to 771, and hosted Node 20/24/Postgres all pass. This is not a deployed fix or completion of the broader localization milestone; score stays 38/100.
+
+**Ranking comparison started October 18:** two separate clean detached checkouts preserve the dirty working docs and #60's independent changes. Baseline is deployed main `7fe0e0a`; candidate is #48 `476b433` (runtime `e8c4c6f`). Fresh frozen-candidate suite 786/786 and offline 8/8 pass, dependency lockfiles match, AC power/lid-open were checked, and the runner is under keep-awake protection. The approved harness alone reads the sealed inputs; optional flags are off and staff delivery is stubbed. Private output directory: `/Users/astar/omi-eval/ranking-20261018`. No rows, quality improvement, completed full arm or permission to deploy are claimed yet. Do not launch another run while this one is active or tune from its protected results.
+
+Timing preflight completed October 18 at 10:49:41 UTC: five rows, 36.578 / 25.612 / 23.764 / 59.192 / 0.004 seconds, zero provider-invalid rows, no process signal or watchdog stop. Every row is below 90 seconds. Exit 1 denotes structural evaluation failures, not a crash; this is timing evidence, not five correct answers or an approved release. The full baseline arm then started, verified through the same live process handle; candidate and grading are still pending.
+
+The private result-only Markdown formatter now passes six synthetic checks: verbatim multilingual/multiline replies and signals from both runs/arms, incomplete and duplicate coverage rejection, frozen-source guard, sleep-interruption guard and known-secret-match rejection. These checks read no sealed inputs or real results and change neither frozen version nor the evaluation judge. They validate the requested review artifact, not answer quality or additional product delivery points.
+
+The scheduled health report now has an evidence-definition audit in the runbook. Deployed/prior source share timing events, but these are not a complete send ledger; handoff attempts, deduplication and delivery-outcome lines are different events. Successful “Something broke” replies have no dedicated counter. Counts must retain those distinctions and missing/partial coverage, with platform evidence for restarts/crashes. No production logs, code, settings or customer history were changed/read by this source-only audit. It prepares the approved report, not a new telemetry feature or a release pass.
+
+The ranking baseline completed October 18, 10:49:41.875–11:22:10.460 UTC: 162 rows covering 81 distinct cases, each run exactly twice, zero provider-invalid rows, `incomplete:false`, normal exit 1 with no signal/watchdog stop. This is structural evaluation output, not a crash or a quality pass. Maximum latency 107.726 seconds; both rows at or above 90 seconds remain included. The five-case preflight's under-90 requirement is distinct from full-arm inclusion. The candidate arm started under the same live process; do not rerun either arm or issue a quality/deployment verdict before completion and independent grading.
+
+A separate read-only deployment-source check confirms the expected GitHub repository is already linked, automatic deployments are off and accepted Release 1 is still the latest successful deployment. The live API supports an explicit commit SHA for the future approved deployment. No settings/access/deployment changed. The runbook now requires the exact approved main SHA and subsequent recorded-commit/health/smoke verification; repository configuration alone does not prove a future build works. This removes a potential source-setup uncertainty, not a review gate or a product-delivery milestone.
+
+**October 18 ranking comparison complete:** deployed main `7fe0e0a` and candidate `476b433` each completed 81×2/concurrency three with the same frozen harness, all rows retained, zero provider-invalid rows and normal structural exit 1 (no process signal/watchdog stop). Overall run 10:46:58.772–11:54:07.207 UTC, including the five timing probes. No recorded sleep/wake event; maximum heartbeat gap 30.008 seconds. Frozen checkouts, shared lockfiles and sealed-input metadata guards held; the case file was not inspected. Final artifacts match zero known secret values and are private outside Git.
+
+| Completed comparison measure | Main | #48 |
+| --- | ---: | ---: |
+| Pass both / flaky / fail both | 73 / 1 / 7 | 71 / 5 / 5 |
+| Unwanted-handoff flags, rows | 13 | 10 |
+| Missing-handoff flags, rows | 2 | 5 |
+| p50 / p95 total seconds | 33.986 / 59.659 | 34.620 / 57.392 |
+| Delivered-reply median / p90 words | 80 / 111 | 80 / 102 |
+
+Pass-both reaches the allowed main-minus-two boundary; p50 delta +0.634 s and p95 delta −2.267 s meet numerical limits. These are **not** protected-case, how-to-specific, clipping or factual approval. Missing-handoff flags increased and flakiness rose, so the independent case review remains decisive. Both arms have 156 nonempty delivered turns and eight empty turns, with empty turns retained in scoring/timing. Main maximum 107.726 s (two rows ≥90 s); candidate maximum 97.147 s (one row ≥90 s); none excluded. Both independently fetched live official sources rather than a frozen corpus; handoffs were stubbed and memory/context/fix-inbox stayed off. This does not verify enabled memory, production staff delivery or later closing/personality drafts.
+
+Review artifacts: `main.json`, `candidate.json`, `per-case-comparison.json`, `comparison-summary.md`, `comparison-summary.json`, `word-counts.json`, `provenance.json`, `host-audit.json` in `/Users/astar/omi-eval/ranking-20261018`. Every changed case includes both runs, verbatim final/all-turn replies, actual `[Bot] Escalating` signals and judge problems. Do not publish these private files to GitHub or tune the bot from protected results. Review/merge/deploy remain pending; delivery score stays 38/100.
+
+**Release 1 live checks: 6/6 complete.** Short English/Spanish replies, Spanish handoff closure, actual private refund delivery, complete multipart answers, observed typing and the in-flight restart all have scoped evidence. The same-image restart sent SIGTERM after processing began; exactly one reply arrived afterward, drain succeeded, login/health returned and a later read still found one reply. No rollback was needed. The deployment ID remains `e1f76a93`; no code, variable or permission changed. Report this completed step before starting the closing-language draft. #48, #59 and held PR work do not resume ahead of the explicit order.
+
+**Fresh production read:** Railway still reports deployment `e1f76a93` as successful (October 18, 12:05:32 IST), with `0eabf17b` removed, not active. The retained upload record identifies clean main `7fe0e0a`; Railway's local-upload metadata has no commit hash. A new remote source-hash probe was unavailable because SSH has no configured key; no key/access was added. Current `/health` is HTTP 200 / `ok`, staff route configured, and memory/capture/context/fix-inbox flags are off. Returned logs include Discord login and health listening, with no boot/coordination/staff-delivery error lines in that returned window. This is startup evidence, not a smoke pass; do not redeploy merely because a review used stale deployment status.
+
+</details>
+
+<details>
+<summary>What is done: evidence and live checks</summary>
 
 ## Done — with limits clearly stated
 
 - **Staff case tracking:** Report 3 passed. Acceptance, work/wait states, restart refresh and closure have accepted live evidence.
 - **Private staff-channel check:** the production-configured check passed; the four required bot permissions are allowed. This does not mean all of #28 is released.
 - **#28 current-main integration:** preserved Release 1's concise voice, typing, localized case closure, disabled memory cleanup and readiness checks alongside durable private engineering approvals. The combined suite passes 844/844, offline 8/8 and isolated SQL; a fresh production-configured read-only gate returns `private_staff_destination`. Hosted Node 20/24/Postgres checks pass at runtime merge `758808a`; independent review is still pending. No merge to main, deployment, settings/permission change or memory enablement.
-- **Release 1:** reviewed, merged and deployed. It includes shorter, simpler answers, routing/retrieval fixes and the typing repair. Health/startup checks pass; the customer tests below still need to finish.
+- **Release 1:** reviewed, merged, deployed and live-smoke verified (6/6 observed scenarios). It includes shorter, simpler answers, routing/retrieval fixes and the typing repair. Same-image in-flight restart passed on October 18; this is not a guarantee for all customer cases or completion of the broader memory/reliability roadmap.
 - **Memory decision:** 30 days approved; Aryan is the daily fix reviewer. The new references-only implementation is not built or enabled.
 - **Parked work:** nine GitHub issues opened, [#50–#58](https://github.com/BasedHardware/omi-vector-bot/issues?q=is%3Aissue%20is%3Aopen%20%22Parked%3A%22). Nothing parked is marked complete.
 - **Source-ranking correction:** draft #48 updated as `e8c4c6f`; 786 tests, offline 8/8 and hosted Node 20/24/Postgres checks pass. Eight new synthetic checks include six observed failures before the fix. This is test evidence, not a deployed quality improvement.
 - **Mira's profile:** short name and selected fictional adult portrait applied and verified. AI disclosure remains in the profile. Draft #59 (`d913611`) passes 758 local tests, offline 8/8 and hosted Node 20/24/Postgres checks, but its elegant/charming reply contract is not deployed. Two name/disclosure checks and three personality checks had observed failures before their changes. Research, character rules and the exact portrait prompt are in #59's personality/asset documents.
 - **Improvement-inbox review fixes:** #49 (`c491d9c`) now avoids database calls when off and preserves existing staff notes on a registry outage, excluding hashes already known to be governed. Six new checks failed before; 785 full tests, focused 29, offline 8/8, isolated SQL and hosted Node 20/24/Postgres checks pass. Unknown remote governance cannot be discovered during an outage or while off; do not claim otherwise. Independent review and the full inbox are still pending.
 
-## Still needed for the live release
+## Release 1 live checks — complete, scope retained
 
-- [ ] English how-to: short answer, official link, no unnecessary handoff.
-- [ ] Spanish answer; Spanish handoff followed by a Spanish closing card.
-- [ ] Refund/order request: verified private staff delivery and an honest customer update.
-- [ ] Three-part question: answer or hand off every part, without cutting a step in half.
-- [ ] Slow answer: typing stays visible until the reply.
-- [ ] Restart during a reply: one reply, no duplicate and no silent loss.
+- [x] English how-to: one 73-word reply with complete, supported phone-only steps and the official Help Center link; no linked staff card in the live read. Verified October 18 from REST and Aryan's 14:42:46 IST screenshot. This is one smoke scenario, not a general accuracy grade.
+- [x] Spanish answer; Spanish handoff followed by a Spanish closing card. Ordinary answer/no-handoff closure verified with the accepted English-card exception. The separate refund case closes with `¿Cómo lo hicimos?`, Spanish description/review field/all four button labels, an archived thread and the same private staff card changing to Closed (REST and Aryan's 15:03:17/21 IST screenshots). The English ephemeral command acknowledgment is outside the localized card, not a new regression.
+- [x] Refund/order request: one matching private staff card, awaiting acceptance, and one Spanish customer reply with no public staff controls. REST agrees with Aryan's 15:00:47/50 IST screenshots. Its 30-day hardware-return wording matches both current official Help Center pages, independently read; no refund approval, deadline or completed investigation is promised. Receipt is not acceptance or resolution.
+- [x] Three-part question: one reply covers phone-only recording, finding the transcript/summary, and Speech Profile in the requested order, with complete numbered items and two intact official links. REST and Aryan's 15:40:28 IST screenshot agree; the specific Speech Profile steps were checked against its cited official guide. Observed post-to-reply timestamp gap: 30.411 seconds. This does not verify the typing indicator.
+- [x] Slow answer: Aryan explicitly answered “yes” when asked whether typing stayed visible until the multipart answer. That reply took 30.411 seconds by message timestamps, exceeding the 20-second smoke condition. This is direct human observation of one scenario, not a screenshot-derived or universal reliability guarantee.
+- [x] Restart during a reply: processing logged 15:52:54.074 IST, SIGTERM 15:53:01.834, one reply 15:53:14.472, successful drain/login logged 15:53:21.850. The watcher passed after 30 stable seconds; a final 15:55:50 IST REST read still found one reply, HTTP 200/`ok`, zero matched restart/coordination/staff-delivery error lines and optional flags off. Railway reports the same deployment SUCCESS. This proves this observed graceful drain, not global exactly-once delivery.
 
-The English closing card after a Spanish **no-handoff** answer is a known older gap, accepted for this release and parked as [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50). Customer answer languages are unchanged.
+The English closing card after a Spanish **no-handoff** answer is a known older gap, accepted for this release and tracked as [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50). The latest brief returns it to priority 2: draft #60 is built/tested and awaiting review, not deployed. Customer answer languages are unchanged.
 
-Native Discord input did not work reliably; the browser needs sign-in. Two test-post instructions were already sent. Their replies have not been verified. No extra manual posts are needed for local regression tests.
+Native Discord input is unreliable; no synthetic post or command was submitted by automation. **Aryan explicitly wants to send all Discord test messages himself.** All six Release 1 scenarios are now complete and reviewer-accepted; no more Release 1 posts are needed. For any separately required future live test, give one copy-ready title/body or command at a time, then verify the result. Do not submit posts, commands or test replies on his behalf. Local regression tests need no extra manual posts.
+
+</details>
 
 ## What I need from Aryan / Omi now
 
-- For the live checks only: the requested test posts or a signed-in test-forum browser. No repeat memory approval or permissions repair request is needed.
-- Independent review of #48 after its correction and required comparison. No new comparison has started.
+- Independent review of [#60, the closing-language fix](https://github.com/BasedHardware/omi-vector-bot/pull/60). All its checks pass; it is still a draft, not live.
+- No action for Release 1: the six live checks are complete and accepted. No repeat memory approval, permissions repair or browser-sign-in request is needed.
+- Independent grading of #48's completed comparison; all required private files are ready. Do not launch another run or tune from protected results while waiting.
 - Review of Mira's new reply character before release. The profile change does not approve the changed answer instructions or bypass the current release checks.
 - Later: approve each memory/inbox pilot and publish its accurate notice. Existing approval does not turn the features on.
 
 ## Current release record
+
+<details>
+<summary>Deployment, rollback and scheduled health check</summary>
 
 | Item | Evidence |
 | --- | --- |
@@ -103,7 +158,13 @@ Native Discord input did not work reliably; the browser needs sign-in. Two test-
 | Startup | Deployment successful; Discord login; health HTTP 200 / `ok` |
 | Rollback | `0eabf17b-9b43-4d33-8210-ead5320a84f2` |
 | Memory / context / fix inbox | **All off** |
-| Customer release tests | **Pending — not passed** |
+| Customer release tests | **6/6 observed checks passed; accepted no-handoff English-card exception retained** |
+| Last same-image restart | October 18, 15:53 IST; complete proof by 15:54:08 IST; no new build/deployment ID |
+| Next deployment interval | Aryan explicitly waived the 24-hour wait on October 18; tests, comparison and review still precede a new deployment |
+| Health follow-up | One-off read-only counts comparison scheduled October 19, 15:55 IST; missing metrics must be unavailable, not zero |
+| Future deployment source | Deploy the GitHub commit so Railway records its hash; no local upload |
+
+</details>
 
 Keep the full acceptance requirements below. Update this front page whenever implementation, tests, review, deployment or a blocker changes. Use **done / in progress / waiting / parked**, and always distinguish built from live.
 
@@ -154,7 +215,7 @@ Aryan requested GitHub tracking for parked work on October 18. These issues pres
 
 | Parked item | Issue | Resume only when |
 | --- | --- | --- |
-| Customer closing language after a no-handoff answer | [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50) | Aryan reprioritizes the explicitly parked, pre-existing gap; one small reviewed PR |
+| Customer closing language after a no-handoff answer | [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50) | Unparked by the latest brief; draft #60 is built/tested and needs independent review before merge/release |
 | Full uncertain-send reconciliation/outbox beyond queued work | [#51](https://github.com/BasedHardware/omi-vector-bot/issues/51) | Existing #29/#30 scope/evidence reviewed; no parallel delivery rewrite |
 | Minimized cumulative case summaries | [#52](https://github.com/BasedHardware/omi-vector-bot/issues/52) | References-only context demonstrates a real gap and additional retention/security approval is obtained |
 | Staff queue, operating ownership and reminders | [#53](https://github.com/BasedHardware/omi-vector-bot/issues/53) | Team agrees ownership/coverage; no invented response-time commitments |
@@ -173,9 +234,9 @@ The public security reminder deliberately omits findings, severity, provider/ide
 
 ## A. Short, clear, humane and correct answers
 
-- [ ] **A1 — One consistent voice and identity, verified live.** Normally 40–80 words, simple language, short paragraphs and one useful next action. Acknowledge the actual disruption and avoid repetitive greetings/apologies. Use Mira's elegant, warm, gently charming fictional feminine persona consistently across languages, without flirting, gender stereotypes or an invented biography. The short name and fictional portrait do not claim a human employee; keep explicit AI disclosure in the profile/introduction. Stay calm for serious problems. Preserve necessary warnings, uncertainty, sources and requested parts; detailed developer questions can be longer. Verify English, Spanish and Chinese examples without declaring prompt instructions a guarantee.
+- [ ] **A1 — One consistent voice and identity, verified live.** Normally 40–80 words, simple language, short paragraphs and one useful next action. Acknowledge the actual disruption and avoid repetitive greetings/apologies. Use Mira's calm, warm and practical fictional feminine persona consistently across languages, without flirting, gender stereotypes or an invented biography. Keep visible `Mira · Omi AI support` plus clear profile/introduction disclosure; the fictional portrait does not claim a human employee. Stay calm for serious problems. Preserve necessary warnings, uncertainty, sources and requested parts; detailed developer questions can be longer. Verify English, Spanish and Chinese examples without declaring prompt instructions a guarantee.
 - [ ] **A2 — Correct help, not automatic technical handoffs.** Navigation/confusion and hypothetical conditions are not failures; independent crashes, missing recordings and other actual failures remain failures. Money/account/privacy/replacement decisions still need a person. Retrieve each supported part of a multipart question within the existing evidence cap; preserve whole steps and source URLs when clipping. Damage intake asks for damage photos/video, private purchase email and delivery date, not unnecessary tracking details. Review real answer quality as well as routing flags.
-- [ ] **A3 — Complete the Release 1 gate and rollout.** Deliver both fresh result JSONs, all changed cases/runs, signals, judge problems, word-count median/p90 and provenance for independent grading. Relative gate: pass-both ≥ main −2, p50 ≤ main +2 s, p95 ≤ main +6 s; also require fewer false how-to handoffs, no missed protected handoffs and no mid-item clipping. After approval, release one version, record rollback, verify customer answers/staff receipt and preserved existing behavior. Do not deploy merely because CI is green.
+- [x] **A3 — Complete the Release 1 gate and rollout.** Both fresh comparison arms, deltas, signals, word counts and provenance were delivered; independent review approved the frozen release with its documented borderline handoff exception. Main `7fe0e0a` is deployed as `e1f76a93`, rollback `0eabf17b`, and all six requested live smoke scenarios pass with the accepted no-handoff English-card exception. Optional flags remain off. This closes the approved Release 1 gate/rollout only; #48 and later prompt changes still need their own fresh comparisons and review.
 - [ ] **A4 — Honest progress while waiting.** Verify the refreshed typing indicator and cosmetic-error isolation after release. Never invent an investigation, accepted case, deadline, recovery or fix to fill the wait. Retain evidence for the previously pending localized closing/reopen smoke before calling it verified.
 
 Implementation: shared voice, routing, retrieval, answer/review, honesty filters and delivery remain one pipeline. Research and its limitations are recorded in [SUPPORT_EXPERIENCE.md](SUPPORT_EXPERIENCE.md); research findings are not an Omi performance forecast.
@@ -229,7 +290,7 @@ Inspected D3 dependency: official Help Center articles 9942181 and 13154896 curr
 
 Ask only when the relevant stage reaches the gate; do not repeatedly request manual test conversations.
 
-- Release 1's quality approval, merge, deployment and audience check are recorded. Only its remaining live checks are pending; do not ask again for permissions repair or release approval.
+- Release 1's quality approval, merge, deployment, audience check and six live checks are complete and accepted; do not ask again for permissions repair, release approval or repeat posts.
 - Thirty-day support-memory approval is recorded. Remaining implementation/security/policy/processor/deletion checks and publication of the accurate notice precede enablement; do not ask again for the retention decision.
 - An approved private pilot destination and reviewed enablement when the memory/inbox implementation is ready. The staff-channel audience repair is already confirmed.
 - Aryan is the daily fix-card reviewer. Operational coverage for delivery failures/exceptions remains to be established; reviewer assignment does not prove a staffed response commitment. Mira remains the working name unless Aryan changes it.
