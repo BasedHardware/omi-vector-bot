@@ -13,6 +13,7 @@ const {
   uniqueQueries,
   isDeveloperIntent,
   isDeveloperPageCompatibleQuestion,
+  jointMultipartEvidence,
 } = require('../retrieval');
 const { pages: developerPages } = require('./fixtures/developer-docs');
 
@@ -135,6 +136,78 @@ test('query expansion keeps exact product terms and deduplicates planned searche
     uniqueQueries('create api key', ['Create API key', 'developer credentials', 'developer credentials']),
     ['create api key', 'developer credentials']
   );
+});
+
+test('multipart query expansion never spends its subquestion slots on generic variants', () => {
+  const subQuestions = Array.from({ length: 6 }, (_, index) => ({ question: `Requested feature ${index + 1}`, query: `Omi feature-${index + 1}` }));
+  const queries = supportQueries('How do I remove one memory in the app and use other features?', ['generic overview'], { subQuestions });
+  for (const part of subQuestions) assert.ok(queries.includes(part.query), part.query);
+  assert.equal(queries[0], 'How do I remove one memory in the app and use other features?');
+});
+
+test('multipart local evidence selects one useful chunk from each of four complementary pages before extras', () => {
+  const subQuestions = [
+    { question: 'Start microphone capture', query: 'microphone capture start' },
+    { question: 'Select a transcription language', query: 'transcription language selection' },
+    { question: 'Remove one conversation', query: 'individual conversation deletion' },
+    { question: 'Find extracted tasks', query: 'extracted action tasks' },
+  ];
+  const pages = subQuestions.flatMap((part, index) => Array.from({ length: 2 }, (_, chunkIndex) => ({
+    url: `https://help.omi.me/en/articles/fixture-${index}`, title: part.query,
+    body: `${part.query}. ${'Additional official documentation. '.repeat(48)}`,
+    source: 'help', chunkIndex,
+  })));
+  const generic = Array.from({ length: 8 }, (_, index) => ({
+    url: `https://docs.omi.me/generic-${index}`, title: 'App overview',
+    body: 'App overview phone app menus and controls.', source: 'docs', chunkIndex: 0,
+  }));
+  const queries = supportQueries('Omi app overview', ['app overview'], { subQuestions });
+  const rows = rankLocalChunks(queries, [...generic, ...pages], 8, {
+    customerQuestion: 'Omi app overview', subQuestions,
+  });
+  assert.equal(new Set(rows.slice(0, 4).map((row) => row.url)).size, 4);
+  const evidence = formatEvidence(rows);
+  for (let index = 0; index < 4; index += 1) assert.ok(evidence.includes(`https://help.omi.me/en/articles/fixture-${index}`));
+  assert.ok(evidence.length <= 9_000);
+});
+
+test('multipart joint corpus retains Help Center coverage rather than filling the budget with fetched docs first', () => {
+  const subQuestions = [
+    { question: 'Start microphone capture', query: 'microphone capture start' },
+    { question: 'Select a transcription language', query: 'transcription language selection' },
+    { question: 'Remove one conversation', query: 'individual conversation deletion' },
+    { question: 'Find extracted tasks', query: 'extracted action tasks' },
+  ];
+  const fetchedRows = Array.from({ length: 7 }, (_, index) => ({
+    url: `https://docs.omi.me/fixture-overview-${index}.md`, title: 'App overview',
+    source: 'docs', body: `App overview for general setup. ${'Background details. '.repeat(90)}`, chunkIndex: 0,
+  }));
+  const docsEvidence = formatEvidence(fetchedRows);
+  const help = subQuestions.map((part, index) => ({
+    url: `https://help.omi.me/en/articles/joint-fixture-${index}`,
+    title: part.query, source: 'help', body: `${part.query}: follow this documented control. ${'Official information. '.repeat(50)}`,
+    chunkIndex: 0,
+  }));
+  const result = jointMultipartEvidence('Omi app overview', docsEvidence, help, { queries: ['Omi app overview'], subQuestions });
+  for (const page of help) assert.ok(result.includes(page.url));
+  assert.equal(new Set([...result.matchAll(/^https:\/\/\S+/gm)].map((match) => match[0])).size, 4);
+  assert.ok(result.length <= 9_000);
+  assert.ok((result.match(/^\[S\d+ \|/gm) || []).length <= 8);
+
+  const mixedParts = subQuestions.map((part, index) => ({ ...part, query: index ? part.query : 'App overview' }));
+  const mixed = jointMultipartEvidence('Omi app overview', docsEvidence, help, { subQuestions: mixedParts });
+  assert.match(mixed, /Official documentation \| authoritative/);
+  assert.match(mixed, /App overview\nhttps:\/\/docs\.omi\.me\/fixture-overview-/);
+  assert.match(mixed, /Official Help Center \| authoritative/);
+  assert.ok(mixed.length <= 9_000);
+});
+
+test('the evidence character budget includes separators between chunks', () => {
+  const row = { url: 'https://help.omi.me/en/articles/budget-fixture', title: 'Official page', body: 'Grounded information. '.repeat(50), source: 'help' };
+  const one = formatEvidence([row]);
+  const maxChars = one.length * 2;
+  const result = formatEvidence([row, { ...row, chunkIndex: 1 }], { maxChars });
+  assert.ok(result.length <= maxChars);
 });
 
 test('voice input without an answer adds the intended chat-delivery vocabulary', () => {

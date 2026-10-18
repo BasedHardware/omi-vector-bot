@@ -32,6 +32,21 @@ test('restart repair uses the exact accepted staff receipt without another send'
   assert.deepEqual(f.effects[1][1], { messageId: 'staff-message', destination: 'staff-channel', expectedGeneration: 0 });
 });
 
+test('a recovered staff receipt restores the existing live-card reference before acknowledging projection', async () => {
+  const remembered = [];
+  const f = fixture({ rememberStaffCard: async (...args) => { remembered.push(args); f.effects.push(['card-remembered']); } });
+  assert.equal(await f.service.repair(f.row), true);
+  assert.deepEqual(remembered, [['case', 'staff', 'staff-message']]);
+  assert.ok(f.effects.findIndex(([name]) => name === 'card-remembered') < f.effects.findIndex(([name]) => name === 'projected'));
+});
+
+test('a failed live-card reference save keeps its accepted receipt available for repair', async () => {
+  const f = fixture({ rememberStaffCard: async () => { throw new Error('SYNTHETIC_PRIVATE_FAILURE'); } });
+  assert.equal(await f.service.repair(f.row), false);
+  assert.equal(f.effects.some(([name]) => name === 'projected'), false);
+  assert.doesNotMatch(JSON.stringify(f.effects), /SYNTHETIC_PRIVATE_FAILURE/);
+});
+
 test('unconfirmed receipts, other bot identities and other customers cannot project a handoff', async () => {
   for (const change of [{ state: 'unknown' }, { messageId: null }, { botUserId: 'another-bot' }, { customerId: 'bob' }]) {
     const f = fixture(); Object.assign(f.row, change);

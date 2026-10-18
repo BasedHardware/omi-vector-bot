@@ -3,9 +3,10 @@ const {
   stripFalseCertainty,
   stripPingNarration,
   formatDiscordReply,
-  clipForDiscord,
+  DISCORD_REPLY_MAX,
 } = require('./utils');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
+const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 
 const EMPTY_ANSWER_FALLBACK = 'I could not verify a safe answer here. A person needs to check this.';
 const UNSYNCED_DATA_WARNING = 'Recordings may still be unsynced. Do not reinstall the app, log out, or clear Pending/All storage until a person checks; those actions could erase local recordings.';
@@ -39,10 +40,83 @@ function prepareDraftForReview(answer, lane, question) {
   return prepareDraftForReviewWithAudit(answer, lane, question).draft;
 }
 
+// The closing source line: a label, then at least one https link, up to the end of the answer.
+const TRAILING_SOURCE = new RegExp(
+  `\\n\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}\\s*https:\\/\\/[^\\n]*$`,
+  'iu'
+);
+
+// Reply items are atomic: a wrapped bullet is one item, not a series of lines.
+// Prose can stop at a complete sentence; an oversized first list item cannot.
+// Keep this separate from the raw question/title clipper used elsewhere.
+function clipCompleteReplyUnits(answer, max) {
+  const text = String(answer || '').trim();
+  if (text.length <= max) return text;
+  const bodyBudget = Math.max(0, max - 2); // newline plus the truncation marker
+  const units = [];
+  let current;
+  let offset = 0;
+  const finish = () => {
+    if (current) units.push(current);
+    current = undefined;
+  };
+  for (const line of text.split('\n')) {
+    const listItem = /^\s*(?:[-*+•]|\d+[.)])\s+\S/u.test(line);
+    if (!line.trim()) {
+      finish();
+    } else if (listItem || !current) {
+      finish();
+      current = { start: offset, end: offset + line.length, listItem };
+    } else {
+      current.end = offset + line.length;
+    }
+    offset += line.length + 1;
+  }
+  finish();
+
+  let end = 0;
+  for (const unit of units) {
+    if (unit.end <= bodyBudget) {
+      end = unit.end;
+      continue;
+    }
+    if (!unit.listItem) {
+      const prefix = text.slice(unit.start, bodyBudget);
+      for (const sentenceEnd of prefix.matchAll(/[.!?。！？]["'”’\])]*(?=\s|$)/gu)) {
+        const candidate = unit.start + sentenceEnd.index + sentenceEnd[0].length;
+        // The prefix boundary itself is not a sentence boundary if the next
+        // original character continues a URL, word or punctuation group.
+        if (!text[candidate] || /\s/u.test(text[candidate])) end = candidate;
+      }
+    }
+    break;
+  }
+  const body = text.slice(0, end).trim();
+  if (body) return `${body}\n…`;
+  const note = 'This reply was too long to display in full.';
+  return note.length <= max ? note : '';
+}
+
+// Clip at a complete reply item and keep the source line whole. A link cut
+// short opens nothing, including on multi-part answers with several sources.
+function clipKeepingSource(answer, max = DISCORD_REPLY_MAX) {
+  const text = String(answer || '').trim();
+  if (text.length <= max) return text;
+  const sourceAt = text.search(TRAILING_SOURCE);
+  if (sourceAt < 0) return clipCompleteReplyUnits(text, max);
+  const tail = text.slice(sourceAt);
+  const gap = /^\n\s*\n/.test(tail) ? '\n\n' : '\n';
+  const sourceLine = tail.trim();
+  const bodyBudget = max - sourceLine.length - gap.length;
+  if (bodyBudget < 0) return EMPTY_ANSWER_FALLBACK; // never publish a severed source URL
+  const body = clipCompleteReplyUnits(text.slice(0, sourceAt), bodyBudget);
+  return body ? `${body}${gap}${sourceLine}` : sourceLine;
+}
+
 function presentReviewedAnswer(answer) {
   // The reviewer has already checked the claims. Only enforce the hard
   // no-false-ping rule and Discord's format/length constraints here.
-  return ensureNonEmptyAnswer(clipForDiscord(formatDiscordReply(stripPingNarration(answer))));
+  return ensureNonEmptyAnswer(clipKeepingSource(formatDiscordReply(stripPingNarration(answer))));
 }
 
 function stripUnverifiedOrderClaims(answer, { verifiedLookup = false } = {}) {
@@ -85,7 +159,7 @@ function addUnsyncedDataWarning(answer, question, { dataLossRisk = false, langua
   const sourceLine = sourceAt < 0 ? '' : current.slice(sourceAt).trim();
   const body = sourceAt < 0 ? current : current.slice(0, sourceAt).trim();
   const bodyBudget = Math.max(200, 1_750 - warning.length - sourceLine.length - 4);
-  return [clipForDiscord(body, bodyBudget), warning, sourceLine].filter(Boolean).join('\n\n');
+  return [clipCompleteReplyUnits(body, bodyBudget), warning, sourceLine].filter(Boolean).join('\n\n');
 }
 
 module.exports = {

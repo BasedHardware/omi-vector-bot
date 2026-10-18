@@ -23,6 +23,24 @@ test('/test is a guild slash command named test', () => {
   assert.equal(question.required, true);
 });
 
+test('customers can delete retained history only for their own support post, with a private acknowledgment', async () => {
+  const { handleForgetSupportHistory } = require('../commands');
+  const replies = []; const removed = [];
+  const interaction = { channel: { id: 'own-thread', ownerId: 'customer' }, user: { id: 'customer' },
+    deferReply: async value => replies.push(value), editReply: async value => replies.push(value) };
+  await handleForgetSupportHistory(interaction, { forget: async (channel, userId) => { removed.push([channel.id, userId]); return true; } });
+  assert.equal(removed.length, 1);
+  assert.match(replies.at(-1).content, /won.t save new history here/);
+  assert.match(replies.at(-1).content, /Discord.*unchanged/);
+  const before = replies.length;
+  await handleForgetSupportHistory({ ...interaction, user: { id: 'other-customer' } }, { forget: async () => { throw Error('must not be called'); } });
+  assert.match(replies.at(-1).content, /own support post/i);
+  assert.ok(replies.length > before);
+  await handleForgetSupportHistory(interaction, { forget: async () => false });
+  assert.doesNotMatch(replies.at(-1).content, /was deleted|won.t save/);
+  assert.match(replies.at(-1).content, /couldn.t confirm/i);
+});
+
 test('/test only runs in the #vector-test parent channel', async () => {
   const prev = process.env.VECTOR_TEST_CHANNEL_ID;
   process.env.VECTOR_TEST_CHANNEL_ID = '1550182642874589194';
@@ -577,15 +595,80 @@ test('case acceptance rejects customers, other channels, and forged cards withou
   ];
   try {
     for (const interaction of forbidden) {
-      let denied = false;
-      await handleAcceptCase({ ...interaction, reply: async (payload) => { denied = true; assert.ok(payload.flags); } },
-        { cases: { markAccepted: async () => assert.fail('unauthorized interactions must not touch a case') } });
-      assert.equal(denied, true);
+      for (const action of ['accept', 'refresh', 'work:in_progress', 'work:waiting_customer']) {
+        let denied = false;
+        await handleAcceptCase({ ...interaction, customId: `case:${action}:${caseId}`, reply: async (payload) => { denied = true; assert.ok(payload.flags); } },
+          { cases: { markAccepted: async () => assert.fail('unauthorized interactions must not touch a case'), getCaseById: async () => assert.fail('must not read'), setWorkStatus: async () => assert.fail('must not update') } });
+        assert.equal(denied, true);
+      }
     }
   } finally {
     for (const [key, env] of [['channel', 'STAFF_ALERT_CHANNEL_ID'], ['users', 'STAFF_USER_IDS']]) {
       if (previous[key] === undefined) delete process.env[env]; else process.env[env] = previous[key];
     }
+  }
+});
+
+test('authorized live-card actions update the case and notify the customer only on first acceptance', async () => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const { handleCaseAction } = require('../commands');
+  const cardModule = require('../caseCards');
+  const previous = { channel: process.env.STAFF_ALERT_CHANNEL_ID, users: process.env.STAFF_USER_IDS };
+  const staffChannel = '234567890123456789'; const staffId = '334567890123456789'; const messageId = '534567890123456789';
+  process.env.STAFF_ALERT_CHANNEL_ID = staffChannel; process.env.STAFF_USER_IDS = staffId;
+  const cases = createCaseService(createMemoryStore());
+  const value = await cases.getOrCreateCase({ channelId: 'help', customerThreadId: 'help', customerId: 'customer' });
+  await cases.markDelivered(value.id, { confirmed: true });
+  const notices = []; const edited = []; const card = { id: messageId, author: { id: 'bot' }, embeds: [{ fields: [{ name: 'Case', value: value.id }] }],
+    edit: async payload => { edited.push(payload); card.embeds = payload.embeds; card.components = payload.components; } };
+  const client = { user: { id: 'bot' }, channels: { fetch: async id => id === staffChannel ? { messages: { fetch: async () => card } }
+    : { send: async payload => { notices.push(payload); return { id: 'notice' }; } } } };
+  const cards = { ...cardModule.createCardService(cardModule.createMemoryStore(), { service: cases }), notifyAcceptance: cardModule.notifyAcceptance };
+  const replies = [];
+  const interaction = action => ({ customId: `case:${action}:${value.id}`, channelId: staffChannel, channel: { id: staffChannel },
+    message: card, client, user: { id: staffId }, deferReply: async () => {}, editReply: async payload => replies.push(payload), reply: async () => assert.fail('valid action') });
+  try {
+    await handleCaseAction(interaction('accept'), { cases, cards });
+    assert.match(edited.at(-1).embeds[0].title, /Accepted/); assert.equal(notices.length, 1);
+    await handleCaseAction(interaction('accept'), { cases, cards }); assert.equal(notices.length, 1);
+    await handleCaseAction(interaction('work:in_progress'), { cases, cards }); assert.match(edited.at(-1).embeds[0].title, /In progress/);
+    await handleCaseAction(interaction('work:waiting_customer'), { cases, cards }); assert.match(edited.at(-1).embeds[0].title, /Waiting for customer/);
+    assert.match(replies.at(-1).content, /marked Waiting for customer/);
+    await handleCaseAction(interaction('refresh'), { cases, cards }); assert.equal(notices.length, 1);
+  } finally {
+    if (previous.channel === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID; else process.env.STAFF_ALERT_CHANNEL_ID = previous.channel;
+    if (previous.users === undefined) delete process.env.STAFF_USER_IDS; else process.env.STAFF_USER_IDS = previous.users;
+  }
+});
+
+test('an unconfirmed acceptance notice gives staff an explicit private follow-up instruction', async t => {
+  const { createCaseService, createMemoryStore } = require('../supportCases');
+  const { handleAcceptCase } = require('../commands');
+  const { MessageFlags } = require('discord.js');
+  const previous = { channel: process.env.STAFF_ALERT_CHANNEL_ID, users: process.env.STAFF_USER_IDS };
+  const staffChannel = '234567890123456789'; const staffId = '334567890123456789';
+  process.env.STAFF_ALERT_CHANNEL_ID = staffChannel; process.env.STAFF_USER_IDS = staffId;
+  t.after(() => {
+    if (previous.channel === undefined) delete process.env.STAFF_ALERT_CHANNEL_ID; else process.env.STAFF_ALERT_CHANNEL_ID = previous.channel;
+    if (previous.users === undefined) delete process.env.STAFF_USER_IDS; else process.env.STAFF_USER_IDS = previous.users;
+  });
+  for (const code of ['send_unconfirmed', 'claim_failed', 'stale_acceptance', 'notice_unconfirmed', 'unavailable', 'thrown']) {
+    const cases = createCaseService(createMemoryStore());
+    const value = await cases.getOrCreateCase({ channelId: 'help', customerThreadId: 'help', customerId: 'customer' });
+    await cases.markDelivered(value.id, { confirmed: true });
+    let reply; let deferredFlags;
+    await handleAcceptCase({ customId: `case:accept:${value.id}`, channelId: staffChannel, channel: { id: staffChannel },
+      user: { id: staffId }, client: { user: { id: 'bot' } },
+      message: { id: '534567890123456789', author: { id: 'bot' }, embeds: [{ fields: [{ name: 'Case', value: value.id }] }] },
+      deferReply: async payload => { deferredFlags = payload.flags; }, editReply: async payload => { reply = payload; },
+      reply: async () => assert.fail('a valid staff acceptance must be deferred'),
+    }, { cases, cards: { rememberCard: async () => true, syncCase: async () => ({ ok: true }),
+      notifyAcceptance: async () => { if (code === 'thrown') throw new Error('unavailable'); return { ok: false, code }; } } });
+    assert.equal(deferredFlags, MessageFlags.Ephemeral);
+    assert.ok(reply.content.includes('The customer notice was not confirmed. Please reply in their thread yourself.'), code);
+    assert.doesNotMatch(reply.content, /customer thread was updated|notice was sent/i);
+    assert.deepEqual(reply.allowedMentions, { parse: [] });
+    assert.equal((await cases.getCaseById(value.id)).status, 'accepted');
   }
 });
 

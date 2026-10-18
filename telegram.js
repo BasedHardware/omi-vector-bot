@@ -74,6 +74,19 @@ async function sendEscalation(payload) {
   }
 }
 
+async function sendOperationalAlert(content) {
+  if (!isReady()) return false;
+  try {
+    const response = await axios.post(`${BASE}/sendMessage`, {
+      chat_id: CHAT_ID, text: String(content).slice(0, TELEGRAM_MAX),
+    }, { timeout: 10_000 });
+    return response.data?.ok === true;
+  } catch {
+    console.error('[Telegram] operational alert not confirmed');
+    return false;
+  }
+}
+
 async function pollUpdates() {
   if (!isReady()) return;
   try {
@@ -244,6 +257,7 @@ module.exports = {
   isReady,
   formatEscalationText,
   sendEscalation,
+  sendOperationalAlert,
   startPolling,
   stopPolling,
   drainPolling,

@@ -1,11 +1,53 @@
 # Omi Support Bot Implementation Checklist
 
-Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. The first workflow foundation is implemented and tested on the branch; rollout and future diagnostics remain separate. Each runtime change needs regression checks and release verification. No cloud access grants accompany this foundation.
+October 18 #29 preparation: current #28/main integration passes 909 tests, offline 8/8 and isolated SQL. Four integration regressions failed before and pass after the card/ACL/observer repairs. Same-nonce transient retries, sending through an explicitly reported receipt-ledger outage, and staff-visible alerts for every held/blocked customer reply are still next. Do not mark B3 or the #29 delivery milestone complete or release-ready from integration checks alone.
+
+October 18: #28 integrates deployed main `7fe0e0a`; 844 unit tests, offline 8/8, isolated SQL, hosted Node 20/24/Postgres at runtime merge `758808a` and the fresh production-configured read-only staff audience gate pass. Independent re-review remains pending. Earlier October 12 audience rejection is historical, not a request for another permissions change. Release 1 live smoke still precedes another deployment. All memory/context/inbox switches stay off.
+
+The controlling product acceptance checklist is [SUPPORT_MASTER_PLAN.md](SUPPORT_MASTER_PLAN.md). This file maps implementation details; checked engineering work does not complete the product's live acceptance. Maintain the A–E workstreams across second-opinion reviews and preserve unfinished work, authorization blockers and the next concrete step. The current combined runtime candidate is #47; this documentation update does not alter its frozen comparison.
+
+Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. Reports 1–3 passed. The retained #43 release record has localization deployed at `dad2505`, but its live close/reopen smoke is still pending; this branch does not recheck production. The support-experience foundation below is a separate draft. Each runtime change needs regression checks and release verification. No cloud access grants accompany this work.
 
 ## Release and security prerequisites
 
-- [ ] Complete and report the outstanding PR #24 smoke test before the approved PR #25 readiness rollout. Do not use this architecture work to bypass that gate.
-- [ ] Confirm that previously exposed credentials have been rotated or revoked. Never reuse, print or commit exposed values. Plan encryption-key migration without discarding encrypted state.
+### Combined Release 1 (updated October 17 brief)
+
+- [x] Recheck and merge #46 with a merge commit, without deploying.
+- [x] Merge #45 and #42 into an isolated release candidate; preserve live closing-card localization and quiet/mention behavior.
+- [x] Replace competing character-budget instructions with the shared concise voice; navigation/conditional and actual-failure regressions pass.
+- [x] Preserve whole-item clipping, evidence caps, multipart coverage and damage intake; memory stays disabled.
+- [ ] Fresh same-day main/candidate 81×2 comparison, concurrency three, awake host, exact provenance and actual per-case signals/replies; provide all artifacts and word-count summary.
+- [ ] Independent grading before release merge/deployment. Private memory pilot and fix inbox remain later releases with their own approval/privacy gates.
+
+### October 17 support-experience draft
+
+The encrypted-text implementation below is historical implementation evidence, **not** the Release 2 enablement plan. Aryan's October 18 references-only brief supersedes it; keep it off until replaced.
+
+- [x] Central concise/plain-language voice and transparent Mira identity; preserve factual/safety/source rules.
+- [x] Default-off encrypted support memory with allowed forums/authors, customer isolation, edit ordering, deletion/expiry and persistent post opt-out.
+- [x] Capture quiet authorized staff context without changing reply triggers; isolate optional write failures from core replies.
+- [x] Separately gate retained-context use, enforce requesting customer ownership and uncached revalidation, and cap additional reads/time.
+- [x] Record fixed operational outcome categories and produce read-only aggregate, review-required improvement suggestions.
+- [x] Add synthetic adapter and SQL checks for restart, concurrency, edits, privacy/deletion and failure behavior; no manual customer posts needed for these checks.
+- [x] Delete-before-first-capture regression and SQL coverage; expiry cleanup bypasses a full optional queue with coalesced sweeps. Three new regressions failed before the repair.
+- [ ] Pass independent answer-quality review before merge. The explicitly authorized combined #47 comparison is complete (162 rows per arm, October 18); the numerical relative checks pass, but missing-handoff flags rose 2 → 3. The result-only files and all changed cases are ready for grading. #42's older grade is not reused; do not tune from protected results or rerun as a side effect.
+- [ ] Obtain privacy/processor/retention/security approval, publish a deletion/retention notice and resolve any Discord App Review requirement before enabling capture. Key/security risk remains a prerequisite, not resolved by adding encryption code.
+- [ ] Staff-only shadow pilot, then separately approved context reuse and a one-release-at-a-time smoke. No production settings change in this implementation.
+- [ ] Implement reviewed knowledge proposals and regression-controlled publication as a later phase. The current aggregate queue does not learn factual answers or retrain itself.
+
+### Release 2 references-only replacement — after Release 1 deployment
+
+- [x] Record Aryan's 30-day memory approval and assignment as daily fix-card reviewer; inspect that saved text is not used as the reply context.
+- [ ] Create `feat/memory-references` from deployed main, one customer failure per PR: repeating earlier attempts in a new post.
+- [ ] Replace encrypted text with expiring scoped references/text-free outcomes; idempotently remove old text/ciphertext/IV/tag. Preserve unrelated identity encryption and never require its key for support memory.
+- [ ] Retrieve at most two other same-owner posts in the same forum/guild; live title, three owner messages and last bot reply only, plus outcome; `conversation_only`, never official evidence. Total extra-work deadline 1.5 seconds; database/Discord failure uses current-post history and does not affect `/health`.
+- [ ] Customer/forum-wide erase plus persistent opt-out, including queued writes/restart; deletes, bulk/thread deletes and 30-day expiry remain active with all switches off. Verify no memory table retains text and no other customer's context is used.
+- [ ] Observe red/green behavior tests; full suite, hosted CI, local Postgres; fresh same-day main/branch 81×2/concurrency-three comparison with memory off. Independent grade before merge/deploy; keep protected inputs sealed.
+- [ ] Verify the scripted two-post attempted-step scenario in an explicitly approved isolated candidate runtime or post-review test-only deployment; never bypass review with a second production worker. Report enabled-context results separately from memory-off quality results.
+- [ ] Test-only rollout after review, at least 48 clean hours plus deletion/restart/timeout/switch checks, then reviewed help-forum expansion and the exact published notice. No reference-memory code or rollout exists yet.
+
+- [x] PR #24's smoke test was reported before #25's verified readiness rollout. Keep subsequent releases gated on their own review, evaluation and production smoke tests; the roadmap records the evidence.
+- [ ] **Deferred by Aryan (Oct 9), accepted risk.** Previously exposed credential rotation remains unconfirmed. Plan encryption-key migration without discarding encrypted state; never print or commit secret values.
 - [ ] Inventory actual installed GitHub, Shopify and Discord permissions without exposing values. Existing credentials being configured does not prove their scopes or end-to-end capability.
 - [ ] Define support owners, response targets, diagnostic consent, retention and an emergency disable procedure before making customer-facing commitments.
 
@@ -25,14 +67,32 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Require explicit staff confirmation of the exact sanitized public summary; prevent public-card publication, stale previews, cross-customer/repository retargeting and blind retries after uncertain writes.
 - [x] Stage owning-customer follow-ups in dedicated threads for staff-approved comments on one unambiguous linked issue; retain manual selection for shared channels and multiple targets.
 - [x] Add read-only GitHub receipt reconciliation and idempotent private-link repair; never infer trusted ownership from a public marker.
-- [x] Validate actual Discord staff audience and bot permissions before full-card delivery and GitHub actions, failing closed on unknown audience grants.
+- [x] Draft #28: validate actual Discord staff audience and bot permissions before full-card delivery and GitHub actions; fetch only an unconfigured direct grantee uncached and fail closed on unknown/stale proof. Add boot validation and a bounded metadata-only Telegram alert; preserve existing readiness and shutdown.
+- [x] Obtain `private_staff_destination` from the approved production-configured read-only audience check after Aryan's permission repair. This does not approve #28's release.
+- [x] Reverify #28's current-main integration locally and repeat the read-only audience gate: 844 tests, offline 8/8, isolated SQL and `private_staff_destination` pass.
+- [x] Pass hosted Node 20/24/Postgres checks for runtime merge `758808a`.
+- [ ] Obtain independent re-review and check the latest head before merging #28. Never add unverified roles or relax checks to force a pass.
 - [ ] Add automatic draft retention cleanup, a general delivery outbox and Telegram destination verification. The bounded GitHub reconciliation flow is not the complete outbox.
+- [x] Shipped #41: project accepted/work/waiting/resolved/closed state into the existing private cards; persist message references, serialize edits and recover missed updates after restart. Retire deleted cards without reposting.
+- [x] Shipped #41: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.
+- [x] Phase 3 correction: every unconfirmed acceptance notification explicitly tells staff to reply in the customer's thread, in an ephemeral response. Confirmed boot/30-second sweep wiring and stale-card repair after a failed edit; Phase 2 main merged without a rebase. Combined unit suite 661 pass, offline 8/8.
+- [x] Report 3 review and production smoke accepted: English/Spanish acceptance/start/wait/refresh-after-restart and `/done` closure. No extra live double-click test required; reopening remains a later #30 smoke prerequisite.
+- [x] Phase 4b draft: localize the closing card from stored case language for the 14 acceptance languages, with English fallback; preserve all feedback IDs, links and delivery/ownership checks. Seven new tests (five red before), 668 unit tests pass; review and deployment remain pending after #42.
 - [x] Correct exact order targeting: an explicit number not found stays a miss, never another order. Move the retired Shopify API version to a supported tested contract and verify the actual response version. Shopify documents [version fallback](https://shopify.dev/docs/api/usage/versioning) and [order-access scopes](https://shopify.dev/docs/api/usage/access-scopes).
 - [ ] Add bounded historical-order pagination and explain accessible history privately.
 
 Acceptance: restart during OTP, overlapping copies, provider slowdown, failed/uncertain sends, repeated webhooks, staff-button use after restart and termination during a reply produce neither false completion nor uncontrolled duplicate work. Existing customer routing/privacy regressions stay green.
 
 The receipt slice is not this complete acceptance claim. Uncertain sends without a captured receipt remain manual; reused-thread answers, closure cards, Telegram, ephemeral commands and other notifications are not ledgered yet. No queued payload replay or new customer-content retention is introduced. Approve metadata/payload retention before the complete outbox and its production rollout.
+
+## Access prerequisites before metadata diagnostics
+
+- [ ] After #26 and separately verified #28, add the reviewed public known-issues/releases list and product facts sheet, with official sources, versions, review/freshness ownership and deployment evidence.
+- [ ] Use AGENTS.md's support voice without inventing access, receipt, acceptance, investigations or outcomes. Runtime prompt/canned-answer changes require the full protected gate.
+- [ ] For each new adapter, define a fixed allowlist, customer/case authorization where needed, consent, limits, kill switch and metadata-only audit; validate synthetically, then pilot in the private staff card before reviewed customer enablement.
+- [ ] Extend order facts only through exact-owner-verified private/ephemeral delivery, never a normal customer-thread message or model prompt. Keep existing `/order` self-service enabled; do not add order/account writes.
+- [ ] Obtain backend-team agreement and privacy review before linked-account metadata/sign-in implementation. Define available/stale/unknown states for device/version/sync/plan and any provable unsynced count; exclude content and unrelated customers.
+- [ ] Follow the remaining staged order: reviewed/gated #42 → reviewed closing-card localization → reviewed/private-preflight #28 → reviewed #29 → reviewed #30. The previous two-week go/no-go order is superseded, not a reason to bypass review. Keep deployments separate, with 24 clean hours unless Aryan explicitly says go; add only the authorized phase corrections. Other open queue/monitoring/retention work remains deferred.
 
 ## Phase 2 Verified metadata diagnostics
 

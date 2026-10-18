@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, Partials } = require('discord.js');
 const express = require('express');
 const db = require('./db');
 const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion, officialHandoffLinks } = require('./commandcode');
@@ -61,6 +61,16 @@ const { sendDiscordMessage } = require('./supportDiscordTransport');
 const { createReceiptRecovery } = require('./supportDeliveryRecovery');
 const { validateStaffDestination } = require('./discordPrivacy');
 const githubFlow = require('./githubFlow').createGithubFlow();
+const caseCards = require('./caseCards');
+const staffDestination = require('./staffDestination');
+const { ensureSupportIdentity } = require('./supportVoice');
+const supportLearning = require('./supportLearning');
+const learning = () => supportLearning.getObserver(client.user?.id);
+const observeSupport = operation => {
+  const observer = learning();
+  if (!observer.enabled) return;
+  runtime.track(() => operation(observer)).catch(() => console.error('[SupportMemory] optional observation failed'));
+};
 const { SupportRuntime, PostgresRuntimeStore, MemoryRuntimeStore, questionFingerprint, assertCurrentOwnership, markCurrentReplySent, isLeaseLost } = require('./supportRuntime');
 
 const HELP_FORUM_CHANNEL_ID = process.env.HELP_FORUM_CHANNEL_ID;
@@ -75,11 +85,15 @@ let httpServer;
 let shutdownPromise;
 let recoveryTimer;
 let deliveryRecoveryTimer;
+let caseCardTimer;
+let unsubscribeCaseCards;
+let supportMemoryTimer;
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
 const botReplyOwners = new Map();
 
 const client = new Client({
+  partials: [Partials.Message],
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
@@ -97,12 +111,13 @@ const receiptRecovery = createReceiptRecovery({
   fetchChannel: (id) => client.channels.fetch(id, { force: true }),
   botUserId: () => client.user?.id,
   staffChannelId: () => process.env.STAFF_ALERT_CHANNEL_ID,
-  validateDestination: (channel) => {
+  validateDestination: async (channel) => {
     const { users, roles } = staffMentionIds();
-    return validateStaffDestination(channel, { botUserId: client.user?.id, staffUsers: users, staffRoleIds: roles }).ok;
+    return (await validateStaffDestination(channel, { botUserId: client.user?.id, staffUsers: users, staffRoleIds: roles })).ok;
   },
   getApproval: (id) => github.getScopedApproval(id),
   bindCard: (approval, sent) => githubFlow.bindCard(approval, sent),
+  rememberStaffCard: (caseId, channelId, messageId) => caseCards.rememberCard(caseId, channelId, messageId),
   rememberAnswer: rememberBotReply,
 });
 
@@ -121,7 +136,7 @@ async function reconcileDeliveryReceipt(message) {
 
 const app = express();
 app.get('/health', (_req, res) => {
-  const ready = coordinationReady && !runtime.stopping;
+  const ready = client.isReady() && coordinationReady && !runtime.stopping;
   res.status(ready ? 200 : 503).json({
     status: ready ? 'ok' : 'not_ready',
     staffHandoff: process.env.STAFF_ALERT_CHANNEL_ID || telegram.isReady() ? 'configured' : 'missing',
@@ -187,7 +202,28 @@ function rememberBotReply(sent, message) {
   }
 }
 
+// Discord hides a typing indicator after about ten seconds, while a reviewed
+// answer takes far longer. Keep it visible until the first reply. It is only a
+// courtesy: a failed typing call must never cost the customer their answer.
+const TYPING_REFRESH_MS = 8_000;
+const typingStops = new WeakMap();
+
+function keepTyping(message, channel, intervalMs = TYPING_REFRESH_MS) {
+  let stopped = false;
+  const ping = () => {
+    if (stopped || typeof channel?.sendTyping !== 'function') return;
+    Promise.resolve().then(() => channel.sendTyping()).catch(() => {});
+  };
+  const timer = setInterval(ping, intervalMs);
+  timer.unref?.();
+  const stop = () => { stopped = true; clearInterval(timer); typingStops.delete(message); };
+  typingStops.set(message, stop);
+  ping();
+  return stop;
+}
+
 async function replySafe(message, content, { pingAuthor = false } = {}) {
+  typingStops.get(message)?.();
   await assertCurrentOwnership();
   let text = ensureNonEmptyAnswer(rewriteUserMentions(ensureNonEmptyAnswer(content), message));
   if (pingAuthor) text = attachAuthorMention(text, message);
@@ -428,12 +464,13 @@ async function hasEarlierMessages(channel, messageId) {
   }
 }
 
-async function getHistory(channel, excludeId) {
+async function getHistory(channel, excludeId, customerId) {
   // Parent #vector-test is a pile of unrelated tickets. Only follow-ups
   // inside an existing Handoff or help post may see prior messages.
   const samePost = channel.isThread?.() && (isHelpThread(channel) || isTestChannel(channel));
   if (!isTrustedHandoffThread(channel) && !samePost) return [];
   const messages = await channel.messages.fetch({ limit: 50 });
+  if (learning().contextEnabled && learning().supports(channel)) return clipThreadHistory(await learning().history(channel, excludeId, [...messages.values()], customerId));
   const entries = [...messages.values()]
     .reverse()
     .filter((m) => m.id !== excludeId)
@@ -565,6 +602,9 @@ function redactStaffQuestion(text) {
 
 async function handleMessage(message) {
   if (runtime.stopping || !coordinationReady) return { status: 'stopping' };
+  // Observe quiet staff/customer continuations too, without making them reply
+  // triggers. The observer independently enforces its approved forum boundary.
+  observeSupport(observer => observer.capture(message));
   if (
     !directlyMentionsBot(message.content) &&
     (isHelpThread(message.channel) || isTrustedHandoffThread(message.channel)) &&
@@ -685,9 +725,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
 
   console.log(`[Bot] Processing in ${channel.id}`);
 
+  const stopTyping = keepTyping(message, channel);
   try {
-    await channel.sendTyping();
-
     const useThreadMetadata =
       isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel);
     const routeSource = [useThreadMetadata && channel.isThread?.() ? channel.name : '', question]
@@ -700,7 +739,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       (isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel))
     ) {
       try {
-        contextHistory = await getHistory(channel, message.id);
+        contextHistory = await getHistory(channel, message.id, message.author.id);
         prior = contextHistory.map((entry) => entry.content).join('\n');
       } catch (err) {
         console.error('[Bot] thread context failed:', err.message);
@@ -833,7 +872,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       );
       const retrievalStart = performance.now();
       const [docsText, officialCodeText, feedbackText, releaseText] = await Promise.all([
-        relevantDocs(sourceQuestion, { queries: searchPlan.queries }),
+        relevantDocs(sourceQuestion, { queries: searchPlan.queries, subQuestions: searchPlan.subQuestions }),
         route.area === 'shop' ? '' : github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
         router.isTechLane(route) || route.lane === 'unknown'
           ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })
@@ -844,6 +883,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       const retrievedEvidence = await canonicalizeGithubDocsEvidence(
         combineEvidence(docsText, feedbackText, officialCodeText)
       );
+      if (!String(retrievedEvidence || '').trim()) observeSupport(observer => observer.signal(channel, {
+        eventId: `${message.id}-no-source`, kind: 'no_official_source', area: route.area,
+      }, message.author.id));
       const toolFacts = buildToolFacts({
         route,
         shopifyText,
@@ -911,6 +953,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               stageMs.review += Math.round(performance.now() - reviewStart);
             }
             const approved = approvedReview(checked);
+            if (!approved) observeSupport(observer => observer.signal(channel, {
+              eventId: `${message.id}-review`, kind: 'review_rejected', area: route.area,
+            }, message.author.id));
             reviewedGrounded = Boolean(approved);
             aiResponse.final_answer = approved
               ? github.reviewedPullMention(checked.final_answer, relatedPull)
@@ -1083,7 +1128,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       let supportCase = await supportCases.getOrCreateCase({
         channelId: previousCase?.channelId || channel.id, customerId: message.author.id,
         customerThreadId: channel.isThread?.() ? channel.id : undefined,
+        sourceMessageId: message.id,
         context: { area: triaged.area, lane: triaged.lane, dataLossRisk, needsPerson: true,
+          replyLanguage: searchPlan.replyLanguage === 'hi'
+            ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en',
           attachmentCount: message.attachments?.size || 0, reasonCodes: dataLossRisk ? ['data_loss_risk'] : ['needs_person'] },
         sources: cleanAnswer.match(/https:\/\/[^\s)>]+/g) || [],
       });
@@ -1172,6 +1220,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             confirmed: true, destination: handoff.deliveredVia || handoff.via, messageId: handoff.messageId,
             expectedGeneration: supportCase.generation,
           });
+          observeSupport(observer => observer.signal(channel, { eventId: `${message.id}-handoff`,
+            kind: handoff.ok ? 'handoff_delivered' : 'delivery_failed', area: triaged.area }, message.author.id));
           if (handoff.thread && handoff.ok) {
             rememberOpenHandoff(channel.id, message.author?.id, handoff.thread);
             await applyThreadName(handoff.thread, nameMeta);
@@ -1185,6 +1235,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           if (isLeaseLost(err)) throw err;
           deliveryFailed = !pinged;
           deliveryUnknown = supportDeliveries.isDeliveryUncertain(err);
+          if (deliveryFailed) observeSupport(observer => observer.signal(channel, {
+            eventId: `${message.id}-handoff`, kind: 'delivery_failed', area: triaged.area,
+          }, message.author.id));
           console.error('[Bot] Handoff delivery unavailable');
         }
       }
@@ -1238,6 +1291,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (stayInPost) await noteCustomerLead(channel, message);
+    observeSupport(observer => observer.signal(channel, { eventId: `${message.id}-answer`, kind: 'answer_sent', area: triaged.area }, message.author.id));
     markReplied(`${channel.id}:${message.author.id}`);
     if (channel.isThread?.()) markAnsweredText(channel.id, message.author.id, message.content);
     if (dbReady) {
@@ -1262,6 +1316,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       console.error('[Bot] Reply failed:', replyErr.message);
     }
   } finally {
+    stopTyping();
     const total = Math.round(performance.now() - startedAt);
     if (didReply) console.log(timingLogLine({ ...stageMs, total }, stageUsage));
     process.emit('omiSupportTimings', { messageId: message.id, stages: { ...stageMs, total } });
@@ -1285,6 +1340,7 @@ client.on(Events.ThreadCreate, async (thread) => {
 
 client.on(Events.MessageCreate, async (message) => {
   if (message.author?.bot) {
+    observeSupport(observer => observer.capture(message));
     await runtime.track(() => reconcileDeliveryReceipt(message), { acceptedReceipt: true });
     return;
   }
@@ -1302,6 +1358,12 @@ client.on(Events.Raw, (packet) => {
   return runtime.track(() => reconcileDeliveryReceipt(data), { acceptedReceipt: true })
     .catch(() => console.error('[Delivery] raw receipt reconciliation unavailable'));
 });
+client.on(Events.MessageUpdate, (_old, message) => observeSupport(observer => observer.update(message)));
+client.on(Events.MessageDelete, message => runtime.track(() => learning().forgetMessage(message)));
+client.on(Events.MessageBulkDelete, messages => runtime.track(async () => {
+  for (const message of messages.values()) await learning().forgetMessage(message);
+}));
+client.on(Events.ThreadDelete, thread => runtime.track(() => learning().forgetThread(thread)));
 
 client.on(Events.InteractionCreate, (interaction) => {
   return runtime.track(() => commands.handleInteraction(interaction)).catch(() => {
@@ -1325,22 +1387,34 @@ commands.setTestQuestionHandler(async (interaction, question) => {
 });
 
 async function nickOmiSupport(client) {
-  if (!VECTOR_TEST_CHANNEL_ID) return;
-  try {
-    const ch = await client.channels.fetch(VECTOR_TEST_CHANNEL_ID);
-    const me = ch?.guild?.members?.me;
-    if (me && typeof me.setNickname === 'function' && me.nickname !== 'Omi Support') {
-      await me.setNickname('Omi Support', 'Customers should see Omi Support');
-    }
-  } catch (err) {
-    console.error('[Bot] nickname Omi Support failed:', err.message);
-  }
+  await ensureSupportIdentity(client, [HELP_FORUM_CHANNEL_ID, VECTOR_TEST_CHANNEL_ID]);
 }
 
 client.once(Events.ClientReady, async () => {
   // Keep this timestamp at connection, not after database/card recovery; it is
   // used to measure deployment overlap against the old copy's SIGTERM.
   console.log(`[Bot] Logged in as ${client.user.tag}`);
+  const staff = staffMentionIds();
+  await runtime.track(() => staffDestination.checkBootStaffDestination(client, {
+    staffUsers: staff.users, staffRoleIds: staff.roles,
+  }));
+  const memory = learning();
+  if (memory.cleanupEnabled) {
+    runtime.track(() => memory.prune());
+    supportMemoryTimer = setInterval(() => runtime.track(() => memory.prune()), 60000);
+    supportMemoryTimer.unref();
+  }
+  const syncCards = (caseId) => runtime.track(() => caseId ? caseCards.syncCase(client, caseId) : caseCards.syncPending(client))
+    .catch(() => console.error('[CaseCard] refresh worker failed; pending retry'));
+  unsubscribeCaseCards = supportCases.onChange(syncCards);
+  let refreshingCards = false;
+  const repairCards = async () => {
+    if (refreshingCards || runtime.stopping) return;
+    refreshingCards = true;
+    try { await syncCards(); } finally { refreshingCards = false; }
+  };
+  caseCardTimer = setInterval(repairCards, 30000); caseCardTimer.unref();
+  repairCards();
   recoveryTimer = setInterval(() => {
     runtime.track(() => runtime.recoverQueued(recoverQueuedRequest)).catch(() => console.error('[SupportRuntime] queued request lookup failed'));
   }, 1000);
@@ -1431,9 +1505,12 @@ async function shutdown(signal) {
     runtime.stopAccepting();
     clearInterval(recoveryTimer);
     clearInterval(deliveryRecoveryTimer);
+    clearInterval(caseCardTimer);
+    clearInterval(supportMemoryTimer);
     telegram.stopPolling();
     const [drained, telegramDrained] = await Promise.all([runtime.drain(), telegram.drainPolling()]);
     console.log(`[SupportRuntime] drain completed=${drained} telegram_completed=${telegramDrained}`);
+    unsubscribeCaseCards?.();
     client.destroy();
     if (dbReady) await db.shutdown();
     httpServer?.close();
@@ -1455,4 +1532,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, client, handleMessage, shouldHandle, runtime, noteCustomerLead, reconcileDeliveryReceipt };
+module.exports = { app, client, handleMessage, shouldHandle, runtime, noteCustomerLead, reconcileDeliveryReceipt, keepTyping };

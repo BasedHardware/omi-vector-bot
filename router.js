@@ -50,12 +50,7 @@ const WEAK_SHOP = [/\border\s*(#|number|id|num)\b/i, /\border\s*no\.?\s*#?\d{3,}
 const SHOP = [...STRONG_SHOP, ...WEAK_SHOP];
 const ORDER_STATUS_OPENING = 'Let’s work through your delivery question.';
 
-const FIRMWARE = [
-  /\bfirmware\b/i,
-  /\brma\b/i,
-  /\bwarehouse\b/i,
-  /\bserial( number)?\b/i,
-  /\breplacement (device|unit|omi)\b/i,
+const FIRMWARE_FAILURE = [
   /powers? off (by itself|after)/i,
   /dies? seconds after/i,
   /turns? off .+ (100\s*%|battery)/i,
@@ -65,7 +60,16 @@ const FIRMWARE = [
   /shuts? (itself )?off after/i,
   /\bnot charging\b/i,
   /\bwon'?t charge\b/i,
+];
+
+const FIRMWARE = [
+  /\bfirmware\b/i,
+  /\brma\b/i,
+  /\bwarehouse\b/i,
+  /\bserial( number)?\b/i,
+  /\breplacement (device|unit|omi)\b/i,
   /\bcharger\b/i,
+  ...FIRMWARE_FAILURE,
 ];
 
 const DESKTOP = [
@@ -90,22 +94,26 @@ const INTEGRATION_FAILURE = [
   /\b(?:google|gmail|calendar|integration|extension).{0,70}\b(?:blocked|error|fail(?:ed|s|ing)?|cannot connect|won'?t connect|not connect|only (?:shows|gets|syncs))\b/i,
 ];
 
-const APP = [
-  /\b(android|iphone|ios)\b/i,
-  /\bapple watch\b/i,
+const APP_FAILURE = [
   ...INTEGRATION_FAILURE,
   /\b(the )?app (crash|crashed|force.?clos)/i,
   /\bcrash(ed|es|ing)?\b/i,
+  /\bdidn'?t sync\b/i,
+  /\b(recordings?|clips?) (are )?(missing|gone)\b/i,
+  /\bstill nothing recorded\b/i,
+];
+
+const APP = [
+  /\b(android|iphone|ios)\b/i,
+  /\bapple watch\b/i,
   /\blisten socket\b/i,
   /\b1011\b/,
   /\btranscription\b/i,
   /\bwss:\/\/api\.omi/i,
-  /\bdidn'?t sync\b/i,
-  /\b(recordings?|clips?) (are )?(missing|gone)\b/i,
+  /\bapp stayed open\b/i,
   /\b(disconnected|offline).{0,40}\bapp\b/i,
   /\bapp.{0,40}(disconnected|offline)\b/i,
-  /\bapp stayed open\b/i,
-  /\bstill nothing recorded\b/i,
+  ...APP_FAILURE,
 ];
 
 const CAPTURE_FAILURE = [
@@ -278,13 +286,14 @@ function classifyRoute(text) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
   if (any(s, FIRMWARE)) {
-    return { area: 'firmware', lane: 'firmware', escalate: true, wantHuman };
+    const deviceRequest = /\brma\b|\breplacement\s+(?:device|unit|omi)\b/i.test(s);
+    return { area: 'firmware', lane: 'firmware', escalate: wantHuman || deviceRequest || looksLikeReportedFailure(s), wantHuman };
   }
   if (any(s, DESKTOP)) {
-    return { area: 'desktop', lane: 'tech', escalate: true, wantHuman };
+    return { area: 'desktop', lane: 'tech', escalate: wantHuman || looksLikeReportedFailure(s), wantHuman };
   }
   if (any(s, APP)) {
-    return { area: 'app', lane: 'tech', escalate: true, wantHuman };
+    return { area: 'app', lane: 'tech', escalate: wantHuman || looksLikeReportedFailure(s), wantHuman };
   }
   if (any(s, WEAK_SHOP)) {
     return { area: 'shop', lane: 'shop', escalate: true, wantHuman };
@@ -381,9 +390,50 @@ function looksLikeHardFailure(text) {
   return /\b(app (was|stayed) open|kept the app (open|running)|blue light)\b/i.test(s) && /\b(nothing|still)\b/i.test(s);
 }
 
+function conditionalFailureContext(clause) {
+  // A past event in a temporal clause is an observation, not a hypothetical.
+  if (/^(?:when(?:ever)?|while|cuando|mientras)\b/i.test(clause) &&
+      /\b(?:crashed|failed|froze|stopped|fall[oó]|se\s+detuvo|se\s+bloque[oó])\b/i.test(clause)) return clause;
+  // Customers omit commas. An action followed by a separate finite fault
+  // predicate starts the main clause; keep it. A coordinated condition
+  // ("...and the app fails") still belongs to the hypothetical instead.
+  const action = /\b(?:open(?:s|ed|ing)?|launch(?:es|ed|ing)?|start(?:s|ed|ing)?|select(?:s|ed|ing)?|choos(?:e|es|ing)|record(?:s|ed|ing)?|abro|abrimos|inici[oó]|inicio|intento|selecciono|grabo)\b/i.exec(clause);
+  if (!action) return 'condition';
+  const remainder = clause.slice(action.index + action[0].length);
+  const consequence = /\b(?:(?:it|they|i|we|(?:the|my)\s+(?:app|application|device|transcript|recording|firmware))\s+(?:crash(?:es|ed|ing)?|fail(?:s|ed|ing)?|freez(?:es|ing)|froze|stop(?:s|ped)?|can't|cannot|doesn't|won't|(?:is|stays?)\s+(?:offline|broken)|(?:get|see|receive)\s+(?:an?\s+)?error)|se\s+(?:bloquea|congela)|aparece\s+(?:un\s+)?error)\b/i.exec(remainder);
+  if (!consequence || /\b(?:and|or|y|o)\s*$/i.test(remainder.slice(0, consequence.index))) return 'condition';
+  return 'condition ' + remainder.slice(consequence.index);
+}
+
+function looksLikeReportedFailure(text) {
+  const s = String(text || '').replace(/[\u2018\u2019]/g, "'")
+    // In a diagnostic noun phrase, crash/error names the type of artifact,
+    // not an assertion that the customer's app crashed or raised an error.
+    // Reported failures elsewhere in the same question remain untouched.
+    .replace(/\b(?:crash|error|exception|failure)s?\s+(logs?|reports?|guides?|documentation)\b/gi, 'diagnostic $1')
+    // Not knowing a navigation/procedure is not a broken capability. Remove
+    // just that grammatical signal; missing recordings or a separate incident
+    // in the remainder still reaches the ordinary failure checks below.
+    .replace(/\b(?:can't|cannot|can not|couldn't|could not)\s+(?:find|locate|see\s+where|figure\s+out|work\s+out)\b/gi, 'navigation')
+    .replace(/\b(?:i'm|i am)\s+lost\b|\bnot\s+sure\s+how\b|\b(?:don't|do not|didn't|did not)\s+know\s+(?:how|where)\b/gi, 'navigation')
+    .replace(/\b(?:no\s+(?:puedo|podemos|consigo)\s+(?:encontrar|localizar|ver\s+d[oó]nde|averiguar|entender)|estoy\s+perdid[oa]|no\s+s[eé]\s+(?:c[oó]mo|d[oó]nde))\b/gi, 'navigation')
+    // A condition describes a circumstance to explain, not an observed fault.
+    // Stop at clause/sentence boundaries so a main or contrasting clause can
+    // still report a genuine crash, missing capture, or failed operation.
+    .replace(/\b(?:if|when(?:ever)?|while|in\s+case|si|cuando|mientras|en\s+caso\s+de\s+que)\b(?:(?![,;:\n]|[.!?](?:\s|$)|\b(?:but|however|yet|pero|sin\s+embargo|entonces|then)\b).)*/gi, conditionalFailureContext);
+  if (looksLikeHardFailure(s) || looksLikeCaptureFailure(s) ||
+      any(s, APP_FAILURE) || any(s, FIRMWARE_FAILURE)) return true;
+  // Topic names select the product lane, not a support incident. Only an
+  // observed failure/negated capability adds the deterministic handoff signal.
+  const englishFailure = /\b(?:not\s+working|broken|errors?|fail(?:ed|s|ing)?|stopped|stuck|missing|lost|gone|cannot|can't|couldn't|could\s+not|won't|doesn't|didn't|unavailable|freez(?:e|es|ing)|froze|never\s+(?:get|gets|receive|receives)|no\s+(?:audio|transcript|recording|response))\b/i;
+  const spanishFailure = /\b(?:no\s+(?:funciona|funcionan|abre|abren|graba|graban|sincroniza|sincronizan|conecta|conectan|termina|terminan)|dej[oó]\s+de\s+(?:funcionar|grabar|transcribir)|fall(?:a|an|o|os|ando)|atascad[oa]s?|rot[oa]s?|perdid[oa]s?|faltan?)\b/i;
+  const connectionFailure = /\b(?:is|was|stays?|stayed|keeps?|kept|show(?:s|ing)?|says?|reports?|became|went)\s+(?:as\s+)?(?:disconnected|offline)\b/i;
+  return englishFailure.test(s) || spanishFailure.test(s) || connectionFailure.test(s);
+}
+
 function looksLikeProductQuestion(text) {
   const s = String(text || '');
-  if (looksLikeHardFailure(s)) return false;
+  if (looksLikeReportedFailure(s)) return false;
   if (
     any(s, STRONG_MONEY) ||
     any(s, WEAK_MONEY) ||
@@ -519,6 +569,14 @@ function whenModelDown(route, question) {
   };
 }
 
+function orderLookupLive() {
+  try {
+    return require('./orderFlow').isLive();
+  } catch {
+    return false;
+  }
+}
+
 function shopStatusReply(route, question) {
   if (route?.wantHuman || looksLikeSupportNudge(question)) {
     return [
@@ -527,7 +585,11 @@ function shopStatusReply(route, question) {
       "Please don't post your address or payment details here.",
     ].join(' ');
   }
-  return `${ORDER_STATUS_OPENING} An order status or delivery date needs a verified order check. Please keep your address and payment details private.`;
+  const head = `${ORDER_STATUS_OPENING} An order status or delivery date needs a verified order check. Please keep your address and payment details private.`;
+  if (orderLookupLive()) {
+    return `${head}\n\nUse /order to check your own orders privately. We email a code to the address on the order so nobody can look up someone else's. Keep your order number handy.`;
+  }
+  return head;
 }
 
 function shippingQuoteReply() {
@@ -575,15 +637,18 @@ function cannedReply(route, question) {
   const batteryReply = batteryReadingReply(question);
   if (batteryReply) return batteryReply;
   if (lane === 'firmware') {
+    if (route?.escalate === false) return 'You need guidance on using or setting up your Omi device.';
     return 'Your Omi device isn’t working as expected. A device review is needed to identify the cause and a safe next step.';
   }
   if (lane === 'tech' && route?.area === 'desktop') {
+    if (route?.escalate === false) return 'You need guidance on using or setting up the computer app.';
     return 'The computer app isn’t working as expected. A closer review is needed to find a safe next step without repeating checks you’ve already tried.';
   }
   if (lane === 'tech' && route?.area === 'unknown') {
     return 'You’re running into a technical problem. A closer review is needed to identify the cause and a safe next step.';
   }
   if (lane === 'tech') {
+    if (route?.escalate === false) return 'You need guidance on using or setting up the phone app.';
     return 'The phone app isn’t working as expected. A closer review is needed to find a safe next step without repeating checks you’ve already tried.';
   }
   if (/\bblue\b/i.test(String(question || '')) && /\blight\b/i.test(String(question || ''))) {
@@ -664,10 +729,14 @@ function describe(route) {
     return 'Account limits and plans. Answer phone vs computer if they asked. Do not invent prices.';
   }
   if (lane === 'firmware' || area === 'firmware') {
+    if (route?.escalate === false) return 'Device usage, setup or firmware guidance. Answer the requested procedure from official sources without assuming a device fault.';
     return 'The device itself is failing. They may already have paired.';
   }
-  if (area === 'desktop') return 'Computer app install or bug.';
+  if (area === 'desktop') return route?.escalate === false
+    ? 'Computer app usage or setup. Answer the requested procedure from official sources without assuming a fault.'
+    : 'Computer app install or bug.';
   if (area === 'app') {
+    if (route?.escalate === false) return 'Phone app or transcription usage and setup. Answer the requested procedure from official sources without assuming a fault.';
     return 'The phone app is reporting a problem. Do not name a cause or where recordings are.';
   }
   if (lane === 'shop') return 'Order, shipping, or customs.';

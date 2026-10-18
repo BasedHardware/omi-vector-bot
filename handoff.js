@@ -416,11 +416,23 @@ function staffDetailsRequest(route, question) {
   if (route.area === 'privacy' || route.lane === 'privacy') {
     return 'If they did not provide the account email, ask for it privately.';
   }
+  if (route.lane === 'account') {
+    return 'If they did not provide the purchase email, ask for it privately.';
+  }
+  const physicalItem = '(?:omi|devices?|units?|hardware|casing|housing|necklaces?|glasses|chargers?|wearables?|items?)';
+  const itemWords = '(?:(?:my|our|your|the|this|a|an|new|omi|damaged|defective|broken)\\s+){0,3}';
+  const damagedItem = new RegExp(`\\b${physicalItem}\\b`, 'i').test(text) &&
+    /\b(?:damag(?:e|ed)|defect(?:ive)?|broken|crack(?:ed)?|faulty)\b/i.test(text);
+  const replacingItem = new RegExp(`\\b(?:replac(?:e|ing)\\s+${itemWords}${physicalItem}|replacement\\s+(?:(?:for|of)\\s+)?${itemWords}${physicalItem}|${physicalItem}\\s+(?:needs?|requires?)\\s+(?:a\\s+)?replacement)\\b`, 'i').test(text);
+  if ((route.area === 'shop' || ['shop', 'money'].includes(route.lane)) &&
+      (damagedItem || replacingItem)) {
+    return 'If they did not provide photos or a video of the damage, the order email and the delivery date, ask for them. Ask for the order email privately.';
+  }
   if (/\b(?:bulk|wholesale|sales|business|enterprise|company|corporate|\d+\s+(?:units|devices|omis))\b/i.test(text) &&
       (route.area === 'shop' || route.lane === 'shop')) {
     return 'If they did not provide the company and quantity, ask for both.';
   }
-  if (route.lane === 'money' || route.lane === 'account' ||
+  if (route.lane === 'money' ||
       /\b(?:refund|charg(?:e|ed)|bill(?:ing)?|payment|purchase|subscription|invoice)\b/i.test(text)) {
     return 'If they did not provide the purchase email, ask for it privately.';
   }
@@ -756,8 +768,10 @@ function formatStaffTicket({
     ];
   }
   if (staffOnly && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(caseId || ''))) {
+    embed.fields.unshift({ name: 'Status', value: 'Awaiting staff acceptance', inline: true });
     if (!discord.components) discord.components = [{ type: 1, components: [] }];
     discord.components[0].components.push({ type: 2, style: 1, custom_id: `case:accept:${caseId}`, label: 'Accept case' });
+    discord.components[0].components.push({ type: 2, style: 2, custom_id: `case:refresh:${caseId}`, label: 'Refresh status' });
   }
 
   return {
@@ -837,7 +851,7 @@ async function sendToStaffChannel(client, payload, customerChannelId, {
   const ch = await client.channels.fetch(staffId, { force: true });
   if (!ch?.isTextBased?.() || typeof ch.send !== 'function' || String(ch.id || '') !== String(staffId)) return false;
   const configured = staffMentionIds();
-  const privacy = validateStaffDestination(ch, { botUserId: client.user?.id, staffUsers: configured.users, staffRoleIds: configured.roles });
+  const privacy = await validateStaffDestination(ch, { botUserId: client.user?.id, staffUsers: configured.users, staffRoleIds: configured.roles });
   if (!privacy.ok) {
     console.error(`[Handoff] Staff destination rejected (${privacy.code})`);
     return false;
@@ -870,6 +884,10 @@ async function sendToStaffChannel(client, payload, customerChannelId, {
   if (onReceipt) {
     try { await onReceipt(sent); }
     catch { console.error('[Handoff] Accepted staff receipt projection unavailable.'); }
+  }
+  if (caseId && sent?.id) {
+    try { await require('./caseCards').rememberCard(caseId, ch.id || staffId, sent.id); }
+    catch { console.error('[CaseCard] receipt persistence failed; staff can repair with Refresh status'); }
   }
   if (onSent) {
     try { await onSent(sent); }
@@ -904,7 +922,7 @@ function publicHandoffDiscord(discord) {
   const payload = {
     embeds: [
       {
-        title: embed.title,
+        title: /^Support case ·/.test(String(embed.title || '')) ? 'Needs a human' : embed.title,
         color: embed.color,
         description: PUBLIC_HELP_CARD_DESCRIPTION,
         fields,
@@ -918,7 +936,7 @@ function publicHandoffDiscord(discord) {
   };
   if (Array.isArray(discord?.components) && discord.components.length) {
     const publicRows = discord.components.map((row) => ({ ...row,
-      components: (row.components || []).filter((component) => !/^(?:case:accept:|file:|gh-)/.test(String(component.custom_id || component.customId || ''))),
+      components: (row.components || []).filter((component) => !/^(?:case:|file:|gh-)/.test(String(component.custom_id || component.customId || ''))),
     })).filter((row) => row.components.length);
     if (publicRows.length) payload.components = publicRows;
   }

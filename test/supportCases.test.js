@@ -120,3 +120,35 @@ test('Postgres initialization and case inserts use an injectable client and sani
   assert.equal(calls[1].args[4].includes('private transcript'), false);
   assert.deepEqual(JSON.parse(calls[1].args[4]), { area: 'app', reasonCodes: [] });
 });
+
+test('work cannot start before acceptance and does not replace the accepting owner', async () => {
+  const cases = createCaseService(createMemoryStore());
+  const value = await cases.getOrCreateCase({ channelId: 'help', customerId: 'customer' });
+  assert.equal(await cases.setWorkStatus(value.id, 'in_progress'), null);
+  await cases.markDelivered(value.id, { confirmed: true });
+  assert.equal(await cases.setWorkStatus(value.id, 'waiting_customer'), null);
+  await cases.markAccepted(value.id, { staffId: 'original-owner' });
+  const working = await cases.setWorkStatus(value.id, 'in_progress');
+  assert.equal(working.status, 'accepted'); assert.equal(working.acceptedBy, 'original-owner');
+  assert.throws(() => cases.setWorkStatus(value.id, 'made-up'), /Invalid case work status/);
+});
+
+test('case-change observers receive identifiers only and cannot undo a saved transition', async () => {
+  const cases = createCaseService(createMemoryStore()); const observed = [];
+  const unsubscribe = require('../supportCases').onChange(id => observed.push(id));
+  try {
+    const value = await cases.getOrCreateCase({ channelId: 'help', customerId: 'customer' });
+    await cases.markDelivered(value.id, { confirmed: true }); await cases.markAccepted(value.id, { staffId: 'staff' });
+    assert.deepEqual(observed, [value.id, value.id]);
+  } finally { unsubscribe(); }
+});
+
+test('an observer failure does not turn a persisted acceptance into a failed case action', async () => {
+  const cases = createCaseService(createMemoryStore()); const value = await cases.getOrCreateCase({ channelId: 'help', customerId: 'customer' });
+  await cases.markDelivered(value.id, { confirmed: true });
+  const unsubscribe = require('../supportCases').onChange(() => { throw new Error('observer unavailable'); });
+  try {
+    assert.equal((await cases.markAccepted(value.id, { staffId: 'staff' })).status, 'accepted');
+    assert.equal((await cases.getCaseById(value.id)).acceptedBy, 'staff');
+  } finally { unsubscribe(); }
+});

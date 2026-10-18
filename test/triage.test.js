@@ -3,6 +3,35 @@ const test = require('node:test');
 const triage = require('../triage');
 const router = require('../router');
 
+test('technical topic labels and filing metadata alone do not request a person', () => {
+  for (const question of [
+    'Please explain using transcription on an iPhone.',
+    'Quiero instrucciones para grabar con Android.',
+    'I would like setup instructions for the desktop app.',
+    'Busco información sobre el firmware de Omi.',
+  ]) {
+    const merged = triage.merge(router.classify(question), {
+      area: 'app', lane: 'tech', labels: ['app', 'tech'],
+      topic: 'Recording setup', file_issue: true, escalate: false,
+    }, question);
+    assert.equal(merged.escalate, false, question);
+  }
+});
+
+test('technical how-to triage preserves a genuine model handoff and protected routes', () => {
+  const question = 'Please explain recording with the Android app';
+  const merged = triage.merge(router.classify(question), {
+    escalate: true, reason: 'Official evidence did not answer the requested procedure.',
+  }, question);
+  assert.equal(merged.escalate, true);
+  for (const protectedQuestion of [
+    'I need a person to help set up my iPhone.',
+    'I want a refund for the device.',
+    'Delete my data from Android.',
+    'I recorded on my iPhone and now the clips are missing.',
+  ]) assert.equal(triage.merge(router.classify(protectedQuestion), { escalate: false }, protectedQuestion).escalate, true);
+});
+
 test('sanitizeTopic drops greetings and keeps the problem', () => {
   assert.equal(triage.sanitizeTopic('Hi, I just got my omi'), '');
   assert.match(triage.sanitizeTopic('fair use warning after one day'), /fair use/i);

@@ -2,6 +2,8 @@
 
 Read ROADMAP.md, docs/ARCHITECTURE.md and docs/RUNBOOK.md before changing support workflows. Keep the roadmap current: distinguish code implemented, tests passed, rollout pending and production verified. Do not present plans as implementation or implementation as deployment.
 
+For continuing the support-product goal, read docs/SUPPORT_MASTER_PLAN.md first. It is the persistent acceptance checklist across review rounds. Map feedback to it, record evidence/decisions, and return to the next unfinished product item; a second opinion does not silently replace Aryan's goal. Preserve every unfinished item and its real approval blocker. Keep architecture and the implementation checklist in sync. Do not mark the overall goal achieved merely because a PR merged or tests passed.
+
 ## Purpose
 Omi Support answers Omi customers in Discord. Every customer message must end one of two ways: a correct answer from official Omi sources that solves the problem, or a handoff to a person who receives the full case. Be fast and honest, and never expose anything private. A smaller bot that works end to end beats a bigger one that doesn't.
 
@@ -26,6 +28,29 @@ Omi Support answers Omi customers in Discord. Every customer message must end on
 - Be empathetic, precise and action-first. Preserve earlier attempts and give one useful next step; never invent access, completed checks, delivery, acceptance, recovery, deadlines or guaranteed outcomes.
 - Production coordination and identity state use Postgres. Never silently fall back to local memory on a database error. Keep private capabilities customer-scoped and enforced outside the model.
 - An optional feature that can't work end to end gets switched off. Core paths always keep an honest human fallback.
+
+## Support voice
+
+Assume a non-technical customer by default. Aim for 40–80 words, one or two sentences per paragraph, and one useful next action. Preserve safety warnings, uncertainty, source links and necessary steps even when that takes more words. Answer requested parts briefly in order; do not force a detailed developer question into an incomplete short answer. The proposed customer-facing persona is Mira, clearly identified as Omi's AI support assistant, never a fictional human employee. Technical identifiers and the product name Omi Support Bot stay unchanged.
+
+Conversation memory is case context, not training data or authoritative product knowledge. It stays disabled until its privacy, security, retention and release gates pass. Do not bulk-scrape Discord, train on API messages without Discord's express permission, or promote a customer/staff/bot message into a reusable product instruction without official evidence and review.
+
+Aryan approved 30-day support memory; the current Release 2 target is **references only**, superseding the encrypted-text foundation. Start `feat/memory-references` from main after Release 1's deployment, as detailed in the master plan. Do not enable the old text-retention code or treat this approval as a staff-permissions repair. Preserve existing identity/order encryption. Aryan is the daily fix-card reviewer; remaining implementation/notice/release checks are still required.
+
+**Kind framing, true facts:** change how things are said, never what is claimed. Open with the customer's actual problem and the useful next action. Remember what they already tried. Do not lead with “I can't see” or “I don't have access” when safe sourced guidance or a verified handoff is available; explain a material limitation briefly when it changes their decision.
+
+- Use acknowledgment and official-source protective warnings. Say what a person can check only when that workflow and access are established; otherwise say what the delivered case asks them to investigate.
+- “It's with the team” requires application-confirmed private staff delivery. Delivery is not staff acceptance, a completed investigation, or resolution. “You don't need to repeat anything” is appropriate only when the relevant case context reached staff; it does not rule out necessary follow-up questions.
+- Never invent a check, ticket, ping, access, fix, date, refund, replacement, recovery or guaranteed outcome. Promise only a next action the application can perform and verify. Do not hide uncertainty or data-loss risk to reassure someone.
+
+Examples (conditional wording is part of the rule, not a claim of current access):
+
+| Cold opening | Helpful, truthful alternative |
+| --- | --- |
+| “I can't see your phone or recordings, so I can't tell whether they can be recovered.” | After confirmed delivery: “I've sent the missing-recording details to the team to investigate. Keep the app installed and don't clear local recordings until the next support update; unsynced data may still be on your phone.” Use the preservation guidance only when supported by official sources. Do not promise recovery or imply an account check happened. |
+| “I'm not sure whether this is a known issue, and I won't guess.” | After confirmed delivery: “Thanks for flagging this. I've sent your report to the team; the details you provided will help them investigate.” Before delivery, say what is actually happening or use the honest failed-delivery fallback. |
+
+New knowledge or private capabilities follow ROADMAP.md's access ladder: read-only, customer-scoped, staff-only shadow mode first, then reviewed enablement with a kill switch, metadata audit and fixed output schema. A private staff card alone is not customer authorization. Never put verified private order/account facts in a normal Discord thread message or model prompt.
 
 ## Commands
 - npm test

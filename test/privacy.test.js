@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { issueBody } = require('../github');
 const { redactSensitive } = require('../privacy');
 
 test('provider-only official email exception does not weaken public issue redaction', () => {
@@ -48,8 +49,56 @@ test('provider redaction keeps support placeholders while removing short interna
   assert.match(out, /\[phone\].*\[order number\].*\[token\]/);
 });
 
+test('an order or ticket number given in a sentence is redacted like one given after a colon', () => {
+  const input = 'My order number is 22777 and the ticket number was 138637367. Order ID is 31415, order no. is #27182.';
+  const out = redactSensitive(input, { issue: true });
+  for (const value of ['22777', '138637367', '31415', '27182']) {
+    assert.equal(out.includes(value), false, value);
+  }
+  assert.equal((out.match(/\[order number\]/g) || []).length, 4);
+});
+
+test('a price or a count after "order was" is not taken for an order number', () => {
+  const kept = 'My order was 299 dollars and the order is 2 weeks late.';
+  assert.equal(redactSensitive(kept, { issue: true }), kept);
+});
+
 test('public repository issue numbers survive while customer ticket numbers do not', () => {
   const out = redactSensitive('GitHub issue #20172; support ticket #138637367; Order #18063', { issue: true });
   assert.match(out, /GitHub issue #20172/);
   assert.doesNotMatch(out, /138637367|18063/);
+});
+
+test('phone redaction catches a number introduced in ordinary words', () => {
+  const lines = [
+    'Phone number: 9876543210',
+    'My phone number is 9876543210, please call.',
+    'My phone is 4155550199',
+    'call me on 9876543210',
+    'Mobile 4155550199',
+    'cell: 4155550199',
+    'contact number 4155550199',
+    'tel. 020 7946 0958',
+    'Ph no: 9876543210',
+    'my number is 9876543210',
+    'Teléfono: 612345678',
+  ];
+  for (const line of lines) {
+    const out = redactSensitive(line, { issue: true });
+    assert.match(out, /\[phone\]/, line);
+    assert.doesNotMatch(out, /\d{4}/, line);
+  }
+});
+
+test('a phone word in the sentence does not turn builds and serials into phone numbers', () => {
+  const kept = 'On my phone the app is build 2026100312. Serial number is 0123456789012.';
+  assert.equal(redactSensitive(kept, { issue: true }), kept);
+});
+
+test('a phone number written into a bug report stays out of the public issue', () => {
+  const body = issueBody({
+    technicalSummary: 'The app crashes when I open Memories. Phone number: 9876543210 if you need to reach me.',
+  });
+  assert.doesNotMatch(body, /9876543210/);
+  assert.ok(body.includes('The app crashes when I open Memories. Phone number: [phone] if you need to reach me.'));
 });

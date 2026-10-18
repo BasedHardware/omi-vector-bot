@@ -3,6 +3,43 @@ const test = require('node:test');
 const { relevantDocs, storedDocs, topPages, canonicalizeGithubDocsEvidence } = require('../docs');
 const { pages: developerPages, store: developerStore } = require('./fixtures/developer-docs');
 
+test('multipart stored retrieval preserves complementary Help Center pages within the existing evidence budget', async () => {
+  const subQuestions = [
+    { question: 'Start microphone capture', query: 'microphone capture start' },
+    { question: 'Select a transcription language', query: 'transcription language selection' },
+    { question: 'Remove one conversation', query: 'individual conversation deletion' },
+    { question: 'Find extracted tasks', query: 'extracted action tasks' },
+  ];
+  const pages = subQuestions.map((part, index) => ({
+    url: `https://help.omi.me/en/articles/multipart-${index + 1}`,
+    title: part.query, source: 'help', chunk_index: 0, rank: 0.4,
+    body: `${part.query}: use the documented app control. ${'More documentation. '.repeat(65)}`,
+  }));
+  const generic = Array.from({ length: 12 }, (_, index) => ({
+    url: `https://docs.omi.me/general-app-${index}`, title: 'General app guide',
+    source: 'docs', chunk_index: 0, rank: 0.9,
+    body: 'An introduction to the app and other unrelated features.',
+  }));
+  const searches = [];
+  const evidence = await relevantDocs('Please explain capture, language, conversation management and tasks.', {
+    subQuestions, queries: ['general app guide'],
+    store: { searchDocPages: async (query, _limit, sources = []) => {
+      searches.push(query);
+      if (sources.includes('github')) return [];
+      const page = pages.find((item) => query === item.title);
+      if (page) return [page];
+      return sources.includes('help') ? [pages[0]] : generic;
+    } },
+    fetchImpl: async () => { throw new Error('the fixture store supplies all evidence'); },
+  });
+  for (const [index, part] of subQuestions.entries()) {
+    assert.ok(searches.includes(part.query), `part ${index + 1} has its own search`);
+    assert.ok(evidence.includes(pages[index].url), `part ${index + 1} retains its page`);
+  }
+  assert.ok(evidence.length <= 9_000);
+  assert.ok((evidence.match(/^\[S\d+ \|/gm) || []).length <= 8);
+});
+
 test('GitHub docs citations use the exact page published in the official docs index', async () => {
   const indexText = '- [Omi Setup](https://docs.omi.me/onboarding/omi.md): Get started';
   const githubUrl = 'https://github.com/BasedHardware/omi/blob/abc123/docs/onboarding/omi.mdx';

@@ -383,10 +383,12 @@ test('parses fenced JSON from the model', () => {
   assert.equal(parsed.escalate, false);
 });
 
-test('parseAgentJson survives raw newlines in the model JSON', () => {
+test('parseAgentJson recovers raw string newlines without changing the model flags', () => {
   const parsed = parseAgentJson('{"final_answer":"line1\nline2","confidence":0.9,"escalate":true}');
   assert.equal(parsed.escalate, true);
-  assert.match(parsed.reason, /json failed/);
+  assert.equal(parsed.final_answer, 'line1\nline2');
+  assert.equal(parsed.confidence, 0.9);
+  assert.equal(parsed.reason, '');
 });
 
 test('parses topic and labels from the model', () => {
@@ -433,7 +435,7 @@ test('a successful Discord handoff removes redirects but keeps useful details', 
     stripSupportRedirect(
       'Email help@omi.me with the order number. Use /order to check your orders. We email a code to the address on the order. Include order #22777. Keep your order number handy.'
     ),
-    ''
+    'Use /order to check your orders. We email a code to the address on the order. Keep your order number handy.'
   );
 });
 
@@ -835,4 +837,32 @@ test('the same message id is only claimed once', () => {
   assert.equal(claimMessage('forum-starter-1'), true);
   assert.equal(claimMessage('forum-starter-1'), false);
   assert.equal(claimMessage('forum-starter-2'), true);
+});
+
+test('a promise to tell the team is a staff lie in the future tense too', () => {
+  for (const line of [
+    "I'll make sure the team sees this.",
+    'I’ll make sure someone gets back to you.',
+    "I'll let the team know about this.",
+    'I will notify support right away.',
+    "I'll flag this to the team.",
+    "I'll forward this to support.",
+    "I'll escalate this for you.",
+    'I am going to pass this on to the engineers.',
+  ]) {
+    assert.equal(looksLikeStaffLie(line), true, line);
+    assert.equal(stripStaffLies(`Restart the app first. ${line}`), 'Restart the app first.', line);
+  }
+});
+
+test('an offer the customer can act on is not a staff lie', () => {
+  for (const line of [
+    "I'll tell you how to contact support.",
+    "I'll explain what the red light means.",
+    'If that fails, let the team know in this thread.',
+    'You can email help@omi.me and a person will look at it.',
+    'I will send you the steps to reset the device.',
+  ]) {
+    assert.equal(looksLikeStaffLie(line), false, line);
+  }
 });

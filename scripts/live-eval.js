@@ -117,6 +117,12 @@ function captureModelUsage(state, event) {
   });
 }
 
+function captureEscalation(state, parts) {
+  if (!state) return;
+  const line = parts.map(String).join(' ');
+  if (/^\[Bot\] Escalating channel=/.test(line)) state.escalationSignals.push(line);
+}
+
 function summarize(rows, runs) {
   const byCase = new Map();
   for (const row of rows) {
@@ -195,6 +201,18 @@ async function evalDiscordSender(_client, channel, payload, { replyToMessageId =
   return source.reply(payload);
 }
 
+function evaluationDocsEvidence(retrieval, question, options, officialDocs, officialChunks) {
+  if (retrieval.normalizeSubQuestions?.(options.subQuestions).length > 3) {
+    return retrieval.jointMultipartEvidence(question, officialDocs, officialChunks, options);
+  }
+  const official = retrieval.formatEvidence(
+    retrieval.rankLocalChunks(retrieval.supportQueries(question, options.queries), officialChunks, 7, {
+      customerQuestion: options.customerQuestion || question,
+    })
+  );
+  return retrieval.combineEvidence(officialDocs, official);
+}
+
 async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () => {} } = {}) {
   // These overrides make it impossible for the harness to contact actual
   // customers or staff. They are set before index.js captures env values.
@@ -231,17 +249,12 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   const officialChunks = [...helpPages, ...websitePages].flatMap((page) => retrieval.chunkDocument(page));
   const realRelevantDocs = docs.relevantDocs;
   docs.relevantDocs = async (question, options = {}) => {
-    const official = retrieval.formatEvidence(
-      retrieval.rankLocalChunks(retrieval.supportQueries(question, options.queries), officialChunks, 7, {
-        customerQuestion: options.customerQuestion || question,
-      })
-    );
     const officialDocs = await realRelevantDocs(question, options);
     // The live harness has no Postgres index, so it loads Help Center and docs
     // separately. Put the directly matched docs chunks before the broad local
     // Help Center matches so the answer/reviewer context limits retain both.
     // Source authority is still carried by each block and enforced by policy.
-    return retrieval.combineEvidence(officialDocs, official);
+    return evaluationDocsEvidence(retrieval, question, options, officialDocs, officialChunks);
   };
   const utils = inRoot('utils.js');
   utils.typingDelay = async () => {};
@@ -268,6 +281,11 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   client.user = new User(client, { id: '800000000000000001', username: 'Omi Support', bot: true });
 
   const rows = [];
+  const originalLog = console.log;
+  console.log = (...parts) => {
+    captureEscalation(caseContext.getStore(), parts);
+    originalLog(...parts);
+  };
   const originalError = console.error;
   console.error = (...parts) => {
     const line = parts.map(String).join(' ');
@@ -294,18 +312,20 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   let next = 0;
   let incomplete = false;
   async function runOne({ scene, runIndex }) {
-    const state = { handoff: false, providerError: '', timings: {}, modelCalls: [] };
+    const state = { handoff: false, providerError: '', timings: {}, modelCalls: [], escalationSignals: [] };
     return caseContext.run(state, async () => {
       const { channel, history } = makeChannel(process.env.VECTOR_TEST_CHANNEL_ID);
       const authorId = nextId();
       const start = performance.now();
       let reply = '';
+      const turnReplies = [];
       let error = '';
       try {
         for (const turn of scene.turns || [scene.ask]) {
           const message = makeMessage(turn, channel, history, authorId);
           await handleMessage(message);
           reply = message.replies.map(payloadText).join('\n');
+          turnReplies.push(reply);
         }
       } catch (err) {
         error = String(err.message || 'evaluation error').slice(0, 200);
@@ -316,7 +336,8 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
         ? ['Provider unavailable; result not scored']
         : [...judge(scene, reply, state.handoff, lane), ...(error ? [`error: ${error}`] : [])];
       return {
-        id: scene.id, run: runIndex, reply, handoff: state.handoff, urls,
+        id: scene.id, run: runIndex, reply, turnReplies, handoff: state.handoff, urls,
+        escalationSignals: state.escalationSignals,
         timings: state.timings, modelCalls: state.modelCalls, latencyMs: Math.round(performance.now() - start),
         pass: scene.observeOnly || Boolean(state.providerError) ? null : problems.length === 0,
         invalid: Boolean(state.providerError), problems,
@@ -336,6 +357,7 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   try {
     await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
   } finally {
+    console.log = originalLog;
     console.error = originalError;
     process.off('omiSupportTimings', onTiming);
     process.off('omiSupportModelUsage', onModelUsage);
@@ -378,4 +400,4 @@ async function main() {
 
 if (require.main === module) main().catch((err) => { console.error(err.message); process.exitCode = 1; });
 
-module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, makeChannel, makeMessage, evalDiscordSender, run };
+module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, captureEscalation, makeChannel, makeMessage, evalDiscordSender, evaluationDocsEvidence, run };
