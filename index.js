@@ -429,10 +429,10 @@ async function getHistory(channel, excludeId, customerId) {
   return clipThreadHistory(entries);
 }
 
-async function searchKnowledge(question) {
+async function searchKnowledge(question, guildId) {
   // Legacy database notes have no author/provenance field, so do not expose
   // them to the model until they can be reviewed or migrated.
-  return knowledge.search(question);
+  return knowledge.searchForAnswers(question, { guildId });
 }
 
 async function handleFaqSave(message) {
@@ -789,7 +789,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (!skipModel) {
-      const knowledgeSnippets = await searchKnowledge(caseQuestion);
+      const knowledgeSnippets = await searchKnowledge(caseQuestion, channel.guild?.id || channel.guildId || message.guildId);
       threadHistory = contextHistory;
       snippets = knowledge.filterSnippetsForLane(
         shopify.filterKnowledge(knowledgeSnippets),

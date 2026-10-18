@@ -120,6 +120,28 @@ async function searchAll(query, limit = SEARCH_LIMIT) {
   }
 }
 
+async function searchForAnswers(query, { guildId, store, enabled = process.env.SUPPORT_FIX_INBOX === '1', now = Date.now(), limit = SEARCH_LIMIT } = {}) {
+  const local = search(query, limit);
+  if (!store && process.env.DATABASE_URL) store = require('./knowledgeReviewStore').createPostgresStore(require('./db').pool);
+  if (!store) return local;
+  if (!guildId) return [];
+  try {
+    const { hashContent } = require('./knowledgeReview');
+    // Governed copies are never resurrected from old faq messages, hydration or
+    // a process-local cache, even when new publication/use is switched off.
+    const governed = new Set(await store.managedHashes(guildId, local.map(hashContent), local));
+    const kept = local.filter(text => !governed.has(hashContent(text)));
+    const reviewed = enabled === true ? await store.search(guildId, query, now, limit) : [];
+    const notes = reviewed.map(row => `${row.content}\nReviewed product note (${row.productVersion}). Official sources: ${row.sources.join(' ')}`);
+    return [...new Set([...notes, ...kept])].slice(0, limit);
+  } catch {
+    // A registry outage must not expose a revoked cached note. Core official
+    // retrieval/review continues without these optional knowledge hints.
+    console.error('[KnowledgeReview] lookup unavailable; optional notes omitted');
+    return [];
+  }
+}
+
 function collectFaqFromMessages(messages, allowedStaffIds = []) {
   const found = [];
   const allowed = new Set(allowedStaffIds.map(String));
@@ -173,6 +195,9 @@ module.exports = {
   persistSnippet,
   search,
   searchAll,
+  searchForAnswers,
+  createReviewService: require('./knowledgeReview').createReviewService,
+  createReviewedMemoryStore: require('./knowledgeReviewStore').createMemoryStore,
   collectFaqFromMessages,
   hydrateFromDiscord,
   filterSnippetsForLane,

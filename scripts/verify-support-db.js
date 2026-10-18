@@ -1,6 +1,6 @@
 // Integration fixtures only: never point this script at a customer database.
 const assert = require('node:assert/strict');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 const runtime = require('../supportRuntime');
 const cases = require('../supportCases');
 const cards = require('../caseCards');
@@ -8,6 +8,8 @@ const { SupportIdentityStore, initSchema: initIdentity } = require('../supportId
 const supportMemory = require('../supportMemory');
 const memoryStore = require('../supportMemoryStore');
 const { createObserver } = require('../supportLearning');
+const knowledge = require('../knowledge');
+const reviewedStore = require('../knowledgeReviewStore');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -54,7 +56,9 @@ async function verify(pool) {
   for (let count = 0; count < 2; count++) {
     await runtime.initSchema(pool); await cases.initSchema(pool); await cards.initSchema(pool); await initIdentity(pool);
     await memoryStore.initSchema(pool);
+    await reviewedStore.initSchema(pool);
   }
+  await verifyReviewedKnowledge(pool, prefix);
   const legacy = (await pool.query('SELECT * FROM support_cases WHERE id=$1', [legacyId])).rows[0];
   assert.equal(legacy.status, 'accepted'); assert.equal(legacy.accepted_by, `${prefix}-legacy-staff`);
   assert.equal(legacy.acceptance_notice_started, false); assert.equal(legacy.work_status, null);
@@ -209,7 +213,75 @@ async function verify(pool) {
     assert.equal(await saving, false);
     assert.deepEqual(await journalRestart.history(journal.scopeFor(channel)), []);
   }
-  console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, encrypted support memory, edit/delete races and revocation passed');
+  console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, encrypted support memory, reviewed knowledge, edit/delete races and revocation passed');
+}
+
+async function verifyReviewedKnowledge(pool, prefix) {
+  const guildId = `${prefix}-knowledge`, actor = `${prefix}-reviewer`, now = Date.now();
+  const firstStore = reviewedStore.createPostgresStore(pool), secondStore = reviewedStore.createPostgresStore(pool);
+  let validations = 0, clock = now;
+  const fixtureProof = row => ({ ok: true, digest: row.digest, reviewApproved: true,
+    regression: { passed: true, questionHash: reviewedStore.hashContent(row.regressionQuestion) },
+    evidence: row.sources.map(url => ({ url, sha256: createHash('sha256').update(`Synthetic public source ${url}`).digest('hex'), checkedAt: row.approvedAt })) });
+  const options = { allowedStaffIds: () => [actor], enabled: () => true, now: () => clock,
+    validate: async row => { validations++; return fixtureProof(row); } };
+  const first = knowledge.createReviewService({ ...options, store: firstStore });
+  const second = knowledge.createReviewService({ ...options, store: secondStore });
+  const input = { guildId, factId: 'task-guide', expectedVersion: 0,
+    content: 'The task list displays conversation action items.',
+    sources: ['https://help.omi.me/en/articles/synthetic-task-list'], productVersion: 'Synthetic app fixture',
+    regressionQuestion: 'Where does the app display action items?',
+    provenance: [{ caseId: `${prefix}-case`, expiresAt: now + 30 * 86400000 }] };
+  assert.equal((await first.propose(input, actor)).ok, true);
+  const action = { guildId, factId: input.factId, version: 1 };
+  const double = await Promise.all([first.approve(action, actor), second.approve(action, actor)]);
+  assert.equal(double.filter(row => row.ok).length, 1); assert.equal(validations, 1);
+  assert.equal((await second.search(guildId, 'task list'))[0].content, input.content);
+  assert.deepEqual(await second.search(`${guildId}-other`, 'task list'), []);
+  assert.equal((await first.inspect(input, actor)).versions[0].approvedBy, actor);
+  await second.eraseProvenance(guildId, [`${prefix}-case`]);
+  assert.deepEqual((await firstStore.read(input)).versions[0].provenance, []);
+  await first.propose({ ...input, factId: 'queued-after-erasure' }, actor);
+  assert.deepEqual((await secondStore.read({ ...input, factId: 'queued-after-erasure' })).versions[0].provenance, [], 'erasure survives another writer');
+  await reviewedStore.initSchema(pool);
+  assert.equal((await second.search(guildId, 'task list')).length, 1, 'repeat schema initialization preserves approval');
+  const edited = await second.propose({ ...input, expectedVersion: 1, content: 'The task list includes next actions.' }, actor);
+  assert.equal(edited.version, 2);
+  assert.equal((await first.search(guildId, 'task list'))[0].content, input.content, 'pending edits preserve the working version');
+  assert.equal((await second.reject({ ...action, version: 2 }, actor)).ok, true);
+  assert.equal((await first.search(guildId, 'task list')).length, 1);
+  assert.equal((await first.revoke({ ...action, version: 2 }, actor)).ok, true);
+  knowledge.resetKnowledge(); knowledge.addSnippet(input.content);
+  assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: false }), []);
+  knowledge.resetKnowledge(); knowledge.addSnippet(`${input.content} Source: ${input.sources[0]}`);
+  assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: false }), []);
+  knowledge.resetKnowledge();
+  assert.deepEqual(await second.search(guildId, 'task list'), []);
+
+  // A late validator in another process cannot undo an explicit revocation.
+  let release, entered;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { entered = resolve; });
+  const slow = knowledge.createReviewService({ ...options, store: firstStore,
+    validate: async row => { entered(); await waiting; return fixtureProof(row); } });
+  const next = { ...input, factId: 'late-guide' };
+  assert.equal((await slow.propose(next, actor)).ok, true);
+  const accepting = slow.approve({ ...action, factId: next.factId }, actor);
+  await started;
+  assert.equal((await second.revoke({ ...action, factId: next.factId }, actor)).ok, true);
+  release(); assert.equal((await accepting).ok, false);
+
+  const expiring = { ...input, factId: 'expiring-guide' };
+  expiring.provenance = [{ caseId: `${prefix}-expiry-case`, expiresAt: now + 30 * 86400000 }];
+  await first.propose(expiring, actor);
+  await first.approve({ ...action, factId: expiring.factId }, actor);
+  clock += 90 * 86400000;
+  assert.deepEqual(await second.search(guildId, 'task list'), []);
+  await first.pruneProvenance(guildId);
+  assert.deepEqual((await secondStore.read(expiring)).versions[0].provenance, []);
+  // Failed compare-and-swap creation must not leave an empty durable record.
+  assert.equal((await first.propose({ ...input, factId: 'stale-create', expectedVersion: 3, provenance: [] }, actor)).reason, 'stale');
+  assert.equal(await firstStore.read({ ...input, factId: 'stale-create' }), null);
 }
 
 (async () => {

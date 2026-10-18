@@ -8,6 +8,14 @@ October 12 release holds: #42's fresh comparison is complete and meets numerical
 
 The October 17 updated brief authorizes combining #42/#45 into Release 1 and running a fresh same-day comparison after #46's verified merge (`273550c`). It does not authorize deployment before independent grading, memory enablement or model training. #28's audience check stays stopped. Keep capture/context switches off; Release 2's approved private pilot is separate. The retained #43 release record and its pending live smoke are not overwritten by unit/SQL results.
 
+### Reviewed corrections — partial foundation; keep off
+
+`SUPPORT_FIX_INBOX` defaults off. The new knowledge registry is a tested foundation, not a running daily inbox. No production validator or review worker is configured; do not set the flag expecting a complete improvement loop. Real source checking, regression generation/validation, staff review controls, privacy-adapter ownership checks, cleanup scheduling and alerts still need implementation and review. Use synthetic data only during preparation.
+
+When eventually approved, only a named staff approval plus successful validation of the exact revision can publish a correction. An official-looking URL or a boolean request field is not validation. A pending edit preserves the working version; a rejected, expired, revoked or superseded record cannot return from a legacy cache or hydrated note. Rollback requires a new draft and fresh validation. Do not edit database state or promote legacy knowledge rows to manufacture a pass.
+
+Normal knowledge lookup omits optional notes on registry failure and logs a fixed metadata diagnostic; official answering continues. Revoke/erase/expiry operations must remain available with new publication/use switched off. Case-reference erasure has a queued-write barrier, but the internal helper is not a customer authorization API: verify ownership in the future privacy adapter. Provenance cleanup uses bounded batches and must be scheduled before real-data enablement. Product-fact text can outlive an erased case only when independently sourced/reviewed, not copied customer content. No private case/staff identities are added to customer/model replies by this registry.
+
 ### Release 2 approval and replacement — do not enable existing text retention
 
 Aryan approved 30-day support memory and is the daily fix-card reviewer. The approved target saves references, not message text; it is **not implemented yet**. Start its branch from main after Release 1's deployment. Current channel permissions are explicitly not fixed, so Release 1's staff-only smoke and #28 preflight remain stopped. Do not repeat the check or change permissions without the required confirmation.

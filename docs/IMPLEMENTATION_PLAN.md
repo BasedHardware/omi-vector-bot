@@ -42,6 +42,17 @@ The encrypted-text implementation below is historical implementation evidence, *
 - [ ] Verify the scripted two-post attempted-step scenario in an explicitly approved isolated candidate runtime or post-review test-only deployment; never bypass review with a second production worker. Report enabled-context results separately from memory-off quality results.
 - [ ] Test-only rollout after review, at least 48 clean hours plus deletion/restart/timeout/switch checks, then reviewed help-forum expansion and the exact published notice. No reference-memory code or rollout exists yet.
 
+### Reviewed-fix knowledge foundation — partial D5, not enablement
+
+- [x] Extend the existing knowledge service with guild-scoped durable review versions; keep named staff authorization and exclude unprovenanced legacy database rows.
+- [x] Bind publication to exact version/digest and a configured validation adapter; preserve the working version during edits and prevent late/duplicate approval from overriding revocation.
+- [x] Persist approver/rejection/revocation identity/time, 90-day recheck, fresh-review rollback and normal-lookup guards against cached/hydrated revoked or expired copies.
+- [x] Bound case-reference provenance to 30 days, add a queued/cross-writer erasure barrier, and expose 100-fact cleanup batches that continue with the feature off. No customer text in this provenance.
+- [x] Synthetic red-before checks and isolated PostgreSQL/PGlite validation cover the foundation. The 24 new tests include normal answer integration, author/guild isolation, failure/timeout, pending edits, expiry, deletion, restart/concurrent updates, bound validation evidence and altered-content/legacy-copy rejection. Final full count belongs in the dated roadmap; this is not independent quality approval.
+- [ ] Hosted Node 20/24 and multi-connection Postgres CI, independent review and the eventual protected quality gate. No merge/deploy/enablement from local checks.
+- [ ] Implement the real official-evidence/semantic/regression validator; the injected test adapter is not that worker. Generate regressions from reviewed public facts, never customer text.
+- [ ] Connect signals, grouping/source drafts, staff review UI and privacy ownership checks; schedule mandatory cleanup/nightly checks and verified alerts; add honest raw-count scorecards. Full D1–D6 remains unfinished.
+
 - [x] PR #24's smoke test was reported before #25's verified readiness rollout. Keep subsequent releases gated on their own review, evaluation and production smoke tests; the roadmap records the evidence.
 - [ ] **Deferred by Aryan (Oct 9), accepted risk.** Previously exposed credential rotation remains unconfirmed. Plan encryption-key migration without discarding encrypted state; never print or commit secret values.
 - [ ] Inventory actual installed GitHub, Shopify and Discord permissions without exposing values. Existing credentials being configured does not prove their scopes or end-to-end capability.
