@@ -6,6 +6,10 @@ const MAX_STORED = 50;
 const SEARCH_LIMIT = 5;
 
 const snippets = [];
+// Denials observed in this process, never an authority/publication cache. This
+// lets an optional-registry outage preserve ordinary notes without knowingly
+// reviving a governed copy. Remote governance is not discovered while off.
+const knownGovernedHashes = new Map();
 
 function parseFaqCommand(text) {
   const raw = String(text || '').replace(/<@!?\d+>/g, '').trim();
@@ -16,6 +20,7 @@ function parseFaqCommand(text) {
 
 function resetKnowledge() {
   snippets.length = 0;
+  knownGovernedHashes.clear();
 }
 
 function listSnippets() {
@@ -122,23 +127,27 @@ async function searchAll(query, limit = SEARCH_LIMIT) {
 
 async function searchForAnswers(query, { guildId, store, enabled = process.env.SUPPORT_FIX_INBOX === '1', now = Date.now(), limit = SEARCH_LIMIT } = {}) {
   const local = search(query, limit);
-  if (!store && process.env.DATABASE_URL) store = require('./knowledgeReviewStore').createPostgresStore(require('./db').pool);
-  if (!store) return local;
-  if (!guildId) return [];
+  const { hashContent } = require('./knowledgeReview');
+  const localFallback = () => local.filter(text => !knownGovernedHashes.get(guildId)?.has(hashContent(text)));
+  // Disabled means no optional database construction, registry check or fact
+  // lookup on the answering path. The existing staff-note behavior remains.
+  if (enabled !== true) return localFallback();
   try {
-    const { hashContent } = require('./knowledgeReview');
-    // Governed copies are never resurrected from old faq messages, hydration or
-    // a process-local cache, even when new publication/use is switched off.
-    const governed = new Set(await store.managedHashes(guildId, local.map(hashContent), local));
-    const kept = local.filter(text => !governed.has(hashContent(text)));
-    const reviewed = enabled === true ? await store.search(guildId, query, now, limit) : [];
+    if (!store && process.env.DATABASE_URL) store = require('./knowledgeReviewStore').createPostgresStore(require('./db').pool);
+    if (!store) return localFallback();
+    if (!guildId) return [];
+    const governed = await store.managedHashes(guildId, local.map(hashContent), local);
+    const known = knownGovernedHashes.get(guildId) || new Set();
+    for (const hash of governed) known.add(hash);
+    if (known.size) knownGovernedHashes.set(guildId, known);
+    const reviewed = await store.search(guildId, query, now, limit);
     const notes = reviewed.map(row => `${row.content}\nReviewed product note (${row.productVersion}). Official sources: ${row.sources.join(' ')}`);
-    return [...new Set([...notes, ...kept])].slice(0, limit);
+    return [...new Set([...notes, ...localFallback()])].slice(0, limit);
   } catch {
-    // A registry outage must not expose a revoked cached note. Core official
-    // retrieval/review continues without these optional knowledge hints.
-    console.error('[KnowledgeReview] lookup unavailable; optional notes omitted');
-    return [];
+    // Do not publish a cached reviewed fact or claim remote state is current.
+    // Keep pre-existing local notes, minus governance already observed here.
+    console.error('[KnowledgeReview] lookup unavailable; using local notes with known-governed exclusions');
+    return localFallback();
   }
 }
 

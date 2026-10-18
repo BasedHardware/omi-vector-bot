@@ -341,6 +341,7 @@ test('a revoked correction cannot return inside an older faq note with an append
   await publish(f);
   await f.service.revoke({ guildId, factId: draft().factId, version: 1 }, actorId);
   knowledge.addSnippet(`${content} Source: ${source}`);
+  assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: f.store, enabled: true }), []);
   assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: f.store, enabled: false }), []);
   knowledge.resetKnowledge();
 });

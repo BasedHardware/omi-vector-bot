@@ -44,6 +44,7 @@ The encrypted-text implementation below is historical implementation evidence, *
 
 ### Reviewed-fix knowledge foundation — partial D5, not enablement
 
+- [x] Review availability correction: inbox-off lookup does no optional database work; registry failure preserves ordinary local staff notes minus known guild-scoped governed hashes. Six new tests failed before the change; 785 full/focused 29 and isolated SQL pass. This denial cache cannot discover unseen remote revocations; enablement/review remain gated.
 - [x] Extend the existing knowledge service with guild-scoped durable review versions; keep named staff authorization and exclude unprovenanced legacy database rows.
 - [x] Bind publication to exact version/digest and a configured validation adapter; preserve the working version during edits and prevent late/duplicate approval from overriding revocation.
 - [x] Persist approver/rejection/revocation identity/time, 90-day recheck, fresh-review rollback and normal-lookup guards against cached/hydrated revoked or expired copies.

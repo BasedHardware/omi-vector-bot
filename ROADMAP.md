@@ -4,6 +4,8 @@ This is the living implementation record. A checked implementation item means co
 
 ## October 18: persistent product goal and current execution
 
+Latest review correction: #49 remains disabled and draft. Inbox-off answer lookup now does no registry/database work. An enabled registry/search outage preserves existing local staff notes while excluding governed hashes already observed in this guild/process; it never serves a cached reviewed fact. Six new synthetic tests failed before and pass after; full 785, focused 29 and isolated PostgreSQL/PGlite checks pass. SQL guards now explicitly observe governance while enabled before testing no-I/O switch-off. Cold-start/off or pre-observation outages cannot discover unseen remote revocations; this limitation is explicit, not a claimed durable guarantee. Full inbox work, independent review and release gates remain open. The simplified master plan also records Release 1's real deployed/pending status, #48's green hosted checks, parked issues and Mira's new requested character without dropping any A–E acceptance requirement.
+
 [SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Aryan clarified that reviews are evidence for improving the product, not a replacement goal. Map each finding to an item, keep unfinished work visible, and return to the next product item after corrections. Built/tested/live remain separate; no invented completion percentage.
 
 ### Reviewed-knowledge foundation — implemented locally; full inbox unfinished

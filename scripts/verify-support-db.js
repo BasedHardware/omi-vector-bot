@@ -252,8 +252,10 @@ async function verifyReviewedKnowledge(pool, prefix) {
   assert.equal((await first.search(guildId, 'task list')).length, 1);
   assert.equal((await first.revoke({ ...action, version: 2 }, actor)).ok, true);
   knowledge.resetKnowledge(); knowledge.addSnippet(input.content);
+  assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: true }), []);
   assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: false }), []);
   knowledge.resetKnowledge(); knowledge.addSnippet(`${input.content} Source: ${input.sources[0]}`);
+  assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: true }), []);
   assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: false }), []);
   knowledge.resetKnowledge();
   assert.deepEqual(await second.search(guildId, 'task list'), []);
