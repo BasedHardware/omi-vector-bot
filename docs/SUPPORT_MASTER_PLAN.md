@@ -2,11 +2,48 @@
 
 Updated October 18, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
-## Progress: 5 / 100 verified complete
+## Progress: 36 / 100 delivery milestones
 
-**1 of 21 product checks is fully done.** More work is built and tested, but it stays **in progress** until its required review and live checks pass. This score measures completed work, not answer accuracy or time spent.
+**Built and tested: 12/25 · Reviewed: 8/25 · Verified live: 4/25.**
 
-Score = completed A–E checkboxes ÷ 21 × 100, rounded. Recalculate it whenever a checkbox changes; do not guess or award points for merely opening a PR. Current completed check: **B1 — private staff-channel audience verified**. Next: finish the current release's live checks.
+Each of the 25 milestones below earns one point for being built, tested, independently reviewed and verified live: 100 possible points. Draft code is not a finished feature. This is delivery progress, **not answer accuracy, model speed or hours of effort**. The earlier 5/100 counted only whole A–E acceptance items and hid partial work; this is the same evidence measured more usefully, not 31 points of new work.
+
+<details>
+<summary>How the score is counted — evidence, not estimates</summary>
+
+Keep these milestones fixed unless the product scope actually changes. Recalculate the score from the four columns whenever evidence changes. A yes in Built/Tested covers the named milestone only, not every requirement in its wider A–E workstream. Existing draft checks count as local evidence, not proof of current-main integration or live quality. Review does not mean deployment. Live means the relevant operation was actually verified; for read-only checks and evaluation tooling, it does not imply new bot behavior was deployed.
+
+| # | Milestone / evidence | Built | Tested | Reviewed | Live |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Short, plain replies — Release 1 / A1 | yes | yes | yes | — |
+| 2 | How-to versus failure routing — Release 1 / A2 | yes | yes | yes | — |
+| 3 | Multipart sources, whole-item clipping and damage intake — Release 1 / A2 | yes | yes | yes | — |
+| 4 | Source-ranking/confidence follow-up — #48 / A2 | yes | yes | — | — |
+| 5 | Consistent elegant Mira character — #59 / A1 | yes | yes | — | — |
+| 6 | Typing and cosmetic-error isolation — #46 / A4 | yes | yes | yes | — |
+| 7 | Production-configured read-only staff audience check — B1 | yes | yes | yes | yes |
+| 8 | Durable staff-card lifecycle and restart refresh — #41 / B2 | yes | yes | yes | yes |
+| 9 | Localized, deduplicated pickup notices and visible notice failures — #41 / B2 | yes | yes | yes | yes |
+| 10 | Durable private engineering approvals and startup privacy checks — #28 / B2 | yes | yes | — | — |
+| 11 | Queued reply recovery — #29 / B3; not reverified for this score | — | — | — | — |
+| 12 | Close/reopen hardening — #30 / B3; not reverified for this score | — | — | — | — |
+| 13 | Operational queue, alert ownership and coverage — B4 | — | — | — | — |
+| 14 | References-only memory store — C1 | — | — | — | — |
+| 15 | Bounded same-owner context reuse — C2 | — | — | — | — |
+| 16 | Forum-wide forgetting, deletion, expiry and isolation — C3 | — | — | — | — |
+| 17 | Reviewed memory pilot and controlled expansion — C4 | — | — | — | — |
+| 18 | Versioned reviewed-fact store and revocation foundation — #49 / D5 | yes | yes | — | — |
+| 19 | Owner-scoped problem signals — D1 | — | — | — | — |
+| 20 | Private grouped daily review inbox and staff controls — D2/D4 | — | — | — | — |
+| 21 | Real source/regression validator and controlled fact publication — D3/D5 | — | — | — | — |
+| 22 | Nightly regression checks and visible job failures — D6 | — | — | — | — |
+| 23 | Honest weekly outcome scorecard — E1 | — | — | — | — |
+| 24 | Existing automated regression/SQL checks and independently graded comparison tooling — E2 | yes | yes | yes | yes |
+| 25 | Full support → memory → reviewed fix → revocation demonstration — E3 | — | — | — | — |
+
+Total: **12 built + 12 tested + 8 reviewed + 4 live = 36/100**. Full A–E acceptance remains **1/21**; no unfinished checkbox is changed by this score. Mira's name/portrait are live, but the whole character milestone still needs review and live reply checks. Existing automation does not complete all future E2 scenarios.
+
+</details>
 
 ## Start here — priorities and status
 
@@ -19,7 +56,7 @@ The goal: **short, clear help that works, remembers what the customer already tr
 | **2b — Consistent personality** | [#59: Mira's elegant, warm and charming voice](https://github.com/BasedHardware/omi-vector-bot/pull/59) | **Local and hosted checks pass; not released** | Review the shared answer/reviewer instructions and quality-check them. The portrait/name are already live; startup persistence is still pending. |
 | **3 — Safe memory** | Remember earlier attempts across a customer's posts | **Not started; switched off** | After Release 1's checks pass, build references-only memory on main. Review and test before enabling it. |
 | **4 — Learn from problems safely** | [#49: reviewed improvement inbox](https://github.com/BasedHardware/omi-vector-bot/pull/49) | **Review fixes pass locally and in hosted checks; switched off** | Get review, then build detection, daily review cards and automatic checks. No automatic facts or retraining. |
-| **Release queue — reliability** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28) → [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29) → [#30](https://github.com/BasedHardware/omi-vector-bot/pull/30) | **Not shipped** | Finish privacy/startup checks, reply recovery and close/reopen checks, with review before each release. Do not forget these while building memory. |
+| **Release queue — reliability** | [#28](https://github.com/BasedHardware/omi-vector-bot/pull/28) → [#29](https://github.com/BasedHardware/omi-vector-bot/pull/29) → [#30](https://github.com/BasedHardware/omi-vector-bot/pull/30) | **#28 integration passes locally; not shipped** | Get hosted checks and review of the current-main integration; then reply recovery and close/reopen checks. No second release before Release 1's live checks. |
 
 Local work can continue while a live test or review is waiting. **A review finding adds to this plan; it does not replace the goal.** No new release, data capture or private access is approved by a status update.
 
@@ -27,6 +64,7 @@ Local work can continue while a live test or review is waiting. **A review findi
 
 - **Staff case tracking:** Report 3 passed. Acceptance, work/wait states, restart refresh and closure have accepted live evidence.
 - **Private staff-channel check:** the production-configured check passed; the four required bot permissions are allowed. This does not mean all of #28 is released.
+- **#28 current-main integration:** preserved Release 1's concise voice, typing, localized case closure, disabled memory cleanup and readiness checks alongside durable private engineering approvals. The combined suite passes 844/844, offline 8/8 and isolated SQL; a fresh production-configured read-only gate returns `private_staff_destination`. Hosted checks and independent review are still pending. No merge to main, deployment, settings/permission change or memory enablement.
 - **Release 1:** reviewed, merged and deployed. It includes shorter, simpler answers, routing/retrieval fixes and the typing repair. Health/startup checks pass; the customer tests below still need to finish.
 - **Memory decision:** 30 days approved; Aryan is the daily fix reviewer. The new references-only implementation is not built or enabled.
 - **Parked work:** nine GitHub issues opened, [#50–#58](https://github.com/BasedHardware/omi-vector-bot/issues?q=is%3Aissue%20is%3Aopen%20%22Parked%3A%22). Nothing parked is marked complete.
