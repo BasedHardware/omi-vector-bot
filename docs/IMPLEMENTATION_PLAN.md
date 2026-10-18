@@ -12,7 +12,8 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Share a 1.5-second extra-work ceiling across DB/REST reads; preserve current-post fallback, bound outstanding work to three even after timeout, prevent late-stage reads/results and keep public `/health` independent.
 - [x] Preserve `conversation_only` markers into separate answer/reviewer blocks, exclude earlier posts from routing/search/evidence, and reserve current-post opening/latest context. Fix the reproduced old-refund routing leak and deletion/opt-out races.
 - [x] 27 new tests, 17 observed red-before checks; 62 focused plus two handler checks, full 791, offline 8/8 and isolated SQL pass. Master score 42/100 (reader Built/Tested only); full acceptance remains 2/21.
-- [ ] Draft publication, hosted multi-connection checks, required memory-off comparison and independent grading. A stubbed handler test is not generated-answer quality or a live two-post memory scenario. No merge/deploy/enablement without the separate gates/pilot below.
+- [x] Publish draft #61/runtime `d447f6f`; hosted Node 20/24/Postgres run `39128548042` passes after local 791/offline/isolated SQL checks.
+- [ ] Required fresh memory-off comparison and independent grading. A stubbed handler test is not generated-answer quality or a live two-post memory scenario. No merge/deploy/enablement without the separate gates/pilot below.
 
 ### Release 2 storage checkpoint — local only
 

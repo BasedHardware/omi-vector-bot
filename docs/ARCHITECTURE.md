@@ -12,6 +12,8 @@ Closing-card language follows the same persisted `context.replyLanguage` used by
 
 ### Release 2 — local reference store and bounded reader; rollout pending
 
+Publication checkpoint: draft #61, runtime `d447f6f`, passes hosted Node 20/24/Postgres run `39128548042` in addition to local 791/offline/isolated SQL checks. The required memory-off comparison, independent review and enabled pilot remain open. Legacy suppression can broaden only when an owner reference survives; unattributable tombstones keep their original thread block, never guessed customer/forum provenance. Nothing is deployed or enabled; earlier pending-hosted-check language below records the pre-publication checkpoint.
+
 The local context path is now implemented. The existing observer selects up to two other same-owner/forum/guild posts; role-ranked SQL selects three owner messages and this bot's last reply without staff chatter crowding them out. Post/message IDs, live owner/destination and author roles are revalidated using uncached reads. Confirmed deletes retire pointers; denied reads omit content without claiming deletion. A deleted supporting message makes that response's stored outcome unknown. Opt-out is checked again before later reads and use.
 
 One 1.5-second budget covers extra DB/REST work, with current-post fallback on error/timeout. At most three operations per bot process remain outstanding, even after a caller timeout; this is not a distributed global ceiling. The application does not claim cancellation of already-issued SDK/database requests. No late content or later-stage reads follow timeout or disabled switches. The existing five-reference same-post revalidation shares this deadline. Public `/health` does not depend on optional context.
