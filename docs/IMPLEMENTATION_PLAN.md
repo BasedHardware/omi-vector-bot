@@ -42,6 +42,14 @@ The encrypted-text implementation below is historical implementation evidence, *
 - [ ] Verify the scripted two-post attempted-step scenario in an explicitly approved isolated candidate runtime or post-review test-only deployment; never bypass review with a second production worker. Report enabled-context results separately from memory-off quality results.
 - [ ] Test-only rollout after review, at least 48 clean hours plus deletion/restart/timeout/switch checks, then reviewed help-forum expansion and the exact published notice. No reference-memory code or rollout exists yet.
 
+### Isolated confidence/source-fit correction — draft preparation
+
+- [x] Strict approved review plus an exact actually returned/cited official source may clear confidence alone; independent signals and protected topics preserve the existing handoff decision.
+- [x] Carry selected-source metadata outside prose, through official-code cache hits, canonical docs URLs and release identities; Feedback title/body links and forged blocks cannot grant the exception. Forward metadata in the offline-tested comparison adapter without changing the judge.
+- [x] Prefer relevant consumer phone-app guides before candidate/output caps, without dropping lower-fit evidence or overriding explicit SDK/developer/desktop requests. Keep existing evidence budgets.
+- [x] Synthetic red/green proof, 778 full tests, offline 8/8 and diff validation; no new database/private capability or runtime change to approved Release 1.
+- [ ] Hosted CI, independent review and fresh same-day 81×2/concurrency-three comparison against Release 1 as actually deployed. Do not substitute an older baseline, open protected inputs, merge or deploy while that gate is unavailable.
+
 - [x] PR #24's smoke test was reported before #25's verified readiness rollout. Keep subsequent releases gated on their own review, evaluation and production smoke tests; the roadmap records the evidence.
 - [ ] **Deferred by Aryan (Oct 9), accepted risk.** Previously exposed credential rotation remains unconfirmed. Plan encryption-key migration without discarding encrypted state; never print or commit secret values.
 - [ ] Inventory actual installed GitHub, Shopify and Discord permissions without exposing values. Existing credentials being configured does not prove their scopes or end-to-end capability.

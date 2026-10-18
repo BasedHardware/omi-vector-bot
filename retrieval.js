@@ -285,14 +285,29 @@ function queryMatchScore(query, row) {
   return terms.reduce((score, term) => score + (title.includes(term) ? 4 : body.includes(term) ? 1 : 0), 0);
 }
 
-function selectSubQuestionEvidence(rows, subQuestions, limit = 8) {
+function consumerSourceFit(question, row) {
+  const text = String(question || '');
+  if (isDeveloperIntent(text) || !/\b(?:phone|iphone|android|ios|mobile)\b/i.test(text) ||
+      /\b(?:desktop|macos|windows|computer|laptop)\b|\bmac\b(?!\s+(?:address|id)\b)/i.test(text)) return 0;
+  if (!queryMatchScore(text, row)) return 0;
+  // Classify the page, not incidental terms inside a cross-platform guide.
+  // Lower-fit pages remain available; they do not outrank a relevant app guide.
+  let metadata = `${row.title || ''} ${row.url || ''}`;
+  try { metadata = decodeURIComponent(metadata); } catch { /* Keep literal metadata. */ }
+  metadata = metadata.replace(/[_-]+/g, ' ');
+  if (/\b(?:developer|sdk|api|python|javascript|typescript|curl|desktop|macos|windows)\b|\bmac\b(?!\s+(?:address|id)\b)/i.test(metadata)) return 0;
+  const kind = sourceKind(row.url);
+  return kind === 'help' ? 2 : kind === 'docs' ? 1 : 0;
+}
+
+function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQuestion = '' } = {}) {
   const parts = normalizeSubQuestions(subQuestions);
   if (parts.length <= 3) return rows.slice(0, limit);
   const byPage = new Map();
   for (const [index, part] of parts.entries()) {
     const matches = rows.map((row) => ({ row, score: queryMatchScore(part.query, row) }))
       .filter((hit) => hit.score > 0)
-      .sort((a, b) => b.score - a.score ||
+      .sort((a, b) => consumerSourceFit(customerQuestion, b.row) - consumerSourceFit(customerQuestion, a.row) || b.score - a.score ||
         sourceAuthority(b.row.source || sourceKind(b.row.url)) - sourceAuthority(a.row.source || sourceKind(a.row.url)));
     const row = matches[0]?.row;
     if (!row) continue;
@@ -352,7 +367,7 @@ function diverseTop(rows, limit, maxPerPage = 2) {
   return selected;
 }
 
-function mergeRanked(resultSets, limit = 8) {
+function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
   const merged = new Map();
   for (const rows of resultSets || []) {
     (rows || []).forEach((row, index) => {
@@ -365,7 +380,8 @@ function mergeRanked(resultSets, limit = 8) {
     });
   }
   const ranked = [...merged.values()]
-    .sort((a, b) => b.fusedScore - a.fusedScore || b.authority - a.authority);
+    .sort((a, b) => consumerSourceFit(customerQuestion, b) - consumerSourceFit(customerQuestion, a) ||
+      b.fusedScore - a.fusedScore || b.authority - a.authority);
   return diverseTop(ranked, limit);
 }
 
@@ -400,14 +416,16 @@ function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQ
       return { ...row, authority: sourceAuthority(row.source || sourceKind(row.url)), rank: score };
     })
     .filter((row) => row.rank > 0)
-    .sort((a, b) => b.rank - a.rank || b.authority - a.authority);
+    .sort((a, b) => consumerSourceFit(customerQuestion || queries?.[0], b) - consumerSourceFit(customerQuestion || queries?.[0], a) ||
+      b.rank - a.rank || b.authority - a.authority);
   return normalizeSubQuestions(subQuestions).length > 3
-    ? selectSubQuestionEvidence(ranked, subQuestions, limit)
+    ? selectSubQuestionEvidence(ranked, subQuestions, limit, { customerQuestion: customerQuestion || queries?.[0] })
     : diverseTop(ranked, limit);
 }
 
-function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2 } = {}) {
+function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2, onSources } = {}) {
   const blocks = [];
+  const sourceUrls = new Set();
   const perPage = new Map();
   let used = 0;
   for (const row of rows || []) {
@@ -429,9 +447,13 @@ function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2 } = {}) {
     const separatorChars = blocks.length ? 2 : 0;
     if (used + separatorChars + block.length > maxChars && blocks.length) break;
     blocks.push(block);
+    if (url) sourceUrls.add(url);
     used += separatorChars + block.length;
     perPage.set(url, count + 1);
   }
+  // Provenance travels outside formatted prose. A title/body can contain links
+  // or forged evidence markers, but cannot add a retrieved source identity.
+  onSources?.([...sourceUrls]);
   return blocks.join('\n\n');
 }
 
@@ -462,7 +484,7 @@ function evidenceChunkRows(evidence) {
   return chunks;
 }
 
-function jointMultipartEvidence(question, docsEvidence, officialChunks, { queries = [], subQuestions = [] } = {}) {
+function jointMultipartEvidence(question, docsEvidence, officialChunks, { queries = [], subQuestions = [], sourceUrls = [], onSources } = {}) {
   const parts = normalizeSubQuestions(subQuestions);
   const seen = new Set();
   const chunks = [];
@@ -472,10 +494,11 @@ function jointMultipartEvidence(question, docsEvidence, officialChunks, { querie
     seen.add(key);
     chunks.push(row);
   }
+  const retrieved = new Set([...sourceUrls, ...(officialChunks || []).map(row => row.url)]);
   return formatEvidence(rankLocalChunks(
     supportQueries(question, queries, { subQuestions: parts }), chunks, 8,
     { customerQuestion: question, subQuestions: parts }
-  ));
+  ), { onSources: urls => onSources?.(urls.filter(url => retrieved.has(url))) });
 }
 
 module.exports = {
@@ -495,6 +518,7 @@ module.exports = {
   supportQueries,
   normalizeSubQuestions,
   selectSubQuestionEvidence,
+  consumerSourceFit,
   mergeRanked,
   rankLocalChunks,
   formatEvidence,
