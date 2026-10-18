@@ -49,7 +49,8 @@ The encrypted-text implementation below is historical implementation evidence, *
 - [x] Persist approver/rejection/revocation identity/time, 90-day recheck, fresh-review rollback and normal-lookup guards against cached/hydrated revoked or expired copies.
 - [x] Bound case-reference provenance to 30 days, add a queued/cross-writer erasure barrier, and expose 100-fact cleanup batches that continue with the feature off. No customer text in this provenance.
 - [x] Synthetic red-before checks and isolated PostgreSQL/PGlite validation cover the foundation. The 24 new tests include normal answer integration, author/guild isolation, failure/timeout, pending edits, expiry, deletion, restart/concurrent updates, bound validation evidence and altered-content/legacy-copy rejection. Final full count belongs in the dated roadmap; this is not independent quality approval.
-- [ ] Hosted Node 20/24 and multi-connection Postgres CI, independent review and the eventual protected quality gate. No merge/deploy/enablement from local checks.
+- [x] Draft #49 runtime `1c5c836`: hosted Node 20/24 and multi-connection Postgres CI pass, run `39101769131`.
+- [ ] Independent review and the eventual protected quality gate. No merge/deploy/enablement from local or hosted engineering checks.
 - [ ] Implement the real official-evidence/semantic/regression validator; the injected test adapter is not that worker. Generate regressions from reviewed public facts, never customer text.
 - [ ] Connect signals, grouping/source drafts, staff review UI and privacy ownership checks; schedule mandatory cleanup/nightly checks and verified alerts; add honest raw-count scorecards. Full D1–D6 remains unfinished.
 
