@@ -4,6 +4,8 @@ This is the living implementation record. A checked implementation item means co
 
 ## October 18: persistent product goal and current execution
 
+**Test-only gate repair, #63:** the unchanged typing refresh test failed twice on Node 20 in hosted run `39140111396`, observing only two callbacks in its real 30 ms window. The memory-off parity test passed; Node 24 and Postgres passed. Real interval timing cannot guarantee three callbacks while an event loop is busy. Replace only that test with controlled interval callbacks: assert the 8-second production interval, initial send, three refreshes, clearing/unref and a harmless late callback, with cleanup on failure. Runtime code and all support behavior stay unchanged. This branch is a separate reviewable test repair, not a memory/prompt change, release approval or permission to skip CI. The canonical current product/release record remains in the master plan; no deployment or production setting changes.
+
 [SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Aryan clarified that reviews are evidence for improving the product, not a replacement goal. Map each finding to an item, keep unfinished work visible, and return to the next product item after corrections. Built/tested/live remain separate; no invented completion percentage.
 
 ### Latest Release 2 decision — specified, not implemented
