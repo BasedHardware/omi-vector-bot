@@ -6,6 +6,16 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 
 ## Release and security prerequisites
 
+### Release 2 storage checkpoint — local only
+
+- [x] Create `feat/memory-references` from verified current/deployed main `7fe0e0a`; preserve held PRs and dirty documents.
+- [x] Replace message copies with scoped references, without reading content or the identity encryption key during capture. Preserve unrelated encrypted records.
+- [x] Idempotently remove legacy ciphertext fields/copies, preserve text-free outcomes without guessing forum scope, and preserve legacy permanent opt-outs conservatively.
+- [x] Implement forum/owner locking and customer/forum-wide erasure, including attributable deletion markers, queued writes and outcomes; keep minimal persistent opt-out, deletion and expiry with flags off.
+- [x] Red-before store/switch/no-key/command/schema/erasure evidence, then 764 local tests, focused 37, offline 8/8 and isolated SQL passes. Master milestone 14 Built/Tested only: 40/100, full acceptance still 2/21.
+- [ ] Complete live context from two other same-owner posts, scope revalidation, timeout/database fallback within 1.5 seconds and explicit `conversation_only` prompt handling. Current same-post adapter is not this feature.
+- [ ] Finish hosted multi-connection checks, quality comparison and independent review before merge. Verify the enabled two-post scenario only in an approved isolated runtime or reviewed test-only deployment, then a 48-hour functional pilot and reviewed expansion. No push/PR or enablement at this checkpoint.
+
 ### Combined Release 1 (updated October 17 brief)
 
 - [x] Recheck and merge #46 with a merge commit, without deploying.

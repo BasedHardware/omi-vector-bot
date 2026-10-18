@@ -2,6 +2,8 @@
 
 Operate the capabilities that are actually enabled. The [roadmap](../ROADMAP.md) distinguishes implemented, validated and deployed work. Never paste credentials, verification codes, customer messages, private identifiers or raw backend logs into public issues or operational chat.
 
+**Current October 18 checkpoint:** Release 1 is already live and its six checks are accepted. Older audience/deploy holds below are history; the master plan governs the latest order and waived fixed deployment delay. This new main-based memory draft has local reference-only storage, a no-text migration, no memory-key dependency and customer/forum-wide erase/opt-out. Local 764 tests, offline 8/8 and isolated SQL pass. The schema upgrade removes old encrypted message copies but preserves identity/order encryption and permanent opt-outs; no production migration ran. Cross-post live context, its 1.5-second deadline and prompt boundary, hosted/quality/review gates and the enabled pilot are pending. All memory/capture/context/fix-inbox flags stay off. No push/PR, deployment or live messages are part of this checkpoint; do not publish the notice as a claim of completed functionality.
+
 October 12 release holds: #42's fresh comparison is complete and meets numerical limits, but factual/how-to/protected-escalation/clipping review is pending; do not approve it from pass-both or latency alone. #43 closing-card localization is a separate draft. #28's actual read-only preflight returned `untrusted_role_can_view`, so stop its rollout and obtain administrator/direction review of the real audience; never add unverified roles, change permissions or silently repeat a failed private-destination check. No deployment accompanied these checks.
 
 ## Startup and deployment

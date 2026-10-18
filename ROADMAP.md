@@ -4,6 +4,8 @@ This is the living implementation record. A checked implementation item means co
 
 ## October 18: persistent product goal and current execution
 
+**Current Release 2 checkpoint:** Release 1 is already live and accepted (six smoke checks); its old audience/deploy holds below are history. This new `feat/memory-references` branch starts from verified current/deployed main `7fe0e0a`. Reference-only storage, no-text migration, no memory-key dependency and forum-wide customer erasure/opt-out are built/tested locally. Six initial store checks, the switch/no-key/command checks, schema verification and deletion-marker erasure had observed red-before evidence; 764 local tests, focused 37, offline 8/8 and isolated SQL now pass. No customer content or production settings were read/changed. Cross-post live context, 1.5-second fallback, prompt separation, hosted checks, comparison, review and rollout are pending. No push/PR or enablement yet. The master score is 40/100 (store Built/Tested only), with full acceptance still 2/21; this does not change the separate #48/#60/#59 release gates.
+
 [SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Aryan clarified that reviews are evidence for improving the product, not a replacement goal. Map each finding to an item, keep unfinished work visible, and return to the next product item after corrections. Built/tested/live remain separate; no invented completion percentage.
 
 ### Latest Release 2 decision — specified, not implemented

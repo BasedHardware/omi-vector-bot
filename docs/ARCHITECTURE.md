@@ -10,7 +10,9 @@ Closing-card language follows the same persisted `context.replyLanguage` used by
 
 `supportVoice.js` provides one plain-language, concise answer/reviewer contract and the proposed Mira identity, with an explicit AI label. Existing policy, source ranking, deterministic safety checks and human-controlled case transitions still govern correctness. Aryan's updated Release 1 brief combines #42 and #45 via merge commits: topic lanes escalate only on reported failure, navigation/conditional grammar does not manufacture failures, complete-item clipping preserves citations/warnings, multipart coverage uses at most four pages within the existing 9,000-character evidence cap, and damaged-item intake requests damage evidence, private purchase email and delivery date. The old separate 1,500-character prompt budget is removed in favor of the shared voice contract. #46's non-blocking, refreshed typing indicator is in the main baseline and candidate. The authorized fresh comparison completed October 18 and subsequent independent review approved deployment, explicitly accepting the borderline increased handoff flag. Actual rollout/staff-audience verification remain open; nothing is deployed by this integration. See the roadmap for results and limitations.
 
-### Release 2 target — references only, not yet implemented
+### Release 2 — reference store implemented locally; cross-post context pending
+
+The local `feat/memory-references` implementation, from deployed main `7fe0e0a`, captures no message content or encryption key. It persists explicit guild/forum/thread/owner/message/role/creation/expiry references and text-free outcomes. A forum/owner advisory lock precedes each thread lock, serializing erase/opt-out with queued first captures and signals. Deletion markers are also owner/forum-scoped and erased on customer opt-out. The repeatable schema upgrade removes legacy ciphertext columns/copies, preserves unrelated identity encryption, quarantines old outcomes until their forum is observed live, and conservatively preserves unknown-forum permanent opt-outs across the guild. Local 764 tests, offline 8/8 and isolated SQL pass. Cross-post retrieval, prompt separation, timeout fallback and release/privacy gates below remain unfinished; no production migration or enablement occurred.
 
 Aryan approved 30-day support memory and replaced the encrypted-text design below. Implement after Release 1's deployment on `feat/memory-references` from main. Persist only scoped guild/forum/thread/owner/message references, role, message time/expiry and text-free outcomes. Migrate away memory ciphertext/IV/tag idempotently without touching encrypted identity/order state. Minimal customer/forum suppression state is still necessary to honor opt-out; identifiers and outcomes remain protected customer-related data.
 
@@ -28,7 +30,9 @@ Review signals → authorized reviewer → sourced fix → regression → public
 
 The replacement requires unit/SQL/CI checks, memory-off comparison and independent grading before merge/deploy. Enabled behavior needs an approved isolated test runtime or reviewed test-only deployment, then 48 clean hours **and** functional checks before reviewed help-forum expansion. The notice is drafted, not confirmed pinned. This is the target architecture; the encrypted-text foundation below describes the code still present and disabled.
 
-### Existing disabled foundation — superseded for enablement
+### Historical encrypted foundation — superseded for enablement
+
+The following describes the previous main implementation, not this draft's reference-only storage. The current same-post adapter still needs the bounded two-post replacement above. Do not enable either the historical text-retention design or this incomplete draft.
 
 ```text
 Scoped support event ──→ existing answer/review/delivery pipeline

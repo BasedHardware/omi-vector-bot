@@ -555,7 +555,7 @@ async function handleForgetSupportHistory(interaction, { forget = require('./sup
   }
   try {
     if (await forget(interaction.channel, customerId)) {
-      await respond('Retained support history for this post was deleted. I won’t save new history here. Your messages in Discord are unchanged.');
+      await respond('Saved support references and outcomes were deleted for all your support posts in this forum. I won’t save new history in this forum. I keep only the opt-out needed to remember your choice. Your messages in Discord are unchanged.');
       return;
     }
   } catch { console.error('[SupportMemory] customer erasure not confirmed'); }

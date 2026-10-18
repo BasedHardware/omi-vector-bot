@@ -31,7 +31,8 @@ function createObserver(memory, { historyBudgetMs = 2000, maxPendingWrites = 100
     return { id: String(message.id), author, content: safeMemoryText(message.content), at: message.createdTimestamp, trust: 'conversation_only' };
   };
   return {
-    enabled: Boolean(memory.enabled),
+    get enabled() { return Boolean(memory.enabled); },
+    get contextEnabled() { return Boolean(memory.enabled && memory.contextEnabled); },
     cleanupEnabled: Boolean(memory.cleanupEnabled),
     supports: channel => Boolean(memory.scopeFor(channel)),
     health: () => ({ enabled: Boolean(memory.enabled), failures, pendingWrites, droppedWrites }),
@@ -109,20 +110,15 @@ function createObserver(memory, { historyBudgetMs = 2000, maxPendingWrites = 100
   };
 }
 
-let observer, activePolicy;
+let observer, activeBotId = '';
 function getObserver(botId) {
+  if (botId) activeBotId = String(botId);
   if (!observer) {
-    const policy = configFromEnv(); policy.botId = botId || ''; activePolicy = policy;
-    if (policy.enabled && !require('./supportIdentityStore').configuredKey()) {
-      policy.enabled = false; policy.contextEnabled = false;
-      console.error('[SupportMemory] capture disabled; encryption unavailable');
-    }
     // No implicit memory-only fallback when the durable database fails.
     const store = process.env.DATABASE_URL ? require('./supportMemoryStore').createPostgresStore(require('./db').pool) : null;
-    observer = createObserver(createSupportMemory({ policy, store, key: require('./supportIdentityStore').configuredKey }));
-    observer.contextEnabled = policy.contextEnabled;
+    const policy = () => ({ ...configFromEnv(), botId: activeBotId });
+    observer = createObserver(createSupportMemory({ policy, store }));
   }
-  if (botId) activePolicy.botId = String(botId);
   return observer;
 }
 

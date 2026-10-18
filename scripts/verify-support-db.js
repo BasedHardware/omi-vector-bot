@@ -51,10 +51,46 @@ async function verify(pool) {
   const legacyId = randomUUID();
   await pool.query(`INSERT INTO support_cases (id, channel_id, customer_id, status, accepted_by, accepted_at)
     VALUES ($1,$2,$3,'accepted',$4,NOW())`, [legacyId, `${prefix}-legacy`, `${prefix}-legacy-customer`, `${prefix}-legacy-staff`]);
+  // Upgrade real legacy-shaped rows, not just a fresh empty schema.
+  await pool.query(`CREATE TABLE IF NOT EXISTS support_memory_messages (
+    guild_id TEXT NOT NULL, thread_id TEXT NOT NULL, customer_id TEXT NOT NULL, message_id TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('customer','staff','bot')), at BIGINT NOT NULL, version BIGINT NOT NULL,
+    expires_at BIGINT NOT NULL, ciphertext TEXT NOT NULL, iv TEXT NOT NULL, tag TEXT NOT NULL,
+    PRIMARY KEY(guild_id,thread_id,message_id)
+  )`);
+  const legacyColumns = (await pool.query(`SELECT column_name FROM information_schema.columns
+    WHERE table_name='support_memory_messages' AND column_name='ciphertext'`)).rows;
+  if (legacyColumns.length) await pool.query(`INSERT INTO support_memory_messages
+    (guild_id,thread_id,customer_id,message_id,role,at,version,expires_at,ciphertext,iv,tag)
+    VALUES ($1,$2,$3,$4,'customer',1,1,$5,'synthetic-ciphertext','synthetic-iv','synthetic-tag')`,
+  [`${prefix}-legacy-guild`, `${prefix}-legacy-thread`, `${prefix}-legacy-owner`, `${prefix}-legacy-message`, Date.now() + 86400000]);
+  await pool.query(`CREATE TABLE IF NOT EXISTS support_memory_scopes (
+    guild_id TEXT NOT NULL,thread_id TEXT NOT NULL,customer_id TEXT NOT NULL,expires_at BIGINT NOT NULL,PRIMARY KEY(guild_id,thread_id));
+    CREATE TABLE IF NOT EXISTS support_memory_deletions (
+    guild_id TEXT NOT NULL,thread_id TEXT NOT NULL,message_id TEXT NOT NULL,expires_at BIGINT NOT NULL,PRIMARY KEY(guild_id,thread_id,message_id));
+    CREATE TABLE IF NOT EXISTS support_quality_signals (
+    guild_id TEXT NOT NULL,thread_id TEXT NOT NULL,customer_id TEXT NOT NULL,event_id TEXT NOT NULL,kind TEXT NOT NULL,area TEXT NOT NULL,
+    expires_at BIGINT NOT NULL,PRIMARY KEY(guild_id,thread_id,event_id))`);
+  await pool.query(`INSERT INTO support_memory_scopes(guild_id,thread_id,customer_id,expires_at) VALUES ($1,$2,$3,$4)`,
+    [`${prefix}-legacy-guild`,`${prefix}-legacy-opt-out`,`${prefix}-legacy-opted-owner`,Date.now() + 86400000]);
+  await pool.query(`INSERT INTO support_memory_deletions(guild_id,thread_id,message_id,expires_at) VALUES ($1,$2,'*',9007199254740991)`,
+    [`${prefix}-legacy-guild`,`${prefix}-legacy-opt-out`]);
+  await pool.query(`INSERT INTO support_quality_signals(guild_id,thread_id,customer_id,event_id,kind,area,expires_at)
+    VALUES ($1,$2,$3,$4,'resolved','app',$5)`,
+    [`${prefix}-legacy-guild`,`${prefix}-legacy-metadata`,`${prefix}-legacy-metadata-owner`,`${prefix}-legacy-outcome`,Date.now() + 86400000]);
   for (let count = 0; count < 2; count++) {
     await runtime.initSchema(pool); await cases.initSchema(pool); await cards.initSchema(pool); await initIdentity(pool);
     await memoryStore.initSchema(pool);
   }
+  const memoryColumns = (await pool.query(`SELECT column_name FROM information_schema.columns
+    WHERE table_name='support_memory_messages' ORDER BY column_name`)).rows.map(row => row.column_name);
+  assert.deepEqual(memoryColumns, ['at','customer_id','expires_at','forum_id','guild_id','message_id','role','thread_id']);
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_memory_messages WHERE message_id=$1', [`${prefix}-legacy-message`])).rows[0].n, 0);
+  const everyMemoryColumn = (await pool.query(`SELECT column_name FROM information_schema.columns
+    WHERE table_name IN ('support_memory_messages','support_memory_scopes','support_memory_deletions','support_memory_opt_outs','support_quality_signals')`)).rows;
+  assert.ok(everyMemoryColumn.every(row => !/^(?:text|content|ciphertext|iv|tag|title|embedding|attachment)/i.test(row.column_name)));
+  const legacyOutcome = (await pool.query('SELECT kind,area,forum_id FROM support_quality_signals WHERE event_id=$1', [`${prefix}-legacy-outcome`])).rows[0];
+  assert.deepEqual(legacyOutcome, { kind: 'resolved', area: 'app', forum_id: null });
   const legacy = (await pool.query('SELECT * FROM support_cases WHERE id=$1', [legacyId])).rows[0];
   assert.equal(legacy.status, 'accepted'); assert.equal(legacy.accepted_by, `${prefix}-legacy-staff`);
   assert.equal(legacy.acceptance_notice_started, false); assert.equal(legacy.work_status, null);
@@ -166,38 +202,64 @@ async function verify(pool) {
   const encrypted = (await pool.query('SELECT * FROM support_verified_emails WHERE discord_user_id=$1', [user])).rows[0];
   assert.doesNotMatch(JSON.stringify(encrypted), /fixture@example\.test/);
   await restarted.revoke(user); assert.equal(await identity.getBinding(user), null);
-  const memoryOptions = { store: memoryStore.createPostgresStore(pool), key: Buffer.alloc(32, 19),
-    policy: { enabled: true, forumIds: ['fixture-help'], staffIds: [], botId: 'fixture-bot' } };
+  const memoryOptions = { store: memoryStore.createPostgresStore(pool),
+    policy: { enabled: true, forumIds: ['fixture-help','fixture-other-forum'], staffIds: [], botId: 'fixture-bot' } };
   const journal = supportMemory.createSupportMemory(memoryOptions);
   const journalRestart = supportMemory.createSupportMemory(memoryOptions);
   const memoryChannel = { id: `${prefix}-memory-thread`, guildId: `${prefix}-guild`, ownerId: `${prefix}-customer`, parentId: 'fixture-help', isThread: () => true };
   const message = { id: `${prefix}-memory-message`, channel: memoryChannel, author: { id: memoryChannel.ownerId },
     content: 'Synthetic private support text. Email fixture@example.test.', createdTimestamp: Date.now() };
+  const legacyOptedChannel = { ...memoryChannel, guildId: `${prefix}-legacy-guild`, id: `${prefix}-new-after-legacy-opt-out`, ownerId: `${prefix}-legacy-opted-owner` };
+  assert.equal(await journal.capture({ ...message, channel: legacyOptedChannel, author: { id: legacyOptedChannel.ownerId } }), false);
+  await journal.forgetCustomer({ guildId: `${prefix}-legacy-guild`, forumId: 'fixture-help', threadId: `${prefix}-erase-legacy`, customerId: `${prefix}-legacy-metadata-owner` });
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_quality_signals WHERE event_id=$1', [`${prefix}-legacy-outcome`])).rows[0].n, 0);
   await Promise.all([journal.capture(message), journalRestart.capture(message)]);
   const scope = journal.scopeFor(memoryChannel);
   assert.equal((await journalRestart.history(scope)).length, 1);
-  const encryptedMemory = (await pool.query('SELECT * FROM support_memory_messages WHERE thread_id=$1', [memoryChannel.id])).rows;
-  assert.doesNotMatch(JSON.stringify(encryptedMemory), /Synthetic private|fixture@example/);
+  const referenceRows = (await pool.query('SELECT * FROM support_memory_messages WHERE thread_id=$1', [memoryChannel.id])).rows;
+  assert.doesNotMatch(JSON.stringify(referenceRows), /Synthetic private|fixture@example|ciphertext|"iv"|"tag"|"content"/);
+  assert.equal(referenceRows[0].forum_id, 'fixture-help');
   await journal.capture({ ...message, content: 'Corrected attempt', editedTimestamp: Date.now() + 10 });
   await journalRestart.capture(message);
-  assert.equal((await journal.history(scope))[0].content, 'Corrected attempt');
+  assert.equal((await journal.history(scope))[0].content, undefined);
+  assert.equal((await journal.history(scope))[0].at, message.createdTimestamp);
   await assert.rejects(journal.forgetThread({ ...scope, customerId: `${prefix}-stranger` }));
   const signal = { ...scope, eventId: `${prefix}-feedback`, kind: 'needs_help', area: 'app' };
   await Promise.all([journal.signal(signal), journalRestart.signal(signal)]);
   assert.ok((await journal.report()).some(row => row.kind === 'needs_help' && row.count >= 1));
+  const previousPosts = ['first','second'].map((name, index) => ({ ...memoryChannel, id: `${prefix}-previous-${name}`, at: message.createdTimestamp - (index + 1) * 1000 }));
+  for (const ch of previousPosts) await journal.capture({ ...message, channel: ch, id: `${ch.id}-message`, createdTimestamp: ch.at });
+  const priorScope = journal.scopeFor(previousPosts[0]);
+  await journal.signal({ ...priorScope, eventId: `${prefix}-a-resolution`, kind: 'resolved', area: 'app' });
+  await journal.signal({ ...priorScope, eventId: `${prefix}-z-review`, kind: 'review_rejected', area: 'app' });
+  const anotherOwner = { ...memoryChannel, id: `${prefix}-other-owner`, ownerId: `${prefix}-other-customer` };
+  const anotherForum = { ...memoryChannel, id: `${prefix}-other-forum`, parentId: 'fixture-other-forum' };
+  await journal.capture({ ...message, channel: anotherOwner, id: `${prefix}-other-owner-message`, author: { id: anotherOwner.ownerId } });
+  await journal.capture({ ...message, channel: anotherForum, id: `${prefix}-other-forum-message` });
+  assert.deepEqual((await journalRestart.otherThreads(scope)).map(row => row.threadId), previousPosts.map(ch => ch.id));
+  assert.equal((await journalRestart.otherThreads(scope))[0].outcome, 'resolved');
   await journal.forgetMessage({ ...scope, messageId: message.id });
   assert.equal(await journalRestart.capture(message), false);
   await journal.forgetThread(scope, { optOut: true });
+  for (const table of ['support_memory_messages','support_quality_signals','support_memory_scopes','support_memory_deletions']) {
+    const remaining = await pool.query('SELECT count(*)::int AS n FROM ' + table + ' WHERE guild_id=$1 AND customer_id=$2 AND forum_id=$3',
+      [scope.guildId,scope.customerId,scope.forumId]);
+    assert.equal(remaining.rows[0].n, 0);
+  }
   assert.equal(await journal.capture({ ...message, id: `${prefix}-delayed` }), false);
   assert.deepEqual(await journalRestart.history(scope), []);
+  assert.deepEqual(await journalRestart.otherThreads(scope), []);
+  assert.equal((await journalRestart.history(journal.scopeFor(anotherOwner))).length, 1);
+  assert.equal((await journalRestart.history(journal.scopeFor(anotherForum))).length, 1);
+  for (const ch of previousPosts) assert.deepEqual(await journalRestart.history(journal.scopeFor(ch)), []);
   await journal.prune();
   const laterTime = Date.now() + 31 * 86400000;
   const laterJournal = supportMemory.createSupportMemory({ ...memoryOptions, now: () => laterTime });
   await laterJournal.prune();
   assert.equal(await laterJournal.capture({ ...message, id: `${prefix}-after-opt-out`, createdTimestamp: laterTime }), false);
   for (const deletion of ['message', 'thread']) {
-    const channel = { ...memoryChannel, id: `${prefix}-queued-${deletion}` };
-    const pending = { ...message, channel, id: `${prefix}-before-${deletion}` };
+    const channel = { ...memoryChannel, id: `${prefix}-queued-${deletion}`, ownerId: `${prefix}-race-owner-${deletion}` };
+    const pending = { ...message, channel, id: `${prefix}-before-${deletion}`, author: { id: channel.ownerId } };
     let release;
     const waiting = new Promise(resolve => { release = resolve; });
     const observer = createObserver({ ...journal, capture: async item => { await waiting; return journalRestart.capture(item); } });
@@ -209,7 +271,18 @@ async function verify(pool) {
     assert.equal(await saving, false);
     assert.deepEqual(await journalRestart.history(journal.scopeFor(channel)), []);
   }
-  console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, encrypted support memory, edit/delete races and revocation passed');
+  const queuedChannel = { ...memoryChannel, id: `${prefix}-queued-forum`, ownerId: `${prefix}-forum-race-owner` };
+  const queuedMessage = { ...message, channel: queuedChannel, id: `${prefix}-queued-forum-message`, author: { id: queuedChannel.ownerId } };
+  let releaseForumCapture;
+  const forumWait = new Promise(resolve => { releaseForumCapture = resolve; });
+  const forumObserver = createObserver({ ...journal, capture: async item => { await forumWait; return journalRestart.capture(item); } });
+  const forumSaving = forumObserver.capture(queuedMessage);
+  const forumScope = journal.scopeFor({ ...queuedChannel, id: `${prefix}-forget-new-post` });
+  try { await journal.forgetCustomer(forumScope); } finally { releaseForumCapture(); }
+  assert.equal(await forumSaving, false);
+  assert.equal(await journalRestart.signal({ ...forumScope, eventId: `${prefix}-delayed-signal`, kind: 'needs_help' }), false);
+  assert.deepEqual(await journalRestart.otherThreads(forumScope), []);
+  console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, reference-only memory, forum erasure, edit/delete races and revocation passed');
 }
 
 (async () => {
