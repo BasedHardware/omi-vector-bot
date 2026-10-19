@@ -1,5 +1,7 @@
 # Omi Support Bot Roadmap
 
+**Separate draft preparation:** `fix/no-email-redirect` adds application-owned in-thread next steps for ordinary answers and a tested real handoff when those steps still fail. No prompt, memory enablement or deployment. See [the scoped design and checks](docs/NO_EMAIL_REDIRECT.md). #62 is only partially related and remains open; current release-smoke failures #65/#66 block further rollout. Current authoritative operational status belongs in the master-plan update, not older snapshots below.
+
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
 ## October 19: health wait ended; return to approved release checks

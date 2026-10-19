@@ -15,6 +15,7 @@ const {
   clipForDiscord,
   clipThreadHistory,
   escalateReply,
+  inThreadReply,
   rewriteUserMentions,
   wantsAuthorPing,
   attachAuthorMention,
@@ -688,12 +689,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       ? { ...classifiedCurrent, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' }
       : classifiedCurrent;
     const contextRoute = router.classify(routeText);
+    const failedSelfService = splitHistory(contextHistory).current.some(entry => entry.author === 'bot') &&
+      router.isFailedSupportFollowup(asked || question);
     // History preserves the ticket topic, but only the newest customer message
     // decides whether they are currently asking for a human.
     let route = {
       ...contextRoute,
       wantHuman: Boolean(currentRoute.wantHuman),
-      escalate: Boolean(contextRoute.escalate || currentRoute.escalate),
+      escalate: Boolean(contextRoute.escalate || currentRoute.escalate || failedSelfService),
     };
     if (groundedShop) route = { ...route, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' };
     if (plannerPolicy.suppressAcknowledgment(null, asked || question)) return;
@@ -733,7 +736,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const forceGroundedPersonAnswer = Boolean(plannedPersonKind);
     const cannedEnglishReply = cannedEnglish ? router.cannedReply(route, asked || question) : '';
     const supportFollowup =
-      Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
+      Boolean(currentRoute.wantHuman) || failedSelfService || router.looksLikeSupportNudge(asked || question);
     const handoffPlanned = Boolean(route.escalate || forceGroundedPersonAnswer ||
       searchPlan.dataLossRisk || hasUnsyncedDataRisk(asked || question));
     if (holdPublicCopy) {
@@ -1040,7 +1043,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const handoffFollowup = continuingPost && supportFollowup;
     const pingAuthor = wantsAuthorPing(caption);
     const localizedFooters = plannerPolicy.handoffFooters(searchPlan, asked || question);
-    const { escalate, signals: escalationSignals } = decideEscalation({
+    const replyLanguage = searchPlan.replyLanguage === 'hi'
+      ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en';
+    let { escalate, signals: escalationSignals } = decideEscalation({
       route,
       question: asked || question,
       answer: cleanAnswer,
@@ -1053,6 +1058,17 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       retrievedUrls: retrievedSourceUrls,
       supportKind: searchPlan.supportKind,
     });
+    if (!escalate && (isHelpThread(channel) || isTestChannel(channel))) {
+      const prepared = inThreadReply(cleanAnswer, { language: replyLanguage });
+      if (prepared.empty) {
+        // A removed contact instruction alone is not a solved question.
+        escalate = true;
+        escalationSignals.push('empty_after_redirect');
+        cleanAnswer = ensureNonEmptyAnswer('');
+      } else {
+        cleanAnswer = prepared.text;
+      }
+    }
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,
       labels: triaged.labels,
@@ -1066,8 +1082,6 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       await applyThreadName(channel, nameMeta);
     }
 
-    const replyLanguage = searchPlan.replyLanguage === 'hi'
-      ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en';
     if (escalate) {
       await assertCurrentOwnership();
       const previousCase = await supportCases.getCaseByThread(channel.id, message.author.id);

@@ -1454,6 +1454,34 @@ test('an undelivered tech Handoff gives one help email fallback', async () => {
   assert.match(r.reply, /could not deliver this to the support team/i);
 });
 
+test('ordinary support answers keep the next step here and a failed follow-up really reaches staff', async t => {
+  const staff = enableStaffDelivery(t);
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Phone recording guide' });
+  const ownerId = nextId();
+  Object.assign(channel, { guildId: 'synthetic-guild', ownerId });
+  modelReply = { final_answer: 'Open the app and tap the microphone. If you need help, email help@omi.me.' };
+  const first = makeMessage('How do I begin recording on my phone?', { channel, authorId: ownerId });
+  await handleMessage(first);
+  assert.equal(staff.length, 0);
+  assert.match(replyText(first), /reply.*(?:here|thread)/i);
+  assert.doesNotMatch(replyText(first), /help@omi\.me|has this now|will reply/i);
+  const follow = makeMessage('It is still not working after those steps.', { channel, authorId: ownerId });
+  channel.messages.fetch = async () => new Map([[first.id, first], ...first.botReplies.map(m => [m.id, m]), [follow.id, follow]]);
+  modelReply = { final_answer: 'The recording still does not start after those steps.', escalate: false };
+  await handleMessage(follow);
+  assert.equal(staff.length, 1);
+  assert.match(replyText(follow), /person.*(?:team|thread)/i);
+  assert.doesNotMatch(replyText(follow), /help@omi\.me/);
+});
+
+test('redirect-only ordinary drafts fall back to a real handoff, not an empty self-service answer', async t => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'Please email help@omi.me.' };
+  const response = await ask('How do I organize my saved conversations?');
+  assert.equal(staff.length, 1);
+  assert.match(response.reply, /person.*(?:team|thread)/i);
+});
+
 test('a delivered Handoff keeps details without directing the customer to another channel', async (t) => {
   const staff = enableStaffDelivery(t);
   modelReply = {

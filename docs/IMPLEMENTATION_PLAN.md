@@ -1,5 +1,13 @@
 # Omi Support Bot Implementation Checklist
 
+## Separate no-email-redirect draft
+
+- [x] Observe red-before ordinary-answer, redirect-only handoff, clause-preservation and follow-up regressions; implement in the existing delivery/routing pipeline.
+- [x] Focused checks prove ordinary response → still-failing current-post feedback → actual staff delivery; preserve sources, warnings, failed-delivery fallback, localization and unknown-language safety.
+- [x] Local full **850/850**, offline **8/8** and isolated SQL pass before push.
+- [ ] Publish hosted CI; independent comparison/review remain required. No deploy or memory pilot while the combined-release smoke findings #65/#66 are unresolved.
+- [ ] Keep #62 open for its remaining narration and evaluation-stage evidence requirements; do not auto-close it from this partial repair.
+
 ## Current combined-release integration — October 19
 
 - [x] Read-only Step 0: nine escalation-branch/answer events, four real Help posts, zero smoke traffic, one new staff card and eight follow-ups across three existing staff cases; all four mapped privately. Do not infer a first-question handoff rate.
