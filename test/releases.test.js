@@ -34,3 +34,22 @@ test('a charging question does not pull a release note', async () => {
   assert.equal(text, '');
   assert.equal(called, false);
 });
+
+test('release provenance uses the chosen release identity, including cached notes, not body links', async () => {
+  resetReleaseCache();
+  const calls = [];
+  let fetches = 0;
+  const options = {
+    fetchImpl: async () => {
+      fetches++;
+      return { ok: true, json: async () => [{ tag_name: 'synthetic-v2', name: 'Desktop version',
+        body: 'Desktop version improvements. https://help.omi.me/en/articles/synthetic-not-fetched' }] };
+    }, onSources: urls => calls.push(urls),
+  };
+  const first = await matchingRelease('Latest desktop version', options);
+  const second = await matchingRelease('Latest desktop version', options);
+  assert.equal(second, first);
+  assert.equal(fetches, 1);
+  const source = 'https://github.com/BasedHardware/omi/releases/tag/synthetic-v2';
+  assert.deepEqual(calls, [[source], [source]]);
+});

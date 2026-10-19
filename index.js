@@ -754,6 +754,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     let cleanAnswer;
     let skipModel = false;
     let reviewedGrounded = false;
+    let retrievedSourceUrls = [];
     let snippets = [];
 
     if (useShopify) {
@@ -805,18 +806,23 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         threadHistory
       );
       const retrievalStart = performance.now();
+      const sourceUrls = [];
+      const onSources = urls => sourceUrls.push(...urls);
       const [docsText, officialCodeText, feedbackText, releaseText] = await Promise.all([
-        relevantDocs(sourceQuestion, { queries: searchPlan.queries, subQuestions: searchPlan.subQuestions }),
-        route.area === 'shop' ? '' : github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries }),
+        relevantDocs(sourceQuestion, { queries: searchPlan.queries, subQuestions: searchPlan.subQuestions, onSources }),
+        route.area === 'shop' ? '' : github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries, onSources }),
         router.isTechLane(route) || route.lane === 'unknown'
           ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })
           : '',
-        matchingRelease(sourceQuestion),
+        matchingRelease(sourceQuestion, { onSources }),
       ]);
       stageMs.retrieval += Math.round(performance.now() - retrievalStart);
       const retrievedEvidence = await canonicalizeGithubDocsEvidence(
-        combineEvidence(docsText, feedbackText, officialCodeText)
+        combineEvidence(docsText, feedbackText, officialCodeText),
+        { sourceUrls, onSources: urls => { retrievedSourceUrls = urls; } }
       );
+      // Only application-owned source metadata can grant the confidence-only
+      // exception. Feedback prose, static notes and model links cannot add it.
       if (!String(retrievedEvidence || '').trim()) observeSupport(observer => observer.signal(channel, {
         eventId: `${message.id}-no-source`, kind: 'no_official_source', area: route.area,
       }, message.author.id));
@@ -1042,6 +1048,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       triaged,
       holdPublicCopy,
       dataLossRisk,
+      reviewApproved: reviewedGrounded,
+      retrievedUrls: retrievedSourceUrls,
+      supportKind: searchPlan.supportKind,
     });
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,

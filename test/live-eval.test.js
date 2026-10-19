@@ -86,3 +86,15 @@ test('multi-part live evidence uses one joint corpus while ordinary lookup keeps
   assert.ok(ordinary.includes('[Help Center blocks]'));
   assert.equal(calls.length, 1, 'ordinary evidence must not be re-budgeted or merged through multipart policy');
 });
+
+test('ordinary evaluation evidence forwards only actual retrieved metadata, not prose links', () => {
+  const retrieval = require('../retrieval');
+  const source = 'https://docs.omi.me/synthetic-task-guide';
+  const help = 'https://help.omi.me/en/articles/synthetic-task-guide';
+  const urls = [];
+  evaluationDocsEvidence(retrieval, 'Task list', {
+    sourceUrls: [source], onSources: selected => urls.push(...selected),
+  }, retrieval.formatEvidence([{ url: source, title: 'Tasks', body: 'Task list https://docs.omi.me/synthetic-not-fetched' }]),
+  [{ url: help, title: 'Task list', body: 'Task list guidance.', source: 'help' }]);
+  assert.deepEqual([...new Set(urls)].sort(), [source, help].sort());
+});
