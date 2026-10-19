@@ -2,6 +2,26 @@
 
 Updated October 18, 2026 (IST). Owner: Codex implementation, Aryan product decisions, Omi authorization and named staff operational review.
 
+## Start here — progress 38 / 100
+
+Delivery milestones, not answer accuracy: **12 built + 12 tested + 8 reviewed + 6 verified live = 38/100**. The fixed 25-milestone rubric is retained in the active product plan; this narrow correction does not add a milestone or claim the larger product is complete. All unfinished A–E requirements below remain in scope.
+
+| Priority | State | Next action |
+| --- | --- | --- |
+| Release 1 | **Live; reviewer accepted 6/6 smoke checks** | Keep rollback ready and memory/context/fix-inbox off. |
+| Closing language, #50 | **Built/tested; draft review pending, not live** | Review language-code-only persistence and fallback; no merge/deploy in this step. |
+| Source ranking, #48 | **Comparison next** | Fresh same-day deployed-main `7fe0e0a` versus #48, 81×2 per arm, concurrency 3; independent grade. |
+| Mira wording, #59 | **Queued** | Calm, warm and practical; keep visible AI label. Comparison waits for #48 grading. |
+| #28 / #29 / #49 and later memory/learning | **Held, not discarded** | Preserve the existing review/order/enablement gates and parked issues. |
+
+Aryan explicitly waived the 24-hour deployment wait after accepting Release 1. This removes the timer, not tests or independent review. There is no new approved deployment in this draft. A read-only counts-only 24-hour health comparison remains scheduled for October 19 at 15:55 IST; missing metrics must be unavailable, not zero. Future deployments use the GitHub commit so Railway records the hash, not a local upload. Aryan sends any required Discord test messages himself; these local tests need no posts.
+
+### Closing-language correction — implementation evidence, not rollout
+
+After a successful ordinary answer to the post owner, save only guild/thread/owner, the existing planner reply-language code and a 30-day expiry in Postgres. Reuse the existing Hindi script rule; no detector or conversation text is added. `/done` chooses case language, then that owner's saved thread language, then English; never staff locale. Language-query failures produce fixed metadata-only logs and English fallback, with no in-process preference copy. Existing case-state database failures still retain the earlier safe no-archive behavior. Thread deletion erases saved preferences; startup/minute sweeps prune expired records independently of optional memory switches.
+
+Local checks: 771/771 tests, offline 8/8, and isolated database verification pass. Eight new behavior regressions failed before wiring the fix (Spanish/Chinese no-case closure, language-read error diagnostic, three normal-answer/script saves, save failure handling and thread deletion); the SQL extension also failed before schema registration. Additional checks cover case precedence, absent/unknown language, staff-locale exclusion, owner isolation and no-text schema/expiry/restart. Hosted CI and independent review remain pending. No merge, deploy, setting change or data capture has occurred.
+
 ## The goal stays the same
 
 Make support useful for a person who knows nothing about the technology: a short, understandable answer, one clear next step, remembered attempts, and a real person when needed. Make the whole path reliable. Improve from observed problems through checked, reviewed fixes, without making Aryan manufacture routine tests.
@@ -20,7 +40,7 @@ This is the controlling product checklist. [ROADMAP.md](../ROADMAP.md) records d
 
 Code, tests, approval and production are different states. **A master checkbox is complete only when its acceptance checks and required rollout are verified.** Marking code implemented elsewhere does not complete it here. A blocked item stays visible with the exact missing approval; work on independent safe tasks can continue. There is no promise that an outside party will approve something or that every customer can be helped automatically.
 
-## Current checkpoint
+## Historical checkpoint before Release 1 rollout — superseded by the status above
 
 - Release 1 draft [#47](https://github.com/BasedHardware/omi-vector-bot/pull/47), runtime `e7601a3`, combines #42's routing/retrieval/clipping/intake and #45's concise voice/default-off memory. Local 755/755 tests, offline 8/8 and isolated SQL pass; hosted Node 20/24/Postgres pass. This is implementation/testing evidence, not customer-quality approval or deployment.
 - Typing repair [#46](https://github.com/BasedHardware/omi-vector-bot/pull/46) merged as `273550c`; it is in both comparison arms. Merge is not deployment.
@@ -37,14 +57,14 @@ Code, tests, approval and production are different states. **A master checkbox i
 
 - [ ] **A1 — One consistent voice and identity, verified live.** Normally 40–80 words, simple language, short paragraphs and one useful next action. Acknowledge the actual disruption and avoid repetitive greetings/apologies. Use the working name Mira with a visible AI label, not a fictional employee. Preserve necessary warnings, uncertainty, sources and requested parts; detailed developer questions can be longer. Verify English, Spanish and Chinese examples without declaring prompt instructions a guarantee.
 - [ ] **A2 — Correct help, not automatic technical handoffs.** Navigation/confusion and hypothetical conditions are not failures; independent crashes, missing recordings and other actual failures remain failures. Money/account/privacy/replacement decisions still need a person. Retrieve each supported part of a multipart question within the existing evidence cap; preserve whole steps and source URLs when clipping. Damage intake asks for damage photos/video, private purchase email and delivery date, not unnecessary tracking details. Review real answer quality as well as routing flags.
-- [ ] **A3 — Complete the Release 1 gate and rollout.** Deliver both fresh result JSONs, all changed cases/runs, signals, judge problems, word-count median/p90 and provenance for independent grading. Relative gate: pass-both ≥ main −2, p50 ≤ main +2 s, p95 ≤ main +6 s; also require fewer false how-to handoffs, no missed protected handoffs and no mid-item clipping. After approval, release one version, record rollback, verify customer answers/staff receipt and preserved existing behavior. Do not deploy merely because CI is green.
+- [x] **A3 — Complete the Release 1 gate and rollout.** Approved main `7fe0e0a` is live as `e1f76a93`, rollback `0eabf17b`. Reviewer accepted the fresh comparison and all six live checks, including the pre-existing no-handoff English-card exception. Optional flags remain off. Later answer-policy changes need their own gates; this completes Release 1 only.
 - [ ] **A4 — Honest progress while waiting.** Verify the refreshed typing indicator and cosmetic-error isolation after release. Never invent an investigation, accepted case, deadline, recovery or fix to fill the wait. Retain evidence for the previously pending localized closing/reopen smoke before calling it verified.
 
 Implementation: shared voice, routing, retrieval, answer/review, honesty filters and delivery remain one pipeline. Research and its limitations are recorded in [SUPPORT_EXPERIENCE.md](SUPPORT_EXPERIENCE.md); research findings are not an Omi performance forecast.
 
 ## B. Reliable support from question to real follow-through
 
-- [ ] **B1 — Verify the staff audience.** After Aryan confirms the permission repair, run only #28's approved read-only preflight. Stop unless it returns `private_staff_destination`. Do not broaden allowlists or permissions to manufacture a pass. Review before pushing/merging/releasing the prepared workflow.
+- [x] **B1 — Verify the staff audience.** The approved production-configured read-only check passed after Aryan's permission repair. No permissions were changed by the check. This does not release all of #28 or approve broader private capabilities.
 - [ ] **B2 — Keep one durable, truthful case.** Preserve customer ownership, private intake/approved issue drafts, actual staff receipt, first acceptor, accepted/in-progress/waiting/closed state, customer-language pickup notice and safe reopening. Preserve suggested specialist versus actual owner. Verify restarts, duplicate clicks, access loss and notice failure; never recreate intentionally deleted staff cards.
 - [ ] **B3 — Finish queued delivery recovery.** Review #29's same-nonce retries, database-ledger-outage send behavior and a staff-visible alert for every held/blocked customer reply. Then review #30's close/reopen behavior. Test uncertain-send windows, overlapping workers, boot/drain failures and repeated actions. Do not claim global exactly-once delivery without resolving the database/Discord boundary.
 - [ ] **B4 — Operate the workflow, not just the code.** Establish a named staff owner and a usable queue/alert route. Surface failed delivery and unconfirmed pickup notices with a concrete staff action. Confirm who sees the alert and how outages are handled; do not promise response times without a staffed commitment. Record rollback/kill-switch behavior and one-release-at-a-time verification.

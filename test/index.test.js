@@ -174,6 +174,7 @@ const commands = require('../commands');
 const { app, client, handleMessage, shouldHandle, runtime, keepTyping } = require('../index');
 const router = require('../router');
 const supportCases = require('../supportCases');
+const supportThreadLanguage = require('../supportThreadLanguage');
 const { unreadMediaSentence } = require('../attachments');
 
 test('quiet staff replies enter optional case memory without becoming customer questions', async t => {
@@ -343,6 +344,83 @@ function replyText(message) {
 function posts() {
   return githubCalls.filter((c) => c.method === 'POST');
 }
+
+for (const [language, question, expected] of [
+  ['es', '¿Cómo comienzo una grabación desde el teléfono?', 'es'],
+  ['hi', 'फोन से रिकॉर्डिंग कैसे शुरू करूँ?', 'hi-Deva'],
+  ['hi', 'Phone se recording kaise shuru karun?', 'hi-Latn'],
+]) {
+  test(`ordinary owner answer persists the existing planner language (${expected}) before a later close`, async t => {
+    const previousKey = process.env.CMD_API_KEY;
+    process.env.CMD_API_KEY = 'synthetic-provider-key';
+    t.after(() => { process.env.CMD_API_KEY = previousKey; });
+    const saved = [];
+    const store = { save: async (scope, code) => saved.push({ scope, code }), get: async () => saved[0]?.code };
+    t.mock.method(supportThreadLanguage, 'getStore', () => store);
+    plannerReplyLanguage = language; plannerSupportKind = 'howto';
+    modelReply = { final_answer: 'Abre Omi y toca el micrófono.\nSource: https://help.omi.me/en/articles/13153576-using-omi-with-phone-only', confidence: 0.95, escalate: false };
+    const ownerId = nextId();
+    const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, parent: { type: ChannelType.GuildForum } });
+    channel.guildId = 'fixture-guild'; channel.ownerId = ownerId;
+    const result = await ask(question, { channel, authorId: ownerId });
+    assert.ok(result.modelCalled);
+    assert.match(result.reply, /Abre Omi/);
+    assert.equal(await supportCases.getCaseByThread(channel.id), null);
+    assert.deepEqual(saved, [{ scope: { guildId: channel.guildId, threadId: channel.id, ownerId }, code: expected }]);
+    const closed = await commands.closeHandoff(channel, { id: 'fixture-staff', locale: 'en-US' }, {
+      db: { getPendingEscalation: async () => null },
+    });
+    assert.equal(closed.ok, true);
+    assert.equal(channel.sent.find(payload => payload?.embeds)?.embeds[0].title,
+      commands.closePayload({ id: 'fixture-staff' }, expected).embeds[0].title);
+  });
+}
+
+test('language save errors do not fail or duplicate an ordinary answer and never log raw errors', async t => {
+  const logs = []; let attempts = 0;
+  t.mock.method(console, 'error', (...args) => logs.push(args));
+  t.mock.method(supportThreadLanguage, 'getStore', () => ({ get: async () => null, save: async () => {
+    attempts++; throw new Error('fixture-private-database-detail');
+  } }));
+  plannerReplyLanguage = 'es'; plannerSupportKind = 'howto';
+  modelReply = { final_answer: 'Open Omi and tap the microphone.\nSource: https://help.omi.me/en/articles/13153576-using-omi-with-phone-only', confidence: 0.95, escalate: false };
+  const ownerId = nextId();
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM });
+  channel.guildId = 'fixture-guild'; channel.ownerId = ownerId;
+  const result = await ask('How can I start a phone recording?', { channel, authorId: ownerId });
+  assert.equal(result.message.replies.length, 1);
+  assert.doesNotMatch(result.reply, /Something broke/);
+  assert.equal(attempts, 1);
+  const closed = await commands.closeHandoff(channel, { id: 'fixture-staff', locale: 'es' }, {
+    db: { getPendingEscalation: async () => null },
+  });
+  assert.equal(closed.ok, true);
+  assert.equal(channel.sent.find(payload => payload?.embeds)?.embeds[0].title, 'How did we do?');
+  assert.deepEqual(logs, [['[SupportLanguage] save failed; no in-memory fallback']]);
+});
+
+test('a different participant or a non-support thread cannot overwrite owner language', async t => {
+  let saves = 0;
+  t.mock.method(supportThreadLanguage, 'getStore', () => ({ save: async () => { saves++; } }));
+  modelReply = { final_answer: 'Open Omi and tap the microphone.\nSource: https://help.omi.me/en/articles/13153576-using-omi-with-phone-only', confidence: 0.95, escalate: false };
+  const participant = nextId();
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM });
+  channel.guildId = 'fixture-guild'; channel.ownerId = nextId();
+  await ask('How can I start a phone recording?', { channel, authorId: participant });
+  assert.equal(saves, 0);
+  const other = makeChannel({ thread: true, parentId: 'unrelated-forum' });
+  other.guildId = 'fixture-guild'; other.ownerId = participant;
+  await ask(`<@${BOT_ID}> How can I start a phone recording?`, { channel: other, authorId: participant, mention: true });
+  assert.equal(saves, 0);
+});
+
+test('thread deletion erases saved language independently of optional conversation memory', async t => {
+  const removed = [];
+  t.mock.method(supportThreadLanguage, 'getStore', () => ({ forgetThread: async thread => removed.push(thread.id) }));
+  t.mock.method(require('../supportLearning'), 'getObserver', () => ({ forgetThread: async () => {} }));
+  await emit(Events.ThreadDelete, { id: 'deleted-language-thread', guildId: 'fixture-guild' });
+  assert.deepEqual(removed, ['deleted-language-thread']);
+});
 
 function slashTest(question, channel = testChannel()) {
   const interaction = {
