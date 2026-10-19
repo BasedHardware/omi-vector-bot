@@ -4,6 +4,7 @@ const { Client, GatewayIntentBits, Events, Partials } = require('discord.js');
 const express = require('express');
 const db = require('./db');
 const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion, officialHandoffLinks } = require('./commandcode');
+const { splitHistory } = require('./supportContextFormat');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -674,7 +675,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     ) {
       try {
         contextHistory = await getHistory(channel, message.id, message.author.id);
-        prior = contextHistory.map((entry) => entry.content).join('\n');
+        prior = splitHistory(contextHistory).current.map((entry) => entry.content).join('\n');
       } catch (err) {
         console.error('[Bot] thread context failed:', err.message);
       }

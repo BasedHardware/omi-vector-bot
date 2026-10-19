@@ -205,6 +205,66 @@ test('optional memory writes cannot hold up the core support handler', async t =
   assert.equal(message.replies.length, 0);
 });
 
+test('earlier owner attempts reach answer and review without rerouting a fresh how-to to an old refund', async t => {
+  const { createMemoryStore, createSupportMemory } = require('../supportMemory');
+  const { createObserver } = require('../supportLearning');
+  const ownerId = nextId();
+  const current = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Recording setup' });
+  const old = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Earlier support request' });
+  for (const ch of [current,old]) Object.assign(ch, { guildId: 'synthetic-guild', ownerId });
+  const earlier = { id: nextId(), channel: old, guildId: old.guildId, createdTimestamp: Date.now() - 1000,
+    author: { id: ownerId, bot: false }, content: 'I already restarted the app. I also had an old refund question.' };
+  old.messages.fetch = async flags => {
+    assert.deepEqual(flags, { message: earlier.id, force: true, cache: false }); return earlier;
+  };
+  current.client = { channels: { fetch: async (id, flags) => {
+    assert.equal(id, old.id); assert.deepEqual(flags, { force: true, cache: false }); return old;
+  } } };
+  const memory = createSupportMemory({ store: createMemoryStore(), policy: {
+    enabled: true, contextEnabled: true, forumIds: [HELP_FORUM], staffIds: [], botId: BOT_ID,
+  } });
+  await memory.capture(earlier);
+  const observer = createObserver(memory);
+  t.mock.method(require('../supportLearning'), 'getObserver', () => observer);
+  modelReply = { final_answer: 'Open the Omi app and tap the microphone button.' };
+  const follow = makeMessage('How can I record a meeting using just my phone?', { channel: current, authorId: ownerId });
+  current.messages.fetch = async () => new Map([[follow.id, follow]]);
+  await handleMessage(follow);
+  assert.ok(modelCalls.length);
+  assert.notEqual(modelCalls.at(-1).route.area, 'shop');
+  assert.notEqual(modelCalls.at(-1).route.area, 'money');
+  const earlierContext = modelCalls.at(-1).threadHistory.filter(row => row.source === 'previous_post');
+  assert.equal(earlierContext.length, 1);
+  assert.equal(earlierContext[0].trust, 'conversation_only');
+  assert.match(earlierContext[0].content, /already restarted/);
+  assert.ok(reviewCalls.at(-1).threadHistory.some(row => row.source === 'previous_post'));
+});
+
+test('an optional context database failure still gives a normal reply with current-post history', async t => {
+  const { createMemoryStore, createSupportMemory } = require('../supportMemory');
+  const { createObserver } = require('../supportLearning');
+  const ownerId = nextId(), logs = [];
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Recording setup' });
+  Object.assign(channel, { guildId: 'synthetic-guild', ownerId });
+  const memory = createSupportMemory({ store: createMemoryStore(), policy: {
+    enabled: true, contextEnabled: true, forumIds: [HELP_FORUM], staffIds: [], botId: BOT_ID,
+  } });
+  memory.otherThreads = async () => { throw Error('SYNTHETIC-DATABASE-EXCEPTION'); };
+  const observer = createObserver(memory);
+  t.mock.method(require('../supportLearning'), 'getObserver', () => observer);
+  t.mock.method(console, 'error', (...args) => logs.push(args.join(' ')));
+  modelReply = { final_answer: 'Open the Omi app and tap the microphone button.' };
+  const follow = makeMessage('How can I record a meeting using just my phone?', { channel, authorId: ownerId });
+  const earlier = { id: nextId(), channel, author: { id: ownerId, bot: false }, content: 'Current-post detail: using my phone only.', createdTimestamp: Date.now() - 1000 };
+  channel.messages.fetch = async () => new Map([[follow.id,follow],[earlier.id,earlier]]);
+  await handleMessage(follow);
+  assert.ok(modelCalls.at(-1).threadHistory.some(row => /Current-post detail/.test(row.content)));
+  assert.equal(follow.replies.length, 1);
+  assert.doesNotMatch(replyText(follow), /Something broke/);
+  assert.doesNotMatch(logs.join('\n'), /SYNTHETIC-DATABASE-EXCEPTION/);
+  assert.equal(logs.filter(line => line.includes('[SupportMemory]')).length, 1);
+});
+
 client.user = new User(client, { id: BOT_ID, username: 'vector', bot: true });
 
 let seq = 0;
