@@ -718,7 +718,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           sessionId: `discord-${channel.id}-search`,
         });
       } catch (err) {
-        console.error('[Bot] search planning failed:', err.message);
+        if (err?.code === 'PLANNER_DEADLINE') {
+          console.error('[Bot] search planning deadline reached; using deterministic plan');
+        } else {
+          const status = Number(err?.response?.status);
+          // Retain the evaluation harness's authorization/quota stop signal without raw exceptions.
+          const suffix = [401, 402, 403, 429].includes(status) ? ` status=${status}` : '';
+          console.error(`[Bot] search planning failed; using deterministic plan${suffix}`);
+        }
       } finally {
         stageMs.planner += Math.round(performance.now() - stageStart);
       }

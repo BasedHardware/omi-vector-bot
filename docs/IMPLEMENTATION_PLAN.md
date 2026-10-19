@@ -1,5 +1,13 @@
 # Omi Support Bot Implementation Checklist
 
+## Separate planner-deadline draft
+
+- [x] Observe red-before transport-cap and timeout/fallback metadata regressions; preserve the already-passing protected-handoff check.
+- [x] Implement a 20-second wall deadline, abort, late-result isolation, cleanup and deterministic fallback; leave answer/review timeouts and prompts alone.
+- [x] Focused controlled-clock, transport and handler tests pass without real-time callback-count assumptions.
+- [x] Local full **845/845**, offline **8/8** and isolated SQL pass before push.
+- [ ] Publish hosted evidence; then a separately graded same-day comparison with p95 not rising. No rollout or memory pilot while smoke findings #65/#66 remain unresolved.
+
 ## Current combined-release integration — October 19
 
 - [x] Read-only Step 0: nine escalation-branch/answer events, four real Help posts, zero smoke traffic, one new staff card and eight follow-ups across three existing staff cases; all four mapped privately. Do not infer a first-question handoff rate.

@@ -7,6 +7,7 @@ const { redactSensitive } = require('./privacy');
 const { SUPPORT_VOICE } = require('./supportVoice');
 const { normalizeSubQuestions } = require('./retrieval');
 const { isPreviousPost, splitHistory, previousContextBlock } = require('./supportContextFormat');
+const { runPlannerWithDeadline } = require('./plannerDeadline');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
 
@@ -426,7 +427,7 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
     .map((item) => `${item.author}: ${item.content}`)
     .join('\n')
     .slice(-8_000);
-  const { data } = await send(
+  const { data } = await runPlannerWithDeadline(({ signal, timeoutMs }) => send(
     provider.url,
     privateProviderBody({
       model: provider.model,
@@ -461,10 +462,11 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
       ],
     }),
     {
-      timeout: provider.timeout,
+      timeout: Number.isFinite(provider.timeout) && provider.timeout > 0 ? Math.min(provider.timeout, timeoutMs) : timeoutMs,
+      signal,
       headers: providerHeaders(provider),
     }
-  );
+  ));
   recordModelUsage(data, 'planner', provider.model, onUsage);
   const content = data?.choices?.[0]?.message?.content;
   if (!content) throw new Error('CommandCode search plan was empty');

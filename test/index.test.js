@@ -50,6 +50,7 @@ let plannerHandoffAcknowledgment = '';
 let plannerWantsPerson = false;
 let plannerDataLossRisk = false;
 let plannerBarrier = null;
+let plannerError = null;
 let reviewerResponse = null;
 const reviewCalls = [];
 let emitTestUsage = false;
@@ -71,6 +72,7 @@ commandcode.queryAgent = async (args) => {
 };
 commandcode.understandQuestion = async ({ question, onUsage }) => {
   plannerCalls.push(question);
+  if (plannerError) throw plannerError;
   if (emitTestUsage) onUsage?.({ stage: 'planner', completionTokens: 20, reasoningTokens: 5 });
   if (plannerBarrier) await plannerBarrier;
   return {
@@ -550,6 +552,7 @@ test.beforeEach(() => {
   plannerHandoffAcknowledgment = '';
   plannerWantsPerson = false;
   plannerDataLossRisk = false;
+  plannerError = null;
   reviewerResponse = null;
   reviewCalls.length = 0;
   pulls = [];
@@ -756,6 +759,37 @@ test('two rejected reviews use the existing direct-answer fallback', async (t) =
   assert.equal(reviewCalls.length, 2);
   assert.match(response.reply, /couldn't verify a direct answer/i);
   assert.equal(staff.length, 1);
+});
+
+test('planner deadline uses the deterministic plan, still answers and logs metadata only once', async t => {
+  process.env.CMD_API_KEY = 'synthetic-planner-test-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; docsObserver = null; });
+  const logs = [], lookups = [];
+  t.mock.method(console, 'error', (...parts) => logs.push(parts.join(' ')));
+  plannerError = Object.assign(new Error('SYNTHETIC-PRIVATE-PROVIDER-DETAIL'), { code: 'PLANNER_DEADLINE' });
+  docsObserver = async (question, options) => { lookups.push({ question, options }); return ''; };
+  modelReply = { final_answer: 'Open the app and tap the microphone.' };
+  const question = 'How do I begin recording using my phone?';
+  const response = await ask(question);
+  assert.ok(response.reply);
+  assert.equal(response.modelCalled, true);
+  assert.equal(lookups.length, 1);
+  assert.ok(modelCalls.at(-1).understanding.standaloneQuestion.includes(question));
+  assert.deepEqual(modelCalls.at(-1).understanding.queries, []);
+  assert.doesNotMatch(response.reply, /Something broke|SYNTHETIC-PRIVATE/);
+  assert.equal(logs.filter(line => line === '[Bot] search planning deadline reached; using deterministic plan').length, 1);
+  assert.doesNotMatch(logs.join('\n'), /SYNTHETIC-PRIVATE-PROVIDER-DETAIL/);
+});
+
+test('a planner deadline cannot cancel a deterministic protected handoff', async t => {
+  process.env.CMD_API_KEY = 'synthetic-planner-test-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; });
+  const staff = enableStaffDelivery(t);
+  plannerError = Object.assign(new Error('synthetic deadline'), { code: 'PLANNER_DEADLINE' });
+  const response = await ask('Quiero un refund de mi Omi.');
+  assert.equal(plannerCalls.length, 1);
+  assert.equal(staff.length, 1);
+  assert.ok(response.reply);
 });
 
 test('official docs retrieval waits for the planner and runs once with its queries', async () => {

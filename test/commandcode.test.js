@@ -43,6 +43,21 @@ test('CommandCode uses its own key, model and endpoint without a legacy session 
   }
 });
 
+test('planner transport has a twenty-second cap and abort signal without changing answer timeout', async t => {
+  const before = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-planner-test-key';
+  t.after(() => { if (before === undefined) delete process.env.CMD_API_KEY; else process.env.CMD_API_KEY = before; });
+  await planSearch({ question: 'How do I start?', post: async (_url, _body, options) => {
+    assert.ok(options.timeout > 0 && options.timeout <= 20000);
+    assert.ok(options.signal instanceof AbortSignal);
+    return { data: { choices: [{ message: { content: '{"standalone_question":"How do I start?","search_queries":[]}' } }] } };
+  } });
+  await queryAgent({ question: 'How do I start?', post: async (_url, _body, options) => {
+    assert.equal(options.timeout, providerConfig().timeout);
+    return { data: { choices: [{ message: { content: '{"final_answer":"Open the app.","confidence":0.9}' } }] } };
+  } });
+});
+
 test('planned staff handoff tells both answer and review to keep the customer in this thread', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';

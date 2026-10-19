@@ -1,5 +1,7 @@
 # Omi Support Bot Roadmap
 
+**Separate draft preparation:** `fix/planner-deadline` caps the optional planning transport at about 20 seconds with abort and deterministic fallback. Answer/review timeouts, prompts, source policy and protected handoffs remain unchanged. [Design and verification](docs/PLANNER_DEADLINE.md). No production claim or comparison/p95 grade; the combined-release smoke failures #65/#66 hold further rollout and memory enablement.
+
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
 ## October 19: health wait ended; return to approved release checks
