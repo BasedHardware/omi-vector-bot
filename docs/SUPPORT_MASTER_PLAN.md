@@ -216,6 +216,26 @@ Native Discord input is unreliable; no synthetic post or command was submitted b
 
 Keep the full acceptance requirements below. Update this front page whenever implementation, tests, review, deployment or a blocker changes. Use **done / in progress / waiting / parked**, and always distinguish built from live.
 
+## Start here — progress 38 / 100
+
+Delivery milestones, not answer accuracy: **12 built + 12 tested + 8 reviewed + 6 verified live = 38/100**. The fixed 25-milestone rubric is retained in the active product plan; this narrow correction does not add a milestone or claim the larger product is complete. All unfinished A–E requirements below remain in scope.
+
+| Priority | State | Next action |
+| --- | --- | --- |
+| Release 1 | **Live; reviewer accepted 6/6 smoke checks** | Keep rollback ready and memory/context/fix-inbox off. |
+| Closing language, #50 | **Built/tested; draft review pending, not live** | Review language-code-only persistence and fallback; no merge/deploy in this step. |
+| Source ranking, #48 | **Comparison next** | Fresh same-day deployed-main `7fe0e0a` versus #48, 81×2 per arm, concurrency 3; independent grade. |
+| Mira wording, #59 | **Queued** | Calm, warm and practical; keep visible AI label. Comparison waits for #48 grading. |
+| #28 / #29 / #49 and later memory/learning | **Held, not discarded** | Preserve the existing review/order/enablement gates and parked issues. |
+
+Aryan explicitly waived the 24-hour deployment wait after accepting Release 1. This removes the timer, not tests or independent review. There is no new approved deployment in this draft. A read-only counts-only 24-hour health comparison remains scheduled for October 19 at 15:55 IST; missing metrics must be unavailable, not zero. Future deployments use the GitHub commit so Railway records the hash, not a local upload. Aryan sends any required Discord test messages himself; these local tests need no posts.
+
+### Closing-language correction — implementation evidence, not rollout
+
+After a successful ordinary answer to the post owner, save only guild/thread/owner, the existing planner reply-language code and a 30-day expiry in Postgres. Reuse the existing Hindi script rule; no detector or conversation text is added. `/done` chooses case language, then that owner's saved thread language, then English; never staff locale. Language-query failures produce fixed metadata-only logs and English fallback, with no in-process preference copy. Existing case-state database failures still retain the earlier safe no-archive behavior. Thread deletion erases saved preferences; startup/minute sweeps prune expired records independently of optional memory switches.
+
+Local checks: 771/771 tests, offline 8/8, and isolated database verification pass. Eight new behavior regressions failed before wiring the fix (Spanish/Chinese no-case closure, language-read error diagnostic, three normal-answer/script saves, save failure handling and thread deletion); the SQL extension also failed before schema registration. Additional checks cover case precedence, absent/unknown language, staff-locale exclusion, owner isolation and no-text schema/expiry/restart. Hosted CI and independent review remain pending. No merge, deploy, setting change or data capture has occurred.
+
 ## The goal stays the same
 
 Make support useful for a person who knows nothing about the technology: a short, understandable answer, one clear next step, remembered attempts, and a real person when needed. Make the whole path reliable. Improve from observed problems through checked, reviewed fixes, without making Aryan manufacture routine tests.

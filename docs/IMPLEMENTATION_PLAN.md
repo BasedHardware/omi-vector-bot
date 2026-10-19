@@ -75,6 +75,18 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Observe red-before checks, then 764 local tests, focused 37, offline 8/8 and isolated SQL passes. Store milestone Built/Tested only: 40/100; no new full A–E acceptance.
 - [ ] Complete owner-validated two-post live context, 1.5-second deadline/fallback and explicit `conversation_only` prompt separation. Then hosted CI/local multi-connection SQL, authorized comparison and independent review before any merge/rollout.
 - [ ] Controlled test-only context scenario and 48-hour clean pilot with functional checks, followed by reviewed public expansion. Nothing is pushed, merged, deployed or enabled at this checkpoint.
+### October 18 current order and closing-language draft
+
+- [x] Release 1 deployed from approved main `7fe0e0a`; reviewer accepted all six live checks. Optional flags off, rollback retained.
+- [x] Reproduce no-case Spanish/Chinese closure and missing language-save/delete handling before the fix; register an additive text-free preference schema.
+- [x] Reuse planner language and existing Hindi script rule, scoped to the post owner; case → thread → English fallback, never staff locale or process memory.
+- [x] Language-save/read failures cannot cause a second answer or fail closure; fixed metadata logs only. Preserve existing case-state no-archive safeguards.
+- [x] Thread-delete erasure, bounded expiry pruning and restart/owner-isolation SQL checks, with no optional memory dependency.
+- [x] Local 771 tests, offline 8/8 and isolated SQL pass.
+- [ ] Hosted CI, independent draft review and separate rollout/smoke. Not merged/deployed.
+- [ ] Next: #48 fresh same-day deployed-main comparison, then #59 calm/warm/practical wording; personality comparison waits for ranking grade. #28/#29/#49 remain held.
+
+Aryan waived the 24-hour timer, not the other gates. The counts-only read-only 24-hour health comparison is scheduled October 19 at 15:55 IST. Future deployments use the GitHub commit for recorded provenance, not a local upload. The detailed older unchecked Release 1 checkpoints below are historical, superseded by its accepted rollout above.
 
 ### Combined Release 1 (updated October 17 brief)
 

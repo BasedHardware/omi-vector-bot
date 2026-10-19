@@ -54,6 +54,7 @@ const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
 const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const triage = require('./triage');
 const supportCases = require('./supportCases');
+const supportThreadLanguage = require('./supportThreadLanguage');
 const caseCards = require('./caseCards');
 const { ensureSupportIdentity } = require('./supportVoice');
 const supportLearning = require('./supportLearning');
@@ -79,6 +80,7 @@ let recoveryTimer;
 let caseCardTimer;
 let unsubscribeCaseCards;
 let supportMemoryTimer;
+let threadLanguageTimer;
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
 const botReplyOwners = new Map();
@@ -1063,6 +1065,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       await applyThreadName(channel, nameMeta);
     }
 
+    const replyLanguage = searchPlan.replyLanguage === 'hi'
+      ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en';
     if (escalate) {
       await assertCurrentOwnership();
       const previousCase = await supportCases.getCaseByThread(channel.id, message.author.id);
@@ -1071,8 +1075,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         customerThreadId: channel.isThread?.() ? channel.id : undefined,
         sourceMessageId: message.id,
         context: { area: triaged.area, lane: triaged.lane, dataLossRisk, needsPerson: true,
-          replyLanguage: searchPlan.replyLanguage === 'hi'
-            ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en',
+          replyLanguage,
           attachmentCount: message.attachments?.size || 0, reasonCodes: dataLossRisk ? ['data_loss_risk'] : ['needs_person'] },
         sources: cleanAnswer.match(/https:\/\/[^\s)>]+/g) || [],
       });
@@ -1216,6 +1219,16 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       await replySafe(message, cleanAnswer, { pingAuthor });
       didReply = true;
       answered = true;
+      if (isHelpThread(channel) || isTestChannel(channel)) {
+        const scope = supportThreadLanguage.scopeForThread(channel);
+        if (scope && scope.ownerId === message.author.id) {
+          try {
+            await supportThreadLanguage.getStore()?.save(scope, replyLanguage);
+          } catch {
+            console.error('[SupportLanguage] save failed; no in-memory fallback');
+          }
+        }
+      }
     }
 
     if (stayInPost) await noteCustomerLead(channel, message);
@@ -1270,7 +1283,14 @@ client.on(Events.MessageDelete, message => runtime.track(() => learning().forget
 client.on(Events.MessageBulkDelete, messages => runtime.track(async () => {
   for (const message of messages.values()) await learning().forgetMessage(message);
 }));
-client.on(Events.ThreadDelete, thread => runtime.track(() => learning().forgetThread(thread)));
+client.on(Events.ThreadDelete, thread => runtime.track(async () => {
+  try {
+    await supportThreadLanguage.getStore()?.forgetThread(thread);
+  } catch {
+    console.error('[SupportLanguage] thread deletion failed');
+  }
+  await learning().forgetThread(thread);
+}));
 
 client.on(Events.InteractionCreate, (interaction) => {
   return runtime.track(() => commands.handleInteraction(interaction)).catch(() => {
@@ -1298,6 +1318,13 @@ async function nickOmiSupport(client) {
 }
 
 client.once(Events.ClientReady, async () => {
+  if (supportThreadLanguage.getStore()) {
+    const pruneLanguages = () => runtime.track(() => supportThreadLanguage.getStore().prune())
+      .catch(() => console.error('[SupportLanguage] expiry cleanup failed'));
+    pruneLanguages();
+    threadLanguageTimer = setInterval(pruneLanguages, 60000);
+    threadLanguageTimer.unref();
+  }
   const memory = learning();
   if (memory.cleanupEnabled) {
     runtime.track(() => memory.prune());
@@ -1397,6 +1424,7 @@ async function shutdown(signal) {
     clearInterval(recoveryTimer);
     clearInterval(caseCardTimer);
     clearInterval(supportMemoryTimer);
+    clearInterval(threadLanguageTimer);
     telegram.stopPolling();
     const [drained, telegramDrained] = await Promise.all([runtime.drain(), telegram.drainPolling()]);
     console.log(`[SupportRuntime] drain completed=${drained} telegram_completed=${telegramDrained}`);
