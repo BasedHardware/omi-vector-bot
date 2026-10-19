@@ -8,6 +8,7 @@ const { SupportIdentityStore, initSchema: initIdentity } = require('../supportId
 const supportMemory = require('../supportMemory');
 const memoryStore = require('../supportMemoryStore');
 const { createObserver } = require('../supportLearning');
+const threadLanguage = require('../supportThreadLanguage');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -81,6 +82,7 @@ async function verify(pool) {
   for (let count = 0; count < 2; count++) {
     await runtime.initSchema(pool); await cases.initSchema(pool); await cards.initSchema(pool); await initIdentity(pool);
     await memoryStore.initSchema(pool);
+    await threadLanguage.initSchema(pool);
   }
   const memoryColumns = (await pool.query(`SELECT column_name FROM information_schema.columns
     WHERE table_name='support_memory_messages' ORDER BY column_name`)).rows.map(row => row.column_name);
@@ -94,6 +96,27 @@ async function verify(pool) {
   const legacy = (await pool.query('SELECT * FROM support_cases WHERE id=$1', [legacyId])).rows[0];
   assert.equal(legacy.status, 'accepted'); assert.equal(legacy.accepted_by, `${prefix}-legacy-staff`);
   assert.equal(legacy.acceptance_notice_started, false); assert.equal(legacy.work_status, null);
+  let languageNow = Date.now();
+  const languageScope = { guildId: `${prefix}-guild`, threadId: `${prefix}-thread`, ownerId: `${prefix}-owner` };
+  const languageStore = threadLanguage.createStore(pool, { now: () => languageNow });
+  await languageStore.save(languageScope, 'es');
+  const languageRestart = threadLanguage.createStore(pool, { now: () => languageNow });
+  assert.equal(await languageRestart.get(languageScope), 'es');
+  for (const key of ['guildId', 'threadId', 'ownerId']) {
+    assert.equal(await languageRestart.get({ ...languageScope, [key]: `${prefix}-other` }), null);
+  }
+  assert.equal(await languageStore.save(languageScope, 'fixture-private-message'), false);
+  const languageColumns = (await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name='support_thread_languages' ORDER BY ordinal_position")).rows.map(row => row.column_name);
+  assert.deepEqual(languageColumns, ['guild_id', 'thread_id', 'owner_id', 'language_code', 'expires_at']);
+  languageNow += threadLanguage.RETENTION_MS;
+  assert.equal(await languageRestart.get(languageScope), null);
+  await languageRestart.prune();
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_thread_languages WHERE guild_id=$1', [languageScope.guildId])).rows[0].n, 0);
+  await languageStore.save(languageScope, 'zh');
+  await languageStore.forgetThread({ guildId: `${prefix}-other`, id: languageScope.threadId });
+  assert.equal(await languageRestart.get(languageScope), 'zh');
+  await languageStore.forgetThread({ guildId: languageScope.guildId, id: languageScope.threadId });
+  assert.equal(await languageRestart.get(languageScope), null);
   const store = new runtime.PostgresRuntimeStore(pool);
   const job = { messageId: `${prefix}-message`, caseKey: `${prefix}:alice`, owner: `${prefix}-owner`, fingerprint: runtime.questionFingerprint('synthetic private input') };
   const duplicate = { ...job, owner: `${prefix}-second` };
@@ -294,7 +317,7 @@ async function verify(pool) {
   assert.equal(await forumSaving, false);
   assert.equal(await journalRestart.signal({ ...forumScope, eventId: `${prefix}-delayed-signal`, kind: 'needs_help' }), false);
   assert.deepEqual(await journalRestart.otherThreads(forumScope), []);
-  console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, reference-only memory, forum erasure, edit/delete races and revocation passed');
+  console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, reference-only memory, forum erasure, edit/delete races, revocation and text-free thread languages passed');
 }
 
 (async () => {

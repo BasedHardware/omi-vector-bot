@@ -3,6 +3,7 @@ const { isCloseableThread, canStaffAct, staffMentionIds, markHandoffClosed, send
 const github = require('./github');
 const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
+const supportThreadLanguage = require('./supportThreadLanguage');
 const { appReviewButtons } = require('./appReviews');
 const { closingCopy } = require('./closingCopy');
 const { SUPPORT_DISPLAY_NAME } = require('./supportVoice');
@@ -287,9 +288,20 @@ async function closeHandoff(channel, user, options = {}) {
     console.error('[Bot] /done case lookup failed:', err.name);
     return { ok: false, reason: 'Could not read this case. The thread has not been closed.' };
   }
+  let replyLanguage = storedCase?.context?.replyLanguage;
+  if (!replyLanguage) {
+    try {
+      const scope = supportThreadLanguage.scopeForThread(channel);
+      const languageStore = options.languageStore === undefined ? supportThreadLanguage.getStore() : options.languageStore;
+      replyLanguage = scope && languageStore ? await languageStore.get(scope) : 'en';
+    } catch {
+      console.error('[SupportLanguage] read failed; using English');
+      replyLanguage = 'en';
+    }
+  }
   let delivered;
   try {
-    delivered = await channel.send(closePayload(user, storedCase?.context?.replyLanguage));
+    delivered = await channel.send(closePayload(user, replyLanguage || 'en'));
   } catch (err) {
     console.error('[Bot] /done notice failed:', err.message);
     return { ok: false, reason: 'Could not post the resolved message.' };

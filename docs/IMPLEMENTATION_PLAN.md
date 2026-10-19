@@ -1,6 +1,63 @@
 # Omi Support Bot Implementation Checklist
 
+## Current combined-release integration — October 19
+
+- [x] Read-only Step 0: nine escalation-branch/answer events, four real Help posts, zero smoke traffic, one new staff card and eight follow-ups across three existing staff cases; all four mapped privately. Do not infer a first-question handoff rate.
+- [x] Recheck Apple Watch line live; rerun four synthetic historical-loss diagnostics. Exact historical stage is unavailable; shared filter/review files predate #48. No protected rerun.
+- [x] Merge #60 as `05c0b48` after local 771/offline8/SQL and hosted checks; acknowledge Aryan's separate manual deploy `d49bfa68` with recorded source commit. No duplicate deploy.
+- [x] Merge #48 as `46282bb` after local 802/offline8/SQL and hosted Node 20/24/Postgres run `39216244319`.
+- [ ] Complete #61 integration/final-SHA full tests/CI/SQL, preserving snapshot guard and forum-erasure/language checks; then approved GitHub deployment and five smokes, rollback `e1f76a93`, all optional flags off.
+
+## Latest operational checkpoint — October 19
+
+- [x] Stop the health-only wait at Aryan's request; pause the existing report through the app and verify PAUSED. No replacement schedule.
+- [x] Produce final counts-only partial-duration report: `/Users/astar/omi-eval/health-summary-20261019-final.md`; 19 h 49 min after restart, nine answer events, zero staff-failure lines, one known read error, p50/p95 44.625/101.520 s. Current health OK; exact sends/fallbacks/crashes unavailable. Not a full-day pass.
+- [ ] Resume approved #60 → #48 → #61 integration and final-SHA tests/hosted CI/SQL, exact GitHub commit/rollback verification, then approved release/smoke. No feature merge/deployment performed by the health report. Other release, privacy and memory-pilot gates remain; older 15:55 health-wait text below is superseded by the explicit stop request.
+
 ## Latest review checkpoint — October 18
+
+- [x] Run Aryan's early read-only health comparison now; preserve counts/coverage/limitations in `/Users/astar/omi-eval/health-summary-20261018-interim.md`. Only 6 h 11 min after restart, not a full 24-hour pass. Current health OK, optional flags/auto-deploy/PR previews off; no production or GitHub mutations. The full October 19 report and release gate remain unfinished. #60/#48/#61 are already ready; #44/#35 closed; parked labels remain unapplied.
+
+- [x] Independent reviewer approved #64; merge test-only repair into main now with a merge commit (`adf016c`). Automatic deployment disabled; no deploy/runtime change. Fresh local 755/offline8 and hosted checks pass.
+- [x] Merge exact main `adf016c` into #61 as `bc793cc` with snapshot guard intact, preserve both records in documentation conflicts, then verify/push full 792/offline8/isolated SQL; fresh hosted Node 20/24/Postgres run `39142032614` passes. This is not the later #61-to-main merge; no deploy or enablement.
+
+Main's test-only follow-up (#63/#64) is preserved here: controlled callbacks replace the typing test's wall-clock assumption while retaining interval, notification, unref/clear, late-stop and cleanup coverage. No customer behavior changes. Earlier review-pending entries below are historical; #64 needs no repeated approval.
+
+- [x] Record independent approvals: #60; #48's completed comparison with accepted non-protected flags; #61 code with memory off. Published heads/hosted checks were reverified; no merge or deployment.
+- [x] Read the live product source: Apple Watch recording support is explicitly present. Diagnose available short-answer evidence without opening protected inputs; reproduce two unchanged whole-sentence filter erasure paths in four synthetic checks and track #62.
+- [ ] Exact historical answer-loss stage: unavailable from saved final-only logs; do not claim the synthetic path proves it. Preserve the evidence limit for release review.
+- [x] Record the explicit off-only #61 comparison waiver; no provider run is claimed passed. Add one baseline-snapshot regression for histories 0/3/24/30/60 and all five requested boundaries. Eight focused/full 792/offline8/isolated SQL pass; five in-memory mutations each trigger the guard.
+- [x] Commit/push the parity regression as #61 `9dfd18a`; it passes in hosted Node 20/24. No runtime behavior change; enabled memory scenario/pilot remains mandatory.
+- [ ] Overall CI: review/integrate separate test-only #64 (#63), not a third blind rerun. The existing typing timer-count assertion fails twice on Node 20. Repair branch `8b6dc75` passes local 755/focused2/offline8/SQL and hosted Node 20/24/Postgres run `39140603602`; independent review/integration remains. No main merge approval follows from the other reviewed PRs.
+- [ ] October 19 after 15:54 IST, health summary first; then merge #60 → #48 → #61, verify final-SHA tests/CI/SQL and deploy from GitHub with rollback `e1f76a93`, flags off. Aryan submits five live smoke scenarios; failure rolls back.
+- [ ] After release, one-problem no-email-redirect PR with truthful same-thread follow-up escalation, red-before tests and separate new-baseline comparison; persona comparison stays separate.
+- [ ] No earlier than 24 clean hours after that release and required data-use checks, enable test-forum-only memory/context for the scripted pilot. Public expansion still needs 48 clean pilot hours, functional checks, notice and review.
+
+This supersedes older pending-review/no-timer statuses below, not the full A–E product checklist. Score 45/100 reflects three review points; full acceptance remains 2/21 and nothing new is live.
+
+The controlling product acceptance checklist is [SUPPORT_MASTER_PLAN.md](SUPPORT_MASTER_PLAN.md). This file maps implementation details; checked engineering work does not complete the product's live acceptance. Maintain the A–E workstreams across reviews and preserve unfinished work and gates. Release 1 (#47) is deployed from approved main `7fe0e0a` as `e1f76a93`; all six requested smoke checks pass, including observed typing and a one-reply graceful in-flight restart. This documentation does not change its runtime or establish global exactly-once delivery.
+
+Current serial order: report Release 1 first; then `fix/closing-language-no-case` (language codes only, durable owner-bound thread scope, 30-day expiry, English fallback on database failure, draft review only); then #48's fresh comparison against deployed `7fe0e0a`; then #59's requested calm/warm/practical revision, with its comparison held for #48 grading. #28/#29/#49 are held until items 1–3 finish. This explicitly supersedes the earlier parking of #50, without discarding other backlog work. No new deployment before October 19 after 15:54 IST without Aryan's exception.
+
+Latest October 18 override: reviewer accepted Release 1 6/6, and Aryan explicitly waived the fixed 24-hour wait. No new candidate is ready yet; tests, quality grading and review still apply. The closing-language branch is in inspection, not implemented/tested. A one-off read-only 24-hour health comparison is scheduled October 19 at 15:55 IST. Future releases deploy from the GitHub commit so Railway records the hash; no local upload.
+
+Subsequent evidence: closing-language draft #60 (`7b15974`) is implemented, with 771 local tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres passes. Eight behavior regressions failed before repair and schema verification failed before registration; independent review/merge/live smoke remain open. Language-only owner-scoped persistence, existing script selection, case precedence, fallback, deletion and expiry are covered without enabling memory. #48's separately frozen comparison is running the timing preflight; no completed arm or quality grade yet. Keep #59's comparison held until that grade and preserve the other queued work.
+
+The ranking timing preflight has since completed (5/5 below 90 seconds, no provider-invalid rows); the baseline full arm is running. The private result-only report formatter passes six synthetic integrity checks, including both runs' verbatim replies/signals and rejection of incomplete coverage, changed source, sleep or known-secret matches. No frozen harness/judge/runtime was modified, no sealed input inspected, and this does not complete the quality gate or change the 38/100 delivery score.
+
+Baseline is now complete: 162 valid rows covering 81 cases × two, no process interruption; two slow rows remain included. Candidate arm is running under the same verified process handle. Do not mark the comparison/grade complete or start #59's comparison from this intermediate state.
+
+Subsequent final checkpoint: both ranking arms completed 162 rows, zero provider-invalid rows, frozen provenance and continuous host evidence. Result-only formatter and secret scan passed; both JSONs, seven changed cases with verbatim replies/signals/problems and word-count summary are ready privately. Numerical limits pass, but pass-both is 73 → 71, flakiness 1 → 5 and missing-handoff flags 2 → 5. Independent grade is still required; no merge/deploy. Next is #59's calm/warm/practical wording and visible AI label, with its own comparison held until #48 is graded. #60 also still requires independent review. No score or optional-flag change.
+
+Deferred work has durable [GitHub issue links and resumption gates](SUPPORT_MASTER_PLAN.md#parked-work--durable-return-points), #50–#58. #50 is now the next scoped draft, not completed; #51–#58 remain parked. Existing queued PRs remain their trackers. Do not resume deferred access, retention, security or delivery work merely because its issue is open. Older checkpoints remain implementation history.
+
+### #59 wording correction — local preparation complete, release held
+
+- [x] Replace elegant/charming instructions with calm, warm and practical in the existing shared answer/reviewer contract; keep all safety, serious-case, source, language and concise-answer boundaries.
+- [x] Retain visible `Mira · Omi AI support`; no avatar or live-profile change. Six observed red assertions, then eight focused, 760 full and offline 8/8 passes, including two new regressions.
+- [x] Push runtime `698609f` with a fresh full `npm test`; hosted Node 20/24/Postgres run `39125817220` passes.
+- [ ] Independent review. Run its own answer comparison only after #48 is graded; no merge/deploy from local/hosted tests or the waived deployment timer alone.
+Test-only CI follow-up (#63): replace the typing regression's wall-clock callback-count assumption with a controlled interval in `test/index.test.js`. Preserve initial notification, periodic refresh, default 8-second interval, stop/late-callback and cleanup assertions; keep the separate cosmetic-failure answer test. No runtime, routing, prompt, source, memory or release behavior changes. Verify full tests/offline/hosted checks and obtain independent review before merging this repair; do not mask either failed hosted attempt.
 
 - [x] Independent reviewer approved #64; merge test-only repair into main now with a merge commit (`adf016c`). Automatic deployment disabled; no deploy/runtime change. Fresh local 755/offline8 and hosted checks pass.
 - [ ] Merge that exact main commit into #61 with its snapshot guard intact, resolve documentation-only conflicts, then verify/push fresh full tests/offline/SQL and hosted CI. This is not the later #61-to-main merge.
@@ -64,6 +121,18 @@ Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the worki
 - [x] Observe red-before checks, then 764 local tests, focused 37, offline 8/8 and isolated SQL passes. Store milestone Built/Tested only: 40/100; no new full A–E acceptance.
 - [ ] Complete owner-validated two-post live context, 1.5-second deadline/fallback and explicit `conversation_only` prompt separation. Then hosted CI/local multi-connection SQL, authorized comparison and independent review before any merge/rollout.
 - [ ] Controlled test-only context scenario and 48-hour clean pilot with functional checks, followed by reviewed public expansion. Nothing is pushed, merged, deployed or enabled at this checkpoint.
+### October 18 current order and closing-language draft
+
+- [x] Release 1 deployed from approved main `7fe0e0a`; reviewer accepted all six live checks. Optional flags off, rollback retained.
+- [x] Reproduce no-case Spanish/Chinese closure and missing language-save/delete handling before the fix; register an additive text-free preference schema.
+- [x] Reuse planner language and existing Hindi script rule, scoped to the post owner; case → thread → English fallback, never staff locale or process memory.
+- [x] Language-save/read failures cannot cause a second answer or fail closure; fixed metadata logs only. Preserve existing case-state no-archive safeguards.
+- [x] Thread-delete erasure, bounded expiry pruning and restart/owner-isolation SQL checks, with no optional memory dependency.
+- [x] Local 771 tests, offline 8/8 and isolated SQL pass.
+- [ ] Hosted CI, independent draft review and separate rollout/smoke. Not merged/deployed.
+- [ ] Next: #48 fresh same-day deployed-main comparison, then #59 calm/warm/practical wording; personality comparison waits for ranking grade. #28/#29/#49 remain held.
+
+Aryan waived the 24-hour timer, not the other gates. The counts-only read-only 24-hour health comparison is scheduled October 19 at 15:55 IST. Future deployments use the GitHub commit for recorded provenance, not a local upload. The detailed older unchecked Release 1 checkpoints below are historical, superseded by its accepted rollout above.
 
 ### Combined Release 1 (updated October 17 brief)
 
