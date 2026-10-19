@@ -1,5 +1,16 @@
 # Omi Support Bot Implementation Checklist
 
+## Latest regression/restart diagnosis — October 19
+
+- [x] Run the exact operator-authored multipart phone-only smoke 3 times each against frozen `7fe0e0a` and `5bafe93`, same live harness/corpus; no Discord/private/protected input. All six fail phone-only startup, zero invalid rows. Preserve planner parts, selected URLs/projection limits, replies and timings privately.
+- [x] Classify #65 as pre-existing under the requested rule; no merge bisect. Keep the general fix forward separate from the reviewed combination.
+- [x] Write three structurally different two/three-part regression variants with generated synthetic URLs; observe all three red on both sources before any repair. Local branch `fix/phone-only-multipart`; no runtime edits, commit/push or passing-fix claim yet.
+- [x] Read both restart windows/configuration/snapshots/events. Draining is 100 s in both and current service; no environment override. Record identifiable old-process markers and replacement logins, same-tag limit, absent historical exit reason, and documentation's lack of manual-Restart grace guarantee. Do not assert proven 20 s SIGKILL or change a setting blindly.
+- [ ] Report Steps 1–2 before any faster-pickup implementation. No Discord posts/deploys/restarts/settings changes. #67/#68 remain drafts; comparisons use `5bafe93` after baseline decision, none started.
+- [ ] Then separate `fix/faster-abandoned-pickup`: ~45 s dead-owner recovery, live 30 s stall not taken over, delivery-started never resent; preserve assertOwned/markDelivering/uncertain fences and run verify-support-db. Not started at this checkpoint.
+
+Evidence: `/Users/astar/omi-eval/phone-only-20261019/comparison-and-restart-report.md` plus both result JSONs. Product score remains 45/100 and full A–E acceptance 2/21. No new acceptance or production change is inferred.
+
 ## Current combined-release integration — October 19
 
 - [x] Read-only Step 0: nine escalation-branch/answer events, four real Help posts, zero smoke traffic, one new staff card and eight follow-ups across three existing staff cases; all four mapped privately. Do not infer a first-question handoff rate.
