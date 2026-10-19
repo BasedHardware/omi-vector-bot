@@ -6,7 +6,12 @@
 - [x] Recheck Apple Watch line live; rerun four synthetic historical-loss diagnostics. Exact historical stage is unavailable; shared filter/review files predate #48. No protected rerun.
 - [x] Merge #60 as `05c0b48` after local 771/offline8/SQL and hosted checks; acknowledge Aryan's separate manual deploy `d49bfa68` with recorded source commit. No duplicate deploy.
 - [x] Merge #48 as `46282bb` after local 802/offline8/SQL and hosted Node 20/24/Postgres run `39216244319`.
-- [ ] Complete #61 integration/final-SHA full tests/CI/SQL, preserving snapshot guard and forum-erasure/language checks; then approved GitHub deployment and five smokes, rollback `e1f76a93`, all optional flags off.
+- [x] Complete #61 integration `bc46930` and main merge `5bafe93`, preserving snapshot guard and forum-erasure/language checks. Final main passes 839/839, offline8, isolated SQL and hosted Node 20/24/Postgres run `39217854468`.
+- [x] Deploy one exact GitHub SHA as `89d45a3a`; recorded source matches final main. SUCCESS, one running instance, schema initialization, Discord login and health verified; rollback `e1f76a93` available and optional controls off.
+- [x] Run the five Aryan-submitted smokes: first four pass; final check is not accepted. One reply recovered after restart, but phone-only instructions were wrong and clean drain unverified. Record #65/#66; do not turn this into a passed release.
+- [x] Invoke requested rollback `e1f76a93` once and verify current `adcfb8b4` matches its image, SUCCESS/one instance/schema/login/health, optional flags off. No production settings/permissions change.
+- [x] Create/apply `parked` to #52–#58. Prepare separate drafts #67 (local850/offline8/SQL) and #68 (local845/offline8/SQL) with red-before evidence.
+- [ ] Resolve smoke findings/review the retry and comparison baseline before another rollout, provider comparison or enabled-memory pilot. Hosted/quality/review checks on both new drafts remain.
 
 ## Latest operational checkpoint — October 19
 

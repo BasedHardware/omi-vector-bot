@@ -2,7 +2,15 @@
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
-## October 19: health wait ended; return to approved release checks
+## Current — October 19 combined release
+
+**Final outcome: rolled back.** Four smokes passed; the restart produced one recovered reply but missed the phone-only requirement and lacked clean-drain proof. #65/#66 preserve the two findings. Requested rollback `e1f76a93` now runs as `adcfb8b4`, verified SUCCESS/one instance/schema/login/health and matching image digest. Its historic upload lacks commit metadata; do not claim a GitHub-recorded SHA for it. Main remains `5bafe93`; no further rollout or memory enablement. Parked labels #52–#58 are done. Separate draft #67 passes local850/offline8/SQL; #68 local845/offline8/SQL, with hosted/comparison/review still required. See the master plan's current table; the deployment-success checkpoint immediately below is earlier evidence, not final acceptance.
+
+#60 → #48 → #61 are merged with merge commits. Final main **`5bafe93`** passes 839/839, offline 8/8, isolated SQL and hosted Node 20/24/Postgres run **39217854468**. The reviewed prompt-parity safeguard is unchanged. Exact GitHub-commit deployment **`89d45a3a`** is SUCCESS, records the same commit and has one running instance. Its schema initialization, Discord login and health are verified; five Aryan-submitted live smokes remain pending. Original rollback `e1f76a93` is verified eligible; all optional memory/context/fix-inbox controls stay off.
+
+Aryan asked to finish other work before supplying test inputs. Prepare parked labels #52–#58 and separate no-email-redirect/planner-deadline drafts without pretending the live checks passed or deploying another change. Each behavior change needs red-before tests, its own comparison and review. Memory pilot remains test-only and gated; #59/#28/#29/#30/#49 remain preserved. Product score **45/100**, full acceptance **2/21**. The master plan's current-status table controls; older checkpoints below are historical.
+
+## Earlier October 19 checkpoints
 
 Latest integration: #60 main merge `05c0b48` was manually deployed by Aryan as `d49bfa68`, with recorded source commit and optional flags off; no duplicate deployment by this task. #48 is merged as `46282bb`, following local 802/offline8/SQL and hosted Node 20/24/Postgres run `39216244319`. #61 now combines those runtime changes automatically, with documentation conflicts preserving the current main record and SQL conflict resolution retaining both forum-erasure races and language-preference checks. Its exact snapshot guard/fixture remain unchanged. Final combined verification and deployment/smokes still pending; rollback remains `e1f76a93` and all optional features off.
 

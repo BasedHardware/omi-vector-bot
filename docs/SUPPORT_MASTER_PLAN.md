@@ -47,7 +47,30 @@ Total: **14 built + 14 tested + 11 reviewed + 6 live = 45/100**. The latest thre
 
 </details>
 
-## Start here — priorities and status
+## Start here — what is done and what comes next
+
+**Progress: 45/100. Combined release rolled back. Fix the smoke findings before another rollout.**
+
+| Order | Work | Status |
+| --- | --- | --- |
+| 1 | Health report and handoff-count check | **Done.** One new staff case plus eight follow-up answers; not nine new tickets. |
+| 2 | Closing language #60, source ranking #48, memory-off code #61 | **Merged, not running after rollback.** Main `5bafe93` passed 839 tests, eight offline checks, isolated SQL and hosted Node 20/24/Postgres. |
+| 3 | Exact GitHub-commit rollout | **Rolled back.** Attempt `89d45a3a` recorded `5bafe93`. Current `adcfb8b4` is healthy and its image digest matches requested rollback `e1f76a93`. |
+| 4 | Five private test-forum checks | **Four pass; final check not accepted.** Spanish ordinary closure, English, private refund and low-risk self-service pass. Restart produced one recovered reply, but the phone-only answer was wrong and a clean drain was not verified. Track [#65](https://github.com/BasedHardware/omi-vector-bot/issues/65) / [#66](https://github.com/BasedHardware/omi-vector-bot/issues/66). |
+| 5 | Label parked issues #52–#58 | **Done.** All seven have the `parked` label. |
+| 6 | Separate redirect and slow-planner fixes | **Drafts open:** [#67](https://github.com/BasedHardware/omi-vector-bot/pull/67), local 850 tests; [#68](https://github.com/BasedHardware/omi-vector-bot/pull/68), local 845 tests. Both offline8/SQL pass. Hosted CI, independent comparison/review remain; neither is merged/deployed. |
+| 7 | Test-only memory pilot and later learning/reliability work | **Held, not discarded.** Resolve the release findings and keep privacy, functional and independent-review gates. No public Help enablement. |
+
+Requested rollback **`e1f76a93`** was invoked once. Railway created current deployment **`adcfb8b4`** from that same image; it is SUCCESS with one running instance, schema/login/health OK. This historical image has no recorded GitHub commit, so provenance is the verified image match, not an invented commit record. Memory capture, policy, context, forum allowlist and fix inbox stay **off**. Aryan's earlier manual #60 deployment `d49bfa68` was acknowledged before the combined rollout. No settings/permissions were changed or memory enabled. The ordinary non-English closing-card gap returns with this rollback; its fix remains merged for a reviewed retry.
+
+**What Aryan needs to do now:** no more test posts. Review the failure/rollback report and the separate drafts. Diagnose #65/#66 before proposing a reviewed retry; do not silently rerun protected cases, change platform settings or redeploy the same failed candidate. No repeat retention approval, permission repair, memory-off provider grade or browser sign-in is needed.
+
+The Apple Watch line is present live. The historical short reply's exact intermediate loss stage was not retained; shared synthetic reproductions are not historical proof. Private reports `/Users/astar/omi-eval/release-step0-1-20261019.md` and `/Users/astar/omi-eval/release2-result-20261019.md` preserve evidence and limits; case IDs never enter public trackers. The fresh restart logs show abandoned-request recovery, not a clean drain. Both candidate and rollback configuration snapshots meet the application's nominal drain budget and use direct startup; no platform-setting root cause is established. Full A–E acceptance remains **2/21 complete**. The failed rollout adds no score points.
+
+<details>
+<summary>Earlier checkpoints — historical; the status above controls</summary>
+
+## Earlier priorities and status
 
 **Current integration, October 19:** #60 is merged as `05c0b48`; Aryan confirmed he manually deployed it as `d49bfa68` (recorded GitHub commit matches). No second deploy was started by this task. #48 is now merged as `46282bb` after local 802/offline8/SQL and hosted Node 20/24/Postgres run `39216244319` passed. #61 is being merged with that main; preserve its exact baseline snapshot guard. Combined tests/CI/SQL and the planned final GitHub deployment/smokes remain unfinished; all memory/context/fix-inbox switches stay off. The pre-deploy guard now requires the specifically acknowledged active deployment, while rollback remains the explicitly requested `e1f76a93` (platform-eligible).
 
@@ -218,7 +241,7 @@ Native Discord input is unreliable; no synthetic post or command was submitted b
 
 Keep the full acceptance requirements below. Update this front page whenever implementation, tests, review, deployment or a blocker changes. Use **done / in progress / waiting / parked**, and always distinguish built from live.
 
-## Start here — progress 38 / 100
+## Earlier scoring snapshot — 38 / 100 (historical)
 
 Delivery milestones, not answer accuracy: **12 built + 12 tested + 8 reviewed + 6 verified live = 38/100**. The fixed 25-milestone rubric is retained in the active product plan; this narrow correction does not add a milestone or claim the larger product is complete. All unfinished A–E requirements below remain in scope.
 
@@ -237,6 +260,8 @@ Aryan explicitly waived the 24-hour deployment wait after accepting Release 1. T
 After a successful ordinary answer to the post owner, save only guild/thread/owner, the existing planner reply-language code and a 30-day expiry in Postgres. Reuse the existing Hindi script rule; no detector or conversation text is added. `/done` chooses case language, then that owner's saved thread language, then English; never staff locale. Language-query failures produce fixed metadata-only logs and English fallback, with no in-process preference copy. Existing case-state database failures still retain the earlier safe no-archive behavior. Thread deletion erases saved preferences; startup/minute sweeps prune expired records independently of optional memory switches.
 
 Local checks: 771/771 tests, offline 8/8, and isolated database verification pass. Eight new behavior regressions failed before wiring the fix (Spanish/Chinese no-case closure, language-read error diagnostic, three normal-answer/script saves, save failure handling and thread deletion); the SQL extension also failed before schema registration. Additional checks cover case precedence, absent/unknown language, staff-locale exclusion, owner isolation and no-text schema/expiry/restart. Hosted CI and independent review remain pending. No merge, deploy, setting change or data capture has occurred.
+
+</details>
 
 ## The goal stays the same
 
