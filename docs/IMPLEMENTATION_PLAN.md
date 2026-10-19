@@ -11,7 +11,8 @@
 - [x] Run the five Aryan-submitted smokes: first four pass; final check is not accepted. One reply recovered after restart, but phone-only instructions were wrong and clean drain unverified. Record #65/#66; do not turn this into a passed release.
 - [x] Invoke requested rollback `e1f76a93` once and verify current `adcfb8b4` matches its image, SUCCESS/one instance/schema/login/health, optional flags off. No production settings/permissions change.
 - [x] Create/apply `parked` to #52–#58. Prepare separate drafts #67 (local850/offline8/SQL) and #68 (local845/offline8/SQL) with red-before evidence.
-- [ ] Resolve smoke findings/review the retry and comparison baseline before another rollout, provider comparison or enabled-memory pilot. Hosted/quality/review checks on both new drafts remain.
+- [x] Verify both draft heads pass hosted Node 20/24/Postgres; no provider comparison or independent grade inferred.
+- [ ] Resolve smoke findings/review the retry and comparison baseline before another rollout, provider comparison or enabled-memory pilot. Quality/review checks on both new drafts remain.
 
 ## Latest operational checkpoint — October 19
 
