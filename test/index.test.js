@@ -1591,17 +1591,39 @@ test('a failed typing indicator never costs the customer their answer', async ()
   assert.doesNotMatch(replyText(message), /Something broke/);
 });
 
-test('typing stays visible during a long answer and stops at the first reply', async () => {
+test('typing refreshes on its interval and stops even if a late tick arrives', async t => {
   let typed = 0;
+  let tick;
+  let cleared = 0;
+  let unreferenced = false;
+  const timer = { unref: () => { unreferenced = true; } };
+  t.mock.method(globalThis, 'setInterval', (callback, intervalMs) => {
+    assert.equal(intervalMs, 8_000);
+    tick = callback;
+    return timer;
+  });
+  t.mock.method(globalThis, 'clearInterval', handle => {
+    assert.equal(handle, timer);
+    cleared++;
+  });
   const channel = { sendTyping: async () => { typed++; } };
   const message = {};
-  const stop = keepTyping(message, channel, 5);
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.ok(typed >= 3, `typing refreshed ${typed} times`);
+  const stop = keepTyping(message, channel);
+  t.after(stop); // Clean up even if an assertion fails.
+  await Promise.resolve();
+  assert.equal(typed, 1, 'initial typing notification');
+  assert.equal(unreferenced, true, 'the cosmetic interval must not keep the process alive');
+  for (let i = 0; i < 3; i++) {
+    tick();
+    await Promise.resolve();
+    assert.equal(typed, i + 2, 'each interval refreshes typing while active');
+  }
   stop();
+  assert.equal(cleared, 1, 'stopping clears the registered interval');
   const after = typed;
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.equal(typed, after);
+  tick(); // A callback already queued by the scheduler must be harmless.
+  await Promise.resolve();
+  assert.equal(typed, after, 'no refresh after stopping');
 });
 
 test('after a failed answer the customer can ask again right away', async () => {
