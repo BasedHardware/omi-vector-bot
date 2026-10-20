@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 20: synthetic gate catches an overlapping-evidence gap
+
+Release retry remains accepted live on `13ead500` / GitHub `5bafe93`, optional capabilities off. Initial #71 diagnostics complete all six provider rows without invalid results, but main answers all parts in 0/3 and draft `21b21b1` in 2/3. Actual provider prompts show missing evidence before generation, not a restart fault. Shared primary page matches left spare slots open to unrelated background. Revised draft `baec24d` allocates those slots to each part's next distinct relevant page first; two general non-phone regressions fail before and pass after, full 850/offline8/isolated SQL and hosted Node 20/24/Postgres pass. The new six-run synthetic check is in progress; full gate/independent review are still pending. Original rows are preserved and no protected comparison has started. No later draft merge, deployment or enabled memory; score remains 46/100, full acceptance 2/21.
+
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
 ## Current — October 19 combined release
