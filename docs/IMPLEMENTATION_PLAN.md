@@ -2,6 +2,13 @@
 
 ## October 20: general multipart evidence correction
 
+- [x] Finish the approved release retry separately: Spanish closing, private refund and same-commit graceful teardown pass on `13ead500` / `5bafe93`, optional controls off.
+- [x] Run the initial six own-synthetic checks: main completes 0/3, draft 2/3. Preserve all six outputs and actual answer/review evidence; no protected run.
+- [x] Reproduce overlapping shared matches with two general non-phone regressions; both fail before and pass after reserving next-distinct per-part matches before background. Full 850, offline 8/8 and isolated SQL pass.
+- [ ] Verify revised hosted CI, freeze the new candidate and rerun all six own-synthetic checks before launching the protected comparison. No merge/deploy from local success.
+
+The original 848-test publication was hosted-green; the additional overlap repair has its own pending hosted/provider gates. Older counts and unchecked publication entries below are historical, not the current state.
+
 - [x] Trace planner → stored/live retrieval → compact evidence → answer/reviewer citations; reproduce the same weakness on both earlier sources with three independent customer-shaped variants.
 - [x] Apply the existing per-part evidence selector to every request with 2+ parts, preserving the overall eight-chunk/9,000-character/four-page budgets and short-request search caps. No phone-specific rule or expected URL.
 - [x] Add nine tests: three original red variants plus compact coverage/budget, planner fallback, citations, baseline-adapter parity and six-fetch-slot coverage. Eight observed red before implementation; all nine and full 848 pass.

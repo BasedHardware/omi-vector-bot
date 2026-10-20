@@ -31,6 +31,35 @@ for (const count of [2, 3]) test(`${count}-part joint evidence keeps complementa
   assert.ok((result.match(/^\[S\d+ \|/gm) || []).length <= 8);
 });
 
+for (const count of [2, 3]) test(`${count}-part overlapping matches reserve complementary alternatives before generic filler`, () => {
+  const selected = [
+    { question: 'Archive export', query: 'app archive export official' },
+    { question: 'Notification preferences', query: 'app notification preferences official' },
+    { question: 'Speaker enrollment', query: 'app speaker enrollment official' },
+  ].slice(0, count);
+  const shared = {
+    url: address('https://help.omi.me/en/articles/'), title: 'App archive export notification preferences speaker enrollment',
+    body: 'Archive preferences enrollment overview.', source: 'help', chunkIndex: 0,
+  };
+  const alternatives = selected.map(part => ({
+    url: address('https://help.omi.me/en/articles/'), title: part.question,
+    body: `${part.query}: use this documented control.`, source: 'help', chunkIndex: 0,
+  }));
+  const filler = Array.from({ length: 6 }, () => ({
+    url: address('https://docs.omi.me/'), title: 'General app reference guide',
+    body: 'General app reference guide and background.', source: 'docs', chunkIndex: 0,
+  }));
+  const question = 'General app reference guide';
+  const rows = retrieval.rankLocalChunks([question, ...selected.map(part => part.query)],
+    [...filler, shared, ...alternatives], 8, { customerQuestion: question, subQuestions: selected });
+  assert.ok(rows.some(row => row.url === shared.url), 'retain the strongest shared match');
+  for (const page of alternatives) assert.ok(rows.some(row => row.url === page.url),
+    'a repeated shared match cannot crowd out the next relevant page for a part');
+  const evidence = retrieval.formatEvidence(rows);
+  assert.ok(evidence.length <= 9000);
+  assert.ok(new Set(rows.map(row => row.url)).size <= 4);
+});
+
 test('two neutral requirements remain multipart when an older planner omits explicit pairs', () => {
   const plan = parseSearchPlan(JSON.stringify({
     must_answer: ['Choose a language', 'Export notes'], search_queries: [],

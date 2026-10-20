@@ -6,18 +6,20 @@ Updated October 20, 2026 (IST). Codex keeps this plan current; Aryan sets priori
 
 | Work | State | Next |
 | --- | --- | --- |
-| Approved release retry | Running on GitHub main `5bafe93`, deployment `6e0fa65d`; memory/context/fix inbox off | Aryan sends Spanish closing and refund checks, then the armed same-commit redeploy test. No acceptance claimed yet. Rollback `adcfb8b4`. |
+| Approved release retry | Passed; current `13ead500` records GitHub main `5bafe93`; memory/context/fix inbox off | Spanish closing, private refund and same-commit graceful teardown pass. No more Discord posts. Rollback `adcfb8b4`. |
 | Faster recovery, [#70](https://github.com/BasedHardware/omi-vector-bot/pull/70) | Draft; 847 local tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass | Independent review; not merged or live. |
-| Sources for every question part, #65 | General `fix/multipart-part-evidence` draft prepared; 848 local tests pass | Publish and verify CI, then six synthetic provider checks and the standard comparison after the release retry passes. |
+| Sources for every question part, #65 / #71 | Initial synthetic check: main 0/3 complete, draft 2/3; overlap correction now passes 850 local tests | Recheck the revised frozen draft before the standard comparison. Full comparison has not started; independent review required. |
 | Other fixes and memory pilot | Preserved, not discarded | #67/#68 comparisons follow the retry; no memory enablement or later draft deploy without its gates. |
 
-**Aryan sends every Discord message and command.** Codex provides one exact input when needed and verifies the result; it never posts on his behalf. The corrected drain test uses a same-commit **redeploy**, not Restart. Its observer is prepared, not armed, and no redeploy has been dispatched. Earlier entries below are historical; this checkpoint controls current status. Progress stays **45/100**, full acceptance **2/21**.
+**Aryan sends every Discord message and command.** The same-commit redeploy test passed: successful old drain, one reply after SIGTERM and old instance observed gone within 66.169 seconds. Optional capabilities stay off. No further Discord posts are needed. Earlier entries below are historical; this checkpoint controls current status. Progress is **46/100**, full acceptance **2/21**, as recorded in the canonical status draft #69.
 
 The multipart fix gives every request with **two or more parts** complementary evidence before shared filler. It reuses the existing selector and overall eight-chunk/9,000-character/four-page limits; short requests retain their existing search-call caps. It changes no topic-specific rule, expected URL, source authority, safety routing or memory control. Nine new tests pass: eight were observed failing before the change; the remaining test preserves the older baseline evaluation path. Passing local tests is not a generated-answer grade, review or rollout.
 
-## Progress: 45 / 100 delivery milestones
+**Synthetic check found another coverage gap, now repaired locally:** overlapping part matches could reserve the same overview twice, then use the spare pages for aggregate background. The selector now gives each part its next distinct relevant page before shared filler, without increasing any budget. Two general non-phone overlap regressions fail before and pass after; full 850, offline 8/8 and isolated SQL pass. Initial six rows and their actual provider evidence are retained privately in `/Users/astar/omi-eval/multipart-20261020/`; no protected input was read and no full comparison started. The revised candidate needs fresh synthetic checks, hosted CI, the full gate and review; production remains unchanged.
 
-**Built and tested: 14/25 · Reviewed: 11/25 · Verified live: 6/25.**
+## Progress: 46 / 100 delivery milestones
+
+**Built and tested: 14/25 · Reviewed: 11/25 · Verified live: 7/25.**
 
 This measures delivery work, **not answer accuracy or model speed**. The earlier 5/100 hid partial work; changing the count does not mean more work suddenly shipped.
 
@@ -33,7 +35,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 1 | Short, plain replies — Release 1 / A1 | yes | yes | yes | yes |
 | 2 | How-to versus failure routing — Release 1 / A2 | yes | yes | yes | — |
 | 3 | Multipart sources, whole-item clipping and damage intake — Release 1 / A2 | yes | yes | yes | — |
-| 4 | Source-ranking/confidence follow-up — #48 / A2 | yes | yes | yes | — |
+| 4 | Source-ranking/confidence follow-up — #48 / A2; limited reviewed release verified, broader A2 remains open | yes | yes | yes | yes |
 | 5 | Consistent calm, warm and practical Mira character — #59 / A1 | yes | yes | — | — |
 | 6 | Typing and cosmetic-error isolation — #46 / A4 | yes | yes | yes | yes |
 | 7 | Production-configured read-only staff audience check — B1 | yes | yes | yes | yes |
@@ -56,7 +58,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 24 | Existing automated regression/SQL checks and independently graded comparison tooling — E2 | yes | yes | yes | yes |
 | 25 | Full support → memory → reviewed fix → revocation demonstration — E3 | — | — | — | — |
 
-Total: **14 built + 14 tested + 11 reviewed + 6 live = 45/100**. The latest three points record the supplied independent review of #48 and #61's store/reader code with memory off, not new shipped work or permission to use private context. The earlier 42 points included the locally tested reader/store. Cosmetic-error isolation has automated regression evidence; no production fault was deliberately injected. Technical-failure routing, forced-overflow clipping and damage-intake groups do not gain separate live points from the limited smoke. Full A–E acceptance remains **2/21** (B1 and A3); every unfinished checkbox stays open. Mira's character still needs its comparison/review/live checks. Existing automation does not complete all future E2 scenarios.
+Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The newest point records #48's limited reviewed release verified live, not general answer accuracy or every confidence boundary. The preceding three review points covered #48 and #61's store/reader with memory off; memory remains off and earns no live point. Cosmetic-error isolation has automated regression evidence; no production fault was deliberately injected. Technical-failure routing, forced-overflow clipping and damage-intake groups do not gain separate live points from the limited smoke. Full A–E acceptance remains **2/21** (B1 and A3); every unfinished checkbox stays open. Mira's character still needs its comparison/review/live checks. Existing automation does not complete all future E2 scenarios.
 
 </details>
 

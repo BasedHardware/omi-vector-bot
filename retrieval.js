@@ -310,11 +310,13 @@ function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQues
   const parts = normalizeSubQuestions(subQuestions);
   if (!hasMultipleParts(parts)) return rows.slice(0, limit);
   const byPage = new Map();
+  const perPartMatches = [];
   for (const [index, part] of parts.entries()) {
     const matches = rows.map((row) => ({ row, score: queryMatchScore(part.query, row) }))
       .filter((hit) => hit.score > 0)
       .sort((a, b) => b.score - a.score || consumerSourceFit(customerQuestion, b.row) - consumerSourceFit(customerQuestion, a.row) ||
         sourceAuthority(b.row.source || sourceKind(b.row.url)) - sourceAuthority(a.row.source || sourceKind(a.row.url)));
+    perPartMatches.push(matches);
     const row = matches[0]?.row;
     if (!row) continue;
     const key = String(row.url || row.title || '');
@@ -329,6 +331,17 @@ function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQues
     .sort((a, b) => b.rows.length - a.rows.length || a.firstPart - b.firstPart)
     .slice(0, 4);
   const allowedPages = new Set(selectedPages.map((page) => page.key));
+  // Different requirements can have the same strongest overview match. Use
+  // spare page slots for each part's next distinct match before aggregate
+  // background, which may have no useful coverage of that requirement.
+  for (const matches of perPartMatches) {
+    if (allowedPages.size >= 4) break;
+    const row = matches.find(hit => !allowedPages.has(String(hit.row.url || hit.row.title || '')))?.row;
+    if (!row) continue;
+    const key = String(row.url || row.title || '');
+    allowedPages.add(key);
+    selectedPages.push({ key, rows: [row] });
+  }
   for (const row of rows) {
     const key = String(row.url || row.title || '');
     if (allowedPages.size >= 4) break;
