@@ -2,9 +2,9 @@
 
 Updated October 20, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
-## Progress: 45 / 100 delivery milestones
+## Progress: 46 / 100 delivery milestones
 
-**Built and tested: 14/25 · Reviewed: 11/25 · Verified live: 6/25.**
+**Built and tested: 14/25 · Reviewed: 11/25 · Verified live: 7/25.**
 
 This measures delivery work, **not answer accuracy or model speed**. The earlier 5/100 hid partial work; changing the count does not mean more work suddenly shipped.
 
@@ -20,7 +20,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 1 | Short, plain replies — Release 1 / A1 | yes | yes | yes | yes |
 | 2 | How-to versus failure routing — Release 1 / A2 | yes | yes | yes | — |
 | 3 | Multipart sources, whole-item clipping and damage intake — Release 1 / A2 | yes | yes | yes | — |
-| 4 | Source-ranking/confidence follow-up — #48 / A2 | yes | yes | yes | — |
+| 4 | Source-ranking/confidence follow-up — #48 / A2; reviewed release verified live, broader A2 remains open | yes | yes | yes | yes |
 | 5 | Consistent calm, warm and practical Mira character — #59 / A1 | yes | yes | — | — |
 | 6 | Typing and cosmetic-error isolation — #46 / A4 | yes | yes | yes | yes |
 | 7 | Production-configured read-only staff audience check — B1 | yes | yes | yes | yes |
@@ -43,17 +43,19 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 24 | Existing automated regression/SQL checks and independently graded comparison tooling — E2 | yes | yes | yes | yes |
 | 25 | Full support → memory → reviewed fix → revocation demonstration — E3 | — | — | — | — |
 
-Total: **14 built + 14 tested + 11 reviewed + 6 live = 45/100**. The latest three points record the supplied independent review of #48 and #61's store/reader code with memory off, not new shipped work or permission to use private context. The earlier 42 points included the locally tested reader/store. Cosmetic-error isolation has automated regression evidence; no production fault was deliberately injected. Technical-failure routing, forced-overflow clipping and damage-intake groups do not gain separate live points from the limited smoke. Full A–E acceptance remains **2/21** (B1 and A3); every unfinished checkbox stays open. Mira's character still needs its comparison/review/live checks. Existing automation does not complete all future E2 scenarios.
+Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The new point records #48's approved release verified live after the retry: sourced ordinary/low-risk answers and protected refund delivery, with the latter checks and teardown verified anew on the same runtime. It is not general answer accuracy or proof that every confidence boundary was triggered. The prior 45 included independent review of #48/#61, not enabled memory. Memory stays off and earns no live point. Cosmetic-error isolation has automated regression evidence; no production fault was deliberately injected. Technical-failure routing, forced-overflow clipping and damage-intake groups gain no separate live points from this limited smoke. Full A–E acceptance remains **2/21** (B1 and A3); all unfinished checkboxes stay open. Mira's changed character, memory, learning and later reliability work retain their own gates.
 
 </details>
 
 ## Start here — what is done and what comes next
 
-**Progress: 45/100. The approved retry is running; its final live checks are still pending.**
+**Progress: 46/100. The approved retry passed its live checks; the next fixes still need comparisons and review.**
 
-**Current — October 20:** retry deployment **`6e0fa65d`** records exact main **`5bafe93`**, SUCCESS with one running instance, schema/login/health verified and zero matched startup/staff-delivery failure lines in the returned startup window. The production-identity audience check again returns `private_staff_destination`. Optional memory/policy/context/forum/fix-inbox controls stay **off**. Rollback is **`adcfb8b4`**, verified available before the retry. This is deployment readiness, not acceptance of the pending smokes. Aryan sends every Discord message and command; the latest scoped read found neither new retry test post. Do not send them for him or start the redeploy test before his input.
+**Current — October 20, after 22:20 IST:** live deployment **`13ead500`** records exact GitHub main **`5bafe93`**, SUCCESS/latest with one running instance, startup/login/health verified and optional memory/policy/context/forum/fix-inbox controls **off**. This is the same image as the approved retry `6e0fa65d`, replaced once through the authorized teardown test. **All three required retry checks pass:** Spanish ordinary closure, private refund delivery and graceful teardown with one reply. The two previously accepted ordinary/low-risk smokes on this exact runtime are carried forward, not rerun. Rollback remains **`adcfb8b4`**; no rollback, settings or permission change occurred. This accepts the limited approved release, not the full product or enabled memory.
 
-**Next live checks:** Spanish ordinary answer → `/done` → Spanish card; refund → private staff card; then one slow multipart question with a **same-commit redeploy**, not Restart. The guarded observer is prepared/self-tested but **not armed**, and no redeploy has been dispatched. Railway clarification about manual Restart no longer blocks this approved corrected test. No settings change. Earlier acceptance of the other two smokes stands; do not repeat them.
+**Live evidence:** Spanish ordinary closure has one 84-word sourced answer, zero escalation/private cards and a Spanish title/description/review field/all four buttons on the archived/locked post. The cited phone-only guide supports the steps. Refund has one 33-word customer reply, one positive delivery outcome and one matching private card **awaiting acceptance**, with no refund approval/time promise. Screenshots and scoped REST agree. The teardown dispatched 11.737 seconds into processing; replacement login **22:18:20.972**, old SIGTERM **22:18:32.077**, one reply **22:18:32.131**, successful drain **22:18:32.335**, old instance observed gone **22:19:38.246** (66.169 seconds after SIGTERM), proof stable through **22:20:12.231**. This is an observed scenario, not global exactly-once delivery. No more Discord posts are needed for this release.
+
+The first observer attempt stopped before dispatch on a missing final full stop; unchanged healthy production sent one ordinary reply. It caused no deploy/SIGTERM or rollback. Its private fixture guard now ignores only terminal `.?!`; two observed red regressions become seven passing scope tests, with 26 observer checks passing and every ownership/source/delivery guard retained. The repaired observer ran once and is now terminal/pass. Attempt and final evidence are retained privately, not rewritten as two successful teardown tests.
 
 **Independent drafts while the manual inputs are pending:**
 
@@ -64,7 +66,7 @@ Total: **14 built + 14 tested + 11 reviewed + 6 live = 45/100**. The latest thre
 
 #71 applies the existing per-part rule to 2+ parts, within the same evidence/search limits; no topic-specific production rule or expected URL. No provider comparison has started. #67/#68 remain drafts and their comparisons follow Step A. The larger memory, learning and reliability checklist is unchanged; these partial drafts add no score points.
 
-**Comparison preparation verified, not run:** an offline check pins main `5bafe93` and #71 `21b21b1`, verifies identical dependency lockfiles and grading code, records the shared harness/runtime hashes, and rejects changes outside the draft's stated scope. Its self-checks reject missing/duplicate/invalid synthetic rows and a closed Step A gate. Provider calls, credential reads, Discord writes and held-out case-file reads are all zero. Private manifest: `/Users/astar/omi-eval/multipart-readiness-20261020.json`. The latest scoped read again finds neither retry post; only Aryan can supply these Discord inputs. Do not start the comparison, make another deploy or enable memory to work around that gate.
+**Comparison preparation verified; runs next:** an offline check pins main `5bafe93` and #71 `21b21b1`, verifies identical dependency lockfiles/grading code, records shared harness/runtime hashes and rejects changes outside the draft scope. Preparation made zero provider/credential/Discord/case-file operations. Private manifest: `/Users/astar/omi-eval/multipart-readiness-20261020.json`; its recorded closed Step A flag is historical, not a reason to repeat passed smokes. The live retry gate now passes. Next: freeze both heads, run three own synthetic checks per arm, then the authorized fresh same-day 81×2 comparison with awake-host/provenance guards and independent grading. #67/#68 retain their separate comparisons. This does not approve draft merges/deploys or memory enablement.
 
 **Previous checkpoint — October 19 diagnosis:** six authorized synthetic live-provider checks are complete. `7fe0e0a` fails **3/3**, main `5bafe93` fails **3/3** to explain phone-only startup; all six planners preserve that requirement. Same harness and identical live Help/website corpus fingerprint, zero provider-invalid rows. Three independent two/three-part stored-retrieval regressions also fail on both versions before any fix. #65 is **pre-existing / fix forward separately**, not by itself a reason to hold #60/#48/#61. No bisect is indicated by the requested rule. The report-first checkpoint was delivered before the separate recovery draft began. Current Step C branch name is `fix/multipart-part-evidence`; its provider quality gates remain pending.
 
@@ -76,15 +78,15 @@ Both restart snapshots and the current service configure **100 seconds** of depl
 | --- | --- | --- |
 | 1 | Health report and handoff-count check | **Done.** One new staff case plus eight follow-up answers; not nine new tickets. |
 | 2 | Closing language #60, source ranking #48, memory-off code #61 | **Running in the approved retry.** Main `5bafe93` passed 839 tests, eight offline checks, isolated SQL and hosted Node 20/24/Postgres. Memory stays off. |
-| 3 | Exact GitHub-commit rollout | **Healthy; smoke acceptance pending.** Current `6e0fa65d` records `5bafe93`. Rollback `adcfb8b4` remains the specified target. Earlier failed attempt/rollback are retained history. |
-| 4 | Retry live checks | **Waiting for Aryan's posts.** Repeat only Spanish ordinary closure and private refund, then a same-commit redeploy drain. No Restart, no new settings, no invented pass. #65 is pre-existing/fix forward separately. |
+| 3 | Exact GitHub-commit rollout | **Verified live.** Current `13ead500` records `5bafe93`, same image as retry `6e0fa65d`. Rollback `adcfb8b4`; earlier failed attempt/rollback retained as history. |
+| 4 | Retry live checks | **Passed.** Spanish closure, private refund and same-commit graceful teardown/one reply; prior ordinary/low-risk checks carried from identical runtime. No Restart/settings change; #65 remains a separate fix. |
 | 5 | Label parked issues #52–#58 | **Done.** All seven have the `parked` label. |
 | 6 | Separate recovery, multipart, redirect and slow-planner fixes | **Drafts, not live.** #70/#71 pass local/hosted checks; reviews and #71's generated-answer comparison remain. #67/#68 retain their own post-Step-A comparison/review gates. |
-| 7 | Test-only memory pilot and later learning/reliability work | **Held, not discarded.** Resolve the release findings and keep privacy, functional and independent-review gates. No public Help enablement. |
+| 7 | Test-only memory pilot and later learning/reliability work | **Next staged work, not discarded.** Release retry passed; privacy, functional and independent-review gates still apply. No automatic capture/context enablement or public Help expansion. |
 
 **Historical rollback:** requested target **`e1f76a93`** was invoked once, creating **`adcfb8b4`** from that same image. It passed startup/readiness and is now the retry's rollback target, not the active retry. That historical image has no recorded GitHub commit; provenance is the verified image match, not an invented commit record. The approved retry above uses recorded GitHub main `5bafe93` with the ordinary closing-language fix included. Memory/policy/context/forum/fix-inbox remain off; no settings or permissions were changed.
 
-**What Aryan needs to do now:** send the requested Spanish retry post and `/done` result; the refund and armed teardown input follow in order. No blind settings changes, repeat retention approval, permission repair, memory-off provider grade or browser sign-in. Codex will not post on Aryan's behalf. Later draft code remains off production.
+**What Aryan needs to do now:** no more Discord posts for this release. Keep the Mac plugged in with its lid open during the authorized automated comparison; Aryan confirmed opening it, and the host state is rechecked before launch. No repeat release/retention approval, permission repair, memory-off grade or browser sign-in. Codex never posts on Aryan's behalf. Later draft code remains off production.
 
 The Apple Watch line is present live. The historical short reply's exact intermediate loss stage was not retained; shared synthetic reproductions are not historical proof. Private reports `/Users/astar/omi-eval/release-step0-1-20261019.md` and `/Users/astar/omi-eval/release2-result-20261019.md` preserve evidence and limits; case IDs never enter public trackers. The fresh restart logs show abandoned-request recovery, not a clean drain. Both candidate and rollback configuration snapshots meet the application's nominal drain budget and use direct startup; no platform-setting root cause is established. Full A–E acceptance remains **2/21 complete**. The failed rollout adds no score points.
 

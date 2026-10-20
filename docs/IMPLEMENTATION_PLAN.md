@@ -4,15 +4,19 @@
 
 - [x] Retry exact GitHub main `5bafe93` as `6e0fa65d`; verify source/startup/schema/login/health, one running instance, optional controls off and rollback `adcfb8b4` available.
 - [x] Read-only production-identity audience check returns `private_staff_destination`.
-- [ ] Aryan supplies Spanish ordinary closure and private refund rechecks; neither new retry post is present in the latest scoped read. No Codex Discord writes.
-- [x] Prepare/self-test the corrected same-commit redeploy observer; no arm/redeploy dispatch yet. Add the prohibition on Restart as a drain-test trigger.
-- [ ] After those posts, arm the slow-question test, redeploy once, verify old drain/one reply/new login/removal within 100 seconds; use the approved rollback on teardown failure.
+- [x] Spanish ordinary closure: October 20 22:02 IST screenshot and scoped REST agree on one 84-word sourced answer, no handoff, archived/locked post, and Spanish closing title/description/review field/all four buttons. The cited guide supports the answer. No repeat post needed.
+- [x] Private refund recheck: October 20 22:07 IST screenshots and scoped REST confirm one 33-word customer reply, one positive staff-delivery outcome and one matching private card awaiting acceptance. No refund outcome/time promised; post remains open.
+- [x] Prepare/self-test the corrected same-commit redeploy observer and prohibit Restart as a drain-test trigger.
+- [x] First arm at 22:09:53 IST; diagnose terminal-punctuation scope rejection before any dispatch. Read-only history confirms no redeploy/SIGTERM and one normal reply. Do not call this a teardown failure/pass or roll back unchanged healthy production.
+- [x] Correct only terminal-punctuation matching after two observed red fixtures; seven scope tests/26 observer self-checks pass. Preserve every other scope/ownership/delivery/source guard. First process is terminal; re-arm one watcher at 22:16:31 IST and request a new post only afterward.
+- [x] Corrected teardown passes: one same-image GitHub-commit redeploy at +11.737 s; successful drain, exactly one post-SIGTERM reply stable for 30 s, replacement login and old instance observed gone in 66.169 s. Current `13ead500`/`5bafe93` healthy/one instance/optional off; no rollback/settings change. Earlier pre-dispatch fixture abort is retained separately.
 - [x] Separate recovery draft #70 (`62beb1e`): three red-before behavior assertions, eight new checks, full 847/offline8/isolated SQL and hosted Node 20/24/Postgres pass. No merge/deploy; independent review pending.
 - [x] Publish general 2+ part evidence draft #71 (`21b21b1`): original three red tests plus coverage/budget/citation/live-fetch checks pass; nine new checks, eight observed red on pre-change source, full 848/offline8/SQL pass. No protected input opened.
 - [x] #71 exact head passes hosted Node 20/24/Postgres run `39389362750`.
 - [x] Offline comparison-readiness verifier and self-checks pass: pinned heads, identical grading/lockfiles, shared harness/runtime hashes, strict changed-file scope and completeness checks. Step A remains closed; zero provider/credential/Discord/case-file operations. Private manifest is recorded in the master plan.
 - [ ] #71 six live synthetic checks and standard comparison remain pending. No merge/deploy or independent grade.
-- [ ] Keep #67/#68 comparisons after Step A; keep memory/pilot and other A–E work separately gated. Score remains 45/100.
+- [x] Step A live retry passes; carry prior ordinary/low-risk smoke evidence from identical runtime without new posts. Record one new live milestone for reviewed #48: score 46/100, full acceptance still 2/21; memory earns no live point while off.
+- [ ] Run #71's own 3×2 synthetic checks and standard comparison, then the separate #67/#68 comparisons/reviews. Keep memory/pilot and all other A–E work separately gated.
 
 ## Latest regression/restart diagnosis — October 19
 
