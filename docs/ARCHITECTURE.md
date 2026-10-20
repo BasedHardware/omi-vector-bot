@@ -1,5 +1,13 @@
 # Omi Support Bot Architecture
 
+## Draft: owner-bound missed-heartbeat recovery
+
+The existing Postgres message claim is the coordination authority. New claims, renewals and safe same-owner reclaims update nullable `heartbeat_at` and `heartbeat_owner` together. Only an unsent processing claim with a heartbeat bound to its current owner is eligible at 45 seconds without renewal. A one-second sweep bounds additional scan delay without changing the existing 15-second renewal interval. Nullable/unbound legacy rows retain the 120-second lease path, including old writers overlapping a rollout or rollback.
+
+One locking, data-modifying SQL statement selects stale claims, moves unsent work to queued, and releases only that old owner's case lease/worker slot. A replacement therefore need not wait for those old 120-second reservations. Delivery marking competes on the same claim row; whichever transition wins, processing already marked as delivery-started is not early-requeued. Its pre-existing uncertain-delivery grace remains. The memory fixture store mirrors these rules; production does not fall back to it on a database error.
+
+`assertOwned`, `markDelivering`, completion marking and the existing send-time error policy are not changed. In particular, this draft does not resolve the separate database/Discord uncertainty work in #29/#51 or claim universal exactly-once delivery. Red-before local tests, SQL fixtures and later hosted Postgres/review gates cover this one change; nothing here enables memory or modifies the currently running release.
+
 October 19 combined integration preserves both scoped state paths: ordinary-answer language metadata and disabled reference-only conversation memory. SQL verification retains both language expiry/owner isolation and forum-wide memory erasure races; the existing off-only prompt snapshot guard is unchanged. #60 alone is now live through Aryan's acknowledged manual deployment; #48 is merged and the final memory-off combination still needs verification/deploy/smoke. No extra capability or real memory use is enabled by merging these paths.
 
 October 19 operational decision changes no runtime architecture: Aryan ended the health-only wait; its report automation is paused. Final evidence is 19 h 49 min after restart, not a full-day stability claim. Current readiness is OK and accepted production/disabled optional capabilities are unchanged. Return to approved final integration/release verification; no tests, source/rollback/smoke or enabled-memory boundary is waived. See the master plan and `/Users/astar/omi-eval/health-summary-20261019-final.md`.

@@ -2,6 +2,10 @@
 
 Updated October 19, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
+**Latest checkpoint — October 20:** approved retry `6e0fa65d` runs exact GitHub main `5bafe93`; health/schema/login and private staff-destination checks pass, optional features stay off. Spanish ordinary closure, private refund and corrected same-commit redeploy drain remain pending Aryan's test posts/commands. Codex sends no Discord messages. Rollback is `adcfb8b4`. Do not label deployment readiness as release-smoke acceptance.
+
+While those manual inputs are pending, the separately authorized faster-pickup draft is locally built/tested: owner-bound 15-second heartbeats, unsent recovery at 45 seconds plus at most one second of scanning, atomic old capacity release, unchanged delivery fences and delivery-started uncertain behavior, and safe legacy-writer fallback. Three observed red assertions become green; eight new tests, full 847, offline 8/8 and isolated SQL pass. Hosted Postgres/CI and independent review remain. This partial B3 work is not completion of #29 or an exactly-once guarantee. Nothing in this draft is merged, deployed or enabled. Keep Step C's general multipart evidence fix and its comparisons, #67/#68's post-Step-A comparisons, memory/pilot and the full A–E goal intact. Score remains 45/100.
+
 ## Progress: 45 / 100 delivery milestones
 
 **Built and tested: 14/25 · Reviewed: 11/25 · Verified live: 6/25.**

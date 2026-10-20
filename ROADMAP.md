@@ -2,6 +2,14 @@
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
+## October 20 — shorter abandoned-request pickup draft
+
+The approved retry is running as `6e0fa65d`, exact GitHub commit `5bafe93`, with startup/readiness verified and optional memory/context/fix-inbox controls off. Spanish ordinary closure, refund delivery and the corrected same-commit **redeploy** drain test are still pending Aryan's posts/commands; never substitute a Railway Restart or send messages for him. `ROLLBACK_3` remains `adcfb8b4`. No later code is deployed by this draft.
+
+`fix/faster-abandoned-pickup` adds owner-bound heartbeat metadata to the existing Postgres request ledger. An unsent request can be reclaimed after 45 seconds without renewal, with its old case/worker-slot reservations released atomically; the existing recovery loop scans once per second. Delivery-started work keeps its existing uncertain-state/lease grace, never the early requeue. Null or differently bound heartbeat metadata from an older writer uses the original lease path. `assertOwned`, delivery marking and the send-time fence are unchanged; this does not establish global exactly-once delivery or complete #29.
+
+Three new local behavior assertions were observed red before correction (45-second recovery, stale-worker stand-down and scan cadence); all eight new checks and 847 full tests pass. Offline 8/8 and isolated SQL verification pass; the extended verifier fails against frozen `5bafe93` before the schema/recovery change. SQL fixtures cover immediate capacity reuse, live-owner preservation, legacy ownership, delivery marking and both recovery/send-marker race orders. Hosted Node 20/24/Postgres and independent review remain required. No merge/deploy, private context enablement or protected-input read. Score remains 45/100; the larger product checklist remains open.
+
 ## October 19: health wait ended; return to approved release checks
 
 Latest integration: #60 main merge `05c0b48` was manually deployed by Aryan as `d49bfa68`, with recorded source commit and optional flags off; no duplicate deployment by this task. #48 is merged as `46282bb`, following local 802/offline8/SQL and hosted Node 20/24/Postgres run `39216244319`. #61 now combines those runtime changes automatically, with documentation conflicts preserving the current main record and SQL conflict resolution retaining both forum-erasure races and language-preference checks. Its exact snapshot guard/fixture remain unchanged. Final combined verification and deployment/smokes still pending; rollback remains `e1f76a93` and all optional features off.

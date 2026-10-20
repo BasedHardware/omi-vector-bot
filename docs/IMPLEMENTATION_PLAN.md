@@ -1,5 +1,18 @@
 # Omi Support Bot Implementation Checklist
 
+## October 20 — faster abandoned pickup, draft only
+
+- [x] Start one-problem `fix/faster-abandoned-pickup` from main `5bafe93`; no unrelated PR changes.
+- [x] Observe red-before 45-second pickup and stale-worker stand-down; observe the one-second scan assertion fail before changing cadence.
+- [x] Persist nullable owner-bound heartbeat metadata; retain legacy lease recovery during old/new writer overlap.
+- [x] Atomically requeue unsent work and release only the vanished owner's case/slot reservations.
+- [x] Preserve assertOwned, delivery marking, delivery-started uncertainty grace and send-time fences; test live 30-second stall and regular 15-second renewals.
+- [x] Eight new checks and full 847 pass; offline 8/8; isolated verify-support-db passes and its extension fails against frozen pre-change runtime. Include SQL delivery-marker/recovery races and capacity reuse.
+- [ ] Publish draft, verify hosted Node 20/24/Postgres and obtain independent review. No merge/deploy approval is inferred from local checks.
+- [ ] Finish the retry's user-submitted Spanish/refund and same-commit teardown smokes before declaring Step A accepted. #67/#68 comparisons remain after Step A.
+
+The multipart-part-evidence fix, its own synthetic/provider comparisons, #29/#30 delivery work, safe memory pilot and reviewed improvement loop remain separate unfinished items. Score stays 45/100.
+
 ## Current combined-release integration — October 19
 
 - [x] Read-only Step 0: nine escalation-branch/answer events, four real Help posts, zero smoke traffic, one new staff card and eight follow-ups across three existing staff cases; all four mapped privately. Do not infer a first-question handoff rate.

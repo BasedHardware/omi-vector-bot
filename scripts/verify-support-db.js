@@ -38,6 +38,62 @@ async function isolatedPool() {
   return new Pool({ connectionString: raw, max: 6 });
 }
 
+async function verifyEarlyPickup(pool, store, prefix) {
+  const make = suffix => ({ messageId: `${prefix}-heartbeat-${suffix}`, caseKey: `${prefix}:heartbeat-${suffix}`,
+    owner: `${prefix}-heartbeat-owner-${suffix}`, fingerprint: null });
+  const columns = (await pool.query(`SELECT column_name FROM information_schema.columns
+    WHERE table_name='support_message_claims'`)).rows.map(row => row.column_name);
+  assert.ok(columns.includes('heartbeat_at') && columns.includes('heartbeat_owner'));
+  const dead = make('dead'), live = make('live');
+  for (const job of [dead, live]) {
+    assert.equal(await store.claim(job), true); assert.equal(await store.acquire(job), true);
+  }
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '30 seconds' WHERE message_id=$1", [live.messageId]);
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [dead.messageId]);
+  const recovered = await store.abandoned();
+  assert.ok(recovered.some(row => row.messageId === dead.messageId && row.state === 'queued'));
+  assert.ok(!recovered.some(row => row.messageId === live.messageId));
+  assert.equal(await store.owned(live), true, 'unrelated live capacity remains owned');
+  assert.equal(await store.owned(dead), false); assert.equal(await store.markDelivering(dead), false);
+  const replacement = { ...dead, owner: `${prefix}-heartbeat-replacement`, slot: undefined };
+  assert.equal(await store.claim(replacement), true);
+  assert.equal(await store.acquire(replacement), true, 'old case/slot leases were released atomically');
+  assert.equal(await store.reclaim(dead), false);
+  await store.finish(replacement, 'answered'); await store.finish(live, 'answered');
+
+  const legacy = make('legacy');
+  assert.equal(await store.claim(legacy), true);
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds', heartbeat_owner=$2 WHERE message_id=$1",
+    [legacy.messageId, `${prefix}-different-generation`]);
+  assert.ok(!(await store.abandoned()).some(row => row.messageId === legacy.messageId));
+  await store.finish(legacy, 'ignored');
+
+  const delivering = make('delivering');
+  assert.equal(await store.claim(delivering), true); assert.equal(await store.acquire(delivering), true);
+  assert.equal(await store.markDelivering(delivering), true);
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [delivering.messageId]);
+  assert.ok(!(await store.abandoned()).some(row => row.messageId === delivering.messageId));
+  assert.ok(!(await store.queued(100)).some(row => row.messageId === delivering.messageId));
+  await store.finish(delivering, 'answered');
+
+  // Either the delivery marker or recovery wins the row lock, never both.
+  for (const deliveryFirst of [true, false]) {
+    const race = make(`race-${deliveryFirst}`);
+    assert.equal(await store.claim(race), true); assert.equal(await store.acquire(race), true);
+    await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [race.messageId]);
+    const actions = deliveryFirst
+      ? [store.markDelivering(race), store.abandoned()]
+      : [store.abandoned(), store.markDelivering(race)];
+    const results = await Promise.all(actions);
+    const started = results[deliveryFirst ? 0 : 1], swept = results[deliveryFirst ? 1 : 0];
+    assert.equal(started && swept.some(row => row.messageId === race.messageId && row.state === 'queued'), false);
+    const row = (await pool.query('SELECT state,delivery_started FROM support_message_claims WHERE message_id=$1', [race.messageId])).rows[0];
+    assert.equal(row.state === 'queued' && row.delivery_started, false);
+    await store.finish(race, 'answered');
+    await store.discard(race);
+  }
+}
+
 async function verify(pool) {
   const prefix = `test-${randomUUID()}`;
   // Exercise an additive upgrade without dropping existing rows or state.
@@ -163,6 +219,8 @@ async function verify(pool) {
   assert.ok(sweptLater.some((item) => item.messageId === partial.messageId && item.state === 'uncertain'));
   assert.equal(await store.reclaim(partial), false);
   await store.finish(local, 'answered');
+
+  await verifyEarlyPickup(pool, store, prefix);
 
   const service = cases.createCaseService(cases.createPostgresStore(pool));
   const aliceInput = { channelId: `${prefix}-general`, customerId: `${prefix}-alice`, context: { area: 'app', summary: 'private content must not persist' } };

@@ -2,11 +2,14 @@ const { randomUUID, createHash } = require('node:crypto');
 const { AsyncLocalStorage } = require('node:async_hooks');
 
 const LEASE_MS = 120_000;
+const ABANDONED_HEARTBEAT_MS = 45_000;
 const REPEAT_MS = 10 * 60_000;
 // A worker that began customer-visible delivery may still be finishing it after a
 // stall, so it keeps its claim this long before the request is counted as uncertain.
 const UNCERTAIN_GRACE_MS = 10 * 60_000;
-const SWEEP_MS = 15_000;
+// Match the existing one-second recovery loop so heartbeat detection does not
+// add a further fifteen-second scan delay after the 45-second threshold.
+const SWEEP_MS = 1_000;
 const context = new AsyncLocalStorage();
 
 function questionFingerprint(text) {
@@ -33,6 +36,12 @@ async function initSchema(client) {
     );
     INSERT INTO support_worker_slots (slot) VALUES (1), (2), (3) ON CONFLICT DO NOTHING;
     ALTER TABLE support_message_claims ADD COLUMN IF NOT EXISTS delivery_started BOOLEAN NOT NULL DEFAULT false;
+    -- Leave legacy writers unbound: deployment overlap/rollback must not turn
+    -- another owner's old heartbeat into evidence that a current claim is dead.
+    ALTER TABLE support_message_claims ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ;
+    ALTER TABLE support_message_claims ADD COLUMN IF NOT EXISTS heartbeat_owner TEXT;
+    CREATE INDEX IF NOT EXISTS support_message_heartbeat_idx
+      ON support_message_claims (heartbeat_at) WHERE state='processing' AND delivery_started=false;
   `);
 }
 
@@ -40,10 +49,11 @@ class PostgresRuntimeStore {
   constructor(pool) { this.pool = pool; }
   async claim(job) {
     const { rows } = await this.pool.query(`
-      INSERT INTO support_message_claims (message_id, case_key, owner, fingerprint, lease_until)
-      VALUES ($1,$2,$3,$4,NOW() + $5 * INTERVAL '1 millisecond')
+      INSERT INTO support_message_claims (message_id, case_key, owner, fingerprint, lease_until, heartbeat_at, heartbeat_owner)
+      VALUES ($1,$2,$3,$4,NOW() + $5 * INTERVAL '1 millisecond',NOW(),$3)
       ON CONFLICT (message_id) DO UPDATE SET owner=$3, lease_until=EXCLUDED.lease_until
         , state='processing', fingerprint=EXCLUDED.fingerprint, delivery_started=false
+        , heartbeat_at=EXCLUDED.heartbeat_at, heartbeat_owner=EXCLUDED.heartbeat_owner
       WHERE support_message_claims.state='queued'
       RETURNING message_id`, [job.messageId, job.caseKey, job.owner, job.fingerprint, LEASE_MS]);
     return rows.length > 0;
@@ -101,7 +111,8 @@ class PostgresRuntimeStore {
     return rows.length > 0;
   }
   async renew(job) {
-    const { rows } = await this.pool.query(`UPDATE support_message_claims SET lease_until=NOW() + $3 * INTERVAL '1 millisecond'
+    const { rows } = await this.pool.query(`UPDATE support_message_claims SET lease_until=NOW() + $3 * INTERVAL '1 millisecond',
+        heartbeat_at=NOW(), heartbeat_owner=$2
       WHERE message_id=$1 AND owner=$2 AND state='processing' AND lease_until > NOW() RETURNING message_id`, [job.messageId, job.owner, LEASE_MS]);
     if (!rows.length) return false;
     if (job.slot == null) return true;
@@ -114,7 +125,8 @@ class PostgresRuntimeStore {
   // Resume a claim whose lease expired while its worker was stalled, unless another
   // worker or the recovery queue has taken the message since.
   async reclaim(job) {
-    const { rows } = await this.pool.query(`UPDATE support_message_claims SET lease_until=NOW() + $3 * INTERVAL '1 millisecond'
+    const { rows } = await this.pool.query(`UPDATE support_message_claims SET lease_until=NOW() + $3 * INTERVAL '1 millisecond',
+        heartbeat_at=NOW(), heartbeat_owner=$2
       WHERE message_id=$1 AND owner=$2 AND state='processing' RETURNING message_id`, [job.messageId, job.owner, LEASE_MS]);
     if (!rows.length) return false;
     if (job.slot == null) return true;
@@ -138,14 +150,28 @@ class PostgresRuntimeStore {
   // Requeue requests whose worker vanished before any customer-visible send; record
   // the rest as uncertain so they are counted instead of silently resent or lost.
   async abandoned({ exclude = [], uncertainGraceMs = UNCERTAIN_GRACE_MS } = {}) {
-    const { rows } = await this.pool.query(`UPDATE support_message_claims SET
+    const { rows } = await this.pool.query(`WITH stale AS (
+        SELECT message_id, case_key, owner FROM support_message_claims
+        WHERE state='processing' AND NOT (owner = ANY($1::text[]))
+          AND ((delivery_started=false AND heartbeat_owner=owner
+              AND heartbeat_at <= NOW() - $3 * INTERVAL '1 millisecond')
+            OR lease_until < NOW() - (CASE WHEN delivery_started THEN $2 ELSE 0 END) * INTERVAL '1 millisecond')
+        FOR UPDATE SKIP LOCKED
+      ), recovered AS (
+      UPDATE support_message_claims AS message SET
         state=CASE WHEN delivery_started THEN 'uncertain' ELSE 'queued' END,
-        owner=CASE WHEN delivery_started THEN owner ELSE 'queued' END,
+        owner=CASE WHEN delivery_started THEN message.owner ELSE 'queued' END,
         finished_at=CASE WHEN delivery_started THEN NOW() ELSE NULL END,
         lease_until=NOW()
-      WHERE state='processing' AND NOT (owner = ANY($1::text[]))
-        AND lease_until < NOW() - (CASE WHEN delivery_started THEN $2 ELSE 0 END) * INTERVAL '1 millisecond'
-      RETURNING message_id, state`, [exclude, uncertainGraceMs]);
+      FROM stale WHERE message.message_id=stale.message_id AND message.owner=stale.owner
+      RETURNING message.message_id, message.state, stale.owner AS old_owner, stale.case_key
+      ), released_cases AS (
+        DELETE FROM support_case_leases AS lease USING recovered
+        WHERE recovered.state='queued' AND lease.case_key=recovered.case_key AND lease.owner=recovered.old_owner
+      ), released_slots AS (
+        UPDATE support_worker_slots AS slot SET owner=NULL, lease_until=NULL FROM recovered
+        WHERE recovered.state='queued' AND slot.owner=recovered.old_owner
+      ) SELECT message_id, state FROM recovered`, [exclude, uncertainGraceMs, ABANDONED_HEARTBEAT_MS]);
     return rows.map((row) => ({ messageId: row.message_id, state: row.state }));
   }
   async finish(job, state) {
@@ -170,7 +196,8 @@ class MemoryRuntimeStore {
     // An expired started request can have an unknown external delivery outcome.
     // Only explicitly queued work is safe to resume automatically.
     if (previous && previous.state !== 'queued') return false;
-    this.messages.set(job.messageId, { ...job, until: this.now() + LEASE_MS, state: 'processing', deliveryStarted: false });
+    this.messages.set(job.messageId, { ...job, until: this.now() + LEASE_MS, state: 'processing', deliveryStarted: false,
+      heartbeatAt: this.now(), heartbeatOwner: job.owner });
     return true;
   }
   async enqueue(input) {
@@ -211,6 +238,8 @@ class MemoryRuntimeStore {
   async renew(job) {
     if (!(await this.owned(job))) return false;
     this.messages.get(job.messageId).until = this.now() + LEASE_MS;
+    this.messages.get(job.messageId).heartbeatAt = this.now();
+    this.messages.get(job.messageId).heartbeatOwner = job.owner;
     if (job.slot != null) {
       this.cases.get(job.caseKey).until = this.now() + LEASE_MS;
       this.slots.get(job.slot).until = this.now() + LEASE_MS;
@@ -221,6 +250,8 @@ class MemoryRuntimeStore {
     const message = this.messages.get(job.messageId);
     if (message?.owner !== job.owner || message.state !== 'processing') return false;
     message.until = this.now() + LEASE_MS;
+    message.heartbeatAt = this.now();
+    message.heartbeatOwner = job.owner;
     if (job.slot == null) return true;
     const lease = this.cases.get(job.caseKey);
     const slot = this.slots.get(job.slot);
@@ -241,9 +272,16 @@ class MemoryRuntimeStore {
     const result = [];
     for (const item of this.messages.values()) {
       if (item.state !== 'processing' || exclude.includes(item.owner)) continue;
-      if (item.until >= this.now() - (item.deliveryStarted ? uncertainGraceMs : 0)) continue;
+      const missedHeartbeats = !item.deliveryStarted && item.heartbeatOwner === item.owner &&
+        Number.isFinite(item.heartbeatAt) && item.heartbeatAt <= this.now() - ABANDONED_HEARTBEAT_MS;
+      if (!missedHeartbeats && item.until >= this.now() - (item.deliveryStarted ? uncertainGraceMs : 0)) continue;
+      const oldOwner = item.owner;
       if (item.deliveryStarted) Object.assign(item, { state: 'uncertain', at: this.now() });
-      else Object.assign(item, { state: 'queued', owner: 'queued', until: this.now() });
+      else {
+        Object.assign(item, { state: 'queued', owner: 'queued', until: this.now() });
+        if (this.cases.get(item.caseKey)?.owner === oldOwner) this.cases.delete(item.caseKey);
+        for (const [id, slot] of this.slots) if (slot.owner === oldOwner) this.slots.delete(id);
+      }
       result.push({ messageId: item.messageId, state: item.state });
     }
     return result;
