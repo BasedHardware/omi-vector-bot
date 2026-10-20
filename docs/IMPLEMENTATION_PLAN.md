@@ -10,6 +10,7 @@
 - [x] Separate recovery draft #70 (`62beb1e`): three red-before behavior assertions, eight new checks, full 847/offline8/isolated SQL and hosted Node 20/24/Postgres pass. No merge/deploy; independent review pending.
 - [x] Publish general 2+ part evidence draft #71 (`21b21b1`): original three red tests plus coverage/budget/citation/live-fetch checks pass; nine new checks, eight observed red on pre-change source, full 848/offline8/SQL pass. No protected input opened.
 - [x] #71 exact head passes hosted Node 20/24/Postgres run `39389362750`.
+- [x] Offline comparison-readiness verifier and self-checks pass: pinned heads, identical grading/lockfiles, shared harness/runtime hashes, strict changed-file scope and completeness checks. Step A remains closed; zero provider/credential/Discord/case-file operations. Private manifest is recorded in the master plan.
 - [ ] #71 six live synthetic checks and standard comparison remain pending. No merge/deploy or independent grade.
 - [ ] Keep #67/#68 comparisons after Step A; keep memory/pilot and other A–E work separately gated. Score remains 45/100.
 
