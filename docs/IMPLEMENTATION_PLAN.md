@@ -6,6 +6,7 @@
 - [x] Trace actual answer/reviewer evidence, reproduce overlapping match loss with two general non-phone tests and repair within the same four-page/eight-chunk/9,000-character/search limits. Draft `baec24d`: 850 local, offline8, isolated SQL and hosted Node 20/24/Postgres pass.
 - [x] Complete and review all six fresh synthetic rows against frozen revised candidate: main 0/3, candidate 3/3, zero invalid rows and identical official corpus fingerprint; files and manual assessment in `/Users/astar/omi-eval/multipart-recheck-20261020/`. No selective failed-row retry.
 - [x] Launch under caffeinate after AC/open-lid checks and five serial timing cases all below 90 s; zero invalid rows, normal exit 1 for structural flags, not a crash. Main full arm started 22:46 IST; candidate follows.
+- [x] Main finishes all 162 rows at 23:10:40 IST: zero invalid rows, no signal/interruption, normal structural-failure exit 1, max clock drift 9 ms. Candidate starts at that checkpoint; its completion/grade are pending. One preflight structural permission-concept failure is retained, not presented as five quality passes.
 - [ ] Finish the standard fresh same-day 81×2/concurrency-three gate, preserve both arms/per-case replies/signals/problems/word counts, then obtain independent review. Both IST/UTC day bounds and source/input-metadata guards remain. No draft merge/deploy or memory enablement.
 
 ## Current October 20 retry and separate drafts
