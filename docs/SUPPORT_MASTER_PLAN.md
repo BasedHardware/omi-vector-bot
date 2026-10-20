@@ -1,6 +1,6 @@
 # Omi Support Bot: master product plan
 
-Updated October 19, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+Updated October 20, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
 ## Progress: 45 / 100 delivery milestones
 
@@ -49,27 +49,40 @@ Total: **14 built + 14 tested + 11 reviewed + 6 live = 45/100**. The latest thre
 
 ## Start here — what is done and what comes next
 
-**Progress: 45/100. Combined release rolled back. The phone-only weakness also exists in the live code; restart behavior still needs clarification.**
+**Progress: 45/100. The approved retry is running; its final live checks are still pending.**
 
-**Latest checkpoint — report Steps 1–2 before Step 3:** six authorized synthetic live-provider checks are complete. `7fe0e0a` fails **3/3**, main `5bafe93` fails **3/3** to explain phone-only startup; all six planners preserve that requirement. Same harness and identical live Help/website corpus fingerprint, zero provider-invalid rows. Three independent two/three-part stored-retrieval regressions also fail on both versions before any fix. #65 is **pre-existing / fix forward separately**, not by itself a reason to hold #60/#48/#61. No bisect is indicated by the requested rule. Tests are local on `fix/phone-only-multipart`, not a passing or published repair.
+**Current — October 20:** retry deployment **`6e0fa65d`** records exact main **`5bafe93`**, SUCCESS with one running instance, schema/login/health verified and zero matched startup/staff-delivery failure lines in the returned startup window. The production-identity audience check again returns `private_staff_destination`. Optional memory/policy/context/forum/fix-inbox controls stay **off**. Rollback is **`adcfb8b4`**, verified available before the retry. This is deployment readiness, not acceptance of the pending smokes. Aryan sends every Discord message and command; the latest scoped read found neither new retry test post. Do not send them for him or start the redeploy test before his input.
+
+**Next live checks:** Spanish ordinary answer → `/done` → Spanish card; refund → private staff card; then one slow multipart question with a **same-commit redeploy**, not Restart. The guarded observer is prepared/self-tested but **not armed**, and no redeploy has been dispatched. Railway clarification about manual Restart no longer blocks this approved corrected test. No settings change. Earlier acceptance of the other two smokes stands; do not repeat them.
+
+**Independent drafts while the manual inputs are pending:**
+
+| Draft | Built/tested | Still needed |
+| --- | --- | --- |
+| [#70 — faster recovery](https://github.com/BasedHardware/omi-vector-bot/pull/70), `62beb1e` | 847 tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass | Independent review; no merge/deploy. Existing delivery fences stay intact; this does not complete #29 or prove global exactly-once delivery. |
+| [#71 — keep a source for each question part](https://github.com/BasedHardware/omi-vector-bot/pull/71), `21b21b1` | 848 tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass; nine new tests, eight observed red on frozen main | Six synthetic provider runs and full comparison after Step A; independent review before merge/deploy. |
+
+#71 applies the existing per-part rule to 2+ parts, within the same evidence/search limits; no topic-specific production rule or expected URL. No provider comparison has started. #67/#68 remain drafts and their comparisons follow Step A. The larger memory, learning and reliability checklist is unchanged; these partial drafts add no score points.
+
+**Previous checkpoint — October 19 diagnosis:** six authorized synthetic live-provider checks are complete. `7fe0e0a` fails **3/3**, main `5bafe93` fails **3/3** to explain phone-only startup; all six planners preserve that requirement. Same harness and identical live Help/website corpus fingerprint, zero provider-invalid rows. Three independent two/three-part stored-retrieval regressions also fail on both versions before any fix. #65 is **pre-existing / fix forward separately**, not by itself a reason to hold #60/#48/#61. No bisect is indicated by the requested rule. The report-first checkpoint was delivered before the separate recovery draft began. Current Step C branch name is `fix/multipart-part-evidence`; its provider quality gates remain pending.
 
 Both restart snapshots and the current service configure **100 seconds** of deployment draining, with no historical environment override. Replacement logins appear about **20 seconds** after SIGTERM. October 18 reaches successful drain and database close; October 19 has no identifiable later old-process line or exit reason. The same instance tag spans each in-container restart. Railway documents the grace for deployment teardown, but does not promise that manual Restart honors it. A 20-second SIGKILL is **not proven**; no setting change is justified yet. Private per-run/planner/URL/timeline evidence: `/Users/astar/omi-eval/phone-only-20261019/comparison-and-restart-report.md`, with both JSONs alongside it. No Discord writes, deploy/restart/settings changes or protected-input reads.
 
-**Next:** report this checkpoint, then the separately authorized faster-abandoned-pickup draft (~45 seconds, existing delivery fences retained, red-before and SQL checks). **Not started before this report.** #67/#68 remain drafts; their comparison baseline is main `5bafe93`, not the rollback source. No comparisons have started. A retry still needs approval and the restart behavior resolved; memory/pilot stays off. The older blanket requirement to fix #65 before retry is superseded by this baseline finding, not by a new deployment authorization.
+**Subsequent authorization controls:** Aryan approved the retry and corrected teardown test after that report. The retry is now deployed as recorded above; do not apply the earlier blanket hold or ask for the same approval again. This does not waive the remaining live checks, authorize settings changes, approve later draft merges/deploys or enable memory.
 
 | Order | Work | Status |
 | --- | --- | --- |
 | 1 | Health report and handoff-count check | **Done.** One new staff case plus eight follow-up answers; not nine new tickets. |
-| 2 | Closing language #60, source ranking #48, memory-off code #61 | **Merged, not running after rollback.** Main `5bafe93` passed 839 tests, eight offline checks, isolated SQL and hosted Node 20/24/Postgres. |
-| 3 | Exact GitHub-commit rollout | **Rolled back.** Attempt `89d45a3a` recorded `5bafe93`. Current `adcfb8b4` is healthy and its image digest matches requested rollback `e1f76a93`. |
-| 4 | Five private test-forum checks and regression diagnosis | **Four pass; final check not accepted.** One recovered reply. [#65](https://github.com/BasedHardware/omi-vector-bot/issues/65) now reproduces on both sources (3/3 each), so fix forward separately. [#66](https://github.com/BasedHardware/omi-vector-bot/issues/66): 100-second deployment drain configured; manual Restart's stop budget/exit reason unverified. No new live test. |
+| 2 | Closing language #60, source ranking #48, memory-off code #61 | **Running in the approved retry.** Main `5bafe93` passed 839 tests, eight offline checks, isolated SQL and hosted Node 20/24/Postgres. Memory stays off. |
+| 3 | Exact GitHub-commit rollout | **Healthy; smoke acceptance pending.** Current `6e0fa65d` records `5bafe93`. Rollback `adcfb8b4` remains the specified target. Earlier failed attempt/rollback are retained history. |
+| 4 | Retry live checks | **Waiting for Aryan's posts.** Repeat only Spanish ordinary closure and private refund, then a same-commit redeploy drain. No Restart, no new settings, no invented pass. #65 is pre-existing/fix forward separately. |
 | 5 | Label parked issues #52–#58 | **Done.** All seven have the `parked` label. |
-| 6 | Separate redirect and slow-planner fixes | **Drafts open:** [#67](https://github.com/BasedHardware/omi-vector-bot/pull/67), local 850 tests; [#68](https://github.com/BasedHardware/omi-vector-bot/pull/68), local 845 tests. Both offline8/SQL and hosted Node 20/24/Postgres pass. Independent comparison/review remain; neither is merged/deployed. |
+| 6 | Separate recovery, multipart, redirect and slow-planner fixes | **Drafts, not live.** #70/#71 pass local/hosted checks; reviews and #71's generated-answer comparison remain. #67/#68 retain their own post-Step-A comparison/review gates. |
 | 7 | Test-only memory pilot and later learning/reliability work | **Held, not discarded.** Resolve the release findings and keep privacy, functional and independent-review gates. No public Help enablement. |
 
-Requested rollback **`e1f76a93`** was invoked once. Railway created current deployment **`adcfb8b4`** from that same image; it is SUCCESS with one running instance, schema/login/health OK. This historical image has no recorded GitHub commit, so provenance is the verified image match, not an invented commit record. Memory capture, policy, context, forum allowlist and fix inbox stay **off**. Aryan's earlier manual #60 deployment `d49bfa68` was acknowledged before the combined rollout. No settings/permissions were changed or memory enabled. The ordinary non-English closing-card gap returns with this rollback; its fix remains merged for a reviewed retry.
+**Historical rollback:** requested target **`e1f76a93`** was invoked once, creating **`adcfb8b4`** from that same image. It passed startup/readiness and is now the retry's rollback target, not the active retry. That historical image has no recorded GitHub commit; provenance is the verified image match, not an invented commit record. The approved retry above uses recorded GitHub main `5bafe93` with the ordinary closing-language fix included. Memory/policy/context/forum/fix-inbox remain off; no settings or permissions were changed.
 
-**What Aryan needs to do now:** no more test posts or blind settings changes. Review the Steps 1–2 report. Railway clarification is still needed on manual Restart's grace/exit reason; the setting is already 100 seconds. No repeat retention approval, permission repair, memory-off provider grade or browser sign-in is needed. The faster-pickup draft follows this report; production stays unchanged until another explicit approval.
+**What Aryan needs to do now:** send the requested Spanish retry post and `/done` result; the refund and armed teardown input follow in order. No blind settings changes, repeat retention approval, permission repair, memory-off provider grade or browser sign-in. Codex will not post on Aryan's behalf. Later draft code remains off production.
 
 The Apple Watch line is present live. The historical short reply's exact intermediate loss stage was not retained; shared synthetic reproductions are not historical proof. Private reports `/Users/astar/omi-eval/release-step0-1-20261019.md` and `/Users/astar/omi-eval/release2-result-20261019.md` preserve evidence and limits; case IDs never enter public trackers. The fresh restart logs show abandoned-request recovery, not a clean drain. Both candidate and rollback configuration snapshots meet the application's nominal drain budget and use direct startup; no platform-setting root cause is established. Full A–E acceptance remains **2/21 complete**. The failed rollout adds no score points.
 

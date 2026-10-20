@@ -1,5 +1,18 @@
 # Omi Support Bot Implementation Checklist
 
+## Current October 20 retry and separate drafts
+
+- [x] Retry exact GitHub main `5bafe93` as `6e0fa65d`; verify source/startup/schema/login/health, one running instance, optional controls off and rollback `adcfb8b4` available.
+- [x] Read-only production-identity audience check returns `private_staff_destination`.
+- [ ] Aryan supplies Spanish ordinary closure and private refund rechecks; neither new retry post is present in the latest scoped read. No Codex Discord writes.
+- [x] Prepare/self-test the corrected same-commit redeploy observer; no arm/redeploy dispatch yet. Add the prohibition on Restart as a drain-test trigger.
+- [ ] After those posts, arm the slow-question test, redeploy once, verify old drain/one reply/new login/removal within 100 seconds; use the approved rollback on teardown failure.
+- [x] Separate recovery draft #70 (`62beb1e`): three red-before behavior assertions, eight new checks, full 847/offline8/isolated SQL and hosted Node 20/24/Postgres pass. No merge/deploy; independent review pending.
+- [x] Publish general 2+ part evidence draft #71 (`21b21b1`): original three red tests plus coverage/budget/citation/live-fetch checks pass; nine new checks, eight observed red on pre-change source, full 848/offline8/SQL pass. No protected input opened.
+- [x] #71 exact head passes hosted Node 20/24/Postgres run `39389362750`.
+- [ ] #71 six live synthetic checks and standard comparison remain pending. No merge/deploy or independent grade.
+- [ ] Keep #67/#68 comparisons after Step A; keep memory/pilot and other A–E work separately gated. Score remains 45/100.
+
 ## Latest regression/restart diagnosis — October 19
 
 - [x] Run the exact operator-authored multipart phone-only smoke 3 times each against frozen `7fe0e0a` and `5bafe93`, same live harness/corpus; no Discord/private/protected input. All six fail phone-only startup, zero invalid rows. Preserve planner parts, selected URLs/projection limits, replies and timings privately.
