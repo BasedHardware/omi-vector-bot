@@ -188,7 +188,12 @@ function makeMessage(content, channel, history, authorId) {
 }
 
 function evaluationDocsEvidence(retrieval, question, options, officialDocs, officialChunks) {
-  if (retrieval.normalizeSubQuestions?.(options.subQuestions).length > 3) {
+  // Follow the checked-out runtime's coverage policy. A frozen pre-feature
+  // baseline has no new export and must retain its original >3 adapter path.
+  const multipart = typeof retrieval.hasMultipleParts === 'function'
+    ? retrieval.hasMultipleParts(options.subQuestions)
+    : retrieval.normalizeSubQuestions?.(options.subQuestions).length > 3;
+  if (multipart) {
     return retrieval.jointMultipartEvidence(question, officialDocs, officialChunks, options);
   }
   const official = retrieval.formatEvidence(

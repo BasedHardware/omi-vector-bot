@@ -1,5 +1,17 @@
 # Omi Support Bot Implementation Checklist
 
+## October 20: general multipart evidence correction
+
+- [x] Trace planner → stored/live retrieval → compact evidence → answer/reviewer citations; reproduce the same weakness on both earlier sources with three independent customer-shaped variants.
+- [x] Apply the existing per-part evidence selector to every request with 2+ parts, preserving the overall eight-chunk/9,000-character/four-page budgets and short-request search caps. No phone-specific rule or expected URL.
+- [x] Add nine tests: three original red variants plus compact coverage/budget, planner fallback, citations, baseline-adapter parity and six-fetch-slot coverage. Eight observed red before implementation; all nine and full 848 pass.
+- [x] Full 848, offline 8/8 and isolated SQL pass; no production database used.
+- [ ] Publish draft and confirm hosted Node 20/24/Postgres. These are not independent answer-quality approval.
+- [ ] After Step A's retry passes, run the six synthetic provider checks, then fresh same-day standard 81×2 comparison against deployed main. Preserve both result files and review artifacts; protected inputs stay sealed.
+- [ ] Independent review before any merge/deploy. Keep #70, #67/#68, the memory pilot and full A–E checklist separately gated.
+
+Current retry `6e0fa65d`/`5bafe93` is healthy with optional controls off, but Spanish/refund/teardown checks are pending. Rollback `adcfb8b4`. Aryan sends every Discord message and command; Codex has not armed/dispatched the corrected redeploy test. Progress stays 45/100, acceptance 2/21. Older integration checkpoints below are historical.
+
 ## Current combined-release integration — October 19
 
 - [x] Read-only Step 0: nine escalation-branch/answer events, four real Help posts, zero smoke traffic, one new staff card and eight follow-ups across three existing staff cases; all four mapped privately. Do not infer a first-question handoff rate.

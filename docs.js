@@ -12,6 +12,7 @@ const {
   isDeveloperIntent,
   isDeveloperPageCompatibleQuestion,
   normalizeSubQuestions,
+  hasMultipleParts,
   consumerSourceFit,
 } = require('./retrieval');
 let indexCache = { at: 0, text: '' };
@@ -139,7 +140,7 @@ async function storedDocs(question, store, plannedQueries = [], { subQuestions =
     const helpSets = batches.map((batch) => batch[1].filter((row) => compatibleDevicePage(question, row)));
     const githubSets = batches.map((batch) => batch[2].filter((row) => compatibleDevicePage(question, row)));
     const developerQuestion = isDeveloperIntent(question);
-    const multipart = normalizeSubQuestions(subQuestions).length > 3;
+    const multipart = hasMultipleParts(subQuestions);
     const resultSets = [...allSets, ...helpSets, ...githubSets];
     // All candidate rows were already fetched under the existing per-search
     // limits. Multipart selection happens before the eight-chunk output cap.
@@ -180,7 +181,7 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
     const seen = new Set();
     const parts = normalizeSubQuestions(subQuestions);
     // Give each part a chance before a broad overview consumes six fetch slots.
-    if (parts.length > 3) {
+    if (hasMultipleParts(parts)) {
       for (const part of parts) {
         const page = topPages(part.query, allPages, 1, question)[0];
         if (!page || seen.has(page.url)) continue;

@@ -1,0 +1,94 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { randomUUID } = require('node:crypto');
+const retrieval = require('../retrieval');
+const { parseSearchPlan, groundedSourceLine } = require('../commandcode');
+const { evaluationDocsEvidence } = require('../scripts/live-eval');
+const { relevantDocs } = require('../docs');
+
+const parts = [
+  { question: 'Capture audio', query: 'microphone audio capture' },
+  { question: 'Read the transcript', query: 'conversation transcript reading' },
+  { question: 'Recognize the speaker', query: 'personal voice profile setup' },
+];
+const address = host => new URL(randomUUID(), host).href;
+
+for (const count of [2, 3]) test(`${count}-part joint evidence keeps complementary sources before shared filler`, () => {
+  const selected = parts.slice(0, count);
+  const docs = Array.from({ length: 8 }, () => ({
+    url: address('https://docs.omi.me/'), title: 'General app overview', source: 'docs', chunkIndex: 0,
+    body: `General app overview. ${'Background and optional details. '.repeat(65)}`,
+  }));
+  const help = selected.map(part => ({
+    url: address('https://help.omi.me/en/articles/'), title: part.query, source: 'help', chunkIndex: 0,
+    body: `${part.query}: use the documented app control. ${'Additional guidance. '.repeat(55)}`,
+  }));
+  const result = evaluationDocsEvidence(retrieval, 'Explain the app features.', {
+    queries: ['general app overview', ...selected.map(part => part.query)], subQuestions: selected,
+  }, retrieval.formatEvidence(docs), help);
+  for (const page of help) assert.ok(result.slice(0, 6000).includes(page.url), 'every part survives the compact reviewer evidence boundary');
+  assert.ok(result.length <= 9000, 'do not grow the shared evidence budget');
+  assert.ok((result.match(/^\[S\d+ \|/gm) || []).length <= 8);
+});
+
+test('two neutral requirements remain multipart when an older planner omits explicit pairs', () => {
+  const plan = parseSearchPlan(JSON.stringify({
+    must_answer: ['Choose a language', 'Export notes'], search_queries: [],
+  }), 'Help with language and exports.');
+  assert.equal(plan.subQuestions.length, 2);
+  assert.deepEqual(plan.subQuestions.map(part => part.query), ['Choose a language', 'Export notes']);
+});
+
+test('three requested parts can retain three exact retrieved citations without changing ordinary replies', () => {
+  const pages = parts.map(part => ({
+    url: address('https://help.omi.me/en/articles/'), title: part.query, body: part.query, source: 'help', chunkIndex: 0,
+  }));
+  const evidence = retrieval.formatEvidence(pages), ids = ['S1', 'S2', 'S3'];
+  const multi = groundedSourceLine('Here are the requested steps.', evidence, ids, 'en', { subQuestions: parts });
+  for (const page of pages) assert.ok(multi.includes(page.url));
+  const ordinary = groundedSourceLine('Here is one step.', evidence, ids);
+  assert.equal(pages.filter(page => ordinary.includes(page.url)).length, 2);
+});
+
+test('the common evaluation adapter preserves the frozen baseline path without the new runtime export', () => {
+  const legacy = { ...retrieval };
+  delete legacy.hasMultipleParts;
+  const subQuestions = parts.slice(0, 2);
+  const rows = subQuestions.map(part => ({
+    url: address('https://help.omi.me/en/articles/'), title: part.query, body: part.query, source: 'help', chunkIndex: 0,
+  }));
+  const docs = '[S1 | Official documentation | authoritative]\nGeneral guide\nhttps://docs.omi.me/\nGeneral background.';
+  const options = { queries: subQuestions.map(part => part.query), subQuestions };
+  const before = legacy.combineEvidence(docs, legacy.formatEvidence(legacy.rankLocalChunks(
+    legacy.supportQueries('Explain the app features.', options.queries), rows, 7,
+    { customerQuestion: 'Explain the app features.' },
+  )));
+  assert.equal(evaluationDocsEvidence(legacy, 'Explain the app features.', options, docs, rows), before);
+});
+
+test('short multipart live-docs fetching reserves one page per part within six fetches', async () => {
+  const generic = Array.from({ length: 6 }, () => ({ url: address('https://docs.omi.me/'), title: 'General app guide overview' }));
+  const specific = parts.map(part => ({ url: address('https://docs.omi.me/'), title: part.query }));
+  const pages = [...generic, ...specific];
+  const index = pages.map(page => `- [${page.title}](${page.url}): ${page.title}`).join('\n');
+  for (const count of [2, 3]) {
+    const fetched = [];
+    const result = await relevantDocs('General app guide overview', {
+      queries: ['general app guide overview'], subQuestions: parts.slice(0, count),
+      store: { searchDocPages: async () => [] },
+      fetchImpl: async url => {
+        if (String(url).endsWith('/llms.txt')) return { ok: true, text: async () => index };
+        const page = pages.find(item => item.url === url);
+        assert.ok(page, 'only the fixture index may supply page URLs');
+        fetched.push(url);
+        return { ok: true, text: async () => `${page.title}. Documented app information.` };
+      },
+    });
+    for (const page of specific.slice(0, count)) {
+      assert.ok(fetched.includes(page.url), 'every part receives a fetch slot');
+      assert.ok(result.includes(page.url), 'every fetched part retains evidence');
+    }
+    assert.ok(fetched.length <= 6);
+    assert.ok(result.length <= 9000);
+  }
+});

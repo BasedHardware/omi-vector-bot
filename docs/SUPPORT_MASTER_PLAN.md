@@ -1,6 +1,19 @@
 # Omi Support Bot: master product plan
 
-Updated October 19, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+Updated October 20, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+
+## Current work — short version
+
+| Work | State | Next |
+| --- | --- | --- |
+| Approved release retry | Running on GitHub main `5bafe93`, deployment `6e0fa65d`; memory/context/fix inbox off | Aryan sends Spanish closing and refund checks, then the armed same-commit redeploy test. No acceptance claimed yet. Rollback `adcfb8b4`. |
+| Faster recovery, [#70](https://github.com/BasedHardware/omi-vector-bot/pull/70) | Draft; 847 local tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass | Independent review; not merged or live. |
+| Sources for every question part, #65 | General `fix/multipart-part-evidence` draft prepared; 848 local tests pass | Publish and verify CI, then six synthetic provider checks and the standard comparison after the release retry passes. |
+| Other fixes and memory pilot | Preserved, not discarded | #67/#68 comparisons follow the retry; no memory enablement or later draft deploy without its gates. |
+
+**Aryan sends every Discord message and command.** Codex provides one exact input when needed and verifies the result; it never posts on his behalf. The corrected drain test uses a same-commit **redeploy**, not Restart. Its observer is prepared, not armed, and no redeploy has been dispatched. Earlier entries below are historical; this checkpoint controls current status. Progress stays **45/100**, full acceptance **2/21**.
+
+The multipart fix gives every request with **two or more parts** complementary evidence before shared filler. It reuses the existing selector and overall eight-chunk/9,000-character/four-page limits; short requests retain their existing search-call caps. It changes no topic-specific rule, expected URL, source authority, safety routing or memory control. Nine new tests pass: eight were observed failing before the change; the remaining test preserves the older baseline evaluation path. Passing local tests is not a generated-answer grade, review or rollout.
 
 ## Progress: 45 / 100 delivery milestones
 

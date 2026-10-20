@@ -242,6 +242,10 @@ function normalizeSubQuestions(value) {
   return parts;
 }
 
+function hasMultipleParts(value) {
+  return normalizeSubQuestions(value).length >= 2;
+}
+
 function supportQueries(question, planned = [], { subQuestions = [] } = {}) {
   const text = [question, ...(planned || [])].filter(Boolean).join(' ');
   const variants = [];
@@ -271,10 +275,10 @@ function supportQueries(question, planned = [], { subQuestions = [] } = {}) {
   }
   const parts = normalizeSubQuestions(subQuestions);
   // Preserve every interpreted part before optional synonyms or generic searches.
-  // Ordinary requests keep the existing five-query budget. Multipart requests
+  // Two/three-part requests keep the existing five-query budget. Longer requests
   // have at most eight part queries plus the customer's original wording.
-  return parts.length > 3
-    ? uniqueQueries(question, [...parts.map((part) => part.query), ...(planned || []), ...variants], 9)
+  return hasMultipleParts(parts)
+    ? uniqueQueries(question, [...parts.map((part) => part.query), ...(planned || []), ...variants], parts.length > 3 ? 9 : 5)
     : uniqueQueries(question, [...variants, ...(planned || [])]);
 }
 
@@ -304,7 +308,7 @@ function consumerSourceFit(question, row) {
 
 function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQuestion = '' } = {}) {
   const parts = normalizeSubQuestions(subQuestions);
-  if (parts.length <= 3) return rows.slice(0, limit);
+  if (!hasMultipleParts(parts)) return rows.slice(0, limit);
   const byPage = new Map();
   for (const [index, part] of parts.entries()) {
     const matches = rows.map((row) => ({ row, score: queryMatchScore(part.query, row) }))
@@ -430,7 +434,7 @@ function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQ
     .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
       consumerSourceFit(customerQuestion || queries?.[0], b) - consumerSourceFit(customerQuestion || queries?.[0], a) ||
       b.rank - a.rank || b.authority - a.authority);
-  return normalizeSubQuestions(subQuestions).length > 3
+  return hasMultipleParts(subQuestions)
     ? selectSubQuestionEvidence(ranked, subQuestions, limit, { customerQuestion: customerQuestion || queries?.[0] })
     : diverseTop(ranked, limit);
 }
@@ -529,6 +533,7 @@ module.exports = {
   isDeveloperPageCompatibleQuestion,
   supportQueries,
   normalizeSubQuestions,
+  hasMultipleParts,
   selectSubQuestionEvidence,
   consumerSourceFit,
   mergeRanked,
