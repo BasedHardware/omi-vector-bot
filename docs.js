@@ -12,6 +12,7 @@ const {
   isDeveloperIntent,
   isDeveloperPageCompatibleQuestion,
   normalizeSubQuestions,
+  consumerSourceFit,
 } = require('./retrieval');
 let indexCache = { at: 0, text: '' };
 let indexLookup = null;
@@ -56,17 +57,21 @@ function githubDocsPath(url) {
   }
 }
 
-function canonicalizeGithubDocsEvidence(evidence, { indexText, fetchImpl } = {}) {
+function canonicalizeGithubDocsEvidence(evidence, { indexText, fetchImpl, sourceUrls = [], onSources } = {}) {
   const text = String(evidence || '');
-  if (!/github\.com\/BasedHardware\/omi\/blob\/[^/]+\/docs\//i.test(text)) return Promise.resolve(text);
+  const finish = (result, canonical = url => url) => {
+    onSources?.([...new Set(sourceUrls.map(canonical))]);
+    return result;
+  };
+  if (!/github\.com\/BasedHardware\/omi\/blob\/[^/]+\/docs\//i.test(text)) return Promise.resolve(finish(text));
   return Promise.resolve(indexText || docsIndexText(fetchImpl || fetch)).then((index) => {
-    if (!index) return text;
+    if (!index) return finish(text);
     const official = new Map(pagesFromIndex(index).map((page) => [
       decodeURIComponent(new URL(page.url).pathname).slice(1).toLowerCase(), page.url,
     ]));
-    return text.replace(/https:\/\/github\.com\/BasedHardware\/omi\/blob\/[^\s)>]+/gi, (url) =>
-      official.get(githubDocsPath(url)) || url);
-  }).catch(() => text);
+    const canonical = url => official.get(githubDocsPath(url)) || url;
+    return finish(text.replace(/https:\/\/github\.com\/BasedHardware\/omi\/blob\/[^\s)>]+/gi, canonical), canonical);
+  }).catch(() => finish(text));
 }
 
 function compatibleDevicePage(question, page) {
@@ -91,7 +96,7 @@ function topPages(question, pages, limit = 2, compatibilityQuestion = question) 
         (deviceControl && /\bomi\b/i.test(page.title) && /\bsetup\b/i.test(page.title) ? 1 : 0),
     }))
     .filter((hit) => hit.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.score - a.score || consumerSourceFit(compatibilityQuestion, b.page) - consumerSourceFit(compatibilityQuestion, a.page))
     .slice(0, limit)
     .map((hit) => hit.page);
 }
@@ -117,7 +122,7 @@ async function rememberPages(store, pages) {
   }));
 }
 
-async function storedDocs(question, store, plannedQueries = [], { subQuestions = [] } = {}) {
+async function storedDocs(question, store, plannedQueries = [], { subQuestions = [], onSources } = {}) {
   if (!store?.searchDocPages) return '';
   try {
     const queries = supportQueries(question, plannedQueries, { subQuestions });
@@ -139,12 +144,12 @@ async function storedDocs(question, store, plannedQueries = [], { subQuestions =
     // All candidate rows were already fetched under the existing per-search
     // limits. Multipart selection happens before the eight-chunk output cap.
     const candidateLimit = multipart ? resultSets.reduce((count, rows) => count + rows.length, 0) : developerQuestion ? 24 : 12;
-    const ranked = mergeRanked(resultSets, candidateLimit);
+    const ranked = mergeRanked(resultSets, candidateLimit, { customerQuestion: question });
     if (developerQuestion) {
       const developerPage = (row) => /^https:\/\/docs\.omi\.me\/(?:api-reference|docs?\/developer)\//i.test(String(row.url || ''));
       ranked.sort((a, b) => Number(developerPage(b)) - Number(developerPage(a)) || b.fusedScore - a.fusedScore);
     }
-    const required = [mergeRanked(helpSets, 1)[0], mergeRanked(githubSets, 1)[0]].filter(Boolean);
+    const required = [mergeRanked(helpSets, 1, { customerQuestion: question })[0], mergeRanked(githubSets, 1, { customerQuestion: question })[0]].filter(Boolean);
     const rows = [];
     const seen = new Set();
     for (const row of [...ranked.slice(0, 3), ...required, ...ranked.slice(3)]) {
@@ -154,18 +159,18 @@ async function storedDocs(question, store, plannedQueries = [], { subQuestions =
       rows.push(row);
       if (rows.length >= 8) break;
     }
-    return formatEvidence(multipart ? rankLocalChunks(queries, ranked, 8, { customerQuestion: question, subQuestions }) : rows);
+    return formatEvidence(multipart ? rankLocalChunks(queries, ranked, 8, { customerQuestion: question, subQuestions }) : rows, { onSources });
   } catch (err) {
     console.error('[Docs] stored lookup failed:', err.message);
     return '';
   }
 }
 
-async function relevantDocs(question, { fetchImpl, store, queries: plannedQueries = [], subQuestions = [] } = {}) {
+async function relevantDocs(question, { fetchImpl, store, queries: plannedQueries = [], subQuestions = [], onSources } = {}) {
   const fetchFn = fetchImpl || fetch;
   const saved = activeStore(store);
   const queries = supportQueries(question, plannedQueries, { subQuestions });
-  const stored = await storedDocs(question, saved, plannedQueries, { subQuestions });
+  const stored = await storedDocs(question, saved, plannedQueries, { subQuestions, onSources });
   if (stored) return stored;
   try {
     const indexText = await docsIndexText(fetchFn);
@@ -208,7 +213,7 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
     const pages = fetched.filter(Boolean);
     const chunks = pages.flatMap((page) => chunkDocument(page));
     await rememberPages(saved, pages);
-    return formatEvidence(rankLocalChunks(queries, chunks, 8, { customerQuestion: question, subQuestions }));
+    return formatEvidence(rankLocalChunks(queries, chunks, 8, { customerQuestion: question, subQuestions }), { onSources });
   } catch (err) {
     console.error('[Docs] lookup failed:', err.message);
     return '';

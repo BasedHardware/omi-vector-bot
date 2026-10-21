@@ -6,7 +6,7 @@ const { createSupportMemory, createMemoryStore } = require('../supportMemory');
 const now = Date.now();
 function fixture() {
   const store = createMemoryStore();
-  const policy = { enabled: true, forumIds: ['help'], staffIds: ['staff'], botId: 'bot' };
+  const policy = { enabled: true, contextEnabled: true, forumIds: ['help'], staffIds: ['staff'], botId: 'bot' };
   const memory = createSupportMemory({ store, policy, key: Buffer.alloc(32, 3) });
   const channel = { id: 'thread', guildId: 'guild', ownerId: 'alice', parentId: 'help', isThread: () => true };
   const message = (id, author, content, at = now) => ({ id, channel, guildId: 'guild', author: { id: author, bot: author === 'bot' }, content, createdTimestamp: at });
@@ -49,7 +49,8 @@ test('message edits and bulk/thread deletes flow through the same observer witho
   const { channel, message, observer, memory } = fixture();
   await observer.capture(message('m1', 'alice', 'Old text'));
   await observer.capture({ ...message('m1', 'alice', 'Corrected text'), editedTimestamp: now + 1 });
-  assert.equal((await memory.history(memory.scopeFor(channel)))[0].content, 'Corrected text');
+  assert.equal((await memory.history(memory.scopeFor(channel)))[0].id, 'm1');
+  assert.equal((await memory.history(memory.scopeFor(channel)))[0].content, undefined);
   await observer.forgetMessage(message('m1', 'alice', ''));
   assert.deepEqual(await memory.history(memory.scopeFor(channel)), []);
   await observer.capture(message('m2', 'staff', 'Human response'));
@@ -74,7 +75,8 @@ test('partial edits fetch only an approved support thread; general-channel edits
   } };
   await observer.update(partial);
   assert.equal(fetches, 1);
-  assert.equal((await memory.history(memory.scopeFor(channel)))[0].content, 'New text');
+  assert.equal((await memory.history(memory.scopeFor(channel)))[0].id, 'edit');
+  assert.equal((await memory.history(memory.scopeFor(channel)))[0].content, undefined);
   await observer.update({ ...partial, channel: { ...channel, parentId: 'other' } });
   assert.equal(fetches, 1);
 });
@@ -192,15 +194,16 @@ test('customer erasure works with capture disabled and without a decryption key'
   assert.equal(await memory.capture(message('later', 'alice', 'Do not recapture')), false);
 });
 
-test('missing memory encryption disables only capture, not core support or cleanup', t => {
+test('reference memory capture and cleanup do not consult the identity encryption key', t => {
   const values = { SUPPORT_MEMORY_ENABLED: '1', SUPPORT_MEMORY_POLICY_APPROVED: '1', SUPPORT_MEMORY_FORUM_IDS: 'help',
     HELP_FORUM_CHANNEL_ID: 'help', DATABASE_URL: 'postgres://synthetic@localhost/unused_test', DATA_ENCRYPTION_KEY: '' };
   const previous = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]));
   Object.assign(process.env, values);
   t.after(() => { for (const key of Object.keys(values)) if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; });
   t.mock.method(console, 'error', () => {});
+  t.mock.method(require('../supportIdentityStore'), 'configuredKey', () => { throw Error('Memory must not inspect the identity key'); });
   const observer = require('../supportLearning').getObserver('bot');
-  assert.equal(observer.enabled, false);
+  assert.equal(observer.enabled, true);
   assert.equal(observer.contextEnabled, false);
   assert.equal(observer.cleanupEnabled, true);
 });

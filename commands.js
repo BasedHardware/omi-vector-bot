@@ -3,6 +3,7 @@ const { isCloseableThread, canStaffAct, staffMentionIds, markHandoffClosed, send
 const github = require('./github');
 const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
+const supportThreadLanguage = require('./supportThreadLanguage');
 const { appReviewButtons } = require('./appReviews');
 const { closingCopy } = require('./closingCopy');
 const { SUPPORT_DISPLAY_NAME } = require('./supportVoice');
@@ -287,9 +288,20 @@ async function closeHandoff(channel, user, options = {}) {
     console.error('[Bot] /done case lookup failed:', err.name);
     return { ok: false, reason: 'Could not read this case. The thread has not been closed.' };
   }
+  let replyLanguage = storedCase?.context?.replyLanguage;
+  if (!replyLanguage) {
+    try {
+      const scope = supportThreadLanguage.scopeForThread(channel);
+      const languageStore = options.languageStore === undefined ? supportThreadLanguage.getStore() : options.languageStore;
+      replyLanguage = scope && languageStore ? await languageStore.get(scope) : 'en';
+    } catch {
+      console.error('[SupportLanguage] read failed; using English');
+      replyLanguage = 'en';
+    }
+  }
   let delivered;
   try {
-    delivered = await channel.send(closePayload(user, storedCase?.context?.replyLanguage));
+    delivered = await channel.send(closePayload(user, replyLanguage || 'en'));
   } catch (err) {
     console.error('[Bot] /done notice failed:', err.message);
     return { ok: false, reason: 'Could not post the resolved message.' };
@@ -555,7 +567,7 @@ async function handleForgetSupportHistory(interaction, { forget = require('./sup
   }
   try {
     if (await forget(interaction.channel, customerId)) {
-      await respond('Retained support history for this post was deleted. I won’t save new history here. Your messages in Discord are unchanged.');
+      await respond('Saved support references and outcomes were deleted for all your support posts in this forum. I won’t save new history in this forum. I keep only the opt-out needed to remember your choice. Your messages in Discord are unchanged.');
       return;
     }
   } catch { console.error('[SupportMemory] customer erasure not confirmed'); }

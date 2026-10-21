@@ -14,7 +14,7 @@ function fixture(options = {}) {
   const memory = createSupportMemory({ store, policy, key: Buffer.alloc(32, 7), now: () => now, ...options });
   return { store, memory };
 }
-const scope = { guildId: 'guild', threadId: 'thread', customerId: 'alice' };
+const scope = { guildId: 'guild', forumId: 'help', threadId: 'thread', customerId: 'alice' };
 
 test('memory is opt-in and requires published privacy policy approval and durable storage', () => {
   const env = { SUPPORT_MEMORY_ENABLED: '1', HELP_FORUM_CHANNEL_ID: 'help', SUPPORT_MEMORY_FORUM_IDS: 'help', DATABASE_URL: 'configured' };
@@ -46,18 +46,17 @@ test('stores only the owning support thread, named staff and this bot; captures 
   assert.deepEqual(await memory.history({ ...scope, guildId: 'other-guild' }), []);
 });
 
-test('persistence encrypts redacted content, drops attachments/URLs and binds ciphertext to the scope', async () => {
+test('persistence retains no message copy, URLs, attachments or encryption fields', async () => {
   const { memory, store } = fixture();
   await memory.capture(message({ content: 'Call me on 98765 43210, order number is 22777, email me at person@example.test. api_key=syntheticsecret123 https://private.test/download?token=abc',
     attachments: { size: 1, values: () => [{ url: 'https://private.test/audio' }] } }));
   const serialized = JSON.stringify([...store.rows.values()]);
   assert.doesNotMatch(serialized, /person@|98765|22777|syntheticsecret|private\.test|Call me/);
   const [entry] = await memory.history(scope);
-  assert.doesNotMatch(entry.content, /person@|98765|22777|syntheticsecret|private\.test/);
-  assert.equal(entry.attachmentCount, 1);
-  const row = [...store.rows.values()][0];
-  row.customerId = 'bob';
-  await assert.rejects(memory.history({ ...scope, customerId: 'bob' }));
+  assert.equal(entry.content, undefined);
+  assert.equal(entry.attachmentCount, undefined);
+  assert.doesNotMatch(serialized, /ciphertext|"iv"|"tag"|"content"/);
+  assert.deepEqual(await memory.history({ ...scope, customerId: 'bob' }), []);
 });
 
 test('duplicate delivery and out-of-order edits do not create duplicate or stale history', async () => {
@@ -67,7 +66,8 @@ test('duplicate delivery and out-of-order edits do not create duplicate or stale
   await memory.capture(message({ content: 'Restarted; still broken.', editedTimestamp: now + 2 }));
   await memory.capture(message({ content: 'Older edit', editedTimestamp: now + 1 }));
   assert.equal(store.rows.size, 1);
-  assert.equal((await memory.history(scope))[0].content, 'Restarted; still broken.');
+  assert.equal((await memory.history(scope))[0].id, 'm1');
+  assert.equal((await memory.history(scope))[0].content, undefined);
 });
 
 test('deletion prevents delayed creates from restoring a message, and thread deletion removes context', async () => {

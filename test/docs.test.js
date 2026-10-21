@@ -3,6 +3,64 @@ const test = require('node:test');
 const { relevantDocs, storedDocs, topPages, canonicalizeGithubDocsEvidence } = require('../docs');
 const { pages: developerPages, store: developerStore } = require('./fixtures/developer-docs');
 
+function mobileActionPages(question) {
+  return [
+    { title: 'Android phone app action items SDK', url: 'https://docs.omi.me/sdk/mobile/task-client',
+      body: question, blurb: question, source: 'docs', chunk_index: 0, rank: 1 },
+    { title: 'Android phone app action items on macOS desktop', url: 'https://help.omi.me/en/articles/synthetic-desktop-actions',
+      body: question, blurb: question, source: 'help', chunk_index: 0, rank: 0.9 },
+    { title: 'Action items', url: 'https://help.omi.me/en/articles/synthetic-mobile-actions',
+      body: question, blurb: 'Actions in the mobile app', source: 'help', chunk_index: 0, rank: 0.1 },
+  ];
+}
+
+test('stored phone-app evidence preserves stronger retrieval matches without dropping consumer guidance', async () => {
+  const question = 'Arrange action items in the Android phone app.';
+  const pages = mobileActionPages(question);
+  const evidence = await storedDocs(question, {
+    searchDocPages: async (_query, _limit, sources = []) => sources.length
+      ? pages.filter(page => sources.includes(page.source)) : pages,
+  });
+  assert.ok(evidence.indexOf(pages[1].url) < evidence.indexOf(pages[2].url));
+  for (const page of pages) assert.ok(evidence.includes(page.url));
+});
+
+test('the stored candidate cap does not reserve space for a much weaker app guide', async () => {
+  const question = 'Arrange action items in the Android phone app.';
+  const developer = Array.from({ length: 16 }, (_, index) => ({
+    title: 'Android phone app action items SDK', url: `https://docs.omi.me/sdk/tasks/${index}`,
+    body: question, source: 'docs', chunk_index: 0, rank: 1,
+  }));
+  const guide = { title: 'Action items', url: 'https://docs.omi.me/user-guide/synthetic-actions',
+    body: question, source: 'docs', chunk_index: 0, rank: 0.01 };
+  const evidence = await storedDocs(question, {
+    searchDocPages: async (_query, _limit, sources = []) => sources.length ? [] : [...developer, guide],
+  });
+  assert.doesNotMatch(evidence, /user-guide\/synthetic-actions/);
+  assert.ok(evidence.includes(developer[0].url));
+  assert.ok(evidence.length <= 9_000);
+  assert.ok((evidence.match(/^\[S\d+ \|/gm) || []).length <= 8);
+
+  const relevantGuide = { ...guide, title: question, rank: 2 };
+  const improvedEvidence = await storedDocs(question, {
+    searchDocPages: async (_query, _limit, sources = []) => sources.length ? [] : [...developer, relevantGuide],
+  });
+  assert.ok(improvedEvidence.indexOf(relevantGuide.url) < improvedEvidence.indexOf(developer[0].url));
+  assert.ok(improvedEvidence.includes(relevantGuide.url), 'a genuinely better app guide survives the cap');
+  assert.ok(improvedEvidence.length <= 9_000);
+  assert.ok((improvedEvidence.match(/^\[S\d+ \|/gm) || []).length <= 8);
+});
+
+test('index selection uses the same phone-app source fit without overriding developer or desktop requests', () => {
+  const question = 'Arrange action items in the Android phone app.';
+  const pages = mobileActionPages(question).map(({ blurb, ...page }, index) => ({
+    ...page, blurb: index === 2 ? 'Actions in the mobile app' : blurb,
+  }));
+  assert.equal(topPages(question, pages, 3)[0].url, pages[0].url);
+  assert.equal(topPages('Build an Android app with the SDK for action items.', pages, 3)[0].url, pages[0].url);
+  assert.equal(topPages('Arrange action items on the macOS desktop app.', pages, 3)[0].url, pages[1].url);
+});
+
 test('multipart stored retrieval preserves complementary Help Center pages within the existing evidence budget', async () => {
   const subQuestions = [
     { question: 'Start microphone capture', query: 'microphone capture start' },
@@ -54,6 +112,41 @@ test('GitHub docs citations use the exact page published in the official docs in
   assert.equal(await canonicalizeGithubDocsEvidence(sourceUrl, {
     fetchImpl: async () => { throw new Error('non-doc links must not fetch the index'); },
   }), sourceUrl);
+});
+
+test('stored retrieval reports only source metadata from returned evidence', async () => {
+  const url = 'https://help.omi.me/en/articles/synthetic-task-reference';
+  const sources = [];
+  const evidence = await relevantDocs('Explain the task list.', {
+    store: { searchDocPages: async () => [{ url, title: 'Tasks', body: 'Task list. https://docs.omi.me/synthetic-not-fetched' }] },
+    onSources: urls => sources.push(...urls),
+    fetchImpl: async () => { throw new Error('fixture supplies the evidence'); },
+  });
+  assert.match(evidence, /synthetic-not-fetched/);
+  assert.deepEqual(sources, [url]);
+});
+
+test('canonical docs rewrite preserves typed provenance without promoting body links', async () => {
+  const source = 'https://github.com/BasedHardware/omi/blob/fixture/docs/synthetic/tasks.md';
+  const canonical = 'https://docs.omi.me/synthetic/tasks.md';
+  const sources = [];
+  const evidence = `Task list\n${source}\nRelated https://help.omi.me/en/articles/synthetic-not-fetched`;
+  const text = await canonicalizeGithubDocsEvidence(evidence, {
+    sourceUrls: [source], onSources: urls => sources.push(...urls),
+    indexText: `- [Task list](${canonical}): Task list`,
+  });
+  assert.match(text, /docs\.omi\.me\/synthetic\/tasks\.md/);
+  assert.deepEqual(sources, [canonical]);
+});
+
+test('canonical provenance retains actual URLs when no rewrite is available', async () => {
+  const source = 'https://help.omi.me/en/articles/synthetic-task-reference';
+  const calls = [];
+  assert.equal(await canonicalizeGithubDocsEvidence(source, {
+    sourceUrls: [source], onSources: urls => calls.push(urls),
+    fetchImpl: async () => { throw new Error('no lookup required'); },
+  }), source);
+  assert.deepEqual(calls, [[source]]);
 });
 
 test('app-building questions keep API pages and prioritize them through stored retrieval', async () => {
