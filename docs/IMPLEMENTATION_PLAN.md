@@ -1,13 +1,23 @@
 # Omi Support Bot Implementation Checklist
 
-## October 20: post-release multipart quality gate
+## October 21: multipart comparison complete, release held
+
+- [x] Both full arms complete on October 20 UTC/IST: 162 rows each, 81 cases/two runs/concurrency three, no invalid/unscored rows, no process signal/stop, normal structural-failure exit 1. Source/input-metadata/lockfile guards hold; known-secret scan zero.
+- [x] Audit full power history: zero recorded system sleep/wake/DarkWake events; max clock drift 45 ms, longest heartbeat gap 54.104 s. Preserve every slow/error row.
+- [x] Generate and verify both JSONs, all five changed cases' verbatim replies/signals/problems, word counts and an eleven-file private review ZIP. No protected case file or raw logs attached.
+- [x] Record the failed p95 gate: 42.508 → 61.332 s (+18.824 versus +6 allowed). Pass-both 71→72, unwanted flags 10→10, missing flags 5→5; no independent safety/quality approval inferred.
+- [x] Read-only production recheck October 21: accepted `13ead500` / GitHub `5bafe93` remains healthy/latest/one instance; all optional controls off. No deploy/settings/permission/Discord writes.
+- [ ] Diagnose remote timeouts/transport failures before any rerun; existing logs do not prove whether patch, remote services or local scheduling explain the aggregate slowdown. Do not tune from protected cases.
+- [ ] Obtain independent per-case grading and clear the failed timing gate before any #71 merge/deploy. #70 review, #67/#68 comparisons, memory/pilot and remaining product checks retain their separate gates.
+
+## October 20: post-release multipart preparation — historical checkpoints
 
 - [x] Preserve the first complete six synthetic rows: main `5bafe93` complete answers 0/3; candidate `21b21b1` 2/3; zero provider-invalid rows. Full comparison not started.
 - [x] Trace actual answer/reviewer evidence, reproduce overlapping match loss with two general non-phone tests and repair within the same four-page/eight-chunk/9,000-character/search limits. Draft `baec24d`: 850 local, offline8, isolated SQL and hosted Node 20/24/Postgres pass.
 - [x] Complete and review all six fresh synthetic rows against frozen revised candidate: main 0/3, candidate 3/3, zero invalid rows and identical official corpus fingerprint; files and manual assessment in `/Users/astar/omi-eval/multipart-recheck-20261020/`. No selective failed-row retry.
 - [x] Launch under caffeinate after AC/open-lid checks and five serial timing cases all below 90 s; zero invalid rows, normal exit 1 for structural flags, not a crash. Main full arm started 22:46 IST; candidate follows.
 - [x] Main finishes all 162 rows at 23:10:40 IST: zero invalid rows, no signal/interruption, normal structural-failure exit 1, max clock drift 9 ms. Candidate starts at that checkpoint; its completion/grade are pending. One preflight structural permission-concept failure is retained, not presented as five quality passes.
-- [ ] Finish the standard fresh same-day 81×2/concurrency-three gate, preserve both arms/per-case replies/signals/problems/word counts, then obtain independent review. Both IST/UTC day bounds and source/input-metadata guards remain. No draft merge/deploy or memory enablement.
+- [x] Finish and preserve the standard fresh same-day comparison; it fails the p95 threshold as recorded above. Independent review and a passing release gate are still open; completion of the run is not approval.
 
 ## Current October 20 retry and separate drafts
 
@@ -23,9 +33,9 @@
 - [x] Publish general 2+ part evidence draft #71 (`21b21b1`): original three red tests plus coverage/budget/citation/live-fetch checks pass; nine new checks, eight observed red on pre-change source, full 848/offline8/SQL pass. No protected input opened.
 - [x] #71 exact head passes hosted Node 20/24/Postgres run `39389362750`.
 - [x] Offline comparison-readiness verifier and self-checks pass: pinned heads, identical grading/lockfiles, shared harness/runtime hashes, strict changed-file scope and completeness checks. Step A remains closed; zero provider/credential/Discord/case-file operations. Private manifest is recorded in the master plan.
-- [ ] #71 six live synthetic checks and standard comparison remain pending. No merge/deploy or independent grade.
+- [x] #71 six live synthetic checks and standard comparison now complete; full timing gate fails. No merge/deploy or independent grade.
 - [x] Step A live retry passes; carry prior ordinary/low-risk smoke evidence from identical runtime without new posts. Record one new live milestone for reviewed #48: score 46/100, full acceptance still 2/21; memory earns no live point while off.
-- [ ] Run #71's own 3×2 synthetic checks and standard comparison, then the separate #67/#68 comparisons/reviews. Keep memory/pilot and all other A–E work separately gated.
+- [ ] Resolve #71's timing/grade hold; run the separate #67/#68 comparisons/reviews as authorized, with fresh provenance and completed timeout diagnosis. Keep memory/pilot and all other A–E work separately gated.
 
 ## Latest regression/restart diagnosis — October 19
 

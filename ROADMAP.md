@@ -1,5 +1,11 @@
 # Omi Support Bot Roadmap
 
+## October 21: multipart comparison complete; failed speed gate, no rollout
+
+Main `5bafe93` and draft #71 `baec24d` each complete all 162 rows on October 20 UTC/IST, concurrency three, with zero invalid/unscored rows, no signal/stop and normal structural-failure child exits. Source/lockfile/input-metadata guards and known-secret scan pass. Complete power history records no system sleep/wake/DarkWake; max clock drift 45 ms. Pass-both/flaky/fail-both: 71/5/5→72/3/6; unwanted/missing flags: 10/5→10/5. p50 27.114→27.731 s meets its bound; **p95 42.508→61.332 s fails +6 s**. Delivered-reply median/p90 words 74/106→75/103; empty turns and all slow rows stay included.
+
+Candidate logs contain one planner timeout, nine docs-fetch timeouts, fourteen fetch-failed lines and one review EPIPE; main has two docs timeouts. Existing metadata cannot establish a patch-versus-remote/local cause. Preserve the immutable heads and all rows, diagnose before any rerun, and obtain independent per-case grading. The eleven-file private review ZIP includes both result JSONs, five changed cases' exact replies/signals/problems, summary, word counts and audits; no protected case file or raw logs. No new code, merge, deploy, setting or private-data enablement. October 21 production recheck still verifies accepted `13ead500` / `5bafe93`, one healthy instance and optional switches off. Master score remains 46/100, full acceptance 2/21. #70 review, #67/#68 independent gates, memory/pilot and all later product work remain open; older running checkpoints below are history.
+
 ## October 20: synthetic gate catches an overlapping-evidence gap
 
 **23:10:40 IST:** main completes 162/162 rows with zero invalid results, no process signal/stop and at most 9 ms clock drift; normal exit 1 reflects structural test failures. The frozen candidate starts next on the existing run. Five timing cases meet <90 s; one of them has a retained permission-concept structural failure, not a provider error. Candidate/full review remain pending; no restart, merge, deploy or optional capability change.

@@ -1,6 +1,6 @@
 # Omi Support Bot: master product plan
 
-Updated October 20, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+Updated October 21, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
 ## Progress: 46 / 100 delivery milestones
 
@@ -49,7 +49,7 @@ Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The new point r
 
 ## Start here — what is done and what comes next
 
-**Progress: 46/100. The approved retry passed its live checks; the next fixes still need comparisons and review.**
+**Progress: 46/100. The approved release is live. #71's full check is finished but failed the slow-reply limit, so it stays a draft.**
 
 **Current — October 20, after 22:20 IST:** live deployment **`13ead500`** records exact GitHub main **`5bafe93`**, SUCCESS/latest with one running instance, startup/login/health verified and optional memory/policy/context/forum/fix-inbox controls **off**. This is the same image as the approved retry `6e0fa65d`, replaced once through the authorized teardown test. **All three required retry checks pass:** Spanish ordinary closure, private refund delivery and graceful teardown with one reply. The two previously accepted ordinary/low-risk smokes on this exact runtime are carried forward, not rerun. Rollback remains **`adcfb8b4`**; no rollback, settings or permission change occurred. This accepts the limited approved release, not the full product or enabled memory.
 
@@ -62,21 +62,40 @@ The first observer attempt stopped before dispatch on a missing final full stop;
 | Draft | Built/tested | Still needed |
 | --- | --- | --- |
 | [#70 — faster recovery](https://github.com/BasedHardware/omi-vector-bot/pull/70), `62beb1e` | 847 tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass | Independent review; no merge/deploy. Existing delivery fences stay intact; this does not complete #29 or prove global exactly-once delivery. |
-| [#71 — keep a source for each question part](https://github.com/BasedHardware/omi-vector-bot/pull/71), `baec24d` | 850 tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass; revised own-synthetic check main 0/3 versus draft 3/3 | Main full arm complete, 162 rows / zero invalid; candidate running. Independent review before merge/deploy. |
+| [#71 — keep a source for each question part](https://github.com/BasedHardware/omi-vector-bot/pull/71), `baec24d` | 850 tests, offline8, SQL and hosted checks pass. Focused check: main 0/3 → draft 3/3. Full check: both 162/162, zero invalid. | **Held:** slow replies 42.5 → 61.3 s, beyond the allowed +6 s. Diagnose timeouts and obtain independent grading; no merge/deploy or automatic rerun. |
+
+**What changed:** #71 fixes the focused multipart example, but the larger run is not a release pass. Pass-both improved 71 → 72; unwanted-handoff flags stayed 10. Slow replies exceeded the agreed limit. The complete review package is ready, with every result retained. Production was rechecked read-only on October 21: still `13ead500` / `5bafe93`, healthy, one running instance and all optional controls off. No new rollout or memory enablement.
+
+<details>
+<summary>Multipart evidence, full comparison numbers and private review files</summary>
 
 #71 applies the existing per-part rule to 2+ parts, within the same evidence/search limits; no topic-specific production rule or expected URL. The initial six own-synthetic provider checks completed: main answers all parts in **0/3**, draft `21b21b1` in **2/3**, with no provider-invalid rows. The failing draft run loses the phone-only page before the answer and reviewer requests. Two parts can choose the same broad guide, then background consumes spare page slots. The general repair in `baec24d` reserves each part's next distinct relevant page before aggregate filler; two non-phone regressions fail before and pass after. Original outputs and actual provider evidence are preserved in `/Users/astar/omi-eval/multipart-20261020/`. All six fresh synthetic checks now complete: **main 0/3, revised candidate 3/3**, same official corpus fingerprint and zero invalid rows, with every requested source present in the candidate's answer and reviewer requests. This is a small synthetic check, not broad accuracy or independent approval. #67/#68 remain drafts with separate gates. The larger memory, learning and reliability checklist is unchanged; these partial drafts add no score points.
 
-**Full comparison — main complete, candidate running:** frozen deployed main `5bafe93` completes **162/162 rows**, zero invalid rows, no signal/stop, maximum clock drift 9 ms. It ran **22:46:04–23:10:40 IST**; normal exit 1 records structural answer failures, not a crash. Candidate `baec24d` started **23:10:40 IST** on the same shared harness, judge and dependency lockfile, with unchanged evidence/search caps. No verdict until both arms finish and independent review grades them.
+**Full comparison complete, response-time gate failed:** frozen deployed main `5bafe93` and draft `baec24d` each complete **162/162 rows**, 81 cases × two runs/concurrency three, zero invalid or unscored rows. Both run on October 20 in UTC and IST: main **22:46:04–23:10:40**, draft **23:10:40–23:38:00 IST**. Normal child exit 1 records structural answer failures, not a crash. No process signal/stop or automatic retry; shared harness/judge/lockfile and source/input-metadata guards hold. Known-secret scan matches zero values.
+
+| Measure | Main | Draft |
+| --- | ---: | ---: |
+| Pass both / flaky / fail both, cases | 71 / 5 / 5 | 72 / 3 / 6 |
+| Unwanted / missing handoff flags, rows | 10 / 5 | 10 / 5 |
+| p50 / p95 reply time, seconds | 27.114 / 42.508 | 27.731 / 61.332 |
+| Delivered-reply median / p90 words | 74 / 106 | 75 / 103 |
+| Empty turns, retained in scoring/timing | 8 | 8 |
+
+p50 adds 0.617 s (within +2 s); p95 adds **18.824 s** (fails +6 s). All slow rows remain: main maximum 94.237 s / one ≥90 s; draft maximum 143.187 s / four ≥90 s. Full local power-history coverage records zero system sleep/wake/DarkWake events; maximum clock drift 45 ms, longest heartbeat gap 54.104 s. These are observed run checks, not general service reliability.
+
+Transport evidence needs diagnosis before another paid run: main has two docs-fetch timeout lines; draft has nine docs-fetch timeouts, fourteen fetch-failed lines, one planner timeout and one review EPIPE failure. The unchanged review path can retry after a timeout; one review stage lasts 103.810 s. Logs do not retain per-request transport provenance or exact attempt timings, so they cannot assign the full p95 difference to the patch, a remote service or local scheduling. No protected wording is used to tune code. Protected handoffs, false how-to handoffs, grounded facts and complete items still need independent grading; unchanged aggregate flag counts are not proof of safety.
 
 The five serial timing cases completed at **33.920, 19.176, 19.673, 28.395 and 0.003 seconds**, all under 90 s, zero invalid rows or process signal. Four pass their structural checks; one misses a microphone-permission concept. This is timing readiness, not a clean quality grade. All results remain in the private preflight artifact.
 
-Both full results, per-case verbatim differences/signals/problems, word counts and provenance are under `/Users/astar/omi-eval/multipart-gate-20261020/`; candidate and comparison artifacts remain unfinished. Keep AC/lid/keep-awake guards. Both IST/UTC day bounds apply; preserve all rows if either fails. Only the existing harness consumes sealed inputs. Revised own-synthetic results/assessment are in `/Users/astar/omi-eval/multipart-recheck-20261020/`; the older readiness manifest is historical, not this revised run's provenance. No later merge, deploy or memory enablement.
+Review files are complete under `/Users/astar/omi-eval/multipart-gate-20261020/`: `main.json`, `candidate.json`, `comparison-summary.md`/`.json`, all **five** changed cases' verbatim replies/signals/judge problems in `per-case-comparison.json`, `word-counts.json`, provenance, preflight, host audit, gate audit and `latency-diagnosis.json`. `review-package.zip` contains eleven explicit result files, no raw logs or protected input, with zero known-secret matches and verified immutable JSON hashes. Only the existing harness consumed sealed inputs; no case file was opened or attached. Revised own-synthetic results/assessment are in `/Users/astar/omi-eval/multipart-recheck-20261020/`; the older readiness manifest is historical. The evaluation process is terminal; no more Mac keep-awake or Discord action is needed for this run. No later merge, deploy, rerun or memory enablement.
 
 **Previous checkpoint — October 19 diagnosis:** six authorized synthetic live-provider checks are complete. `7fe0e0a` fails **3/3**, main `5bafe93` fails **3/3** to explain phone-only startup; all six planners preserve that requirement. Same harness and identical live Help/website corpus fingerprint, zero provider-invalid rows. Three independent two/three-part stored-retrieval regressions also fail on both versions before any fix. #65 is **pre-existing / fix forward separately**, not by itself a reason to hold #60/#48/#61. No bisect is indicated by the requested rule. The report-first checkpoint was delivered before the separate recovery draft began. Current Step C branch name is `fix/multipart-part-evidence`; its provider quality gates remain pending.
 
 Both restart snapshots and the current service configure **100 seconds** of deployment draining, with no historical environment override. Replacement logins appear about **20 seconds** after SIGTERM. October 18 reaches successful drain and database close; October 19 has no identifiable later old-process line or exit reason. The same instance tag spans each in-container restart. Railway documents the grace for deployment teardown, but does not promise that manual Restart honors it. A 20-second SIGKILL is **not proven**; no setting change is justified yet. Private per-run/planner/URL/timeline evidence: `/Users/astar/omi-eval/phone-only-20261019/comparison-and-restart-report.md`, with both JSONs alongside it. No Discord writes, deploy/restart/settings changes or protected-input reads.
 
 **Subsequent authorization controls:** Aryan approved the retry and corrected teardown test after that report. The retry is now deployed as recorded above; do not apply the earlier blanket hold or ask for the same approval again. This does not waive the remaining live checks, authorize settings changes, approve later draft merges/deploys or enable memory.
+
+</details>
 
 | Order | Work | Status |
 | --- | --- | --- |
@@ -85,12 +104,12 @@ Both restart snapshots and the current service configure **100 seconds** of depl
 | 3 | Exact GitHub-commit rollout | **Verified live.** Current `13ead500` records `5bafe93`, same image as retry `6e0fa65d`. Rollback `adcfb8b4`; earlier failed attempt/rollback retained as history. |
 | 4 | Retry live checks | **Passed.** Spanish closure, private refund and same-commit graceful teardown/one reply; prior ordinary/low-risk checks carried from identical runtime. No Restart/settings change; #65 remains a separate fix. |
 | 5 | Label parked issues #52–#58 | **Done.** All seven have the `parked` label. |
-| 6 | Separate recovery, multipart, redirect and slow-planner fixes | **Drafts, not live.** #70/#71 pass local/hosted checks; reviews and #71's generated-answer comparison remain. #67/#68 retain their own post-Step-A comparison/review gates. |
+| 6 | Separate recovery, multipart, redirect and slow-planner fixes | **Drafts, not live.** #70 awaits review. #71's full comparison is complete but held on speed and independent grade. Diagnose timeouts before any rerun; #67/#68 retain separate comparison/review gates. |
 | 7 | Test-only memory pilot and later learning/reliability work | **Next staged work, not discarded.** Release retry passed; privacy, functional and independent-review gates still apply. No automatic capture/context enablement or public Help expansion. |
 
 **Historical rollback:** requested target **`e1f76a93`** was invoked once, creating **`adcfb8b4`** from that same image. It passed startup/readiness and is now the retry's rollback target, not the active retry. That historical image has no recorded GitHub commit; provenance is the verified image match, not an invented commit record. The approved retry above uses recorded GitHub main `5bafe93` with the ordinary closing-language fix included. Memory/policy/context/forum/fix-inbox remain off; no settings or permissions were changed.
 
-**What Aryan needs to do now:** no more Discord posts for this release. Keep the Mac plugged in with its lid open during the authorized automated comparison; Aryan confirmed opening it, and the host state is rechecked before launch. No repeat release/retention approval, permission repair, memory-off grade or browser sign-in. Codex never posts on Aryan's behalf. Later draft code remains off production.
+**What Aryan needs to do now:** give the completed comparison package to the independent reviewer; #71 currently fails the speed limit and is not approved. No more Discord posts or Mac keep-awake for this finished run. No repeat release/retention approval, permissions repair, memory-off grade or browser sign-in. Codex never posts on Aryan's behalf. Later draft code remains off production; memory/pilot and the remaining A–E checklist are still open.
 
 The Apple Watch line is present live. The historical short reply's exact intermediate loss stage was not retained; shared synthetic reproductions are not historical proof. Private reports `/Users/astar/omi-eval/release-step0-1-20261019.md` and `/Users/astar/omi-eval/release2-result-20261019.md` preserve evidence and limits; case IDs never enter public trackers. The fresh restart logs show abandoned-request recovery, not a clean drain. Both candidate and rollback configuration snapshots meet the application's nominal drain budget and use direct startup; no platform-setting root cause is established. Full A–E acceptance remains **2/21 complete**. The failed rollout adds no score points.
 
