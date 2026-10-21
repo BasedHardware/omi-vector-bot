@@ -1,5 +1,12 @@
 # Omi Support Bot Implementation Checklist
 
+## October 21: scoped correction-link forgetting — separate stacked draft
+
+- [x] Derive case server/forum metadata from configured post-owner scope, preserve existing cases and prevent known-scope rebinding. No text retention or guessed migration scope.
+- [x] Commit forum opt-out/memory erasure first, then remove verified correction links without changing facts or other owners/forums/servers. Fence late/new-case registry writes using the existing durable opt-out; mandatory cleanup retries opted-out links. Unknown legacy/orphan ownership and partial/error results never claim complete deletion.
+- [x] Restored work into a permanent checkout after temporary files disappeared. Nine focused checks include eight baseline failures; SQL baseline also fails. Local 887/offline8/PGlite pass, including 101-fact batching, command/service/SQL composition, preserved facts/other scopes, redundant-marker removal, late writes, concurrent writing, retry and legacy refusal.
+- [ ] Verify pushed exact-head Node 20/24/real PostgreSQL CI and obtain independent review. Parent #49, real ingestion/validator, legacy reconciliation, backup/data-use/security and enabled pilot gates remain; no merge/deploy or switch change. See [KNOWLEDGE_PRIVACY.md](KNOWLEDGE_PRIVACY.md). Score remains 46/100; no complete C/D item is claimed.
+
 ## October 21: integrate the reviewed-fact draft and schedule mandatory expiry
 
 - [x] Merge deployed main `5bafe93` into #49 with merge commit `141e718`. Preserve both reference-memory and language schemas/checks, existing availability fixes and the memory-off prompt guard. Integrated baseline: 869 unit tests and combined isolated SQL pass.

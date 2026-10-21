@@ -88,6 +88,7 @@ async function verify(pool) {
     await threadLanguage.initSchema(pool);
   }
   await verifyReviewedKnowledge(pool, prefix);
+  await verifyKnowledgePrivacy(pool, prefix);
   const memoryColumns = (await pool.query(`SELECT column_name FROM information_schema.columns
     WHERE table_name='support_memory_messages' ORDER BY column_name`)).rows.map(row => row.column_name);
   assert.deepEqual(memoryColumns, ['at','customer_id','expires_at','forum_id','guild_id','message_id','role','thread_id']);
@@ -432,6 +433,108 @@ async function verifyReviewedKnowledge(pool, prefix) {
   assert.equal((await firstStore.pruneExpiredProvenance(clock)).examined, 0);
   console.log('Reviewed knowledge retention: global bounded expiry, restart, active barriers and concurrent revocation passed');
 
+}
+
+async function verifyKnowledgePrivacy(pool, prefix) {
+  const at = Date.now(), DAY = 86400000;
+  const registry = reviewedStore.createPostgresStore(pool), restarted = reviewedStore.createPostgresStore(pool);
+  const caseService = cases.createCaseService(cases.createPostgresStore(pool));
+  const memory = memoryStore.createPostgresStore(pool);
+  const scope = { guildId: `${prefix}-privacy-guild`, forumId: `${prefix}-privacy-forum`,
+    threadId: `${prefix}-privacy-thread`, customerId: `${prefix}-privacy-owner` };
+  async function makeCase(overrides = {}) {
+    const value = { ...scope, ...overrides };
+    return caseService.getOrCreateCase({ guildId: value.guildId, forumId: value.forumId,
+      channelId: value.threadId, customerThreadId: value.threadId, customerId: value.customerId });
+  }
+  const own = await makeCase();
+  assert.equal(own.guildId, scope.guildId); assert.equal(own.forumId, scope.forumId);
+  const rebound = await caseService.getOrCreateCase({ channelId: scope.threadId, customerThreadId: scope.threadId,
+    customerId: scope.customerId, guildId: `${prefix}-not-the-guild`, forumId: `${prefix}-not-the-forum` });
+  assert.equal(rebound.guildId, own.guildId); assert.equal(rebound.forumId, own.forumId);
+  const others = [await makeCase({ customerId: `${prefix}-other-owner` }),
+    await makeCase({ forumId: `${prefix}-other-forum`, threadId: `${prefix}-other-forum-thread` }),
+    await makeCase({ guildId: `${prefix}-other-guild`, threadId: `${prefix}-other-guild-thread` })];
+  async function fact(factId, references, guildId = scope.guildId) {
+    const state = { latestVersion: 1, publishedVersion: 1, updatedAt: at,
+      versions: [{ version: 1, status: 'published', content: 'Synthetic independent product fact.',
+        approvedBy: `${prefix}-staff`, approvedAt: at, provenance: references.map(value => ({ caseId: value.id, expiresAt: at + DAY })) }] };
+    await registry.mutate({ guildId, factId }, () => ({ state, result: true }), { create: true });
+    return state;
+  }
+  for (let i = 0; i < 101; i++) await fact('privacy-' + String(i).padStart(3, '0'), [own, ...others]);
+  const original = await restarted.read({ guildId: scope.guildId, factId: 'privacy-100' });
+  assert.deepEqual(await registry.eraseOwnedReferences(scope, at), { ok: false, reason: 'opt_out_required' });
+  await registry.eraseProvenance(scope.guildId, at, [own.id]);
+  await memory.put({ ...scope, messageId: `${prefix}-private-reference`, role: 'customer', at, expiresAt: at + DAY }, at);
+  const previousForum = process.env.HELP_FORUM_CHANNEL_ID;
+  process.env.HELP_FORUM_CHANNEL_ID = scope.forumId;
+  try {
+    const { forgetOwnedThread } = require('../supportLearning');
+    const { eraseOwnedKnowledge } = require('../supportKnowledgePrivacy');
+    const channel = { id: scope.threadId, guildId: scope.guildId, parentId: scope.forumId,
+      ownerId: scope.customerId, isThread: () => true, name: 'Synthetic support' };
+    assert.equal(await forgetOwnedThread(channel, scope.customerId, { store: memory,
+      eraseKnowledge: value => eraseOwnedKnowledge(value, { store: registry, now: () => at }) }), true);
+    assert.deepEqual(await memory.list(scope, at), []);
+    assert.equal(await memory.isSuppressed(scope, at), true);
+    original.versions[0].provenance = original.versions[0].provenance.filter(item => item.caseId !== own.id);
+    assert.deepEqual(await restarted.read({ guildId: scope.guildId, factId: 'privacy-100' }), original);
+    assert.equal((await pool.query('SELECT case_id FROM support_knowledge_erasures WHERE guild_id=$1 AND case_id=$2', [scope.guildId,own.id])).rows.length, 0,
+      'the permanent owner opt-out replaces unnecessary case-specific erasure pointers');
+    assert.deepEqual(await restarted.eraseOwnedReferences(scope, at), { ok: true, examined: 0, remaining: false });
+    const late = await makeCase({ threadId: `${prefix}-post-after-opt-out` });
+    await fact('privacy-late-writer', [own, late, others[0]]);
+    assert.deepEqual((await restarted.read({ guildId: scope.guildId, factId: 'privacy-late-writer' })).versions[0].provenance.map(item => item.caseId), [others[0].id]);
+
+    const retryScope = { ...scope, customerId: `${prefix}-retry-owner`, threadId: `${prefix}-retry-post` };
+    const retryCase = await makeCase(retryScope);
+    for (let i = 0; i < 3; i++) await fact('privacy-retry-' + i, [retryCase]);
+    await memory.forgetCustomer(retryScope);
+    const retry = await restarted.pruneExpiredProvenance(at);
+    assert.equal(retry.examined, 3);
+    assert.deepEqual((await registry.read({ guildId: scope.guildId, factId: 'privacy-retry-2' })).versions[0].provenance, []);
+
+    const raceScope = { ...scope, customerId: `${prefix}-privacy-race-owner`, threadId: `${prefix}-privacy-race-post` };
+    const raceCase = await makeCase(raceScope);
+    await fact('privacy-race', [raceCase]);
+    await Promise.all([
+      registry.mutate({ guildId: scope.guildId, factId: 'privacy-race' }, state => ({ state, result: true })),
+      (async () => { await memory.forgetCustomer(raceScope); return restarted.eraseOwnedReferences(raceScope, at); })(),
+    ]);
+    assert.deepEqual((await registry.read({ guildId: scope.guildId, factId: 'privacy-race' })).versions[0].provenance, []);
+
+    const legacyScope = { ...scope, guildId: `${prefix}-legacy-privacy`, customerId: `${prefix}-legacy-privacy-owner` };
+    const legacyCase = await caseService.getOrCreateCase({ channelId: `${prefix}-legacy-privacy-post`, customerId: legacyScope.customerId });
+    await fact('legacy-unverifiable', [legacyCase], legacyScope.guildId);
+    await memory.forgetCustomer(legacyScope);
+    assert.deepEqual(await registry.eraseOwnedReferences(legacyScope, at), { ok: false, reason: 'unverifiable' });
+    assert.equal((await registry.read({ guildId: legacyScope.guildId, factId: 'legacy-unverifiable' })).versions[0].provenance.length, 1);
+    await restarted.pruneExpiredProvenance(at);
+    assert.equal((await registry.read({ guildId: legacyScope.guildId, factId: 'legacy-unverifiable' })).versions[0].provenance.length, 1,
+      'the automatic sweep cannot guess a missing forum and erase an unverified legacy link');
+    const orphanScope = { ...scope, guildId: `${prefix}-orphan-privacy` };
+    await fact('orphan-unverifiable', [{ id: `${prefix}-no-case-record` }], orphanScope.guildId);
+    await memory.forgetCustomer(orphanScope);
+    assert.deepEqual(await registry.eraseOwnedReferences(orphanScope, at), { ok: false, reason: 'unverifiable' });
+    const orphanBarrierScope = { ...scope, guildId: `${prefix}-orphan-barrier-privacy` };
+    await registry.eraseProvenance(orphanBarrierScope.guildId, at, [`${prefix}-orphan-barrier`]);
+    await memory.forgetCustomer(orphanBarrierScope);
+    assert.deepEqual(await registry.eraseOwnedReferences(orphanBarrierScope, at), { ok: false, reason: 'unverifiable' },
+      'unidentified deletion markers cannot be silently excluded from a full-deletion claim');
+    const noPostScope = { ...scope, guildId: `${prefix}-no-post-privacy` };
+    const noPostCase = await caseService.getOrCreateCase({ guildId: noPostScope.guildId, forumId: noPostScope.forumId,
+      customerId: noPostScope.customerId, channelId: `${prefix}-not-a-post` });
+    await fact('unverified-post', [noPostCase], noPostScope.guildId);
+    await memory.forgetCustomer(noPostScope);
+    assert.deepEqual(await registry.eraseOwnedReferences(noPostScope, at), { ok: false, reason: 'unverifiable' });
+    await restarted.pruneExpiredProvenance(at);
+    assert.equal((await registry.read({ guildId: noPostScope.guildId, factId: 'unverified-post' })).versions[0].provenance.length, 1,
+      'automatic erasure must require the same complete post scope as command erasure');
+  } finally {
+    if (previousForum === undefined) delete process.env.HELP_FORUM_CHANNEL_ID; else process.env.HELP_FORUM_CHANNEL_ID = previousForum;
+  }
+  console.log('Reviewed knowledge privacy: owned forum erasure, preserved facts and other scopes, late writes, retry cleanup and legacy refusal passed');
 }
 
 (async () => {

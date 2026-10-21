@@ -5,6 +5,8 @@ Total output lines: 480
 
 Updated October 21, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
+**Current draft preparation:** a separate change stacked on #49 connects forgetting to verified correction-link erasure, while preserving facts and other customers' data. Local 887 tests/offline8/isolated SQL pass; hosted checks/review remain. Unknown legacy ownership is not guessed, memory/learning stay off, and privacy/pilot/full-loop requirements remain open. [Scope and evidence](KNOWLEDGE_PRIVACY.md). No new score points.
+
 **Latest preparation:** #49 is brought up to deployed main and now automatically removes expired internal case references while preserving reviewed facts and revocations. Local 878 tests/offline8/isolated SQL pass; hosted checks and independent review are pending. It is still a draft, with learning and memory off. The actual fact validator, daily review card, privacy adapter and reporting jobs remain unfinished. This adds no score points or rollout permission. [Design and evidence](KNOWLEDGE_RETENTION.md).
 
 ## Progress: 46 / 100 delivery milestones

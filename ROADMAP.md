@@ -3,6 +3,10 @@ Total output lines: 413
 
 # Omi Support Bot Roadmap
 
+## October 21: owner-scoped correction-link deletion, still a draft
+
+The separate draft stacked on #49 connects forum-wide forgetting to reviewed-fact provenance cleanup. It adds nullable case server/forum identifiers from existing owner-scoped events, persists opt-out before registry work, preserves independent facts and other known scopes, blocks late/new-case reference restoration and lets mandatory retention retry opted-out links. Legacy/orphan scope is not invented and cannot produce a full-deletion claim. Nine focused tests include eight baseline failures; new SQL checks fail before, then local 887/offline8/PGlite pass. Hosted real PostgreSQL/Node 20/24, independent parent/child review and privacy/data-use/pilot gates remain. No learning/memory enablement, provider/protected run, main merge or production change. See [KNOWLEDGE_PRIVACY.md](docs/KNOWLEDGE_PRIVACY.md); C/D completion and score 46/100 remain unchanged.
+
 ## October 21: reviewed-fact draft integrated; expired-reference cleanup tested locally
 
 Draft #49 now merges deployed main `5bafe93` as `141e718`, preserving references-only memory, ordinary closing language and the off-only prompt guard with its existing availability fixes. A mandatory tracked startup/minute worker prunes expired internal case references and expired barriers in bounded batches, with fresh-row locking, fixed failure retry and shutdown checks. Active barriers and approved/revoked fact state are preserved. Cleanup uses transaction-local server deadlines, not a claimed whole-batch/network guarantee. See [the retention design](docs/KNOWLEDGE_RETENTION.md).
