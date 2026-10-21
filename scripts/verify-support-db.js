@@ -9,6 +9,7 @@ const supportMemory = require('../supportMemory');
 const memoryStore = require('../supportMemoryStore');
 const { createObserver } = require('../supportLearning');
 const threadLanguage = require('../supportThreadLanguage');
+const { verifyMemoryContext } = require('./verify-memory-context');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -317,6 +318,9 @@ async function verify(pool) {
   assert.equal(await forumSaving, false);
   assert.equal(await journalRestart.signal({ ...forumScope, eventId: `${prefix}-delayed-signal`, kind: 'needs_help' }), false);
   assert.deepEqual(await journalRestart.otherThreads(forumScope), []);
+  const contextChecks = await verifyMemoryContext(pool, `${prefix}-reader`);
+  assert.equal(contextChecks.length, 8);
+  console.log('Support memory SQL/live-reader rehearsal: 8 synthetic scenario groups passed; no Discord/provider calls');
   console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, reference-only memory, forum erasure, edit/delete races, revocation and text-free thread languages passed');
 }
 

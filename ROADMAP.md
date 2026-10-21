@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## Test-only SQL/context rehearsal — not enabled memory
+
+The existing SQL verifier now joins the production reference store/service and live-context reader against synthetic posts. Eight scenario groups cover scoped live reads, edits, reader recreation, deletion/outcome invalidation, kill switches, forum-wide forgetting, persistent opt-out and text-free rows. Local PGlite and five fault-sensitivity probes pass; full/offline checks pass. Hosted exact-head verification and independent review remain. No runtime, schema, prompt, production setting or data-use change; no provider/Discord calls or protected input. See `docs/MEMORY_PILOT_CHECKS.md` and retain all C1–C4 pilot/privacy gates. This adds evidence, not a delivery-score point or a claim of live/generated-answer behavior.
+
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
 ## October 19: health wait ended; return to approved release checks

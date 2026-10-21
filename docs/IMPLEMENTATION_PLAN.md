@@ -1,5 +1,11 @@
 # Omi Support Bot Implementation Checklist
 
+## Test-only SQL/context rehearsal
+
+- [x] Join the real SQL memory store/service and context observer in the existing local/hosted SQL verifier using only synthetic post/message objects. Assert eight scenario groups, including text-free rows before erasure.
+- [x] Local PGlite and five independent in-memory sensitivity faults validate the rehearsal; all faults are rejected while the real baseline passes. Runtime code and frozen comparison candidates remain untouched.
+- [ ] Pass hosted Node 20/24/Postgres at the pushed exact head and obtain independent review. This test-only work does not approve data use, enabled generated answers or a live pilot; preserve all C1–C4 requirements and optional flags off.
+
 ## Current combined-release integration — October 19
 
 - [x] Read-only Step 0: nine escalation-branch/answer events, four real Help posts, zero smoke traffic, one new staff card and eight follow-ups across three existing staff cases; all four mapped privately. Do not infer a first-question handoff rate.
