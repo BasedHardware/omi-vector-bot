@@ -1,5 +1,14 @@
 # Omi Support Bot Implementation Checklist
 
+## October 21: separate redirect and planner comparisons
+
+- [x] Fresh exact-head local checks: #67 `f2781eb` 850 tests; #68 `1ffae62` 845; both offline8, isolated SQL and hosted Node 20/24/Postgres pass. Preserve clean frozen source and identical baseline harness/judge/lockfile.
+- [x] Aryan confirms two more hours open/plugged in. Launch one sequential keep-awake supervisor: #67 five-case timing check starts 07:51:48 IST, fresh main/candidate arms follow, then independent #68 check. No overlapping provider jobs or Discord posts.
+- [x] Reproduce the shared response-body timeout gap locally, without credentials/customer/protected inputs. Save wider coherent answer/review deadline work as parked #72; do not assign it as the proven historical slowdown cause.
+- [ ] Finish #67's complete same-day 81×2 arms/concurrency3 and export every changed case, word counts and provenance. Keep all slow/error rows; independent grade required.
+- [ ] Then finish #68's own fresh main/candidate comparison; its p95 must not rise. Keep every result and require independent grading, not just numerical success.
+- [ ] Audit both runs and update the simple master status. No merge/deploy/settings/memory changes. #71 remains held and is not automatically rerun.
+
 ## October 21: multipart comparison complete, release held
 
 - [x] Both full arms complete on October 20 UTC/IST: 162 rows each, 81 cases/two runs/concurrency three, no invalid/unscored rows, no process signal/stop, normal structural-failure exit 1. Source/input-metadata/lockfile guards hold; known-secret scan zero.

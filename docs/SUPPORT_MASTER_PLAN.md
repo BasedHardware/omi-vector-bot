@@ -49,7 +49,11 @@ Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The new point r
 
 ## Start here — what is done and what comes next
 
-**Progress: 46/100. The approved release is live. #71's full check is finished but failed the slow-reply limit, so it stays a draft.**
+**Progress: 46/100. The approved release is live. #67's comparison is running; #68 follows. #71 stays held on slow replies.**
+
+**Now — October 21:** Aryan confirmed the Mac can stay open and plugged in for both separate checks. #67 (`f2781eb`, in-thread next steps) runs first, then #68 (`1ffae62`, planner deadline), each against a **fresh** run of deployed main `5bafe93`: 81 questions × two runs per arm, concurrency three. Local checks are freshly green: 850 / 845 tests, offline 8/8 and isolated SQL each; hosted Node 20/24/Postgres pass at both exact heads. The keep-awake supervisor started #67's five-case timing check at **07:51:48 IST**. Full arms and grades are not yet complete. #68's p95 must not rise; #67 retains its usual +6-second allowance. No Discord posts, merge, deploy or settings change. These checks earn no completion points yet.
+
+**Slow-reply follow-up:** a safe local experiment confirms that a connection timeout can miss a continuously trickling response body. This weakness is shared by main and #71; it does **not** prove the cause of #71's historical slowdown. #68 guards only planning. The wider answer/review deadline is saved as [parked issue #72](https://github.com/BasedHardware/omi-vector-bot/issues/72), mapped to A4/B3/E2; no extra runtime fix or paid rerun is started for it.
 
 **Current — October 20, after 22:20 IST:** live deployment **`13ead500`** records exact GitHub main **`5bafe93`**, SUCCESS/latest with one running instance, startup/login/health verified and optional memory/policy/context/forum/fix-inbox controls **off**. This is the same image as the approved retry `6e0fa65d`, replaced once through the authorized teardown test. **All three required retry checks pass:** Spanish ordinary closure, private refund delivery and graceful teardown with one reply. The two previously accepted ordinary/low-risk smokes on this exact runtime are carried forward, not rerun. Rollback remains **`adcfb8b4`**; no rollback, settings or permission change occurred. This accepts the limited approved release, not the full product or enabled memory.
 
@@ -61,6 +65,8 @@ The first observer attempt stopped before dispatch on a missing final full stop;
 
 | Draft | Built/tested | Still needed |
 | --- | --- | --- |
+| [#67 — keep the next step in the thread](https://github.com/BasedHardware/omi-vector-bot/pull/67), `f2781eb` | Fresh 850 tests, offline8, isolated SQL and hosted checks pass | Separate comparison **running**, then independent grade. No merge/deploy. |
+| [#68 — stop slow planning sooner](https://github.com/BasedHardware/omi-vector-bot/pull/68), `1ffae62` | Fresh 845 tests, offline8, isolated SQL and hosted checks pass | Comparison **queued after #67**, then independent grade; p95 must not rise. No merge/deploy. |
 | [#70 — faster recovery](https://github.com/BasedHardware/omi-vector-bot/pull/70), `62beb1e` | 847 tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass | Independent review; no merge/deploy. Existing delivery fences stay intact; this does not complete #29 or prove global exactly-once delivery. |
 | [#71 — keep a source for each question part](https://github.com/BasedHardware/omi-vector-bot/pull/71), `baec24d` | 850 tests, offline8, SQL and hosted checks pass. Focused check: main 0/3 → draft 3/3. Full check: both 162/162, zero invalid. | **Held:** slow replies 42.5 → 61.3 s, beyond the allowed +6 s. Diagnose timeouts and obtain independent grading; no merge/deploy or automatic rerun. |
 
@@ -104,12 +110,12 @@ Both restart snapshots and the current service configure **100 seconds** of depl
 | 3 | Exact GitHub-commit rollout | **Verified live.** Current `13ead500` records `5bafe93`, same image as retry `6e0fa65d`. Rollback `adcfb8b4`; earlier failed attempt/rollback retained as history. |
 | 4 | Retry live checks | **Passed.** Spanish closure, private refund and same-commit graceful teardown/one reply; prior ordinary/low-risk checks carried from identical runtime. No Restart/settings change; #65 remains a separate fix. |
 | 5 | Label parked issues #52–#58 | **Done.** All seven have the `parked` label. |
-| 6 | Separate recovery, multipart, redirect and slow-planner fixes | **Drafts, not live.** #70 awaits review. #71's full comparison is complete but held on speed and independent grade. Diagnose timeouts before any rerun; #67/#68 retain separate comparison/review gates. |
+| 6 | Separate recovery, multipart, redirect and slow-planner fixes | **Drafts, not live.** #67's comparison runs now; #68 follows. #70 awaits review. #71 is held on speed and independent grade, with no automatic rerun. Wider timeout work is parked in #72. |
 | 7 | Test-only memory pilot and later learning/reliability work | **Next staged work, not discarded.** Release retry passed; privacy, functional and independent-review gates still apply. No automatic capture/context enablement or public Help expansion. |
 
 **Historical rollback:** requested target **`e1f76a93`** was invoked once, creating **`adcfb8b4`** from that same image. It passed startup/readiness and is now the retry's rollback target, not the active retry. That historical image has no recorded GitHub commit; provenance is the verified image match, not an invented commit record. The approved retry above uses recorded GitHub main `5bafe93` with the ordinary closing-language fix included. Memory/policy/context/forum/fix-inbox remain off; no settings or permissions were changed.
 
-**What Aryan needs to do now:** give the completed comparison package to the independent reviewer; #71 currently fails the speed limit and is not approved. No more Discord posts or Mac keep-awake for this finished run. No repeat release/retention approval, permissions repair, memory-off grade or browser sign-in. Codex never posts on Aryan's behalf. Later draft code remains off production; memory/pilot and the remaining A–E checklist are still open.
+**What Aryan needs to do now:** keep the Mac open and plugged in for the two checks already approved. No Discord posts needed. Give #71's completed package to the independent reviewer; it fails the speed limit and is not approved. No repeat release/retention approval, permissions repair, memory-off grade or browser sign-in. Codex never posts on Aryan's behalf. Later draft code remains off production; memory/pilot and the remaining A–E checklist are still open.
 
 The Apple Watch line is present live. The historical short reply's exact intermediate loss stage was not retained; shared synthetic reproductions are not historical proof. Private reports `/Users/astar/omi-eval/release-step0-1-20261019.md` and `/Users/astar/omi-eval/release2-result-20261019.md` preserve evidence and limits; case IDs never enter public trackers. The fresh restart logs show abandoned-request recovery, not a clean drain. Both candidate and rollback configuration snapshots meet the application's nominal drain budget and use direct startup; no platform-setting root cause is established. Full A–E acceptance remains **2/21 complete**. The failed rollout adds no score points.
 
