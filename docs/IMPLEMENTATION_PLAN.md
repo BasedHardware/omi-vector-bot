@@ -5,9 +5,11 @@
 - [x] Fresh exact-head local checks: #67 `f2781eb` 850 tests; #68 `1ffae62` 845; both offline8, isolated SQL and hosted Node 20/24/Postgres pass. Preserve clean frozen source and identical baseline harness/judge/lockfile.
 - [x] Aryan confirms two more hours open/plugged in. Launch one sequential keep-awake supervisor: #67 five-case timing check starts 07:51:48 IST, fresh main/candidate arms follow, then independent #68 check. No overlapping provider jobs or Discord posts.
 - [x] Reproduce the shared response-body timeout gap locally, without credentials/customer/protected inputs. Save wider coherent answer/review deadline work as parked #72; do not assign it as the proven historical slowdown cause.
-- [ ] Finish #67's complete same-day 81×2 arms/concurrency3 and export every changed case, word counts and provenance. Keep all slow/error rows; independent grade required.
-- [ ] Then finish #68's own fresh main/candidate comparison; its p95 must not rise. Keep every result and require independent grading, not just numerical success.
-- [ ] Audit both runs and update the simple master status. No merge/deploy/settings/memory changes. #71 remains held and is not automatically rerun.
+- [x] Finish #67's complete same-day 81×2 arms/concurrency3 and export both JSONs, all five changed cases, word counts and audits in a twelve-file private ZIP. Zero invalid rows or interruption; full host coverage records no system sleep. Preserve the failed p50 gate (30.255→32.455 s, +2.200 versus +2 allowed) and increased missing-handoff flags (4→6); independent grade and a passing release gate remain required.
+- [x] Finish #68's own fresh main/candidate comparison: both 162 rows, zero invalid/unscored, no interruption/retry. p50 34.503→32.450 s; p95 57.020→54.446 s meets no-rise rule. Missing-handoff flags 5→6 still require independent review; numerical success is not a grade.
+- [x] Audit both complete runs, generate twelve-file private review ZIPs with all changed replies/signals/problems and words, and update the simple master status. Both full host histories record no system sleep; immutable hashes/archive/known-secret scans pass. Read-only production is still accepted `13ead500` / `5bafe93`, healthy/one instance/optional off. No merge/deploy/settings/memory changes; #71 not rerun.
+- [x] Record #68's four deadline fallbacks separately from two generic planning failures. Per-row planning totals sum turns; maximum single-turn stage 20.007 s. Keep all rows and state the whole-answer budget remains #72, not solved by this draft.
+- [ ] Obtain independent grades of #67/#68, including increased missing flags and protected topics; clear #67's failed p50 gate before any rollout. Keep #70/#71 and memory/pilot gates distinct. No new provider run is authorized by this checklist.
 
 ## October 21: multipart comparison complete, release held
 
