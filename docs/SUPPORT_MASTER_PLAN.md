@@ -57,6 +57,8 @@ Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The new point r
 
 **Learning preparation:** the [#49 draft](https://github.com/BasedHardware/omi-vector-bot/pull/49) is now up to date with deployed main and includes automatic cleanup of expired internal case references without changing approved facts. All 878 tests and real PostgreSQL checks pass. Independent review, the real fact validator, daily review controls, privacy checks and reporting jobs are still needed. Nothing is enabled; the score remains 46/100.
 
+**Privacy preparation:** [draft #74](https://github.com/BasedHardware/omi-vector-bot/pull/74), built on #49, removes verified correction links when a customer forgets history. All 887 tests and hosted database checks pass. Independent review is still needed; unknown legacy links are not guessed. This protects future learning; the existing memory-only pilot gates are unchanged. Nothing enabled; no score increase.
+
 <details>
 <summary>Current comparison and live-release evidence</summary>
 
@@ -85,7 +87,8 @@ The first observer attempt stopped before dispatch on a missing final full stop;
 
 </details>
 
-**Independent drafts after the live release checks:**
+<details>
+<summary>Drafts awaiting review — detailed checks and remaining gates</summary>
 
 | Draft | Built/tested | Still needed |
 | --- | --- | --- |
@@ -95,6 +98,9 @@ The first observer attempt stopped before dispatch on a missing final full stop;
 | [#71 — keep a source for each question part](https://github.com/BasedHardware/omi-vector-bot/pull/71), `baec24d` | 850 tests, offline8, SQL and hosted checks pass. Focused check: main 0/3 → draft 3/3. Full check: both 162/162, zero invalid. | **Held:** slow replies 42.5 → 61.3 s, beyond the allowed +6 s. Diagnose timeouts and obtain independent grading; no merge/deploy or automatic rerun. |
 | [#73 — automatic memory safety rehearsal](https://github.com/BasedHardware/omi-vector-bot/pull/73), `c2953f2` | Test-only: 839 unit/offline8, eight SQL/reader scenario groups and hosted Node 20/24/Postgres pass; five in-memory faults caught | Independent review. No bot/runtime/schema/settings change, no generated-answer or live-pilot proof, and no memory enablement. |
 | [#49 — reviewed-fact foundation and expired-reference cleanup](https://github.com/BasedHardware/omi-vector-bot/pull/49), `3f83024` | Merges deployed main with `141e718`; 878 tests/offline8/isolated SQL and exact-head Node 20/24/Postgres CI `39549961373` pass. Nine new checks include eight observed red assertions. | Draft/review required. Real validator, mistake grouping, review controls, privacy adapter and quality/scorecard jobs remain open. No publication, deploy or enablement. |
+| [#74 — forget verified correction links](https://github.com/BasedHardware/omi-vector-bot/pull/74), `dfc1398` | Stacked on #49; 887/offline8/PGlite and exact-head Node 20/24/real PostgreSQL CI `39554963703` pass. Nine new tests include eight baseline failures; SQL covers batching, ownership/scope, late writes, retry and legacy refusal. | Independent parent/child review. Unknown legacy/orphan scope cannot confirm deletion; privacy/security/backup/pilot requirements remain. No deploy or enablement. |
+
+</details>
 
 <details>
 <summary>Multipart evidence, full comparison numbers and private review files</summary>
@@ -448,7 +454,7 @@ Build as a separate `feat/fix-inbox` change on the approved foundation, default 
 - [ ] **D5 — Validate, publish, recheck and undo.** Extend the existing named-staff `faq:` path with provenance, versioning, official evidence and a 90-day recheck. Approval starts automatic validation; publish/use immediately **after** checks pass, not before. Add a genuinely synthetic regression question, never a copied customer message. Preserve source ranking and the independent answer gate. Support rejection/revocation, expiry, correction rollback and cache invalidation. Approval does not edit code/model weights or guarantee a mistake can never recur.
 - [ ] **D6 — Close the loop automatically.** Run the synthetic regression set nightly offline, including approved-fact retrieval and revoked/expired facts. Alert the verified staff destination on regressions and make job/alert failures visible. Separate provider-based quality evaluation/cost approvals from offline checks. Maintain a tested kill switch; held failures must not silently publish a correction or claim successful improvement.
 
-The aggregate report and #49's reviewed-fact store/expiry worker are foundations only: **they do not complete any of D1–D6.** The worker removes expired case references/barriers in tracked bounded batches, independently of publication flags; the real validation, review UI, ownership-verified erasure adapter and reporting jobs remain unfinished. The existing denial-only fallback cannot discover unseen revocations during a cold-start/offline lookup; keep that review limitation explicit. Staff review is intentional; the system automates detection, preparation, checks and follow-up, not blind learning from chat.
+The aggregate report and #49's reviewed-fact store/expiry worker are foundations only: **they do not complete any of D1–D6.** The worker removes expired case references/barriers in tracked bounded batches, independently of publication flags. The ownership-verified erasure adapter is now prepared separately in #74, not reviewed/deployed; complete legacy/data-use/privacy verification, real validation, review UI and reporting jobs remain unfinished. The existing denial-only fallback cannot discover unseen revocations during a cold-start/offline lookup; keep that review limitation explicit. Staff review is intentional; the system automates detection, preparation, checks and follow-up, not blind learning from chat.
 
 Draft #49 implements part of D5: guild-scoped review versions, named approvers, validation claims/proof, 90-day recheck, revocation and expiring internal provenance. The real validator, review UI, signals, jobs and privacy-adapter wiring are unfinished. Its optional answer lookup now returns existing local staff notes without database calls when off; while on, an unavailable registry falls back to those notes minus governed hashes already observed in the same guild/process. This is a denial-only cache, not durable approval state or a claim to know unseen revocations. The current quality/review/release and security gates still apply.
 

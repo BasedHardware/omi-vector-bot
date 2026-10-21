@@ -1,5 +1,13 @@
 # Omi Support Bot Implementation Checklist
 
+## October 21: scoped forgetting draft, stacked on #49
+
+- [x] Publish draft #74 `dfc1398` from #49 `3f83024`, keeping the parent review head separate. Store only additive case server/forum metadata from current configured-post owner scope; preserve known scope and existing case state.
+- [x] Persist forum memory erasure/opt-out first, then remove verified correction links/extra owned markers. Preserve facts and other scopes; fence late/new-case references and let mandatory cleanup retry scoped opted-out links. Unknown legacy/post/orphan scope and partial/error results never confirm complete deletion.
+- [x] Restore interrupted uncommitted work into a permanent workspace and rerun evidence: local 887/offline8/PGlite pass. Nine new tests include eight observed baseline failures; SQL baseline and additional strict-scope/orphan-marker regressions fail before repair. SQL covers 101-fact batching, real memory-command/service/store composition, new/late/concurrent writers, retry, idempotence and legacy refusal.
+- [x] Exact-head Node 20/24/real PostgreSQL CI `39554963703` passes. The database log confirms the new privacy checks ran at `dfc1398`; PGlite alone is not claimed as multi-connection proof.
+- [ ] Obtain independent parent/child review and resolve legacy/privacy/security/backup/data-use/pilot gates. Real ingestion/validator, signals/UI and nightly/weekly jobs remain unfinished. No provider/protected run, main merge, deploy or enablement. Score stays 46/100; full acceptance 2/21.
+
 ## October 21: reviewed-fact draft integration and mandatory retention
 
 - [x] Merge deployed main `5bafe93` into existing draft #49 as `141e718`, preserving reference-only memory, closing-language schema/checks and the off-only prompt guard. Integrated baseline 869 tests/isolated SQL pass.
