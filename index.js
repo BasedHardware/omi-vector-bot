@@ -82,6 +82,8 @@ let caseCardTimer;
 let unsubscribeCaseCards;
 let supportMemoryTimer;
 let threadLanguageTimer;
+let knowledgeCleanup;
+const { createKnowledgeCleanup } = require('./knowledgeCleanup');
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
 const botReplyOwners = new Map();
@@ -1390,6 +1392,11 @@ async function start() {
   if (dbReady) {
     try {
       await db.initSchema();
+      knowledgeCleanup = createKnowledgeCleanup({
+        store: require('./knowledgeReviewStore').createPostgresStore(db.pool),
+        track: operation => runtime.track(operation), stopping: () => runtime.stopping,
+      });
+      knowledgeCleanup.start();
       await require('./supportIdentityStore').getStore().pruneExpired();
       coordinationReady = true;
       await github.hydrateIssueThreads();
@@ -1422,6 +1429,7 @@ async function shutdown(signal) {
   shutdownPromise = (async () => {
     console.log(`[Bot] Received ${signal}, draining replies...`);
     runtime.stopAccepting();
+    knowledgeCleanup?.stop();
     clearInterval(recoveryTimer);
     clearInterval(caseCardTimer);
     clearInterval(supportMemoryTimer);

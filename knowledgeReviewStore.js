@@ -65,6 +65,25 @@ function createMemoryStore() {
       for (const [key, until] of erasures) if (until <= now) erasures.delete(key);
       return { processed: Math.min(100, pending.length), remaining: pending.length > 100 };
     },
+    async pruneExpiredProvenance(now, { shouldStop = () => false } = {}) {
+      const pending = [...rows.values()].filter(row => row.state.versions.some(version =>
+        version.provenance.some(item => item.expiresAt <= now)))
+        .sort((a, b) => a.guildId.localeCompare(b.guildId) || a.factId.localeCompare(b.factId));
+      let examined = 0, barriersDeleted = 0;
+      for (const row of pending.slice(0, 100)) {
+        if (shouldStop()) break;
+        await this.mutate(row, state => {
+          for (const version of state.versions) version.provenance = version.provenance.filter(item => item.expiresAt > now);
+          return { state, result: true };
+        });
+        examined++;
+      }
+      if (!shouldStop()) for (const [key, until] of erasures) {
+        if (barriersDeleted >= 1000) break;
+        if (until <= now) { erasures.delete(key); barriersDeleted++; }
+      }
+      return { examined, barriersDeleted, remaining: pending.length > examined || barriersDeleted === 1000 };
+    },
   };
 }
 
@@ -81,10 +100,11 @@ async function initSchema(client) {
 
 function createPostgresStore(pool) {
   return {
-    async mutate(scope, change, { create = false } = {}) {
+    async mutate(scope, change, { create = false, statementTimeoutMs = 0 } = {}) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+        if (statementTimeoutMs) await client.query("SELECT set_config('statement_timeout',$1,true)", [String(statementTimeoutMs)]);
         await client.query('SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))', [`knowledge-erasure:${scope.guildId}`]);
         if (create) await client.query(`INSERT INTO support_reviewed_knowledge(guild_id,fact_id,state) VALUES($1,$2,'{}') ON CONFLICT DO NOTHING`, [scope.guildId, scope.factId]);
         const { rows } = await client.query('SELECT state FROM support_reviewed_knowledge WHERE guild_id=$1 AND fact_id=$2 FOR UPDATE', [scope.guildId, scope.factId]);
@@ -158,6 +178,43 @@ function createPostgresStore(pool) {
       });
       await pool.query('DELETE FROM support_knowledge_erasures WHERE ctid IN (SELECT ctid FROM support_knowledge_erasures WHERE expires_at<=$1 LIMIT 1000)', [now]);
       return { processed: Math.min(100, rows.length), remaining: rows.length > 100 };
+    },
+    async pruneExpiredProvenance(now, { shouldStop = () => false } = {}) {
+      // Each statement, including lock waits in mutations, is bounded. No
+      // connection-wide timeout is changed for customer-facing operations.
+      async function shortQuery(sql, args) {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query("SELECT set_config('statement_timeout','5000',true)");
+          const result = await client.query(sql, args);
+          await client.query('COMMIT'); return result;
+        } catch (error) {
+          try { await client.query('ROLLBACK'); } catch { /* Preserve private failure. */ }
+          throw error;
+        } finally { client.release(); }
+      }
+      if (shouldStop()) return { examined: 0, barriersDeleted: 0, remaining: false };
+      const { rows } = await shortQuery(`SELECT guild_id,fact_id FROM support_reviewed_knowledge WHERE EXISTS(
+        SELECT 1 FROM jsonb_array_elements(coalesce(state->'versions','[]'::jsonb)) AS version,
+        LATERAL jsonb_array_elements(coalesce(version->'provenance','[]'::jsonb)) AS item
+        WHERE (item->>'expiresAt')::bigint<=$1)
+        ORDER BY guild_id,fact_id LIMIT 101`, [now]);
+      let examined = 0, barriersDeleted = 0;
+      for (const row of rows.slice(0, 100)) {
+        if (shouldStop()) break;
+        await this.mutate({ guildId: row.guild_id, factId: row.fact_id }, state => {
+          for (const version of state.versions) version.provenance = version.provenance.filter(item => item.expiresAt > now);
+          return { state, result: true };
+        }, { statementTimeoutMs: 5000 });
+        examined++;
+      }
+      if (!shouldStop()) {
+        const deleted = await shortQuery(`DELETE FROM support_knowledge_erasures WHERE expires_at<=$1 AND ctid IN
+          (SELECT ctid FROM support_knowledge_erasures WHERE expires_at<=$1 LIMIT 1000) RETURNING 1`, [now]);
+        barriersDeleted = deleted.rows.length;
+      }
+      return { examined, barriersDeleted, remaining: rows.length > examined || barriersDeleted === 1000 };
     },
   };
 }

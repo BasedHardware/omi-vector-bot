@@ -3,6 +3,12 @@ Total output lines: 413
 
 # Omi Support Bot Roadmap
 
+## October 21: reviewed-fact draft integrated; expired-reference cleanup tested locally
+
+Draft #49 now merges deployed main `5bafe93` as `141e718`, preserving references-only memory, ordinary closing language and the off-only prompt guard with its existing availability fixes. A mandatory tracked startup/minute worker prunes expired internal case references and expired barriers in bounded batches, with fresh-row locking, fixed failure retry and shutdown checks. Active barriers and approved/revoked fact state are preserved. Cleanup uses transaction-local server deadlines, not a claimed whole-batch/network guarantee. See [the retention design](docs/KNOWLEDGE_RETENTION.md).
+
+Local 878 unit tests, offline8 and combined isolated SQL pass. Nine new focused checks include eight observed red assertions; SQL adds global 100/3 batching, restart/idempotence, active barriers, unchanged eligible facts, concurrent revocation and timeout restoration. Hosted exact-head checks and independent review remain pending. No new fact publication, validator, mistake collector, review UI, privacy adapter or quality/scorecard job is implied; D1–D6 remain incomplete and disabled. No protected/provider run, production operation, deploy or setting change. The existing milestone already covers the tested foundation, so the score stays 46/100 and full acceptance 2/21.
+
 ## October 21: automatic memory SQL/reader rehearsal, still off
 
 Draft #73 `c2953f2` is test-only and based on main. It joins the real reference store/service and live-context reader using synthetic posts, closing a combined-read verification gap without changing bot runtime, prompts, schema or settings. Eight groups pass locally and in the exact-head PostgreSQL CI job, alongside 839 unit tests/offline8/hosted Node 20/24. Five independent in-memory faults are caught. Review and C1–C4 data-use/live-pilot requirements remain; memory stays off. No paid calls, protected input or Discord messages. #67/#71 timing holds, #68 quality review, #70 review and later persona/learning/reliability work are unchanged. Score stays 46/100, full acceptance 2/21.

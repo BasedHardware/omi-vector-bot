@@ -1,5 +1,12 @@
 # Omi Support Bot Implementation Checklist
 
+## October 21: integrate the reviewed-fact draft and schedule mandatory expiry
+
+- [x] Merge deployed main `5bafe93` into #49 with merge commit `141e718`. Preserve both reference-memory and language schemas/checks, existing availability fixes and the memory-off prompt guard. Integrated baseline: 869 unit tests and combined isolated SQL pass.
+- [x] Add tracked startup/minute cleanup independent of publication flags: 100 facts/1,000 expired barriers per batch, fresh-row locks, fixed failure metadata/retry and shutdown checks. Preserve reviewed fact content/status; active erasure barriers remain effective. Details: [KNOWLEDGE_RETENTION.md](KNOWLEDGE_RETENTION.md).
+- [x] Local 878/878, offline8 and isolated SQL pass. Nine new checks include seven observed red-before tests plus one outer-expiry-predicate red assertion; the extra stop-between-facts check is not claimed red-before. SQL verifies 100/3 batches, cross-guild expiry, idempotence, restart, active barriers, unchanged eligible facts, concurrent revocation and non-leaking statement timeout.
+- [ ] Verify pushed exact-head Node 20/24 and actual PostgreSQL CI; obtain independent review. Keep D1–D6 open: no actual validator, mistake grouping, review UI, privacy ownership adapter, nightly alerts or weekly scorecard yet. No publication/rollout/paid evaluation. Score remains 46/100.
+
 ## October 21: test-only memory SQL/reader preparation
 
 - [x] Publish draft #73 `c2953f2` from main: existing guarded verifier now composes SQL storage/service and live-context reader against synthetic fixtures. Eight groups cover scope/role boundaries, uncached edits, reader recreation, deleted-reference outcome invalidation, off-switch forgetting, persistent opt-out/expiry and text-free rows before erasure.

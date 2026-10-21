@@ -5,6 +5,8 @@ Total output lines: 480
 
 Updated October 21, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
+**Latest preparation:** #49 is brought up to deployed main and now automatically removes expired internal case references while preserving reviewed facts and revocations. Local 878 tests/offline8/isolated SQL pass; hosted checks and independent review are pending. It is still a draft, with learning and memory off. The actual fact validator, daily review card, privacy adapter and reporting jobs remain unfinished. This adds no score points or rollout permission. [Design and evidence](KNOWLEDGE_RETENTION.md).
+
 ## Progress: 46 / 100 delivery milestones
 
 **Built and tested: 14/25 · Reviewed: 11/25 · Verified live: 7/25.**

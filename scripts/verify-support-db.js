@@ -394,6 +394,44 @@ async function verifyReviewedKnowledge(pool, prefix) {
   assert.equal((await first.propose({ ...input, factId: 'stale-create', expectedVersion: 3, provenance: [] }, actor)).reason, 'stale');
   assert.equal(await firstStore.read({ ...input, factId: 'stale-create' }), null);
 
+  // Mandatory retention is global, bounded and independent of publication.
+  const retentionNow = clock;
+  const retainedInputs = ['retention-a', 'retention-b'].map((guild, index) => ({ ...input,
+    guildId: `${prefix}-${guild}`, factId: 'retention-fact', expectedVersion: 0,
+    provenance: [{ caseId: `${prefix}-expired-${index}`, expiresAt: retentionNow + 86400000 },
+      { caseId: `${prefix}-live-${index}`, expiresAt: retentionNow + 30 * 86400000 }] }));
+  for (const candidate of retainedInputs) {
+    assert.equal((await first.propose(candidate, actor)).ok, true);
+    assert.equal((await first.approve({ ...candidate, version: 1 }, actor)).ok, true);
+  }
+  const beforeCleanup = await firstStore.read(retainedInputs[0]);
+  const priorStatementTimeout = (await pool.query("SELECT current_setting('statement_timeout') AS value")).rows[0].value;
+  for (let i = 0; i < 101; i++) assert.equal((await first.propose({ ...input,
+    guildId: `${prefix}-retention-bulk`, factId: 'bulk-' + String(i).padStart(3, '0'), expectedVersion: 0,
+    provenance: [{ caseId: `${prefix}-bulk-expired`, expiresAt: retentionNow + 86400000 }] }, actor)).ok, true);
+  await firstStore.eraseProvenance(retainedInputs[0].guildId, retentionNow - 31 * 86400000, [`${prefix}-old-barrier`]);
+  await firstStore.eraseProvenance(retainedInputs[0].guildId, retentionNow, [`${prefix}-active-barrier`]);
+  clock += 2 * 86400000;
+  const raceAction = { ...retainedInputs[1], version: 1 };
+  const [batch, revocation] = await Promise.all([firstStore.pruneExpiredProvenance(clock), second.revoke(raceAction, actor)]);
+  assert.equal(batch.examined, 100); assert.equal(batch.remaining, true); assert.equal(revocation.ok, true);
+  assert.equal(batch.barriersDeleted, 1);
+  assert.deepEqual(await secondStore.pruneExpiredProvenance(clock), { examined: 3, barriersDeleted: 0, remaining: false });
+  assert.equal((await pool.query("SELECT current_setting('statement_timeout') AS value")).rows[0].value, priorStatementTimeout);
+  beforeCleanup.versions[0].provenance = retainedInputs[0].provenance.slice(1);
+  assert.deepEqual(await secondStore.read(retainedInputs[0]), beforeCleanup, 'expiry changes provenance, not reviewed product state');
+  assert.equal((await second.search(retainedInputs[0].guildId, 'task list'))[0].content, input.content);
+  const revokedAfterCleanup = await firstStore.read(retainedInputs[1]);
+  assert.equal(revokedAfterCleanup.versions[0].status, 'revoked');
+  assert.equal(revokedAfterCleanup.publishedVersion, null);
+  assert.deepEqual(revokedAfterCleanup.versions[0].provenance, retainedInputs[1].provenance.slice(1));
+  assert.equal((await first.propose({ ...input, guildId: retainedInputs[0].guildId,
+    factId: 'barrier-still-active', expectedVersion: 0,
+    provenance: [{ caseId: `${prefix}-active-barrier`, expiresAt: clock + 86400000 }] }, actor)).ok, true);
+  assert.deepEqual((await secondStore.read({ guildId: retainedInputs[0].guildId, factId: 'barrier-still-active' })).versions[0].provenance, []);
+  assert.equal((await firstStore.pruneExpiredProvenance(clock)).examined, 0);
+  console.log('Reviewed knowledge retention: global bounded expiry, restart, active barriers and concurrent revocation passed');
+
 }
 
 (async () => {
