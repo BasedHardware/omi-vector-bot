@@ -53,6 +53,8 @@ Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The new point r
 
 #68 meets the numerical limits, but its extra missed-handoff flag needs review. #67 does not meet its speed limit. Both review packages are ready. Nothing new has been merged, deployed or switched on.
 
+**Memory preparation:** the new test-only [#73](https://github.com/BasedHardware/omi-vector-bot/pull/73) now checks the SQL store and live-context reader together. All eight synthetic scenario groups pass in real PostgreSQL CI; five deliberate faults are caught locally. It still needs independent review. This is not an enabled pilot or privacy approval; memory stays off and progress stays 46/100.
+
 <details>
 <summary>Current comparison and live-release evidence</summary>
 
@@ -89,6 +91,7 @@ The first observer attempt stopped before dispatch on a missing final full stop;
 | [#68 — stop slow planning sooner](https://github.com/BasedHardware/omi-vector-bot/pull/68), `1ffae62` | Fresh 845 tests, offline8, isolated SQL, hosted checks and numerical comparison limits pass | **Awaiting independent grade:** missing-handoff flags 5→6 need review. No merge/deploy; numerical success is not safety approval. |
 | [#70 — faster recovery](https://github.com/BasedHardware/omi-vector-bot/pull/70), `62beb1e` | 847 tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass | Independent review; no merge/deploy. Existing delivery fences stay intact; this does not complete #29 or prove global exactly-once delivery. |
 | [#71 — keep a source for each question part](https://github.com/BasedHardware/omi-vector-bot/pull/71), `baec24d` | 850 tests, offline8, SQL and hosted checks pass. Focused check: main 0/3 → draft 3/3. Full check: both 162/162, zero invalid. | **Held:** slow replies 42.5 → 61.3 s, beyond the allowed +6 s. Diagnose timeouts and obtain independent grading; no merge/deploy or automatic rerun. |
+| [#73 — automatic memory safety rehearsal](https://github.com/BasedHardware/omi-vector-bot/pull/73), `c2953f2` | Test-only: 839 unit/offline8, eight SQL/reader scenario groups and hosted Node 20/24/Postgres pass; five in-memory faults caught | Independent review. No bot/runtime/schema/settings change, no generated-answer or live-pilot proof, and no memory enablement. |
 
 <details>
 <summary>Multipart evidence, full comparison numbers and private review files</summary>
@@ -382,7 +385,7 @@ Aryan requested GitHub tracking for parked work on October 18. These issues pres
 
 | Parked item | Issue | Resume only when |
 | --- | --- | --- |
-| Customer closing language after a no-handoff answer | [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50) | Unparked by the latest brief; draft #60 is built/tested and needs independent review before merge/release |
+| Customer closing language after a no-handoff answer | [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50), closed | **Completed:** #60 is merged in accepted live main; the Spanish ordinary-answer closure passes. Retained here as a resolved return point, not waiting for review. |
 | Full uncertain-send reconciliation/outbox beyond queued work | [#51](https://github.com/BasedHardware/omi-vector-bot/issues/51) | Existing #29/#30 scope/evidence reviewed; no parallel delivery rewrite |
 | Minimized cumulative case summaries | [#52](https://github.com/BasedHardware/omi-vector-bot/issues/52) | References-only context demonstrates a real gap and additional retention/security approval is obtained |
 | Staff queue, operating ownership and reminders | [#53](https://github.com/BasedHardware/omi-vector-bot/issues/53) | Team agrees ownership/coverage; no invented response-time commitments |
@@ -391,6 +394,7 @@ Aryan requested GitHub tracking for parked work on October 18. These issues pres
 | Capability/outage/backlog/freshness monitoring | [#56](https://github.com/BasedHardware/omi-vector-bot/issues/56) | Alert ownership, coverage/denominators and privacy-safe thresholds agreed |
 | Customer-authorized recording diagnostics | [#57](https://github.com/BasedHardware/omi-vector-bot/issues/57) | Omi backend agreement plus privacy/security authorization before implementation/access |
 | Authorized credential lifecycle maintenance | [#58](https://github.com/BasedHardware/omi-vector-bot/issues/58) | Explicit owner authorization and the private security checklist; public issue is a neutral reminder only |
+| Whole-answer/review deadline and retry budget | [#72](https://github.com/BasedHardware/omi-vector-bot/issues/72) | Agree on one bounded pipeline budget and safe fallback, then separate tests/review; no automatic rerun of held comparisons |
 
 The public security reminder deliberately omits findings, severity, provider/identity inventories and access details. The retained private-context N12 decision remains unchanged; opening an issue does not resolve or downgrade it. None of these issues enables training, capture, access, monitoring, deployment or automatic work scheduling.
 
@@ -420,6 +424,8 @@ Keep existing verified private order self-service working. Do not add broad cust
 Inspected B2 follow-up: `utils.js` still uses “a person ... has this now” for a delivery-confirmed handoff, while `caseCards.js` has a separate durable acceptance notice naming the real acceptor. Review the delivery acknowledgment against that distinction: delivery copy must not imply an individual accepted the case. Cover delivered-but-unaccepted, accepted, repeated follow-up and failed-delivery wording in the customer's language. Do not change the currently frozen candidate or silently reuse its grade for a later canned-copy change.
 
 ## C. Remember the case safely
+
+**October 21 engineering evidence, not enablement:** test-only draft #73 joins the actual Postgres reference adapter/service with the live-context reader. Eight synthetic groups cover same-owner/guild/forum/role selection, live uncached edits, reader recreation, changed-owner rejection, deletion/outcome invalidation, off-switch erasure, durable opt-out/expiry and no stored text before erasure. Local 839/offline8/PGlite pass; real PostgreSQL and Node 20/24 CI pass at `c2953f2`, run `39546418506`. The database log explicitly confirms the new rehearsal executed. Five in-memory faults are independently rejected; private sensitivity artifact `/Users/astar/omi-eval/memory-sql-sensitivity-2026-10-21T04-50-26-504Z.json`. No runtime code, schema, prompt, setting, provider/Discord call or protected-input read changes. This is reader recreation, not a full bot restart, and context delivery, not generated-answer behavior. Keep C1–C4 open for the remaining review, privacy/processor/backup/notice and live-pilot checks; no score point or data-use approval.
 
 - [ ] **C1 — Complete the references-only replacement and data-use gates.** Thirty-day retention is approved; do not keep asking for that decision. After Release 1 is actually deployed, create `feat/memory-references` from main as one problem per PR. Remove message text/ciphertext/IV/tag from support memory with an idempotent, data-safe migration even if old rows exist. Keep only guild/thread/owner/message/role/time/expiry references and text-free outcome categories; memory must not depend on an encryption key. Preserve encryption for unrelated identity/order records. Review the actual implementation, accurate published notice/policy, processor restrictions, backup erasure and any required platform review before enablement. References are still customer-related data, not anonymous records; flags are not approval.
 - [ ] **C2 — Verify cross-post context without making answers depend on it.** In the same guild and allowlisted forum, look up at most two **other** posts owned by the current post owner within 30 days. Fetch the live title, owner's last three messages, this bot's last reply and stored outcome. Verify the live owner and destination; never include another customer's, staff-channel or handoff-thread context. Mark it `conversation_only`, never cite it or use it as product policy. Use it only to avoid requesting information or repeating a step already given/tried. Bound the entire extra database/Discord operation to 1.5 seconds; on a database error, denied read or timeout, keep the normal current-post answer. Log one fixed metadata outcome, never text; `/health` stays independent. Unknown/deleted messages or posts are skipped and their references removed; other errors are skipped without claiming deletion.

@@ -1,5 +1,11 @@
 # Omi Support Bot Implementation Checklist
 
+## October 21: test-only memory SQL/reader preparation
+
+- [x] Publish draft #73 `c2953f2` from main: existing guarded verifier now composes SQL storage/service and live-context reader against synthetic fixtures. Eight groups cover scope/role boundaries, uncached edits, reader recreation, deleted-reference outcome invalidation, off-switch forgetting, persistent opt-out/expiry and text-free rows before erasure.
+- [x] Local 839/offline8/PGlite pass. Real PostgreSQL plus Node 20/24 CI run `39546418506` passes at the exact head; its database log confirms all eight groups executed. Five in-memory faults are rejected while the baseline passes; runtime files stay untouched.
+- [ ] Obtain independent review. C1–C4 remain open: no enabled generated answers, full bot restart/pilot, processor/backup/security/notice approval or memory switch change is implied. Keep all earlier comparison and later learning/reliability gates intact; score remains 46/100.
+
 ## October 21: separate redirect and planner comparisons
 
 - [x] Fresh exact-head local checks: #67 `f2781eb` 850 tests; #68 `1ffae62` 845; both offline8, isolated SQL and hosted Node 20/24/Postgres pass. Preserve clean frozen source and identical baseline harness/judge/lockfile.

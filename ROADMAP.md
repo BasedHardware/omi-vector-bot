@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 21: automatic memory SQL/reader rehearsal, still off
+
+Draft #73 `c2953f2` is test-only and based on main. It joins the real reference store/service and live-context reader using synthetic posts, closing a combined-read verification gap without changing bot runtime, prompts, schema or settings. Eight groups pass locally and in the exact-head PostgreSQL CI job, alongside 839 unit tests/offline8/hosted Node 20/24. Five independent in-memory faults are caught. Review and C1–C4 data-use/live-pilot requirements remain; memory stays off. No paid calls, protected input or Discord messages. #67/#71 timing holds, #68 quality review, #70 review and later persona/learning/reliability work are unchanged. Score stays 46/100, full acceptance 2/21.
+
 ## October 21 now: both checks complete; no new rollout
 
 Aryan confirmed open/plugged-in time for both checks. Fresh local #67 `f2781eb` passes 850 tests and #68 `1ffae62` passes 845; both offline8/isolated SQL and exact-head hosted Node 20/24/Postgres pass. One keep-awake supervisor completes both separate fresh 81×2-per-arm pairs at concurrency3, zero invalid/unscored rows, no interruption/retry, unchanged harness/judge/lockfile and same UTC/IST day. Full power histories show no system sleep. Each twelve-file review ZIP preserves both JSONs, all changed verbatim replies/signals/problems, words and audits; known-secret/hash/archive checks pass. No production/Discord/settings/memory changes and no new score points.
