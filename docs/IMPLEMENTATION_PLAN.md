@@ -1,5 +1,12 @@
 # Omi Support Bot Implementation Checklist
 
+## October 21: reviewed-fact draft integration and mandatory retention
+
+- [x] Merge deployed main `5bafe93` into existing draft #49 as `141e718`, preserving reference-only memory, closing-language schema/checks and the off-only prompt guard. Integrated baseline 869 tests/isolated SQL pass.
+- [x] Push `3f83024`: mandatory tracked startup/minute expiry, at most 100 facts/1,000 expired barriers per pass, active-barrier protection, fresh-row locking, fixed failure retry and shutdown checks. Approved facts and concurrent revocation survive; optional publication stays off. Transaction-local server deadlines are not a whole-operation/network guarantee.
+- [x] Local 878/offline8/PGlite and exact-head hosted Node 20/24/real PostgreSQL run `39549961373` pass; the database log confirms global batching/restart/active-barrier/concurrent-revocation checks ran. Nine new focused checks include eight observed red assertions; static wiring/query assertions are not live tests.
+- [ ] Independent review and remaining D1–D6 implementation: real official-evidence/regression validator, minimized owner-scoped signals/drafts, staff controls, ownership-verified privacy adapter, nightly alerts and weekly counts. No new comparison, fact publication, merge to main, deploy or enablement; score remains 46/100, acceptance 2/21.
+
 ## October 21: test-only memory SQL/reader preparation
 
 - [x] Publish draft #73 `c2953f2` from main: existing guarded verifier now composes SQL storage/service and live-context reader against synthetic fixtures. Eight groups cover scope/role boundaries, uncached edits, reader recreation, deleted-reference outcome invalidation, off-switch forgetting, persistent opt-out/expiry and text-free rows before erasure.

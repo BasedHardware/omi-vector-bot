@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 21: learning foundation integrated, mandatory expiry tested
+
+Existing draft #49 now merges deployed main `5bafe93` as `141e718`, preserving the reference-memory, closing-language and off-only prompt paths. Head `3f83024` adds tracked, bounded automatic expiry of internal case references and stale erasure barriers with active-barrier protection and concurrent-revocation safety. Local 878/offline8/PGlite and exact-head hosted Node 20/24/real PostgreSQL `39549961373` pass. Nine new focused tests include eight observed red assertions; server deadlines are transaction-local, not client cancellation. Independent review and full D1–D6 work remain: real source/regression validation, owner-scoped minimized signals/drafts, review controls, privacy adapter and nightly/weekly jobs. Nothing is published, merged to main, deployed or enabled; no paid/protected run. Score remains 46/100, full acceptance 2/21, with all existing comparison and memory gates unchanged.
+
 ## October 21: automatic memory SQL/reader rehearsal, still off
 
 Draft #73 `c2953f2` is test-only and based on main. It joins the real reference store/service and live-context reader using synthetic posts, closing a combined-read verification gap without changing bot runtime, prompts, schema or settings. Eight groups pass locally and in the exact-head PostgreSQL CI job, alongside 839 unit tests/offline8/hosted Node 20/24. Five independent in-memory faults are caught. Review and C1–C4 data-use/live-pilot requirements remain; memory stays off. No paid calls, protected input or Discord messages. #67/#71 timing holds, #68 quality review, #70 review and later persona/learning/reliability work are unchanged. Score stays 46/100, full acceptance 2/21.
