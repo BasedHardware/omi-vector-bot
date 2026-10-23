@@ -2016,6 +2016,17 @@ test('an escalated how-to whose Handoff cannot be posted says nobody was pinged'
   assert.equal(reply.includes(utils.PINGED_FOOTER), false);
 });
 
+test('normal answer lookup uses the reviewed registry with guild scope and no internal provenance in the prompt', async t => {
+  const calls = [];
+  const note = 'Task lists collect conversation actions. Official source: https://help.omi.me/en/articles/synthetic-task-list';
+  t.mock.method(knowledge, 'searchForAnswers', async (query, options) => { calls.push({ query, options }); return [note]; });
+  const channel = testChannel(); channel.guild = { id: 'synthetic-guild' };
+  await ask('Explain the task list.', { channel });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.guildId, 'synthetic-guild');
+  assert.deepEqual(modelCalls.at(-1).knowledgeSnippets, [note]);
+});
+
 test('a saved staff note reaches the draft but is never pasted into the final answer', async () => {
   const fact = 'The magnetic charging cable takes about two hours to fill the battery.';
   knowledge.addSnippet(fact);

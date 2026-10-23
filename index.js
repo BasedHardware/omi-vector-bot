@@ -82,6 +82,8 @@ let caseCardTimer;
 let unsubscribeCaseCards;
 let supportMemoryTimer;
 let threadLanguageTimer;
+let knowledgeCleanup;
+const { createKnowledgeCleanup } = require('./knowledgeCleanup');
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
 const botReplyOwners = new Map();
@@ -432,10 +434,10 @@ async function getHistory(channel, excludeId, customerId) {
   return clipThreadHistory(entries);
 }
 
-async function searchKnowledge(question) {
+async function searchKnowledge(question, guildId) {
   // Legacy database notes have no author/provenance field, so do not expose
   // them to the model until they can be reviewed or migrated.
-  return knowledge.search(question);
+  return knowledge.searchForAnswers(question, { guildId });
 }
 
 async function handleFaqSave(message) {
@@ -800,7 +802,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (!skipModel) {
-      const knowledgeSnippets = await searchKnowledge(caseQuestion);
+      const knowledgeSnippets = await searchKnowledge(caseQuestion, channel.guild?.id || channel.guildId || message.guildId);
       threadHistory = contextHistory;
       snippets = knowledge.filterSnippetsForLane(
         shopify.filterKnowledge(knowledgeSnippets),
@@ -1397,6 +1399,11 @@ async function start() {
   if (dbReady) {
     try {
       await db.initSchema();
+      knowledgeCleanup = createKnowledgeCleanup({
+        store: require('./knowledgeReviewStore').createPostgresStore(db.pool),
+        track: operation => runtime.track(operation), stopping: () => runtime.stopping,
+      });
+      knowledgeCleanup.start();
       await require('./supportIdentityStore').getStore().pruneExpired();
       coordinationReady = true;
       await github.hydrateIssueThreads();
@@ -1429,6 +1436,7 @@ async function shutdown(signal) {
   shutdownPromise = (async () => {
     console.log(`[Bot] Received ${signal}, draining replies...`);
     runtime.stopAccepting();
+    knowledgeCleanup?.stop();
     clearInterval(recoveryTimer);
     clearInterval(caseCardTimer);
     clearInterval(supportMemoryTimer);
