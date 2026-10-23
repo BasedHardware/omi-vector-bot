@@ -2,6 +2,8 @@
 
 ## October23 current verification — #71
 
+Latest: #79 test-only repair merged1235379 (954/offline8, independent review, exact CI39990949904) and integrated here. The previous #71 full run failed its unchanged750ms wall-clock assertion at1184ms, with no push. Do not replace that failure with the earlier970-pass checkpoint; fresh integrated full/current CI gates remain. #68/#29/#30 are closed with unmet scope preserved; #66 closed on the successful controlled teardown. Live runtime6b6d97d is unchanged.
+
 - [x] Integrate maind108e1a with merge commits, retaining #76/#70 provider/recovery changes and #67/#74 disabled foundations. #67/#74 are merged, not deployed; live6a815fbf remains6b6d97d and optional controls stay off.
 - [x] Preserve all required per-part chunks ahead of alternate/filler chunks, including three required chunks sharing one page. Observed-red regressions pass with unchanged overall8 chunks/9,000 characters/4 pages and ordinary formatting defaults.
 - [x] Four deterministic live/stored fetch-contract tests pass candidate and frozen main; reject six deliberate in-memory faults. Keep live pages≤6/parallel/10s, stored query/row limits and no unnecessary HTTP fallback.

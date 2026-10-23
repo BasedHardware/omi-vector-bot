@@ -2,6 +2,8 @@
 
 ## Current October23 — smoke accepted; #71 fair rerun authorized
 
+Latest: #79 is merged1235379 after954/offline8, independent final review and exact-head CI39990949904. It only fixes test timing/coverage, with no runtime change or deploy. Integrated #71 needs fresh full/current CI because its prior run failed the retained750ms cutoff at1184ms. #68/#29/#30/#66 are closed per the accepted queue decision; branches and unmet scopes remain in #56/#51. Six PRs remain. No new Discord inputs, settings or deployment.
+
 All three reliability smokes pass on6b6d97d. Live6a815fbf is the accepted same-commit teardown deployment; rollback458d4a6f, optional controls off. #67 merged94e4f57; #74 mergedd108e1a after exact-head CI39986598464 and independent integration review. Neither merged change is deployed. Do not start a new code deploy, change settings or enable memory from these merges. No further Discord input is needed.
 
 #71 integrates current main with merge commits and passes970/offline8, four fetch-contract tests on both versions, six fault-rejection checks and independent134 focused tests/final integration review. After current-head hosted checks, run BOTH arms (current main and #71) simultaneously, each81×2 with concurrency3, on the same awake/AC machine. This specific reviewer instruction supersedes the older sequential/shared-batch order: two simultaneous arms mean at most6 total case workers, not3 total. Keep the harness/judge/dependencies identical, sealed inputs runner-only, UTC and IST same-day guards, all rows/errors and per-stage p50/p95. No selective reruns or numerical-only approval. The old failed comparison stays immutable.
