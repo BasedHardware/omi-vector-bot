@@ -4,10 +4,12 @@ Updated October 23, 2026. This is an implementation contract, **not a claim that
 
 ## Priority and status
 
+The [master plan's current finish queue](SUPPORT_MASTER_PLAN.md) takes precedence: #69/#73 → #68 → #75. The repair order below preserves later requirements; it is not permission to open more feature PRs before that queue is finished.
+
 | Order | Customer failure to prevent | Required regression / acceptance | State |
 | --- | --- | --- | --- |
 | 1 | An old bot label or incidental spending changes a technical case into billing/privacy | Customer-authored request evidence only; explicit corrections override inferred actions; real refund/entitlement/privacy actions remain protected, including mixed requests and languages | **In progress:** [draft #75](https://github.com/BasedHardware/omi-vector-bot/pull/75), 850/offline8/isolated SQL; actual quality/E2E and review still required. Wider incidental-provider/plan interpretation remains open |
-| 2 | Delivery is described as a person taking ownership | Requested/delivered/accepted/resolved are distinct; delivery copy says the request was sent, accepted copy requires the application event; test delivered-unaccepted, acceptance, repeat and failed delivery in supported languages | **Next**, B2; separate from frozen comparisons |
+| 2 | Delivery is described as a person taking ownership | Requested/delivered/accepted/resolved are distinct; delivery copy says the request was sent, accepted copy requires the application event; test delivered-unaccepted, acceptance, repeat and failed delivery in supported languages | **Queued** after the current finish queue, B2; separate from frozen comparisons |
 | 3 | Supplied versions, logs and failed attempts are ignored | Keep current-case facts and version-source discrepancies; ask only for genuinely missing details; log receipt is not successful interpretation; add a new fact, question or verified state, otherwise suppress boilerplate | **Open**, A1/A2/E2; same-post flow first, no memory enablement shortcut |
 | 4 | A sync report gets deletion instructions | Pending/failed/unsynced signals never authorize deletion; destructive requests require explicit intent and established custody; test negative requests, mixed cases and outage fallbacks | **Open**, A2/E2; safe preservation remains mandatory |
 | 5 | A superficially related issue/source becomes proof | Check title, symptom, platform, component and status; omit unmatched links, disclose partial matches; a known-issue tag alone must not replace the answer | **Open**, A2/E2; preserve official source ordering |

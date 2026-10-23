@@ -54,10 +54,29 @@ Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The new point r
 | Status | What it means now |
 | --- | --- |
 | **Done** | The approved release passed its limited live checks. Last production verification was October 21; this audit update is not a fresh health check. |
-| **In progress** | Stop old bot labels and rejected action guesses from rerouting the customer's case. [Draft #75](https://github.com/BasedHardware/omi-vector-bot/pull/75) passes 850 tests, offline checks and isolated SQL; required actual E2E/quality verification and review remain. Not merged or live. |
-| **Next** | Make every handoff acknowledgment distinguish delivery from a person accepting the case; then stop repeated intake after supplied diagnostics. |
+| **In progress** | Finish existing documentation #69 and test-only #73: final review, appropriate verification and accurate readiness. No new feature PRs. |
+| **Next** | #68: resolve its existing comparison's independent safety grade. Then #75: finish answer-quality and actual multi-turn verification. |
 | **Waiting** | Independent grades for #67/#68/#71 and reviews for the other drafts. Existing timing failures, memory/privacy/pilot gates and release order remain. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
+
+### Finish queue — one active completion step
+
+Aryan asked to finish the existing 13 PRs instead of adding more drafts. This changes the order of work, not the product goal or its safety gates. Ready for review is not merged or deployed. Test-only work does not require enabling an unchanged production feature.
+
+| Existing work | What must happen before it can move forward |
+| --- | --- |
+| #69 — clear status documents | Correct stale instructions, verify rendered pages and links, and complete independent review. No bot deployment. |
+| #73 — memory safety rehearsal | Verify the actual SQL/reader integration, exact-head hosted PostgreSQL checks and independent review. Memory stays off. |
+| #68 — faster planning | Resolve the independent grade of the completed comparison, especially protected handoffs. No automatic rerun. |
+| #75 — correct customer intent | Finish evaluation-adapter parity, authorized answer-quality comparison, actual multi-turn verification and independent review. |
+| #67 / #71 — next-step and multipart fixes | Resolve their failed speed gates; do not waive them or automatically rerun comparisons. |
+| #28 / #29 / #30 / #59 / #70 — reliability and voice | Preserve their existing dependencies, missing fixes, conflicts and review/verification gates. Work on them in order after the active finish queue. |
+| #49 / #74 — reviewed learning and privacy | Keep the foundations queued with their separate privacy, validator, review and pilot gates. Nothing is enabled. |
+
+Truthful delivered-versus-accepted wording and supplied-diagnostic continuity remain required repairs; they do not authorize another PR ahead of this queue. Reorganizing work earns no progress points.
+
+<details>
+<summary>Audit intake and preparation evidence — technical detail</summary>
 
 **October 23 audit intake:** checked the supplied ledger's arithmetic privately and traced the affected pipeline. Routing currently mixes earlier bot/participant words into request evidence and can preserve a rejected personal-action interpretation. [Draft #75](https://github.com/BasedHardware/omi-vector-bot/pull/75), `75d0c12`, limits routing history to the current customer's messages and constrains rejected planner goals without deleting answer/reviewer context. Eleven new synthetic groups pass; seven fail on frozen main (six behavioral assertions plus the new normalization seam). Genuine financial/privacy requests remain protected in the covered tests, including mixed requests and version-only continuations. Full local 850/offline8/isolated SQL and exact-head hosted Node 20/24/real PostgreSQL run `39900379575` pass. Actual multi-turn/generated-answer verification, adapter parity, authorized comparison and independent review remain. This is partial A2/E2 work, not completion of the nine-theme contract or a new production quality claim. The private audit stays private; public tests use fresh synthetic inputs. No customer messages, case closure, new comparison, deployment or memory enablement.
 
@@ -65,11 +84,13 @@ Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The new point r
 
 #68 meets the numerical limits, but its extra missed-handoff flag needs review. #67 does not meet its speed limit. Both review packages are ready. Nothing new has been merged, deployed or switched on.
 
-**Memory preparation:** the new test-only [#73](https://github.com/BasedHardware/omi-vector-bot/pull/73) now checks the SQL store and live-context reader together. All eight synthetic scenario groups pass in real PostgreSQL CI; five deliberate faults are caught locally. It still needs independent review. This is not an enabled pilot or privacy approval; memory stays off and progress stays 46/100.
+**Memory preparation, reverified October 23:** test-only [#73](https://github.com/BasedHardware/omi-vector-bot/pull/73), `c2953f2`, passes a fresh 839-test run and all eight SQL/reader rehearsal groups. The baseline passes while all five deliberate in-memory faults are rejected. Independent review found no actionable issues and confirmed the exact-head real PostgreSQL/Node 20/24 CI evidence. Record final readiness evidence in the PR; this verifies the test harness, not enabled generated answers, a full bot restart, the pilot or privacy approval. Memory stays off and progress stays 46/100.
 
 **Learning preparation:** the [#49 draft](https://github.com/BasedHardware/omi-vector-bot/pull/49) is now up to date with deployed main and includes automatic cleanup of expired internal case references without changing approved facts. All 878 tests and real PostgreSQL checks pass. Independent review, the real fact validator, daily review controls, privacy checks and reporting jobs are still needed. Nothing is enabled; the score remains 46/100.
 
 **Privacy preparation:** [draft #74](https://github.com/BasedHardware/omi-vector-bot/pull/74), built on #49, removes verified correction links when a customer forgets history. All 887 tests and hosted database checks pass. Independent review is still needed; unknown legacy links are not guessed. This protects future learning; the existing memory-only pilot gates are unchanged. Nothing enabled; no score increase.
+
+</details>
 
 <details>
 <summary>Current comparison and live-release evidence</summary>
@@ -108,7 +129,7 @@ The first observer attempt stopped before dispatch on a missing final full stop;
 | [#68 — stop slow planning sooner](https://github.com/BasedHardware/omi-vector-bot/pull/68), `1ffae62` | Fresh 845 tests, offline8, isolated SQL, hosted checks and numerical comparison limits pass | **Awaiting independent grade:** missing-handoff flags 5→6 need review. No merge/deploy; numerical success is not safety approval. |
 | [#70 — faster recovery](https://github.com/BasedHardware/omi-vector-bot/pull/70), `62beb1e` | 847 tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass | Independent review; no merge/deploy. Existing delivery fences stay intact; this does not complete #29 or prove global exactly-once delivery. |
 | [#71 — keep a source for each question part](https://github.com/BasedHardware/omi-vector-bot/pull/71), `baec24d` | 850 tests, offline8, SQL and hosted checks pass. Focused check: main 0/3 → draft 3/3. Full check: both 162/162, zero invalid. | **Held:** slow replies 42.5 → 61.3 s, beyond the allowed +6 s. Diagnose timeouts and obtain independent grading; no merge/deploy or automatic rerun. |
-| [#73 — automatic memory safety rehearsal](https://github.com/BasedHardware/omi-vector-bot/pull/73), `c2953f2` | Test-only: 839 unit/offline8, eight SQL/reader scenario groups and hosted Node 20/24/Postgres pass; five in-memory faults caught | Independent review. No bot/runtime/schema/settings change, no generated-answer or live-pilot proof, and no memory enablement. |
+| [#73 — automatic memory safety rehearsal](https://github.com/BasedHardware/omi-vector-bot/pull/73), `c2953f2` | Test-only: fresh 839 tests, eight SQL/reader groups and five fault checks pass October 23; exact-head hosted Node 20/24/Postgres evidence independently confirmed; no actionable review findings | Final readiness evidence belongs in the PR. No bot/runtime/schema/settings change, no generated-answer or live-pilot proof, and no memory enablement. |
 | [#49 — reviewed-fact foundation and expired-reference cleanup](https://github.com/BasedHardware/omi-vector-bot/pull/49), `3f83024` | Merges deployed main with `141e718`; 878 tests/offline8/isolated SQL and exact-head Node 20/24/Postgres CI `39549961373` pass. Nine new checks include eight observed red assertions. | Draft/review required. Real validator, mistake grouping, review controls, privacy adapter and quality/scorecard jobs remain open. No publication, deploy or enablement. |
 | [#74 — forget verified correction links](https://github.com/BasedHardware/omi-vector-bot/pull/74), `dfc1398` | Stacked on #49; 887/offline8/PGlite and exact-head Node 20/24/real PostgreSQL CI `39554963703` pass. Nine new tests include eight baseline failures; SQL covers batching, ownership/scope, late writes, retry and legacy refusal. | Independent parent/child review. Unknown legacy/orphan scope cannot confirm deletion; privacy/security/backup/pilot requirements remain. No deploy or enablement. |
 
@@ -147,6 +168,11 @@ Both restart snapshots and the current service configure **100 seconds** of depl
 
 </details>
 
+<details>
+<summary>Accepted release record and older diagnosis — through October 21</summary>
+
+This dated record is not the active finish queue or a new health check. The October 19 manual-Restart diagnosis was followed by the accepted October 20 deployment-teardown check.
+
 | Order | Work | Status |
 | --- | --- | --- |
 | 1 | Health report and handoff-count check | **Done.** One new staff case plus eight follow-up answers; not nine new tickets. |
@@ -159,9 +185,11 @@ Both restart snapshots and the current service configure **100 seconds** of depl
 
 **Historical rollback:** requested target **`e1f76a93`** was invoked once, creating **`adcfb8b4`** from that same image. It passed startup/readiness and is now the retry's rollback target, not the active retry. That historical image has no recorded GitHub commit; provenance is the verified image match, not an invented commit record. The approved retry above uses recorded GitHub main `5bafe93` with the ordinary closing-language fix included. Memory/policy/context/forum/fix-inbox remain off; no settings or permissions were changed.
 
-**What Aryan needs to do now:** send the completed packages for independent review, especially the increased missing-handoff flags. #67 and #71 fail a speed limit; #68 meets the numbers but is not approved. The Mac no longer needs to stay awake. No Discord posts, repeat release/retention approval, permissions repair or sign-in needed. Codex never posts on Aryan's behalf. Later draft code remains off production; memory/pilot and the remaining A–E checklist stay open.
+**October 21 review checkpoint:** the completed packages await independent review, especially the increased missing-handoff flags. #67 and #71 fail a speed limit; #68 meets the numbers but is not approved. No further keep-awake or Discord action is needed for those completed runs. The current finish queue above controls; later draft code stays off production and memory/pilot gates remain.
 
-The Apple Watch line is present live. The historical short reply's exact intermediate loss stage was not retained; shared synthetic reproductions are not historical proof. Private reports `/Users/astar/omi-eval/release-step0-1-20261019.md` and `/Users/astar/omi-eval/release2-result-20261019.md` preserve evidence and limits; case IDs never enter public trackers. The fresh restart logs show abandoned-request recovery, not a clean drain. Both candidate and rollback configuration snapshots meet the application's nominal drain budget and use direct startup; no platform-setting root cause is established. Full A–E acceptance remains **2/21 complete**. The failed rollout adds no score points.
+The Apple Watch line was observed on the live page during the October 19 check, not freshly checked on October 23. The historical short reply's exact intermediate loss stage was not retained; shared synthetic reproductions are not historical proof. Private reports `/Users/astar/omi-eval/release-step0-1-20261019.md` and `/Users/astar/omi-eval/release2-result-20261019.md` preserve evidence and limits; case IDs never enter public trackers. The October 19 manual-Restart logs show abandoned-request recovery without clean-drain proof. The subsequent October 20 deployment-teardown check did complete the drain, as recorded above; do not confuse the two observations or infer a general platform root cause or exactly-once guarantee. Full A–E acceptance remains **2/21 complete**; the failed October 19 attempt adds no score points.
+
+</details>
 
 <details>
 <summary>Earlier checkpoints — historical; the status above controls</summary>

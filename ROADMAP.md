@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 23: finish existing work before adding drafts
+
+The [master plan](docs/SUPPORT_MASTER_PLAN.md) controls: finish #69 documentation and #73 test-only verification/review, resolve #68's existing comparison grade, then finish #75's actual multi-turn and quality verification. No new feature PRs ahead of this queue. Keep all other drafts, audit themes and safety gates; no merge, deployment, memory enablement or paid rerun follows from reprioritizing. Delivery score remains 46/100, not answer accuracy.
+
 ## October 23: answer audit becomes an integrated repair checklist
 
 All nine audit themes now map to existing A1/A2/A4/B2/E2 acceptance in `docs/ANSWER_QUALITY_CONTRACT.md`. Original scoring/evidence stays private; historical sample scores are not current overall accuracy. First isolated draft repairs customer-intent provenance and explicit correction handling using new synthetic fixtures. It preserves answer history, genuine personal actions and existing risk/delivery controls; no full-contract or generated-answer claim follows. Next are delivered-versus-accepted copy and diagnostic continuity, not more persona decoration. Existing #67/#68/#71 comparisons remain terminal with their recorded holds; reviews, memory/privacy, learning and later reliability work are preserved. No external audit forwarding, protected-input read, paid comparison, customer post, merge/deploy or enablement. Score remains 46/100.
@@ -38,7 +42,7 @@ Release retry remains accepted live on `13ead500` / GitHub `5bafe93`, optional c
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
-## Current — October 19 combined release
+## Historical — October 19 combined release, accepted retry October 20
 
 **October 20 retry complete, 22:20 IST:** all required rechecks pass: Spanish ordinary closure, private refund and the corrected same-commit deployment teardown. Live `13ead500` records GitHub `5bafe93` and matches the approved retry image; one running instance and healthy readiness, all optional controls off. Redeploy dispatch +11.737 s; old SIGTERM 22:18:32.077, reply 22:18:32.131, successful drain 22:18:32.335, replacement login 22:18:20.972; old instance observed removed 22:19:38.246 (66.169 s), stable one-reply proof by 22:20:12.231. No rollback/settings/permissions change. Earlier ordinary/low-risk smokes carry from identical runtime. First pre-dispatch punctuation rejection caused no rollout and is retained separately, with two red/seven green scope checks and 26 observer checks after the private helper repair. No further Discord posts needed. Score is 46/100 (+1 for reviewed #48 now verified live), full A–E 2/21; later draft/generated-answer/memory gates remain. Next is the approved synthetic and full #71 comparison against this deployed main, then separate #67/#68 comparisons.
 

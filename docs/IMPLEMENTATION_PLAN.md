@@ -2,7 +2,7 @@
 
 ## October 23 answer-quality priorities
 
-The [answer-quality repair checklist](ANSWER_QUALITY_CONTRACT.md) maps all nine audit themes to the existing A/B/E milestones. First: customer-authored current intent and explicit corrections (main-based draft, synthetic tests; not live). Next: truthful delivered-versus-accepted wording, then supplied-diagnostic continuity/non-repetition. Link relevance, log semantics, sync/deletion isolation, hardware families, circular redirects and humane case-stage copy remain open, not silently parked or claimed fixed. No raw audit/transcript is published. Required E2E/quality checks and independent review precede readiness; the current release/comparison/memory/learning gates remain intact. Delivery score stays 46/100, not answer accuracy.
+The [master plan](SUPPORT_MASTER_PLAN.md) controls the finish queue: complete existing #69/#73, resolve #68's independent comparison grade, then finish #75's required actual multi-turn/quality verification and review. Do not start another feature PR ahead of that queue. The [answer-quality repair checklist](ANSWER_QUALITY_CONTRACT.md) retains all nine audit themes in the existing A/B/E milestones. Customer-intent work is a synthetic-tested draft, not live; truthful delivery/acceptance wording, diagnostic continuity, link fit, log semantics, sync/deletion isolation, hardware families, non-circular routes and humane copy remain required. No raw audit/transcript is published. Current release/comparison/memory/learning gates remain intact. Delivery score stays 46/100, not answer accuracy.
 
 ## October 21: scoped forgetting draft, stacked on #49
 
@@ -23,7 +23,8 @@ The [answer-quality repair checklist](ANSWER_QUALITY_CONTRACT.md) maps all nine 
 
 - [x] Publish draft #73 `c2953f2` from main: existing guarded verifier now composes SQL storage/service and live-context reader against synthetic fixtures. Eight groups cover scope/role boundaries, uncached edits, reader recreation, deleted-reference outcome invalidation, off-switch forgetting, persistent opt-out/expiry and text-free rows before erasure.
 - [x] Local 839/offline8/PGlite pass. Real PostgreSQL plus Node 20/24 CI run `39546418506` passes at the exact head; its database log confirms all eight groups executed. Five in-memory faults are rejected while the baseline passes; runtime files stay untouched.
-- [ ] Obtain independent review. C1–C4 remain open: no enabled generated answers, full bot restart/pilot, processor/backup/security/notice approval or memory switch change is implied. Keep all earlier comparison and later learning/reliability gates intact; score remains 46/100.
+- [x] Independent review of #73 `c2953f2` found no actionable issues; exact-head PostgreSQL/Node 20/24 CI and execution of all eight groups were independently confirmed. October 23 fresh 839 tests, isolated SQL/reader baseline and five deliberate-fault checks pass without runtime edits or external calls. Record final readiness evidence in the PR.
+- [ ] C1–C4 remain open: no enabled generated answers, full bot restart/pilot, processor/backup/security/notice approval or memory switch change is implied. Keep all earlier comparison and later learning/reliability gates intact; score remains 46/100.
 
 ## October 21: separate redirect and planner comparisons
 
@@ -45,6 +46,11 @@ The [answer-quality repair checklist](ANSWER_QUALITY_CONTRACT.md) maps all nine 
 - [x] Read-only production recheck October 21: accepted `13ead500` / GitHub `5bafe93` remains healthy/latest/one instance; all optional controls off. No deploy/settings/permission/Discord writes.
 - [ ] Diagnose remote timeouts/transport failures before any rerun; existing logs do not prove whether patch, remote services or local scheduling explain the aggregate slowdown. Do not tune from protected cases.
 - [ ] Obtain independent per-case grading and clear the failed timing gate before any #71 merge/deploy. #70 review, #67/#68 comparisons, memory/pilot and remaining product checks retain their separate gates.
+
+<details>
+<summary>Historical implementation checkpoints — not the current work queue</summary>
+
+Unchecked steps and "not started" statements here describe their dated checkpoints. Later completion records above supersede them; they do not undo completed work or authorize reruns. Preserve the remaining release/security requirements after this archive.
 
 ## October 20: post-release multipart preparation — historical checkpoints
 
@@ -191,7 +197,11 @@ Deferred work has durable [GitHub issue links and resumption gates](SUPPORT_MAST
 
 Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. Reports 1–3 passed. The retained #43 release record has localization deployed at `dad2505`, but its live close/reopen smoke is still pending; this branch does not recheck production. The support-experience foundation below is a separate draft. Each runtime change needs regression checks and release verification. No cloud access grants accompany this work.
 
+</details>
+
 ## Release and security prerequisites
+
+The dated implementation evidence below does not authorize a new deployment or enablement. Remaining privacy, security, review and pilot prerequisites still apply; use the current master plan to distinguish completed code from open acceptance work.
 
 ### Release 2 bounded reader checkpoint — local checks pass
 
