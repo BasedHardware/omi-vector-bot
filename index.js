@@ -588,7 +588,7 @@ async function handleMessage(message) {
     console.error('[SupportRuntime] request coordination failed');
     // A lost lease means another copy or the recovery queue now owns this message
     // (expired leases nobody took are resumed), so this worker must not send.
-    if (err.message === 'support lease lost' || err.replyAlreadySent) return { status: 'failed' };
+    if (isLeaseLost(err) || err.replyAlreadySent) return { status: 'failed' };
     try {
       await message.reply({
         content: 'I am having trouble saving this support request. Please email help@omi.me so the team can receive it.',

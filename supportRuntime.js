@@ -16,7 +16,7 @@ function questionFingerprint(text) {
   return createHash('sha256').update(String(text || '').normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()).digest('hex');
 }
 
-function isLeaseLost(err) { return err?.message === 'support lease lost'; }
+function isLeaseLost(err) { return err?.message === 'support lease lost' || err?.code === 'SUPPORT_OWNERSHIP_UNKNOWN'; }
 
 async function initSchema(client) {
   await client.query(`
@@ -64,7 +64,7 @@ class PostgresRuntimeStore {
   }
   async defer(job) {
     await this.pool.query(`UPDATE support_message_claims SET state='queued',owner='queued',lease_until=NOW()
-      WHERE message_id=$1 AND owner=$2 AND state='processing'`, [job.messageId, job.owner]);
+      WHERE message_id=$1 AND owner=$2 AND state='processing' AND delivery_started=false`, [job.messageId, job.owner]);
     await this.release(job);
   }
   async queued(limit) {
@@ -205,7 +205,7 @@ class MemoryRuntimeStore {
   }
   async defer(job) {
     const value = this.messages.get(job.messageId);
-    if (value?.owner === job.owner && value.state === 'processing') Object.assign(value, { state: 'queued', owner: 'queued', until: this.now() });
+    if (value?.owner === job.owner && value.state === 'processing' && !value.deliveryStarted) Object.assign(value, { state: 'queued', owner: 'queued', until: this.now() });
     await this.release(job);
   }
   async queued(limit) { return [...this.messages.values()].filter((row) => row.state === 'queued').slice(0, limit).map(({ messageId, caseKey, fingerprint }) => ({ messageId, caseKey, fingerprint })); }
@@ -305,6 +305,7 @@ class SupportRuntime {
     this.waitMs = waitMs; this.heartbeatMs = heartbeatMs; this.log = log;
     this.running = 0; this.waiting = []; this.tasks = new Set(); this.jobs = new Map(); this.caseTails = new Map(); this.stopping = false; this.recovering = false;
     this.sweepMs = sweepMs; this.lastSweep = 0;
+    this.recoveryMessages = new Set();
   }
   run(input, work) {
     if (this.stopping) return Promise.resolve({ status: 'stopping' });
@@ -381,6 +382,13 @@ class SupportRuntime {
         err.replyAlreadySent = true;
         this.log('[SupportRuntime] completion uncertain after customer delivery');
         try { await this.store.release(job); } catch { this.log('[SupportRuntime] lease release failed'); }
+      } else if (job.claimed && err.code === 'SUPPORT_OWNERSHIP_UNKNOWN') {
+        // Requeue only the still-owned, definitely-unsent row. The SQL predicate
+        // also protects a delivery marker whose write committed but reply failed.
+        try {
+          if (job.deliveryMarked) await this.store.finish(job, 'uncertain');
+          else await this.store.defer(job);
+        } catch { this.log('[SupportRuntime] held request persistence unavailable; recovery remains fenced'); }
       } else if (job.claimed) {
         try { await this.store.finish(job, 'failed'); } catch { this.log('[SupportRuntime] completion persistence failed'); }
       }
@@ -414,11 +422,10 @@ class SupportRuntime {
         if (owned) job.deliveryMarked = true;
       }
     } catch (err) {
-      // Before work starts the caller still has an honest fallback reply. Once an
-      // answer exists, a possible duplicate is better than silence.
-      if (!job.started) throw err;
-      this.log(`[SupportRuntime] delivered without confirmed ownership message=${job.messageId}`);
-      return;
+      this.log(`[SupportRuntime] ownership unavailable; reply held message=${job.messageId}`);
+      const unavailable = new Error('support ownership unavailable');
+      unavailable.code = 'SUPPORT_OWNERSHIP_UNKNOWN';
+      throw unavailable;
     }
     if (!owned) {
       this.log(`[SupportRuntime] standing down message=${job.messageId}: another worker or the recovery queue owns it`);
@@ -428,9 +435,10 @@ class SupportRuntime {
   stopAccepting() { this.stopping = true; }
   async recoverQueued(handler) {
     if (this.stopping || this.recovering) return;
-    const available = this.concurrency + this.maxQueued - this.tasks.size;
+    const available = this.concurrency + this.maxQueued - this.tasks.size - this.recoveryMessages.size;
     if (available <= 0) return;
     this.recovering = true;
+    let pending = [];
     try {
       if (Date.now() - this.lastSweep >= this.sweepMs) {
         this.lastSweep = Date.now();
@@ -441,8 +449,16 @@ class SupportRuntime {
         }
       }
       const queued = await this.store.queued(Math.min(this.concurrency, available));
-      await Promise.all(queued.map(handler));
+      pending = queued.filter(input => !this.recoveryMessages.has(input.messageId)).map(input => {
+        this.recoveryMessages.add(input.messageId);
+        return Promise.resolve().then(() => handler(input))
+          .finally(() => this.recoveryMessages.delete(input.messageId));
+      });
     } finally { this.recovering = false; }
+    // Only serialize the scan/dispatch, not a customer's entire answer. Existing
+    // runtime tasks and the caller's tracked recovery keep shutdown accounting.
+    const results = await Promise.allSettled(pending);
+    if (results.some(result => result.status === 'rejected')) throw new Error('support recovery dispatch failed');
   }
   async drain(timeoutMs = 90_000) {
     this.stopAccepting();

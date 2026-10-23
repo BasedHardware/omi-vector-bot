@@ -405,6 +405,18 @@ function posts() {
   return githubCalls.filter((c) => c.method === 'POST');
 }
 
+test('an ownership outage at delivery cannot escape through a second unfenced fallback reply', async t => {
+  const owned = runtime.store.owned.bind(runtime.store);
+  let checks = 0;
+  t.mock.method(runtime.store, 'owned', async job => {
+    if (++checks > 1) throw new Error('synthetic ownership outage');
+    return owned(job);
+  });
+  const result = await ask('How do I rename an Omi conversation?');
+  assert.equal(result.message.replies.length, 0);
+  assert.equal(runtime.store.messages.get(result.message.id).state, 'queued');
+});
+
 for (const [language, question, expected] of [
   ['es', '¿Cómo comienzo una grabación desde el teléfono?', 'es'],
   ['hi', 'फोन से रिकॉर्डिंग कैसे शुरू करूँ?', 'hi-Deva'],

@@ -1,5 +1,12 @@
 # Omi Support Bot Implementation Checklist
 
+## October 23 finish queue
+
+- [x] Merge reviewed #69/#73/#49 safely; production unchanged.
+- [x] Repair #68 fallback-language metadata and final-review mismatch; current-head tests/CI and independent code review pass. Targeted generated-answer evidence remains before readiness.
+- [x] Reproduce #70 duplicate-send and blocked-sweep failures, then repair ownership-unknown deferral/no-replay and independent recovery dispatch in the existing PR.
+- [ ] Complete #70 final checks, real PostgreSQL two-worker failure/recovery evidence and independent review. Keep #29 receipts/held alerts and remaining queue explicit; no new PR or rollout.
+
 ## October 23 answer-quality priorities
 
 ### Finish every existing PR, without count-driven decisions

@@ -95,6 +95,69 @@ async function verifyEarlyPickup(pool, store, prefix) {
     await store.finish(race, 'answered');
     await store.discard(race);
   }
+  await verifyRuntimePickupFences(pool, prefix);
+}
+
+async function verifyRuntimePickupFences(pool, prefix) {
+  const gate = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
+  const oldStore = new runtime.PostgresRuntimeStore(pool);
+  const nextStore = new runtime.PostgresRuntimeStore(pool);
+  // Other verifier groups deliberately leave queued fixtures. Scope dispatch to
+  // this group's identifiers; claims, leases, fences and mutations use real SQL.
+  const pickupIds = new Set();
+  const queued = nextStore.queued.bind(nextStore);
+  nextStore.queued = async limit => (await queued(100)).filter(row => pickupIds.has(row.messageId)).slice(0, limit);
+  const old = new runtime.SupportRuntime({ store: oldStore, heartbeatMs: 1000000, log: () => {} });
+  const next = new runtime.SupportRuntime({ store: nextStore, heartbeatMs: 1000000, sweepMs: 0, log: () => {} });
+  const started = gate(), held = gate();
+  let unavailable = false, sends = 0;
+  const owned = oldStore.owned.bind(oldStore);
+  oldStore.owned = async job => { if (unavailable) throw new Error('synthetic old-worker partition'); return owned(job); };
+  const send = async () => { await runtime.assertCurrentOwnership(); sends++; runtime.markCurrentReplySent(); return true; };
+  const messageId = `${prefix}-two-worker-partition`;
+  pickupIds.add(messageId);
+  const pending = old.run({ messageId, caseKey: `${prefix}:partition-case`, fingerprint: null }, async () => {
+    started.release(); await held.promise; return send();
+  });
+  const settled = pending.then(value => ({ value }), error => ({ error }));
+  try {
+    await started.promise;
+    await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [messageId]);
+    await next.recoverQueued(input => next.run(input, send));
+    assert.equal(sends, 1);
+    unavailable = true; held.release();
+    assert.equal((await settled).error?.code, 'SUPPORT_OWNERSHIP_UNKNOWN');
+    assert.equal(sends, 1, 'old owner cannot send through its failed ownership read');
+    assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [messageId])).rows[0].state, 'answered');
+  } finally { held.release(); await settled; }
+
+  const slow = `${prefix}-recovery-slow`, orphan = {
+    messageId: `${prefix}-recovery-later`, caseKey: `${prefix}:recovery-later`, owner: `${prefix}-dead-worker`, fingerprint: null,
+  };
+  const began = gate(), resume = gate();
+  pickupIds.add(slow); pickupIds.add(orphan.messageId);
+  await nextStore.enqueue({ messageId: slow, caseKey: `${prefix}:recovery-slow`, fingerprint: null });
+  await nextStore.claim(orphan); await nextStore.acquire(orphan);
+  const handler = input => next.run(input, async () => {
+    if (input.messageId === slow) { began.release(); await resume.promise; }
+    return send();
+  });
+  const first = next.recoverQueued(handler);
+  try {
+    await began.promise;
+    await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [orphan.messageId]);
+    await next.recoverQueued(handler);
+    assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [orphan.messageId])).rows[0].state, 'answered');
+    assert.equal(next.running, 1, 'the first answer is still held while later recovery completes');
+  } finally { resume.release(); await first; }
+
+  const ambiguous = { messageId: `${prefix}-ambiguous-marker`, caseKey: `${prefix}:ambiguous-marker`, owner: `${prefix}-marker-owner`, fingerprint: null };
+  await nextStore.claim(ambiguous); await nextStore.acquire(ambiguous); await nextStore.markDelivering(ambiguous);
+  await nextStore.defer(ambiguous);
+  assert.equal((await pool.query('SELECT state,delivery_started FROM support_message_claims WHERE message_id=$1', [ambiguous.messageId])).rows[0].state, 'processing');
+  assert.ok(!(await nextStore.queued(100)).some(row => row.messageId === ambiguous.messageId));
+  await nextStore.finish(ambiguous, 'uncertain');
+  console.log('Early pickup two-worker SQL: partition fences, independent later sweep and ambiguous-marker no-replay passed');
 }
 
 async function verify(pool) {
