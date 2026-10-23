@@ -101,6 +101,15 @@ test('fallback review metadata controls source labels before final rendering and
   });
   assert.equal(fallback.safeHandoff, true);
   assert.equal(fallback.replyLanguage, 'en');
+  for (const code of [undefined, 'invalid']) {
+    const changed = await reviewAnswer({ question: '¿Dónde están los ajustes?', draft: 'Abre los ajustes.',
+      understanding: { replyLanguage: 'es' }, lane: 'faq', sources: evidence, includeReplyLanguage: true,
+      post: async () => ({ data: { choices: [{ message: { content: JSON.stringify({ final_answer: 'Open settings.',
+        grounded: true, relevant: true, sources_used: ['S1'], reply_language: code }) } }] } }),
+    });
+    assert.equal(changed.replyLanguage, 'en', 'missing final metadata must not inherit a different draft language');
+    assert.match(changed.final_answer, /Source: https:\/\/help.omi.me\/preferences/);
+  }
 });
 
 test('planned staff handoff tells both answer and review to keep the customer in this thread', async () => {

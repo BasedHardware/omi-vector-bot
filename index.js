@@ -911,7 +911,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             }
             const approved = approvedReview(checked);
             useReplyLanguage(approved || checked.safeHandoff
-              ? checked.replyLanguage || searchPlan.replyLanguage : 'en');
+              ? checked.replyLanguage : 'en');
             if (!approved) observeSupport(observer => observer.signal(channel, {
               eventId: `${message.id}-review`, kind: 'review_rejected', area: route.area,
             }, message.author.id));

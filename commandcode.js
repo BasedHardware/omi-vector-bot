@@ -694,7 +694,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   if (!content) throw new Error('CommandCode review was empty');
   const parsed = jsonObject(content);
   const replyLanguage = recoverLanguage
-    ? languageCode(parsed.reply_language) || languageCode(understanding?.replyLanguage) || 'en'
+    ? languageCode(parsed.reply_language) || 'en'
     : understanding.replyLanguage;
   const sourceIds = Array.isArray(parsed.sources_used)
     ? parsed.sources_used.map((value) => String(value)).slice(0, 4)

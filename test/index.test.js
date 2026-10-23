@@ -101,6 +101,7 @@ commandcode.reviewAnswer = async (args) => {
     relevant: hasDraft,
     confidence: hasDraft ? 0.9 : 0,
     escalate: !hasDraft,
+    ...(args.includeReplyLanguage ? { replyLanguage: args.understanding?.replyLanguage || 'en' } : {}),
   };
 };
 
