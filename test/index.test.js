@@ -417,7 +417,7 @@ test('an ownership outage at delivery cannot escape through a second unfenced fa
   assert.equal(runtime.store.messages.get(result.message.id).state, 'queued');
 });
 
-test('a generic repeat-check failure after takeover cannot send an unfenced coordination fallback', async t => {
+test('a generic pre-work failure after takeover sends only a status note, never a duplicate answer', async t => {
   const { SupportRuntime, assertCurrentOwnership, markCurrentReplySent } = require('../supportRuntime');
   let clock = Date.now(); t.mock.method(Date, 'now', () => clock);
   let begin, resume, block = true;
@@ -439,11 +439,14 @@ test('a generic repeat-check failure after takeover cannot send an unfenced coor
     }));
     assert.equal(message.replies.length, 1);
     resume(); await pending;
-    assert.equal(message.replies.length, 1);
+    assert.equal(message.replies.length, 2);
+    assert.equal(message.replies.filter(payload => /trouble saving this support request/.test(textOf(payload))).length, 1);
+    assert.equal(message.replies.filter(payload => /edit its title/.test(textOf(payload))).length, 1);
   } finally { resume(); await pending; }
 });
 
-test('a lost claim acknowledgement cannot authorize an unfenced fallback', async t => {
+test('a lost claim acknowledgement sends one honest note without authorizing an answer', async t => {
+  let clock = Date.now(); t.mock.method(Date, 'now', () => clock);
   const claim = runtime.store.claim.bind(runtime.store);
   let lose = true;
   t.mock.method(runtime.store, 'claim', async job => {
@@ -452,11 +455,56 @@ test('a lost claim acknowledgement cannot authorize an unfenced fallback', async
     return result;
   });
   const result = await ask('How do I change a conversation title in Omi?');
-  assert.equal(result.message.replies.length, 0);
+  assert.equal(result.message.replies.length, 1);
+  assert.match(result.reply, /trouble saving this support request/);
+  assert.equal(result.modelCalled, false);
   assert.equal(runtime.store.messages.get(result.message.id).state, 'processing');
+  assert.equal(runtime.store.messages.get(result.message.id).deliveryStarted, false);
+  clock += 45000;
+  await runtime.recoverQueued(input => input.messageId === result.message.id ? handleMessage(result.message) : undefined);
+  assert.equal(result.message.replies.length, 2, 'the later recovered answer may follow the status note');
+  assert.equal(result.message.replies.filter(payload => /trouble saving this support request/.test(textOf(payload))).length, 1);
+  assert.equal(runtime.store.messages.get(result.message.id).state, 'answered');
+  await runtime.recoverQueued(input => { assert.notEqual(input.messageId, result.message.id, 'answered request must not be replayed'); });
 });
 
-test('a transient pre-work coordinator error still sends one properly fenced honest fallback', async t => {
+test('a fully unavailable claim store still sends exactly one honest status note and no answer', async t => {
+  t.mock.method(runtime.store, 'claim', async () => { throw new Error('synthetic total claim outage'); });
+  const result = await ask('How can I rename a saved conversation?');
+  assert.equal(result.message.replies.length, 1);
+  assert.match(result.reply, /trouble saving this support request/);
+  assert.equal(result.modelCalled, false);
+  assert.equal(runtime.store.messages.has(result.message.id), false);
+  assert.deepEqual(result.message.replies[0].allowedMentions, { parse: [], repliedUser: false });
+});
+
+test('persistent pre-work failures do not repeat the outage note on automatic recovery sweeps', async t => {
+  const { recoverQueuedRequest } = require('../index');
+  let attempts = 0;
+  t.mock.method(runtime.store, 'repeated', async () => { attempts++; throw new Error('synthetic persistent read outage'); });
+  const result = await ask('Where can I change a saved conversation name?');
+  const queued = runtime.store.queued.bind(runtime.store);
+  t.mock.method(runtime.store, 'queued', async (limit, options) =>
+    (await queued(1000, options)).filter(input => input.messageId === result.message.id).slice(0, limit));
+  t.mock.method(client.channels, 'fetch', async () => ({ messages: { fetch: async () => result.message } }));
+  for (let sweep = 0; sweep < 2; sweep++) await runtime.recoverQueued(recoverQueuedRequest);
+  assert.equal(attempts, 3, 'both recovery sweeps retried the actual pre-work failure');
+  assert.equal(result.message.replies.length, 1);
+  assert.match(result.reply, /trouble saving this support request/);
+  assert.equal(runtime.store.messages.get(result.message.id).state, 'queued');
+  assert.equal(result.modelCalled, false);
+});
+
+test('duplicate intake during a total claim outage coalesces the fixed status note', async t => {
+  t.mock.method(runtime.store, 'claim', async () => { throw new Error('synthetic total claim outage'); });
+  const message = makeMessage('How do I update a saved conversation title?');
+  await Promise.all([handleMessage(message), handleMessage(message)]);
+  assert.equal(message.replies.length, 1);
+  assert.match(replyText(message), /trouble saving this support request/);
+  assert.equal(runtime.store.messages.has(message.id), false);
+});
+
+test('a transient pre-work error sends a note without retiring the recoverable unanswered request', async t => {
   const repeated = runtime.store.repeated.bind(runtime.store);
   let fail = true;
   t.mock.method(runtime.store, 'repeated', async job => {
@@ -467,8 +515,8 @@ test('a transient pre-work coordinator error still sends one properly fenced hon
   assert.equal(result.message.replies.length, 1);
   assert.match(result.reply, /trouble saving this support request/);
   const row = runtime.store.messages.get(result.message.id);
-  assert.equal(row.state, 'failed');
-  assert.equal(row.deliveryStarted, true, 'fallback passed the durable delivery fence');
+  assert.equal(row.state, 'queued');
+  assert.equal(row.deliveryStarted, false, 'status note is not a delivered answer');
 });
 
 for (const [language, question, expected] of [
