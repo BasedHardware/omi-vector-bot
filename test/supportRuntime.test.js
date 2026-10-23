@@ -170,16 +170,33 @@ test('a transient renewal failure does not drop the reply', async () => {
   assert.match(logs.join('\n'), /renewal failed; retrying/);
 });
 
-test('an unreachable database at send time delivers the finished answer instead of dropping it', async () => {
+test('an unreachable ownership store holds an unsent answer for safe recovery instead of guessing', async () => {
   const store = new MemoryRuntimeStore(); const logs = [];
   const runtime = new SupportRuntime({ store, log: (line) => logs.push(line) }); const counter = { sends: 0 };
   const pending = runtime.run(request('offline'), async () => {
     store.owned = async () => { throw new Error('db down'); };
     return sendOnce(counter)();
   });
-  assert.equal((await pending).status, 'answered');
-  assert.equal(counter.sends, 1);
-  assert.match(logs.join('\n'), /delivered without confirmed ownership message=offline/);
+  await assert.rejects(pending, error => error.code === 'SUPPORT_OWNERSHIP_UNKNOWN');
+  assert.equal(counter.sends, 0);
+  assert.equal(store.messages.get('offline').state, 'queued');
+  assert.match(logs.join('\n'), /ownership unavailable; reply held/);
+});
+
+test('a transient coordinator error before work leaves a recoverable unsent claim', async () => {
+  const store = new MemoryRuntimeStore(); const repeated = store.repeated.bind(store);
+  let fail = true, calls = 0;
+  store.repeated = async job => {
+    if (fail) { fail = false; throw new Error('synthetic pre-work failure'); }
+    return repeated(job);
+  };
+  const runtime = new SupportRuntime({ store, sweepMs: 0 });
+  await assert.rejects(runtime.run(request('before-work'), async () => { calls++; return true; }));
+  assert.equal(calls, 0);
+  assert.equal(store.messages.get('before-work').state, 'queued');
+  await runtime.recoverQueued(input => runtime.run(input, async () => { calls++; await assertCurrentOwnership(); markCurrentReplySent(); return true; }));
+  assert.equal(calls, 1);
+  assert.equal(store.messages.get('before-work').state, 'answered');
 });
 
 test('a request abandoned before any send is requeued and answered once by another copy', async () => {

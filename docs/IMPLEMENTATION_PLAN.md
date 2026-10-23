@@ -1,24 +1,57 @@
 # Omi Support Bot Implementation Checklist
 
-## October 21: scoped correction-link forgetting — separate stacked draft
+## October23 local integration — #74, not released
 
-- [x] Derive case server/forum metadata from configured post-owner scope, preserve existing cases and prevent known-scope rebinding. No text retention or guessed migration scope.
-- [x] Commit forum opt-out/memory erasure first, then remove verified correction links without changing facts or other owners/forums/servers. Fence late/new-case registry writes using the existing durable opt-out; mandatory cleanup retries opted-out links. Unknown legacy/orphan ownership and partial/error results never claim complete deletion.
-- [x] Restored work into a permanent checkout after temporary files disappeared. Nine focused checks include eight baseline failures; SQL baseline also fails. Local 887/offline8/PGlite pass, including 101-fact batching, command/service/SQL composition, preserved facts/other scopes, redundant-marker removal, late writes, concurrent writing, retry and legacy refusal.
-- [ ] Verify pushed exact-head Node 20/24/real PostgreSQL CI and obtain independent review. Parent #49, real ingestion/validator, legacy reconciliation, backup/data-use/security and enabled pilot gates remain; no merge/deploy or switch change. See [KNOWLEDGE_PRIVACY.md](KNOWLEDGE_PRIVACY.md). Score remains 46/100; no complete C/D item is claimed.
+- [x] Integrate released main6b6d97d without changing the reviewed owner/forum erasure semantics or the answer/recovery/provider controls. Resolve five document conflicts while preserving the dedicated privacy design and main's current requirements.
+- [x] Preserve owner-derived nullable case scope/non-rebinding, commit-before-ack opt-out, independent facts/other scopes, late/new-case writer fences, mandatory retry, bounds and strict legacy/orphan refusal. Original red-before evidence remains atdfc1398.
+- [x] Local916 tests/offline8/combinedSQL pass, including scoped privacy, retention, two-worker recovery and eight reference-reader groups. No customer data, protected file, provider call or production write.
+- [ ] After the pending release smokes, publish the integration for current-head CI and integration review before readiness. Original notice/privacy/security/backup/processor/pilot gates remain; do not enable memory from this preparation.
 
-## October 21: integrate the reviewed-fact draft and schedule mandatory expiry
+## October 23 finish queue
 
-- [x] Merge deployed main `5bafe93` into #49 with merge commit `141e718`. Preserve both reference-memory and language schemas/checks, existing availability fixes and the memory-off prompt guard. Integrated baseline: 869 unit tests and combined isolated SQL pass.
-- [x] Add tracked startup/minute cleanup independent of publication flags: 100 facts/1,000 expired barriers per batch, fresh-row locks, fixed failure metadata/retry and shutdown checks. Preserve reviewed fact content/status; active erasure barriers remain effective. Details: [KNOWLEDGE_RETENTION.md](KNOWLEDGE_RETENTION.md).
-- [x] Local 878/878, offline8 and isolated SQL pass. Nine new checks include seven observed red-before tests plus one outer-expiry-predicate red assertion; the extra stop-between-facts check is not claimed red-before. SQL verifies 100/3 batches, cross-guild expiry, idempotence, restart, active barriers, unchanged eligible facts, concurrent revocation and non-leaking statement timeout.
-- [ ] Verify pushed exact-head Node 20/24 and actual PostgreSQL CI; obtain independent review. Keep D1–D6 open: no actual validator, mistake grouping, review UI, privacy ownership adapter, nightly alerts or weekly scorecard yet. No publication/rollout/paid evaluation. Score remains 46/100.
+- [x] Merge reviewed #69/#73/#49 safely; production unchanged.
+- [x] Repair #68 fallback-language metadata and final-review mismatch; current-head tests/CI and independent code review pass. Targeted generated-answer evidence remains before readiness.
+- [x] Reproduce #70 duplicate-send and blocked-sweep failures, then repair ownership-unknown deferral/no-replay and independent recovery dispatch in the existing PR.
+- [ ] Complete #70 final checks, real PostgreSQL two-worker failure/recovery evidence and independent review. Keep #29 receipts/held alerts and remaining queue explicit; no new PR or rollout.
+
+## October 23 answer-quality priorities
+
+### Finish every existing PR, without count-driven decisions
+
+- [x] Audit all 13 open PRs, their exact heads/checks and dependency/conflict state. Preserve existing local #29 edits.
+- [x] Complete independent #69/#73 review and appropriate documentation/integration verification; no bot deployment or memory enablement required for those scopes.
+- [x] Independently review #68's full existing output package: timing passes; no new protected-handoff miss or clipped item found; language fallback and factual-quality disposition remain open. Keep draft.
+- [x] Independently review #70 and reproduce duplicate-delivery/recovery-loop gaps with synthetic workers. Keep draft; existing green checks do not cover these failures.
+- [x] Independently review #49 as a disabled foundation under the updated risk-based policy: no actionable findings, focused/isolated SQL/exact-head hosted PostgreSQL pass. Separate unfinished enablement gates remain.
+- [x] Complete #74's disabled-foundation privacy review: no actionable findings, fresh 76 affected tests/isolated SQL pass and exact-head real PostgreSQL execution confirmed. Parent integration/current-head checks still precede merge; enablement remains separately gated.
+- [ ] Continue the remaining reviews serially. Correct actual findings in existing PRs; merge verified useful work or close obsolete/duplicated work with durable rationale, never simply to lower the count.
+- [ ] Verify that main merges cannot trigger an unapproved deployment. Current Railway branch lookup/CLI session cannot establish an explicit OFF state; no settings or deployment changes made.
+
+The [master plan](SUPPORT_MASTER_PLAN.md) controls the finish-existing queue and all nine [answer-quality themes](ANSWER_QUALITY_CONTRACT.md). #68's independent grade is now HOLD, so its fallback gap needs repair; #70 also has reproduced recovery/delivery findings. Finish existing PRs with risk-appropriate verification and review, not new feature drafts. Customer-intent work #75 is not live; all remaining ownership, diagnostic, source, safety, hardware/surface and humane-copy requirements remain. No raw audit/transcript is published or release/privacy gate waived. Score 47/100 records milestone 18's independent foundation review only, not answer accuracy or enablement.
+
+## October 21: scoped forgetting draft, stacked on #49
+
+- [x] Publish draft #74 `dfc1398` from #49 `3f83024`, keeping the parent review head separate. Store only additive case server/forum metadata from current configured-post owner scope; preserve known scope and existing case state.
+- [x] Persist forum memory erasure/opt-out first, then remove verified correction links/extra owned markers. Preserve facts and other scopes; fence late/new-case references and let mandatory cleanup retry scoped opted-out links. Unknown legacy/post/orphan scope and partial/error results never confirm complete deletion.
+- [x] Restore interrupted uncommitted work into a permanent workspace and rerun evidence: local 887/offline8/PGlite pass. Nine new tests include eight observed baseline failures; SQL baseline and additional strict-scope/orphan-marker regressions fail before repair. SQL covers 101-fact batching, real memory-command/service/store composition, new/late/concurrent writers, retry, idempotence and legacy refusal.
+- [x] Exact-head Node 20/24/real PostgreSQL CI `39554963703` passes. The database log confirms the new privacy checks ran at `dfc1398`; PGlite alone is not claimed as multi-connection proof.
+- [x] Parent/child disabled-foundation review completed October 23 with no actionable findings; current review evidence is recorded above. This supersedes the October 21 review-pending checkpoint.
+- [ ] Resolve remaining legacy/privacy/security/backup/data-use/pilot gates. Real ingestion/validator, signals/UI and nightly/weekly jobs remain unfinished. No provider/protected run, main merge, deploy or enablement. Current score is 47/100 for #49's foundation review only; full acceptance 2/21.
+
+## October 21: reviewed-fact draft integration and mandatory retention
+
+- [x] Merge deployed main `5bafe93` into existing draft #49 as `141e718`, preserving reference-only memory, closing-language schema/checks and the off-only prompt guard. Integrated baseline 869 tests/isolated SQL pass.
+- [x] Push `3f83024`: mandatory tracked startup/minute expiry, at most 100 facts/1,000 expired barriers per pass, active-barrier protection, fresh-row locking, fixed failure retry and shutdown checks. Approved facts and concurrent revocation survive; optional publication stays off. Transaction-local server deadlines are not a whole-operation/network guarantee.
+- [x] Local 878/offline8/PGlite and exact-head hosted Node 20/24/real PostgreSQL run `39549961373` pass; the database log confirms global batching/restart/active-barrier/concurrent-revocation checks ran. Nine new focused checks include eight observed red assertions; static wiring/query assertions are not live tests.
+- [x] Independent review of #49's disabled foundation completed October 23; focused/SQL/hosted evidence is recorded above. No daily-inbox or enablement approval follows.
+- [ ] Remaining D1–D6 implementation: real official-evidence/regression validator, minimized owner-scoped signals/drafts, staff controls, ownership-verified privacy adapter integration, nightly alerts and weekly counts. No new comparison, fact publication, merge to main, deploy or enablement; current score 47/100, acceptance 2/21.
 
 ## October 21: test-only memory SQL/reader preparation
 
 - [x] Publish draft #73 `c2953f2` from main: existing guarded verifier now composes SQL storage/service and live-context reader against synthetic fixtures. Eight groups cover scope/role boundaries, uncached edits, reader recreation, deleted-reference outcome invalidation, off-switch forgetting, persistent opt-out/expiry and text-free rows before erasure.
 - [x] Local 839/offline8/PGlite pass. Real PostgreSQL plus Node 20/24 CI run `39546418506` passes at the exact head; its database log confirms all eight groups executed. Five in-memory faults are rejected while the baseline passes; runtime files stay untouched.
-- [ ] Obtain independent review. C1–C4 remain open: no enabled generated answers, full bot restart/pilot, processor/backup/security/notice approval or memory switch change is implied. Keep all earlier comparison and later learning/reliability gates intact; score remains 46/100.
+- [x] Independent review of #73 `c2953f2` found no actionable issues; exact-head PostgreSQL/Node 20/24 CI and execution of all eight groups were independently confirmed. October 23 fresh 839 tests, isolated SQL/reader baseline and five deliberate-fault checks pass without runtime edits or external calls. Record final readiness evidence in the PR.
+- [ ] C1–C4 remain open: no enabled generated answers, full bot restart/pilot, processor/backup/security/notice approval or memory switch change is implied. Keep all earlier comparison and later learning/reliability gates intact; score remains 46/100.
 
 ## October 21: separate redirect and planner comparisons
 
@@ -40,6 +73,11 @@
 - [x] Read-only production recheck October 21: accepted `13ead500` / GitHub `5bafe93` remains healthy/latest/one instance; all optional controls off. No deploy/settings/permission/Discord writes.
 - [ ] Diagnose remote timeouts/transport failures before any rerun; existing logs do not prove whether patch, remote services or local scheduling explain the aggregate slowdown. Do not tune from protected cases.
 - [ ] Obtain independent per-case grading and clear the failed timing gate before any #71 merge/deploy. #70 review, #67/#68 comparisons, memory/pilot and remaining product checks retain their separate gates.
+
+<details>
+<summary>Historical implementation checkpoints — not the current work queue</summary>
+
+Unchecked steps and "not started" statements here describe their dated checkpoints. Later completion records above supersede them; they do not undo completed work or authorize reruns. Preserve the remaining release/security requirements after this archive.
 
 ## October 20: post-release multipart preparation — historical checkpoints
 
@@ -186,7 +224,11 @@ Deferred work has durable [GitHub issue links and resumption gates](SUPPORT_MAST
 
 Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. Reports 1–3 passed. The retained #43 release record has localization deployed at `dad2505`, but its live close/reopen smoke is still pending; this branch does not recheck production. The support-experience foundation below is a separate draft. Each runtime change needs regression checks and release verification. No cloud access grants accompany this work.
 
+</details>
+
 ## Release and security prerequisites
+
+The dated implementation evidence below does not authorize a new deployment or enablement. Remaining privacy, security, review and pilot prerequisites still apply; use the current master plan to distinguish completed code from open acceptance work.
 
 ### Release 2 bounded reader checkpoint — local checks pass
 

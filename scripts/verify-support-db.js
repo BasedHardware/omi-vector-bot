@@ -11,6 +11,7 @@ const { createObserver } = require('../supportLearning');
 const knowledge = require('../knowledge');
 const reviewedStore = require('../knowledgeReviewStore');
 const threadLanguage = require('../supportThreadLanguage');
+const { verifyMemoryContext } = require('./verify-memory-context');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -38,6 +39,157 @@ async function isolatedPool() {
   }
   const { Pool } = require('pg');
   return new Pool({ connectionString: raw, max: 6 });
+}
+
+async function verifyEarlyPickup(pool, store, prefix) {
+  const make = suffix => ({ messageId: `${prefix}-heartbeat-${suffix}`, caseKey: `${prefix}:heartbeat-${suffix}`,
+    owner: `${prefix}-heartbeat-owner-${suffix}`, fingerprint: null });
+  const columns = (await pool.query(`SELECT column_name FROM information_schema.columns
+    WHERE table_name='support_message_claims'`)).rows.map(row => row.column_name);
+  assert.ok(columns.includes('heartbeat_at') && columns.includes('heartbeat_owner'));
+  const dead = make('dead'), live = make('live');
+  for (const job of [dead, live]) {
+    assert.equal(await store.claim(job), true); assert.equal(await store.acquire(job), true);
+  }
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '30 seconds' WHERE message_id=$1", [live.messageId]);
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [dead.messageId]);
+  const recovered = await store.abandoned();
+  assert.ok(recovered.some(row => row.messageId === dead.messageId && row.state === 'queued'));
+  assert.ok(!recovered.some(row => row.messageId === live.messageId));
+  assert.equal(await store.owned(live), true, 'unrelated live capacity remains owned');
+  assert.equal(await store.owned(dead), false); assert.equal(await store.markDelivering(dead), false);
+  const replacement = { ...dead, owner: `${prefix}-heartbeat-replacement`, slot: undefined };
+  assert.equal(await store.claim(replacement), true);
+  assert.equal(await store.acquire(replacement), true, 'old case/slot leases were released atomically');
+  assert.equal(await store.reclaim(dead), false);
+  await store.finish(replacement, 'answered'); await store.finish(live, 'answered');
+
+  const legacy = make('legacy');
+  assert.equal(await store.claim(legacy), true);
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds', heartbeat_owner=$2 WHERE message_id=$1",
+    [legacy.messageId, `${prefix}-different-generation`]);
+  assert.ok(!(await store.abandoned()).some(row => row.messageId === legacy.messageId));
+  await store.finish(legacy, 'ignored');
+
+  const delivering = make('delivering');
+  assert.equal(await store.claim(delivering), true); assert.equal(await store.acquire(delivering), true);
+  assert.equal(await store.markDelivering(delivering), true);
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [delivering.messageId]);
+  assert.ok(!(await store.abandoned()).some(row => row.messageId === delivering.messageId));
+  assert.ok(!(await store.queued(100)).some(row => row.messageId === delivering.messageId));
+  await store.finish(delivering, 'answered');
+
+  // Either the delivery marker or recovery wins the row lock, never both.
+  for (const deliveryFirst of [true, false]) {
+    const race = make(`race-${deliveryFirst}`);
+    assert.equal(await store.claim(race), true); assert.equal(await store.acquire(race), true);
+    await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [race.messageId]);
+    const actions = deliveryFirst
+      ? [store.markDelivering(race), store.abandoned()]
+      : [store.abandoned(), store.markDelivering(race)];
+    const results = await Promise.all(actions);
+    const started = results[deliveryFirst ? 0 : 1], swept = results[deliveryFirst ? 1 : 0];
+    assert.equal(started && swept.some(row => row.messageId === race.messageId && row.state === 'queued'), false);
+    const row = (await pool.query('SELECT state,delivery_started FROM support_message_claims WHERE message_id=$1', [race.messageId])).rows[0];
+    assert.equal(row.state === 'queued' && row.delivery_started, false);
+    await store.finish(race, 'answered');
+    await store.discard(race);
+  }
+  await verifyRuntimePickupFences(pool, prefix);
+}
+
+async function verifyRuntimePickupFences(pool, prefix) {
+  const gate = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
+  const oldStore = new runtime.PostgresRuntimeStore(pool);
+  const nextStore = new runtime.PostgresRuntimeStore(pool);
+  // Other verifier groups deliberately leave queued fixtures. Scope dispatch to
+  // this group's identifiers; claims, leases, fences and mutations use real SQL.
+  const pickupIds = new Set();
+  const queued = nextStore.queued.bind(nextStore);
+  nextStore.queued = async (limit, options) => (await queued(100, options)).filter(row => pickupIds.has(row.messageId)).slice(0, limit);
+  const old = new runtime.SupportRuntime({ store: oldStore, heartbeatMs: 1000000, log: () => {} });
+  const next = new runtime.SupportRuntime({ store: nextStore, heartbeatMs: 1000000, sweepMs: 0, log: () => {} });
+  const started = gate(), held = gate();
+  let unavailable = false, sends = 0;
+  const owned = oldStore.owned.bind(oldStore);
+  oldStore.owned = async job => { if (unavailable) throw new Error('synthetic old-worker partition'); return owned(job); };
+  const send = async () => { await runtime.assertCurrentOwnership(); sends++; runtime.markCurrentReplySent(); return true; };
+  const messageId = `${prefix}-two-worker-partition`;
+  pickupIds.add(messageId);
+  const pending = old.run({ messageId, caseKey: `${prefix}:partition-case`, fingerprint: null }, async () => {
+    started.release(); await held.promise; return send();
+  });
+  const settled = pending.then(value => ({ value }), error => ({ error }));
+  try {
+    await started.promise;
+    await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [messageId]);
+    await next.recoverQueued(input => next.run(input, send));
+    assert.equal(sends, 1);
+    unavailable = true; held.release();
+    assert.equal((await settled).error?.code, 'SUPPORT_OWNERSHIP_UNKNOWN');
+    assert.equal(sends, 1, 'old owner cannot send through its failed ownership read');
+    assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [messageId])).rows[0].state, 'answered');
+  } finally { held.release(); await settled; }
+
+  const slow = `${prefix}-recovery-slow`, orphan = {
+    messageId: `${prefix}-recovery-later`, caseKey: `${prefix}:recovery-later`, owner: `${prefix}-dead-worker`, fingerprint: null,
+  };
+  const began = gate(), resume = gate();
+  pickupIds.add(slow); pickupIds.add(orphan.messageId);
+  await nextStore.enqueue({ messageId: slow, caseKey: `${prefix}:recovery-slow`, fingerprint: null });
+  await nextStore.claim(orphan); await nextStore.acquire(orphan);
+  const handler = input => next.run(input, async () => {
+    if (input.messageId === slow) { began.release(); await resume.promise; }
+    return send();
+  });
+  const first = next.recoverQueued(handler);
+  try {
+    await began.promise;
+    await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [orphan.messageId]);
+    await next.recoverQueued(handler);
+    assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [orphan.messageId])).rows[0].state, 'answered');
+    assert.equal(next.running, 1, 'the first answer is still held while later recovery completes');
+  } finally { resume.release(); await first; }
+
+  const ambiguous = { messageId: `${prefix}-ambiguous-marker`, caseKey: `${prefix}:ambiguous-marker`, owner: `${prefix}-marker-owner`, fingerprint: null };
+  await nextStore.claim(ambiguous); await nextStore.acquire(ambiguous); await nextStore.markDelivering(ambiguous);
+  await nextStore.defer(ambiguous);
+  assert.equal((await pool.query('SELECT state,delivery_started FROM support_message_claims WHERE message_id=$1', [ambiguous.messageId])).rows[0].state, 'processing');
+  assert.ok(!(await nextStore.queued(100)).some(row => row.messageId === ambiguous.messageId));
+  await nextStore.finish(ambiguous, 'uncertain');
+
+  // Exclusions must apply before LIMIT, even with earlier still-queued fetches.
+  const heldIds = ['a', 'b', 'c'].map(suffix => `${prefix}-000-held-${suffix}`);
+  const laterId = `${prefix}-999-later`;
+  for (const id of [...heldIds, laterId]) await nextStore.enqueue({ messageId: id, caseKey: `${prefix}:${id}`, fingerprint: null });
+  const ordered = await queued(100);
+  const limit = ordered.findIndex(row => row.messageId === laterId) - heldIds.length + 1;
+  assert.ok((await queued(limit, { exclude: heldIds })).some(row => row.messageId === laterId), 'SQL excludes in-flight rows before applying the dispatch limit');
+  for (const id of [...heldIds, laterId]) await nextStore.discard({ messageId: id });
+
+  const lostAck = `${prefix}-lost-claim-ack`;
+  pickupIds.add(lostAck);
+  const claim = oldStore.claim.bind(oldStore);
+  oldStore.claim = async job => { await claim(job); throw new Error('synthetic lost claim acknowledgement'); };
+  await assert.rejects(old.run({ messageId: lostAck, caseKey: `${prefix}:lost-ack`, fingerprint: null }, send));
+  assert.equal((await next.run({ messageId: lostAck, caseKey: `${prefix}:lost-ack`, fingerprint: null }, send)).status, 'duplicate');
+  const before = sends;
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [lostAck]);
+  await next.recoverQueued(input => next.run(input, send));
+  assert.equal(sends, before + 1, 'lost claim acknowledgement is recovered once, not sent as an unfenced note');
+  const transient = `${prefix}-transient-pre-work`;
+  pickupIds.add(transient);
+  const repeated = nextStore.repeated.bind(nextStore);
+  let fail = true;
+  nextStore.repeated = async job => {
+    if (fail) { fail = false; throw new Error('synthetic transient coordinator failure'); }
+    return repeated(job);
+  };
+  await assert.rejects(next.run({ messageId: transient, caseKey: `${prefix}:transient`, fingerprint: null }, send));
+  assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [transient])).rows[0].state, 'queued');
+  await next.recoverQueued(input => next.run(input, send));
+  assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [transient])).rows[0].state, 'answered');
+  console.log('Early pickup two-worker SQL: partition fences, independent sweeps, queue-limit exclusion, transient/lost-ack recovery and ambiguous-marker no-replay passed');
 }
 
 async function verify(pool) {
@@ -168,6 +320,8 @@ async function verify(pool) {
   assert.ok(sweptLater.some((item) => item.messageId === partial.messageId && item.state === 'uncertain'));
   assert.equal(await store.reclaim(partial), false);
   await store.finish(local, 'answered');
+
+  await verifyEarlyPickup(pool, store, prefix);
 
   const service = cases.createCaseService(cases.createPostgresStore(pool));
   const aliceInput = { channelId: `${prefix}-general`, customerId: `${prefix}-alice`, context: { area: 'app', summary: 'private content must not persist' } };
@@ -322,6 +476,9 @@ async function verify(pool) {
   assert.equal(await forumSaving, false);
   assert.equal(await journalRestart.signal({ ...forumScope, eventId: `${prefix}-delayed-signal`, kind: 'needs_help' }), false);
   assert.deepEqual(await journalRestart.otherThreads(forumScope), []);
+  const contextChecks = await verifyMemoryContext(pool, `${prefix}-reader`);
+  assert.equal(contextChecks.length, 8);
+  console.log('Support memory SQL/live-reader rehearsal: 8 synthetic scenario groups passed; no Discord/provider calls');
   console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, reference-only memory, forum erasure, edit/delete races, revocation and text-free thread languages passed');
 
 }

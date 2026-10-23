@@ -30,6 +30,27 @@ function providerHeaders(provider) {
   };
 }
 
+// axios's `timeout` only guards until response headers arrive; afterwards it
+// relies on socket inactivity, so a body that keeps trickling can run far past
+// the configured budget. The abort signal bounds the whole operation,
+// including body consumption, and surfaces as the same timeout error shape
+// callers already handle.
+function providerSend(send, provider) {
+  return async (url, body) => {
+    const signal = AbortSignal.timeout(provider.timeout);
+    try {
+      return await send(url, body, { timeout: provider.timeout, signal, headers: providerHeaders(provider) });
+    } catch (err) {
+      if (signal.aborted && err?.response === undefined) {
+        const timeoutError = new Error(`timeout of ${provider.timeout}ms exceeded`);
+        timeoutError.code = 'ECONNABORTED';
+        throw timeoutError;
+      }
+      throw err;
+    }
+  };
+}
+
 function privateProviderBody(body) {
   const messages = [...(body.messages || [])];
   // Keep policy clarifications at system priority without changing the
@@ -421,7 +442,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en', { subQu
 async function understandQuestion({ question, threadHistory = [], route, onUsage, post }) {
   const provider = providerConfig();
   if (!provider.key) throw new Error('Missing CMD_API_KEY');
-  const send = post || axios.post.bind(axios);
+  const send = providerSend(post || axios.post.bind(axios), provider);
   const history = modelThread(splitHistory(threadHistory).current)
     .map((item) => `${item.author}: ${item.content}`)
     .join('\n')
@@ -459,11 +480,7 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
           content: `Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,
         },
       ],
-    }),
-    {
-      timeout: provider.timeout,
-      headers: providerHeaders(provider),
-    }
+    })
   );
   recordModelUsage(data, 'planner', provider.model, onUsage);
   const content = data?.choices?.[0]?.message?.content;
@@ -491,7 +508,7 @@ async function queryAgent({
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const send = post || axios.post.bind(axios);
+      const send = providerSend(post || axios.post.bind(axios), provider);
       const { data } = await send(
         provider.url,
         privateProviderBody({
@@ -512,11 +529,7 @@ async function queryAgent({
               }),
             },
           ],
-        }),
-        {
-          timeout: provider.timeout,
-          headers: providerHeaders(provider),
-        }
+        })
       );
       recordModelUsage(data, 'answer', provider.model, onUsage);
 
@@ -624,7 +637,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
       answered_requirements: [],
     };
   }
-  const send = post || axios.post.bind(axios);
+  const send = providerSend(post || axios.post.bind(axios), provider);
   const citationLimit = normalizeSubQuestions(understanding?.subQuestions).length > 3 ? 4 : 2;
   const separatedHistory = splitHistory(threadHistory);
   const earlierContext = previousContextBlock(separatedHistory.previous);
@@ -664,11 +677,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
           )}\n\nSource pages:\n${String(sources || '').slice(0, compact ? 6000 : 10000)}`,
         },
       ],
-    }),
-    {
-      timeout: provider.timeout,
-      headers: providerHeaders(provider),
-    }
+    })
       ));
       recordModelUsage(data, 'review', provider.reviewModel, onUsage);
       if (data?.choices?.[0]?.message?.content) break;
