@@ -75,6 +75,17 @@ const KNOWLEDGE_REFRESH_MS = 6 * 60 * 60 * 1000;
 const telegramReady = Boolean(process.env.TELEGRAM_TOKEN && process.env.TELEGRAM_CHAT_ID);
 const dbReady = Boolean(process.env.DATABASE_URL);
 const runtime = new SupportRuntime({ store: dbReady ? new PostgresRuntimeStore(db.pool) : new MemoryRuntimeStore() });
+// Cosmetic status-note suppression only, never an answer claim or DB fallback.
+// Background recovery never repeats intake notes, including after a restart.
+const outageNoteAttempts = new Map();
+function attemptOutageNote(messageId) {
+  const now = Date.now();
+  for (const [id, at] of outageNoteAttempts) if (now - at >= 24 * 60 * 60_000) outageNoteAttempts.delete(id);
+  if (outageNoteAttempts.has(messageId)) return false;
+  outageNoteAttempts.set(messageId, now);
+  if (outageNoteAttempts.size > 1000) outageNoteAttempts.delete(outageNoteAttempts.keys().next().value);
+  return true;
+}
 let coordinationReady = !dbReady;
 let httpServer;
 let shutdownPromise;
@@ -83,6 +94,8 @@ let caseCardTimer;
 let unsubscribeCaseCards;
 let supportMemoryTimer;
 let threadLanguageTimer;
+let knowledgeCleanup;
+const { createKnowledgeCleanup } = require('./knowledgeCleanup');
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
 const botReplyOwners = new Map();
@@ -433,10 +446,10 @@ async function getHistory(channel, excludeId, customerId) {
   return clipThreadHistory(entries);
 }
 
-async function searchKnowledge(question) {
+async function searchKnowledge(question, guildId) {
   // Legacy database notes have no author/provenance field, so do not expose
   // them to the model until they can be reviewed or migrated.
-  return knowledge.search(question);
+  return knowledge.searchForAnswers(question, { guildId });
 }
 
 async function handleFaqSave(message) {
@@ -536,7 +549,7 @@ function redactStaffQuestion(text) {
   return s.replace(/§(\d+)§/g, (_, i) => orders[Number(i)] || '');
 }
 
-async function handleMessage(message) {
+async function handleMessage(message, { recovery = false } = {}) {
   if (runtime.stopping || !coordinationReady) return { status: 'stopping' };
   // Observe quiet staff/customer continuations too, without making them reply
   // triggers. The observer independently enforces its approved forum boundary.
@@ -572,12 +585,15 @@ async function handleMessage(message) {
     console.log(`[Bot] Cooldown active for ${channel.id}, skipping`);
     return { status: 'ignored' };
   }
+  const input = {
+    messageId: message.id,
+    caseKey: replyCooldownKey,
+    fingerprint: channel.isThread?.() ? questionFingerprint(message.content) : null,
+  };
+  let workStarted = false;
   try {
-    return await runtime.run({
-      messageId: message.id,
-      caseKey: replyCooldownKey,
-      fingerprint: channel.isThread?.() ? questionFingerprint(message.content) : null,
-    }, () => {
+    return await runtime.run(input, () => {
+      workStarted = true;
       // A concurrently queued ordinary-channel question must observe the
       // reply cooldown established by the preceding job, not its arrival time.
       if (!directHistory.length && !isTestChannel(channel) && !channel.isThread?.() && isOnCooldown(replyCooldownKey)) return false;
@@ -585,15 +601,18 @@ async function handleMessage(message) {
     });
   } catch (err) {
     console.error('[SupportRuntime] request coordination failed');
-    // A lost lease means another copy or the recovery queue now owns this message
-    // (expired leases nobody took are resumed), so this worker must not send.
-    if (err.message === 'support lease lost' || err.replyAlreadySent) return { status: 'failed' };
+    // Answers and uncertain sends always keep their ownership fence. A fixed
+    // pre-work outage note is not an answer or proof that the request was saved.
+    if (workStarted || err.replyAlreadySent || err?.message === 'support lease lost' || recovery ||
+        !attemptOutageNote(message.id)) return { status: 'failed' };
     try {
+      // Do not require the unavailable database to report its own outage, and
+      // never retire a recoverable claim because this informational note sent.
       await message.reply({
         content: 'I am having trouble saving this support request. Please email help@omi.me so the team can receive it.',
         allowedMentions: { parse: [], repliedUser: false },
       });
-    } catch { console.error('[SupportRuntime] fallback delivery failed'); }
+    } catch { console.error('[SupportRuntime] outage note delivery unavailable'); }
     return { status: 'failed' };
   }
 }
@@ -609,7 +628,7 @@ async function recoverQueuedRequest(input) {
         await runtime.store.discard(input); return;
       }
     }
-    const result = await handleMessage(message);
+    const result = await handleMessage(message, { recovery: true });
     if (['ignored', 'duplicate'].includes(result?.status)) await runtime.store.discard(input);
   } catch (err) {
     if ([10003, 10008, 50001, 50013].includes(Number(err.code))) await runtime.store.discard(input);
@@ -796,7 +815,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
 
     if (!skipModel) {
-      const knowledgeSnippets = await searchKnowledge(caseQuestion);
+      const knowledgeSnippets = await searchKnowledge(caseQuestion, channel.guild?.id || channel.guildId || message.guildId);
       threadHistory = contextHistory;
       snippets = knowledge.filterSnippetsForLane(
         shopify.filterKnowledge(knowledgeSnippets),
@@ -1404,6 +1423,11 @@ async function start() {
   if (dbReady) {
     try {
       await db.initSchema();
+      knowledgeCleanup = createKnowledgeCleanup({
+        store: require('./knowledgeReviewStore').createPostgresStore(db.pool),
+        track: operation => runtime.track(operation), stopping: () => runtime.stopping,
+      });
+      knowledgeCleanup.start();
       await require('./supportIdentityStore').getStore().pruneExpired();
       coordinationReady = true;
       await github.hydrateIssueThreads();
@@ -1436,6 +1460,7 @@ async function shutdown(signal) {
   shutdownPromise = (async () => {
     console.log(`[Bot] Received ${signal}, draining replies...`);
     runtime.stopAccepting();
+    knowledgeCleanup?.stop();
     clearInterval(recoveryTimer);
     clearInterval(caseCardTimer);
     clearInterval(supportMemoryTimer);
@@ -1465,4 +1490,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, client, handleMessage, shouldHandle, runtime, keepTyping };
+module.exports = { app, client, handleMessage, recoverQueuedRequest, shouldHandle, runtime, keepTyping };
