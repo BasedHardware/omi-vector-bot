@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## Current October23 — merged foundations, multipart gate next
+
+#67 merged94e4f57 and #74 mergedd108e1a after exact-head Node20/24/PostgreSQL CI and independent review; neither is deployed. Live6a815fbf still runs6b6d97d, with all optional capabilities off and all three reliability smokes accepted. #71 integrates current maind108e1a by merge commits.970 tests/offline8 pass; independent134 focused checks and a narrow final integration review pass. Four deterministic fetch-contract checks pass on candidate and frozen main, and reject six deliberate faults. Two additional general evidence losses are repaired: required chunks precede optional shared-page filler, and three distinct required chunks on one page survive the multipart formatter. Overall limits remain8 chunks/9,000 characters/4 pages; ordinary per-page defaults remain unchanged. Hosted checks and the fresh simultaneous81×2 comparison/grade remain required. The named provider-deadline fixture flake has a separate test-only repair in review; no new feature PR, code deploy or memory enablement. Score47/100. Older checkpoints below are historical.
+
 ## Current October23 — smoke passed, approved merges resume
 
 All three reliability checks pass: sourced English answer without handoff; one private refund card; same-commit Redeploy with clean drain, one post-SIGTERM reply and old instance observed removed after69.197s, stable30s. Live6a815fbf records unchanged6b6d97d; rollback458d4a6f, optional features off. #67 merged94e4f57 after the auto-deploy-off guard. #74 integration7860417 preserves reviewed privacy/#67 code;952/offline8/SQL and independent298-check review pass. Final hosted CI precedes its approved merge; no new-code deploy or memory enablement. #71's guard/shared-page repair and fair concurrent-arm comparison remain. The named timing test is reproduced by withholding loopback progress; its separate test-only fix stays queued. Score47/100.

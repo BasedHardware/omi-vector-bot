@@ -1,5 +1,15 @@
 # Omi Support Bot Implementation Checklist
 
+## October23 current verification — #71
+
+- [x] Integrate maind108e1a with merge commits, retaining #76/#70 provider/recovery changes and #67/#74 disabled foundations. #67/#74 are merged, not deployed; live6a815fbf remains6b6d97d and optional controls stay off.
+- [x] Preserve all required per-part chunks ahead of alternate/filler chunks, including three required chunks sharing one page. Observed-red regressions pass with unchanged overall8 chunks/9,000 characters/4 pages and ordinary formatting defaults.
+- [x] Four deterministic live/stored fetch-contract tests pass candidate and frozen main; reject six deliberate in-memory faults. Keep live pages≤6/parallel/10s, stored query/row limits and no unnecessary HTTP fallback.
+- [x]970 full tests, offline8 and independent134 focused checks plus final narrow main-integration review pass.
+- [ ] Exact-current-head hosted Node20/24/PostgreSQL CI.
+- [ ] Fresh simultaneous main/candidate81×2 comparison, per-arm concurrency3, same machine/UTC+IST day, all rows preserved; usual protected-handoff/grounding/clipping/speed grade.
+- [ ] Separate named timing-test repair: retain failure evidence and real HTTP cancellation coverage; review/current CI before readiness. No feature/deploy authorization follows.
+
 ## October 20: general multipart evidence correction
 
 - [x] Finish the approved release retry separately: Spanish closing, private refund and same-commit graceful teardown pass on `13ead500` / `5bafe93`, optional controls off.

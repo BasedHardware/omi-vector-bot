@@ -53,9 +53,9 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 | Status | What it means now |
 | --- | --- |
-| **Done** | All three reliability smokes pass. Live `6a815fbf` runs unchanged `6b6d97d`, optional features off. English:68 words/no handoff. Refund:one private card, awaiting acceptance. Redeploy:clean drain, one reply, old instance gone within69.2s. #67 merged `94e4f57`, not deployed. |
-| **In progress** | #74 integrates #67;952 tests/offline8/SQL and independent298-check review pass. Exact-head CI precedes its approved merge. #71's fetch guard passes both versions; a separate shared-page evidence bug is repaired locally and reviewed. |
-| **Next** | Merge verified #74, then finish #71 integration/CI and its fair concurrent comparison. Fix the named flaky timing test in a separate small PR now that merges have reopened. Preserve #68/#29/#30 branches and unmet scope when closing them. |
+| **Done** | All three reliability smokes pass. Live `6a815fbf` runs unchanged `6b6d97d`, optional features off. English:68 words/no handoff. Refund:one private card, awaiting acceptance. Redeploy:clean drain, one reply, old instance gone within69.2s. #67 merged `94e4f57`, #74 merged `d108e1a`; neither deployed. |
+| **In progress** | #71 integrates current main;970 full/offline8 and independent134 focused checks/final integration review pass. Fetch guards pass both versions/reject six faults. Required shared-page chunks now precede filler and survive formatting. Current-head CI and simultaneous comparison/grade remain. |
+| **Next** | Run #71's fair concurrent comparison after current checks. Complete the separately requested timing-test-only repair; its reviewer exposed another clock-sensitive assertion, so it is not yet ready. Preserve #68/#29/#30 branches and unmet scope when closing them. |
 | **Waiting** | No more Discord posts are needed. #71 still needs the reviewed comparison on updated main. Memory stays off until its original privacy/notice/pilot gates pass; no new-code deploy is implied. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
 
@@ -63,7 +63,7 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 ### Finish queue — one active completion step
 
-**Live count:10 open PRs after #67 merged.** #74 is next after its final checks. #77 later drops its overlapping redirects; #78 waits for the drain evidence review. Keep the existing queue cap and preserve unfinished scope; no count-driven merge or closure.
+**Live count:9 open PRs after #67 and #74 merged.** #77 later drops its overlapping redirects; #78 waits for the drain evidence review. The explicitly requested separate timing-test repair is the sole new-PR exception. Keep the existing queue cap and preserve unfinished scope; no count-driven merge or closure.
 
 Aryan asked to bring every existing PR to a deliberate outcome: verify and merge useful work, or close genuinely obsolete/duplicated work with its reason and any unfinished scope preserved. Do not rush a merge or close a useful fix merely to lower the count. The same independent reviewer is authorized for the remaining PRs, one at a time; it does not merge, deploy or access customer data. Use the updated risk-based readiness policy, reusing valid evidence without inventing unrelated certification. Product and release gates remain; ready is not merged or deployed.
 
@@ -76,7 +76,7 @@ Aryan asked to bring every existing PR to a deliberate outcome: verify and merge
 5. #74 integration f528d76 passes916/offline8/SQL and independent review77 focused checks. Draft push786a626 and Node20/24/PostgreSQL CI39978407664 pass. This is CI publication only, not merge/deploy, privacy approval or memory enablement. Later status-only commits still require their own current-head checks.
 6. #67's grade passes protected handoffs and accepts the measured +0.200s p50 exception. Main6b6d97d is integrated by mergedc79d80. Language-independent address removal, shared localized Source protection and safe intake-tail retention now pass943/offline8/SQL and independent185-check review; all25 new regressions fail on pre-repair utilities. Record exact frozen comparison SHAs in the PR; no new provider run. Current-head hosted CI is required. The own-key web-app miss remains unresolved A2/E2 work, not an eval-specific patch.
 7. #71's saved JSON timing breakdown is complete: retrieval p50/p95 1.091/3.933→1.347/9.999s; review 10.200/20.026→10.569/25.804s. Planner 7.755/12.994→7.793/14.039s; answer 5.816/10.749→6.120/10.918s. Per-row stage sums include multiple turns and stage percentiles are not additive. Retrieval/review tails grew; answer prompts became smaller. This does not prove a code cause or latency fix; no new provider run or blind evidence cap.
-8. After step3 is live, one same-day comparison batch: common deployed-main arm and separate #59/#71-fixed/#75 arms, each81×2, global concurrency3, the usual per-arm gates/changed-case files. This supersedes separate fresh-main runs, not per-candidate grading. No combined prompt diff or protected case-file read.
+8. Latest reviewer override after smoke acceptance: #71 first, current main and updated #71 started simultaneously,81×2 each, concurrency3 per arm (6 total case workers), same machine/day with the usual gates/changed-case files. #59/#75 keep separate prompt comparisons; do not combine diffs or read protected source cases. This supersedes the prior shared-main/sequential batch order for this retry.
 9. Integrate/verify/review #28 by October27, otherwise close with smaller scopes preserved. Merge commits only; no rebase.
 10. After step3 is clean and the original privacy/notice/pilot prerequisites are verified, test-forum-only memory pilot and two-post scenario, then48h observation; no public-forum enablement or training.
 

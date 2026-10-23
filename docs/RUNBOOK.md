@@ -1,5 +1,15 @@
 # Omi Support Bot Operations Runbook
 
+## Current October23 — smoke accepted; #71 fair rerun authorized
+
+All three reliability smokes pass on6b6d97d. Live6a815fbf is the accepted same-commit teardown deployment; rollback458d4a6f, optional controls off. #67 merged94e4f57; #74 mergedd108e1a after exact-head CI39986598464 and independent integration review. Neither merged change is deployed. Do not start a new code deploy, change settings or enable memory from these merges. No further Discord input is needed.
+
+#71 integrates current main with merge commits and passes970/offline8, four fetch-contract tests on both versions, six fault-rejection checks and independent134 focused tests/final integration review. After current-head hosted checks, run BOTH arms (current main and #71) simultaneously, each81×2 with concurrency3, on the same awake/AC machine. This specific reviewer instruction supersedes the older sequential/shared-batch order: two simultaneous arms mean at most6 total case workers, not3 total. Keep the harness/judge/dependencies identical, sealed inputs runner-only, UTC and IST same-day guards, all rows/errors and per-stage p50/p95. No selective reruns or numerical-only approval. The old failed comparison stays immutable.
+
+Historical timing reading: the three largest tails are consecutive case IDs gs-031/032/033 run1, with missing planner/review usage on two, and docs-fetch failures2→23. IDs alone are not wall-clock timestamps. Both paths retain the same fetch cap/parallelism/10s timeout, though selected pages can differ; a transient docs/provider window is plausible, not proven causation. The October20 baseline predates #76/#70. Do not label the evidence patch a latency fix. The illustrative trickle test and a retained<750ms integration assertion proved clock-sensitive; the separate test-only repair must retain real HTTP cancellation coverage without scheduler-dependent success criteria.
+
+Older dated checkpoints below are history, not renewed smoke holds or instructions to restart finished runners.
+
 ## Current retry and draft gates — October 20
 
 **Latest checkpoint:** release retry passes on `13ead500` / GitHub `5bafe93`, optional controls off, rollback `adcfb8b4`. No more Discord posts are required. #71's first six own-synthetic rows complete without provider errors, but one candidate answer still loses a requested part (main complete 0/3, candidate 2/3). Keep these artifacts; do not launch the full protected run on that failed revision. A general overlapping-match repair has two observed-red regressions and local 850/offline8/SQL passing. Freeze and verify the revised candidate, then rerun all six synthetic checks before the full gate. Never overwrite old outputs, inspect the protected inputs, selectively retry failed rows or infer approval from numerical counters. Older release-pending paragraphs below are historical.

@@ -1,5 +1,11 @@
 # Omi Support Bot Architecture
 
+## Current October23 — bounded multipart evidence, no fetch amplification
+
+#71 now integrates maind108e1a (#67/#74 merged, not deployed). Live6a815fbf remains6b6d97d with optional capabilities off. The general2+ part selector emits all required best-match chunks before optional alternate pages/filler. Multipart formatting permits required chunks sharing a page within the existing overall8-chunk/9,000-character/4-page budget; ordinary formatting keeps its two-chunks-per-page default. Synthetic two/three-part ordering and three-parts-on-one-page regressions were observed red, then pass through actual stored/joint formatting. Source authority, safety routing and delivery fences are unchanged.
+
+The live-doc path still requests at most6 pages concurrently, with the same10-second per-page timeout (the separate index fetch is not a page). Stored retrieval makes no HTTP fallback when useful stored evidence exists; its bounded5 queries each retain3 parallel SQL searches and their12/all,5/help,5/GitHub row limits. Four contract tests pass both pre-feature main and candidate; six in-memory cap/serialization/timeout/row-limit/fallback mutations fail. This proves the limits, not identical selected URLs or request counts for every question.970 full tests/offline8 and independent134 focused tests pass; exact-head hosted CI and simultaneous-arm comparison/quality grading remain. No historical provider/docs outage or latency fix is claimed.
+
 ## October 20 multipart evidence correction — separate draft
 
 The initial six own-synthetic runs found an overlapping-match failure: several parts can choose the same broad page while aggregate filler occupies the remaining page slots. Spare slots now take each part's next distinct relevant page before aggregate background. Primary matches, authority/tie rules, eight chunks, four pages, 9,000 characters and all search/fetch limits remain unchanged. Two unrelated overlap fixtures were observed red before the repair; full 850/offline8/isolated SQL pass afterward. Revised hosted/provider/review gates remain; the original six rows are retained, not replaced with a success claim. No protected comparison has started. Production `13ead500` / GitHub `5bafe93` passed the approved release retry; optional capabilities remain off. Older checkpoints below retain their historical state.
