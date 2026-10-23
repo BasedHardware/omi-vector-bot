@@ -4,6 +4,8 @@
 
 The [master plan](docs/SUPPORT_MASTER_PLAN.md) lists all 13 existing PRs and their concrete merge/repair/close decisions. #69/#73 passed review and affected checks; #49/#74 passed review for disabled foundations, not feature enablement. #68 and #70 have specific reproduced review findings to repair; #67/#71 retain their failed speed gates. Verify the actual merge-versus-deploy boundary before merging. No count-driven closure or new feature PR. Score is 47/100 solely because milestone 18 gained independent foundation review; full acceptance stays 2/21.
 
+Public-data request is recorded in [Mira's data plan](docs/MIRA_DATA_STRATEGY.md): eight owner/license screens, a blocked-by-default metadata register and 12 original multilingual support scenarios are prepared. No downloaded corpus rows, training job, runtime/prompt change, new feature PR or progress point. Later execution maps to A1/A2/E2 and #59, after the finish queue; rights, provider/cost, actual answer-quality comparison and review remain open. Discord memory is never silently repurposed into training.
+
 ## October 23: answer audit becomes an integrated repair checklist
 
 All nine audit themes remain mapped to A1/A2/A4/B2/E2 acceptance in `docs/ANSWER_QUALITY_CONTRACT.md`. Original scoring/evidence stays private, not a current accuracy rate. Draft #75 keeps its actual multi-turn/quality/adapter-parity/comparison/review gates; ownership copy and diagnostic continuity remain required without opening more drafts ahead of the finish queue. No runtime deployment, customer message or optional enablement follows. The current milestone ledger is in the master plan; older dated scores below are historical.
