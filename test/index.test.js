@@ -456,6 +456,21 @@ test('a lost claim acknowledgement cannot authorize an unfenced fallback', async
   assert.equal(runtime.store.messages.get(result.message.id).state, 'processing');
 });
 
+test('a transient pre-work coordinator error still sends one properly fenced honest fallback', async t => {
+  const repeated = runtime.store.repeated.bind(runtime.store);
+  let fail = true;
+  t.mock.method(runtime.store, 'repeated', async job => {
+    if (fail) { fail = false; throw new Error('synthetic transient repeat-check failure'); }
+    return repeated(job);
+  });
+  const result = await ask('How do I change an Omi conversation title?');
+  assert.equal(result.message.replies.length, 1);
+  assert.match(result.reply, /trouble saving this support request/);
+  const row = runtime.store.messages.get(result.message.id);
+  assert.equal(row.state, 'failed');
+  assert.equal(row.deliveryStarted, true, 'fallback passed the durable delivery fence');
+});
+
 for (const [language, question, expected] of [
   ['es', '¿Cómo comienzo una grabación desde el teléfono?', 'es'],
   ['hi', 'फोन से रिकॉर्डिंग कैसे शुरू करूँ?', 'hi-Deva'],

@@ -389,6 +389,11 @@ class SupportRuntime {
           if (job.deliveryMarked) await this.store.finish(job, 'uncertain');
           else await this.store.defer(job);
         } catch { this.log('[SupportRuntime] held request persistence unavailable; recovery remains fenced'); }
+      } else if (job.claimed && !job.started) {
+        // No work/send began. Keep an ordinary coordinator blip recoverable,
+        // without changing a replacement owner's row or a committed marker.
+        try { await this.store.defer(job); }
+        catch { this.log('[SupportRuntime] unsent request deferral unavailable; recovery remains fenced'); }
       } else if (job.claimed) {
         try { await this.store.finish(job, 'failed'); } catch { this.log('[SupportRuntime] completion persistence failed'); }
       }

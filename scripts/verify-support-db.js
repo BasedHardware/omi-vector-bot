@@ -177,7 +177,19 @@ async function verifyRuntimePickupFences(pool, prefix) {
   await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [lostAck]);
   await next.recoverQueued(input => next.run(input, send));
   assert.equal(sends, before + 1, 'lost claim acknowledgement is recovered once, not sent as an unfenced note');
-  console.log('Early pickup two-worker SQL: partition fences, independent sweeps, queue-limit exclusion, lost claim acknowledgement and ambiguous-marker no-replay passed');
+  const transient = `${prefix}-transient-pre-work`;
+  pickupIds.add(transient);
+  const repeated = nextStore.repeated.bind(nextStore);
+  let fail = true;
+  nextStore.repeated = async job => {
+    if (fail) { fail = false; throw new Error('synthetic transient coordinator failure'); }
+    return repeated(job);
+  };
+  await assert.rejects(next.run({ messageId: transient, caseKey: `${prefix}:transient`, fingerprint: null }, send));
+  assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [transient])).rows[0].state, 'queued');
+  await next.recoverQueued(input => next.run(input, send));
+  assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [transient])).rows[0].state, 'answered');
+  console.log('Early pickup two-worker SQL: partition fences, independent sweeps, queue-limit exclusion, transient/lost-ack recovery and ambiguous-marker no-replay passed');
 }
 
 async function verify(pool) {
