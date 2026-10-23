@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 23: safe merges resumed, no deployment
+
+Authenticated Railway reads verify zero matching automatic GitHub triggers and unchanged healthy production `bc2166f9` / `5bafe93`; no setting change was needed. #69 merged as `577c0c0`; #73 as `c61920d` after docs-only integration, fresh 839 tests/eight SQL groups, exact-head Node 20/24/PostgreSQL and independent review. #49 combines that reviewed test rehearsal with its unchanged disabled runtime; fresh 878/offline8/SQL pass, final integration review/CI precede merge. Then repair #68 and #70; no new PRs. Score stays 47/100: merges alone do not earn delivery points. Historical checkpoints below are retained, not current instructions.
+
 ## October 23: finish existing work before adding drafts
 
 The [master plan](docs/SUPPORT_MASTER_PLAN.md) lists all 13 existing PRs and their concrete merge/repair/close decisions. #69/#73 passed review and affected checks; #49/#74 passed review for disabled foundations, not feature enablement. #68 and #70 have specific reproduced review findings to repair; #67/#71 retain their failed speed gates. Verify the actual merge-versus-deploy boundary before merging. No count-driven closure or new feature PR. Score is 47/100 solely because milestone 18 gained independent foundation review; full acceptance stays 2/21.
