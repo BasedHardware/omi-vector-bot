@@ -63,9 +63,10 @@ class PostgresRuntimeStore {
       VALUES ($1,$2,'queued',$3,'queued',NOW()) ON CONFLICT (message_id) DO NOTHING`, [input.messageId, input.caseKey, input.fingerprint]);
   }
   async defer(job) {
-    await this.pool.query(`UPDATE support_message_claims SET state='queued',owner='queued',lease_until=NOW()
+    const { rowCount } = await this.pool.query(`UPDATE support_message_claims SET state='queued',owner='queued',lease_until=NOW()
       WHERE message_id=$1 AND owner=$2 AND state='processing' AND delivery_started=false`, [job.messageId, job.owner]);
     await this.release(job);
+    return rowCount > 0;
   }
   async queued(limit, { exclude = [] } = {}) {
     const { rows } = await this.pool.query(`SELECT message_id,case_key,fingerprint FROM support_message_claims
@@ -205,8 +206,10 @@ class MemoryRuntimeStore {
   }
   async defer(job) {
     const value = this.messages.get(job.messageId);
-    if (value?.owner === job.owner && value.state === 'processing' && !value.deliveryStarted) Object.assign(value, { state: 'queued', owner: 'queued', until: this.now() });
+    const confirmed = Boolean(value?.owner === job.owner && value.state === 'processing' && !value.deliveryStarted);
+    if (confirmed) Object.assign(value, { state: 'queued', owner: 'queued', until: this.now() });
     await this.release(job);
+    return confirmed;
   }
   async queued(limit, { exclude = [] } = {}) { return [...this.messages.values()].filter((row) => row.state === 'queued' && !exclude.includes(row.messageId)).slice(0, limit).map(({ messageId, caseKey, fingerprint }) => ({ messageId, caseKey, fingerprint })); }
   async discard(input) { const row = this.messages.get(input.messageId); if (row?.state === 'queued') Object.assign(row, { state: 'ignored', at: this.now() }); }
@@ -306,6 +309,11 @@ class SupportRuntime {
     this.running = 0; this.waiting = []; this.tasks = new Set(); this.jobs = new Map(); this.caseTails = new Map(); this.stopping = false; this.recovering = false;
     this.sweepMs = sweepMs; this.lastSweep = 0;
     this.recoveryMessages = new Set();
+    // Jobs that accepted work (claimed) since the last drain. Draining reads this at
+    // the timeout so a request whose database claim resolved during the drain is
+    // still returned or fenced, never silently dropped from the deferral set.
+    this.watchedJobs = new Set();
+    this.draining = false;
   }
   run(input, work) {
     if (this.stopping) return Promise.resolve({ status: 'stopping' });
@@ -352,6 +360,7 @@ class SupportRuntime {
       if (!(await this.store.claim(job))) return { status: 'duplicate' };
       job.claimed = true;
       this.jobs.set(job.owner, job);
+      this.watchedJobs.add(job);
       renewal = setInterval(renew, this.heartbeatMs); renewal.unref();
       await reservation.prior;
       if (this.running >= this.concurrency) await new Promise((resolve) => this.waiting.push(resolve));
@@ -467,35 +476,38 @@ class SupportRuntime {
   }
   async drain(timeoutMs = 90_000) {
     this.stopAccepting();
+    this.draining = true;
     if (!this.tasks.size) return true;
-    const watched = new Set(this.jobs.values());
     let timer;
     try {
       const drained = await Promise.race([
         Promise.allSettled([...this.tasks]).then(() => true),
         new Promise((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); }),
       ]);
-      const finished = [...watched].filter((job) => !this.jobs.has(job.owner));
       if (drained) {
-        // Every accepted case settled inside the budget; say so per case.
-        for (const job of finished) this.log(`[SupportRuntime] shutdown: finished=${job.messageId}`);
+        // Every accepted case settled inside the budget; say so per case. Read the
+        // claimed set after settling so a claim that resolved during the drain is counted.
+        for (const job of [...this.watchedJobs]) this.log(`[SupportRuntime] shutdown: finished=${job.messageId}`);
         return true;
       }
-      // The budget ran out. Return unstarted work to the recovery queue at once so a
-      // replacement can pick it up instead of waiting for its lease to expire, and
-      // name each case we can no longer see so its outcome is read from these lines
-      // instead of a later abandoned sweep.
-      const unstarted = [...watched].filter((job) => this.jobs.has(job.owner) && !job.started);
+      // The budget ran out. Read the claimed set now — a request whose database claim
+      // resolved while we waited is present here even though it was absent when the
+      // drain began, so it is returned or fenced rather than silently dropped.
+      const watched = [...this.watchedJobs];
+      const unstarted = watched.filter((job) => !job.started);
+      const confirmedReturned = new Set();
       for (const job of unstarted) {
-        try { await this.store.defer(job); }
-        catch { this.log(`[SupportRuntime] shutdown: unstarted return failed message=${job.messageId}`); }
+        try {
+          if (await this.store.defer(job)) confirmedReturned.add(job);
+          else this.log(`[SupportRuntime] shutdown: unstarted return failed message=${job.messageId}`);
+        } catch { this.log(`[SupportRuntime] shutdown: unstarted return failed message=${job.messageId}`); }
       }
       for (const job of unstarted) {
-        if (job.lost) this.log(`[SupportRuntime] shutdown: left for reclaim message=${job.messageId} delivery=not_started`);
-        else this.log(`[SupportRuntime] shutdown: returned unstarted request message=${job.messageId}`);
+        if (confirmedReturned.has(job)) this.log(`[SupportRuntime] shutdown: returned unstarted request message=${job.messageId}`);
+        else if (!job.lost) this.log(`[SupportRuntime] shutdown: left for reclaim message=${job.messageId} delivery=not_started`);
       }
       for (const job of watched) {
-        if (!this.jobs.has(job.owner) || !job.started) continue;
+        if (!job.started) continue;
         this.log(job.deliveryMarked || job.replySent
           ? `[SupportRuntime] shutdown: left for reclaim message=${job.messageId} delivery=uncertain`
           : `[SupportRuntime] shutdown: left for reclaim message=${job.messageId} delivery=not_started`);

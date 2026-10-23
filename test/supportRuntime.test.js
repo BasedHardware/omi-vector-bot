@@ -85,7 +85,6 @@ test('shutdown lets started work finish within the drain budget and logs it fini
   });
   await started.promise;
   const draining = runtime.drain(1000);
-  await new Promise((resolve) => setTimeout(resolve, 20));
   proceed.release();
   assert.equal(await draining, true);
   assert.equal((await pending).status, 'answered');
@@ -104,7 +103,8 @@ test('shutdown returns unstarted accepted work to the queue instead of leaving i
   // 'late' passes the durable claim and the per-case gate, then parks on the
   // occupied local worker slot with its work never started.
   const parked = runtime.run(request('late', 'case:b'), async () => { workStarted.release(); return true; });
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  // Deterministic gate: 'late' is durably claimed (processing) before the drain.
+  while (store.messages.get('late')?.state !== 'processing') await new Promise((resolve) => setImmediate(resolve));
   assert.equal((await store.queued(10)).length, 0);
   // SIGTERM: no task finishes before the drain timeout.
   assert.equal(await runtime.drain(50), false);
@@ -162,6 +162,65 @@ test('shutdown is not a replay: recovery never resends a request whose delivery 
   assert.equal(store.messages.get('delivering').state, 'uncertain');
   assert.doesNotMatch(logs.join('\n'), /requeued abandoned request message=delivering/);
   stop.release();
+});
+
+test('shutdown still names a request whose database claim resolves during the drain', async () => {
+  let now = 1000;
+  const store = new MemoryRuntimeStore({ now: () => now }); const logs = [];
+  const claimHeld = barrier(); const slotHeld = barrier();
+  const originalClaim = store.claim.bind(store);
+  const runtime = new SupportRuntime({ store, concurrency: 1, log: (line) => logs.push(line) });
+  // Occupy the single worker slot so the slow-claim job parks, unstarted, once it lands.
+  const held = runtime.run(request('busy', 'case:a'), async () => { await slotHeld.promise; return true; });
+  while (store.messages.get('busy')?.state !== 'processing') await new Promise((resolve) => setImmediate(resolve));
+  // The slow claim resolves only after the drain budget has expired, so this job is not
+  // yet claimed when the drain reads its deferral set. It must still be tracked and
+  // named in the shutdown report — never dropped silently from the drain accounting.
+  store.claim = async (job) => { if (job.messageId === 'slowclaim') await claimHeld.promise; return originalClaim(job); };
+  const pending = runtime.run(request('slowclaim', 'case:slow'), async () => true);
+  const draining = runtime.drain(30);
+  await new Promise((resolve) => setTimeout(resolve, 60)); // budget expires, claim still held
+  claimHeld.release();
+  assert.equal(await draining, false);
+  slotHeld.release();
+  await Promise.allSettled([held, pending]);
+  assert.ok(runtime.watchedJobs.size >= 1, 'a claim that resolved during the drain must be tracked');
+  assert.match(logs.join('\n'), /shutdown: .*(slowclaim|busy)/, 'the drain must name the in-flight case(s)');
+});
+
+test('shutdown logs only a confirmed queue return, never a success after a failed defer', async () => {
+  const store = new MemoryRuntimeStore(); const logs = [];
+  const runtime = new SupportRuntime({ store, concurrency: 1, log: (line) => logs.push(line) });
+  const slotHeld = barrier();
+  const held = runtime.run(request('busy', 'case:a'), async () => { await slotHeld.promise; return true; });
+  const parked = runtime.run(request('late', 'case:b'), async () => true);
+  // Wait until 'late' is durably claimed and parked behind the occupied slot.
+  while (store.messages.get('late')?.state !== 'processing') await new Promise((resolve) => setImmediate(resolve));
+  // Force the defer to report no requeue (the row stays processing).
+  store.defer = async () => false;
+  assert.equal(await runtime.drain(30), false);
+  assert.equal(store.messages.get('late').state, 'processing', 'a failed return must leave the row processing');
+  assert.doesNotMatch(logs.join('\n'), /shutdown: returned unstarted request message=late/,
+    'an unconfirmed return must not be logged as returned');
+  assert.match(logs.join('\n'), /shutdown: unstarted return failed message=late/);
+  slotHeld.release();
+  await Promise.allSettled([held, parked]);
+});
+
+test('shutdown does not log a returned success when the defer throws', async () => {
+  const store = new MemoryRuntimeStore(); const logs = [];
+  const runtime = new SupportRuntime({ store, concurrency: 1, log: (line) => logs.push(line) });
+  const slotHeld = barrier();
+  const held = runtime.run(request('busy', 'case:a'), async () => { await slotHeld.promise; return true; });
+  const parked = runtime.run(request('late', 'case:b'), async () => true);
+  while (store.messages.get('late')?.state !== 'processing') await new Promise((resolve) => setImmediate(resolve));
+  store.defer = async () => { throw new Error('db down'); };
+  assert.equal(await runtime.drain(30), false);
+  assert.equal(store.messages.get('late').state, 'processing', 'a throwing return leaves the row processing');
+  assert.doesNotMatch(logs.join('\n'), /shutdown: returned unstarted request message=late/);
+  assert.match(logs.join('\n'), /shutdown: unstarted return failed message=late/);
+  slotHeld.release();
+  await Promise.allSettled([held, parked]);
 });
 
 test('lease expiry fences stale replies and does not automatically replay an uncertain started request', async () => {
