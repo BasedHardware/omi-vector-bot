@@ -64,6 +64,7 @@ The [master plan](SUPPORT_MASTER_PLAN.md) controls the finish-existing queue and
 <summary>Historical implementation checkpoints — not the current work queue</summary>
 
 Unchecked steps and "not started" statements here describe their dated checkpoints. Later completion records above supersede them; they do not undo completed work or authorize reruns. Preserve the remaining release/security requirements after this archive.
+
 ## October 20: post-release multipart preparation — historical checkpoints
 
 - [x] Preserve the first complete six synthetic rows: main `5bafe93` complete answers 0/3; candidate `21b21b1` 2/3; zero provider-invalid rows. Full comparison not started.

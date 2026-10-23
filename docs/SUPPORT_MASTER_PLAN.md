@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 25330)
-Total output lines: 480
-
 # Omi Support Bot: master product plan
 
 Updated October 23, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
@@ -56,10 +53,10 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 | Status | What it means now |
 | --- | --- |
-| **Done** | #69 and #73 merged October 23 after review/current checks. Production remains on `5bafe93`; the fresh read returns one successful active deployment and healthy readiness. No new deployment. |
+| **Done** | #69 and #73 merged October 23 after review/current checks. The fresh production read confirms `bc2166f9` / `5bafe93`, one successful active deployment and healthy readiness; no new deployment. |
 | **In progress** | Finish #49's reviewed foundation integration, then repair #68 and #70 in their existing PRs. No new PRs until this queue is finished. |
 | **Next** | Fix #68's timeout-language gap and #70's reproduced recovery/delivery gaps in their existing PRs. Finish #75's remaining verification. No new feature PRs. |
-| **Waiting** | Railway's merge safeguard is cleared by authenticated API reads: zero matching automatic GitHub triggers, complete pagination and unchanged production. Existing code, speed, dependency and privacy/pilot gates remain below. |
+| **Waiting** | Railway's merge safeguard is cleared by authenticated, complete service/environment API reads: zero matching automatic GitHub triggers and unchanged production. Code, speed, dependency and privacy/pilot gates remain below. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
 
 **New request, prepared—not trained:** [Mira's data plan](MIRA_DATA_STRATEGY.md) screens eight public datasets and adds 12 original support scenarios. It targets understanding frustration, clear help and truthful follow-through, not psychological profiling. No data imported, model trained, prompt changed or new feature PR opened. Implement through A1/A2/E2 after the current finish queue; score remains **47/100**.
@@ -71,7 +68,7 @@ Aryan asked to bring every existing PR to a deliberate outcome: verify and merge
 | Existing work | What must happen before it can move forward |
 | --- | --- |
 | #69 — clear status documents | **Merged** as `577c0c0`, reviewed head `dda2cf6`; fresh 839 tests and exact-head hosted Node 20/24/PostgreSQL pass. No deployment. |
-| #73 — memory safety rehearsal | **Merged** as `c61920d`, integrated head `88f8afa`; fresh 839 tests, eight joined SQL/reader groups and exact-head hosted Node 20/24/PostgreSQL pass; narrow integration review PASS. Memory stays off. |
+| #73 — memory safety rehearsal | **Merged** as `c61920d`, integrated head `88f8afa`; fresh 839 tests, eight SQL/reader groups, exact-head hosted Node 20/24/PostgreSQL and narrow integration review PASS. Memory stays off. |
 | #68 — faster planning | Independent review HOLD: timeout fallback loses language metadata. Resolve this and the factual-quality disposition before readiness; numerical timing passes, no new protected handoff miss or clipped item was found. No automatic rerun. |
 | #75 — correct customer intent | Finish evaluation-adapter parity, authorized answer-quality comparison, actual multi-turn verification and independent review. |
 | #67 — in-thread next steps | Repair the failed typical-speed gate (+2.200 s versus +2 allowed), preserve the increased missing flags for independent grading, then obtain the required passing gate. |
@@ -81,12 +78,12 @@ Aryan asked to bring every existing PR to a deliberate outcome: verify and merge
 | #29 — delivery receipts | Preserve existing local edits. Finish same-nonce retries, explicit ledger-outage behavior and staff-visible held-reply alerts; integrate reviewed #28, then verify and review. |
 | #30 — close/reopen safety | Resolve parent dependency/conflicts after #29; verify the actual closure/reopen receipt flow and obtain review. |
 | #59 — consistent Mira voice | Resolve conflicts and complete its separate required answer comparison and review; do not mix prompt changes into another comparison. |
-| #49 — reviewed-fact foundation | Original disabled-foundation review PASS at `3f83024`. Integrating reviewed #69/#73 preserves runtime and adds only their documents/test rehearsal; fresh 878/offline8/combined SQL pass. Final integration review/current CI precede merge. Missing real validator/UI/jobs remain enablement gates. Nothing enabled. |
+| #49 — reviewed-fact foundation | Original disabled-foundation review PASS at `3f83024`. Integration preserves that runtime and adds reviewed #69/#73 documents/test rehearsal; fresh 878/offline8/combined SQL pass. Final integration review/current CI precede merge. Missing real validator/UI/jobs remain enablement gates. Nothing enabled. |
 | #74 — correction-link forgetting | Independent review PASS for the disabled foundation at `dfc1398`; fresh 76 affected tests/isolated SQL and exact-head hosted PostgreSQL pass. Integrate after parent #49, preserve the reviewed diff and recheck affected integration/current-head CI. No pilot or enablement inferred. |
 
 Truthful delivered-versus-accepted wording and supplied-diagnostic continuity remain required repairs; they do not authorize another PR ahead of this queue. Reorganizing work earns no progress points.
 
-**October 23 merge safeguard, resolved:** normal existing-account Railway sign-in succeeds with credential output suppressed. Fully paginated service and production-environment reads both return zero matching automatic GitHub triggers; the repository remains connected. Active/latest deployment `bc2166f9` records `5bafe93`, one running deployment and health HTTP 200/`ok`. A post-#69 read confirms no deployment change; repeat the guard for subsequent merges. No API/project key, permission, production setting or deployment was created/changed. This supersedes the earlier UI/CLI blocker, not the remaining feature gates or a long-duration health report.
+**October 23 merge safeguard, resolved:** normal existing-account sign-in succeeds with credential output suppressed. Fully paginated service and production-environment reads both return zero matching automatic GitHub triggers; the repository remains connected. Active/latest deployment `bc2166f9` records `5bafe93`, one running deployment and health HTTP 200/`ok`; subsequent reads confirm no deployment after #69/#73. Repeat the guard around subsequent authorized merges. No API/project key, permission, production setting or deployment was created/changed. This supersedes the earlier UI/CLI blocker, not remaining feature gates or a long-duration health report.
 
 <details>
 <summary>Audit intake and preparation evidence — technical detail</summary>
@@ -185,6 +182,7 @@ Both restart snapshots and the current service configure **100 seconds** of depl
 <summary>Accepted release record and older diagnosis — through October 21</summary>
 
 This dated record is not the active finish queue or a new health check. The October 19 manual-Restart diagnosis was followed by the accepted October 20 deployment-teardown check.
+
 | Order | Work | Status |
 | --- | --- | --- |
 | 1 | Health report and handoff-count check | **Done.** One new staff case plus eight follow-up answers; not nine new tickets. |
@@ -278,7 +276,25 @@ Six of seven initial store checks failed before implementation; the eighth switc
 
 **Held — #29, not ready for release:** the pushed integration has 909 tests. Subsequent uncommitted retries, receipt-ledger-outage handling and immediate staff-alert preparation pass 937 local tests, offline 8/8 and isolated SQL. Failed alerts do not yet have durable retry coverage; none of this follow-up is pushed, reviewed or live. Preserve it without further work under the latest priority order. The delivery milestone and score are unchanged.
 
-**Latest explicit order is serial:** finish and report Release 1 first, then the closing-language draft, then #48's comparison. Do not use a live-test wait to work on the held PRs. This supersedes the earlier independent-work allowance, not the full product goal. No new data capture or priv…1330 tokens truncated…2/concurrency three with the same frozen harness, all rows retained, zero provider-invalid rows and normal structural exit 1 (no process signal/watchdog stop). Overall run 10:46:58.772–11:54:07.207 UTC, including the five timing probes. No recorded sleep/wake event; maximum heartbeat gap 30.008 seconds. Frozen checkouts, shared lockfiles and sealed-input metadata guards held; the case file was not inspected. Final artifacts match zero known secret values and are private outside Git.
+**Latest explicit order is serial:** finish and report Release 1 first, then the closing-language draft, then #48's comparison. Do not use a live-test wait to work on the held PRs. This supersedes the earlier independent-work allowance, not the full product goal. No new data capture or private access is approved by a status update.
+
+**Latest decision: no fixed deployment delay.** Aryan explicitly requested deployment without waiting, waiving the 24-hour time hold. Release 1 is already live and accepted; there is no new reviewed candidate ready to deploy. Continue the closing-language draft, #48 comparison/review and #59 wording in order. This removes the timer, not the tests or independent review. The one-off October 19 health report remains scheduled, read-only and counts-only; it never deploys automatically. Future deployments must use the GitHub commit so Railway records its hash, not a local upload. The reviewer's minor Spanish background-app citation note is nonurgent; do not expand this fix to address it.
+
+**Closing-language draft completed:** #60 (`7b15974`) adds exactly guild/thread/current-owner identifiers, the existing planner language code and 30-day expiry to Postgres after successful ordinary owner answers. Case language wins, then matching thread language, then English. Existing Hindi script handling is reused; staff locale is ignored. Language query errors use fixed metadata logs/English, with no process-memory preference copy; existing case-state lookup failures retain safe no-archive behavior. Thread deletion erases the row and independent bounded sweeps prune expiry with memory off. Eight new behavior regressions were observed red before wiring the repair; the SQL extension also failed before schema registration. Sixteen added checks bring the local suite to 771, and hosted Node 20/24/Postgres all pass. This is not a deployed fix or completion of the broader localization milestone; score stays 38/100.
+
+**Ranking comparison started October 18:** two separate clean detached checkouts preserve the dirty working docs and #60's independent changes. Baseline is deployed main `7fe0e0a`; candidate is #48 `476b433` (runtime `e8c4c6f`). Fresh frozen-candidate suite 786/786 and offline 8/8 pass, dependency lockfiles match, AC power/lid-open were checked, and the runner is under keep-awake protection. The approved harness alone reads the sealed inputs; optional flags are off and staff delivery is stubbed. Private output directory: `/Users/astar/omi-eval/ranking-20261018`. No rows, quality improvement, completed full arm or permission to deploy are claimed yet. Do not launch another run while this one is active or tune from its protected results.
+
+Timing preflight completed October 18 at 10:49:41 UTC: five rows, 36.578 / 25.612 / 23.764 / 59.192 / 0.004 seconds, zero provider-invalid rows, no process signal or watchdog stop. Every row is below 90 seconds. Exit 1 denotes structural evaluation failures, not a crash; this is timing evidence, not five correct answers or an approved release. The full baseline arm then started, verified through the same live process handle; candidate and grading are still pending.
+
+The private result-only Markdown formatter now passes six synthetic checks: verbatim multilingual/multiline replies and signals from both runs/arms, incomplete and duplicate coverage rejection, frozen-source guard, sleep-interruption guard and known-secret-match rejection. These checks read no sealed inputs or real results and change neither frozen version nor the evaluation judge. They validate the requested review artifact, not answer quality or additional product delivery points.
+
+The scheduled health report now has an evidence-definition audit in the runbook. Deployed/prior source share timing events, but these are not a complete send ledger; handoff attempts, deduplication and delivery-outcome lines are different events. Successful “Something broke” replies have no dedicated counter. Counts must retain those distinctions and missing/partial coverage, with platform evidence for restarts/crashes. No production logs, code, settings or customer history were changed/read by this source-only audit. It prepares the approved report, not a new telemetry feature or a release pass.
+
+The ranking baseline completed October 18, 10:49:41.875–11:22:10.460 UTC: 162 rows covering 81 distinct cases, each run exactly twice, zero provider-invalid rows, `incomplete:false`, normal exit 1 with no signal/watchdog stop. This is structural evaluation output, not a crash or a quality pass. Maximum latency 107.726 seconds; both rows at or above 90 seconds remain included. The five-case preflight's under-90 requirement is distinct from full-arm inclusion. The candidate arm started under the same live process; do not rerun either arm or issue a quality/deployment verdict before completion and independent grading.
+
+A separate read-only deployment-source check confirms the expected GitHub repository is already linked, automatic deployments are off and accepted Release 1 is still the latest successful deployment. The live API supports an explicit commit SHA for the future approved deployment. No settings/access/deployment changed. The runbook now requires the exact approved main SHA and subsequent recorded-commit/health/smoke verification; repository configuration alone does not prove a future build works. This removes a potential source-setup uncertainty, not a review gate or a product-delivery milestone.
+
+**October 18 ranking comparison complete:** deployed main `7fe0e0a` and candidate `476b433` each completed 81×2/concurrency three with the same frozen harness, all rows retained, zero provider-invalid rows and normal structural exit 1 (no process signal/watchdog stop). Overall run 10:46:58.772–11:54:07.207 UTC, including the five timing probes. No recorded sleep/wake event; maximum heartbeat gap 30.008 seconds. Frozen checkouts, shared lockfiles and sealed-input metadata guards held; the case file was not inspected. Final artifacts match zero known secret values and are private outside Git.
 
 | Completed comparison measure | Main | #48 |
 | --- | ---: | ---: |
