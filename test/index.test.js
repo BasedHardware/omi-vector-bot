@@ -405,6 +405,120 @@ function posts() {
   return githubCalls.filter((c) => c.method === 'POST');
 }
 
+test('an ownership outage at delivery cannot escape through a second unfenced fallback reply', async t => {
+  const owned = runtime.store.owned.bind(runtime.store);
+  let checks = 0;
+  t.mock.method(runtime.store, 'owned', async job => {
+    if (++checks > 1) throw new Error('synthetic ownership outage');
+    return owned(job);
+  });
+  const result = await ask('How do I rename an Omi conversation?');
+  assert.equal(result.message.replies.length, 0);
+  assert.equal(runtime.store.messages.get(result.message.id).state, 'queued');
+});
+
+test('a generic pre-work failure after takeover sends only a status note, never a duplicate answer', async t => {
+  const { SupportRuntime, assertCurrentOwnership, markCurrentReplySent } = require('../supportRuntime');
+  let clock = Date.now(); t.mock.method(Date, 'now', () => clock);
+  let begin, resume, block = true;
+  const started = new Promise(resolve => { begin = resolve; });
+  const held = new Promise(resolve => { resume = resolve; });
+  const repeated = runtime.store.repeated.bind(runtime.store);
+  t.mock.method(runtime.store, 'repeated', async job => {
+    if (block) { block = false; begin(); await held; throw new Error('synthetic coordinator failure'); }
+    return repeated(job);
+  });
+  const message = makeMessage('How do I change the title of an Omi conversation?');
+  const pending = handleMessage(message);
+  try {
+    await started; clock += 45000;
+    const next = new SupportRuntime({ store: runtime.store, sweepMs: 0, log: () => {} });
+    await next.recoverQueued(input => input.messageId !== message.id ? undefined : next.run(input, async () => {
+      await assertCurrentOwnership(); await message.reply({ content: 'Open the conversation to edit its title.' });
+      markCurrentReplySent(); return true;
+    }));
+    assert.equal(message.replies.length, 1);
+    resume(); await pending;
+    assert.equal(message.replies.length, 2);
+    assert.equal(message.replies.filter(payload => /trouble saving this support request/.test(textOf(payload))).length, 1);
+    assert.equal(message.replies.filter(payload => /edit its title/.test(textOf(payload))).length, 1);
+  } finally { resume(); await pending; }
+});
+
+test('a lost claim acknowledgement sends one honest note without authorizing an answer', async t => {
+  let clock = Date.now(); t.mock.method(Date, 'now', () => clock);
+  const claim = runtime.store.claim.bind(runtime.store);
+  let lose = true;
+  t.mock.method(runtime.store, 'claim', async job => {
+    const result = await claim(job);
+    if (lose) { lose = false; throw new Error('synthetic lost claim acknowledgement'); }
+    return result;
+  });
+  const result = await ask('How do I change a conversation title in Omi?');
+  assert.equal(result.message.replies.length, 1);
+  assert.match(result.reply, /trouble saving this support request/);
+  assert.equal(result.modelCalled, false);
+  assert.equal(runtime.store.messages.get(result.message.id).state, 'processing');
+  assert.equal(runtime.store.messages.get(result.message.id).deliveryStarted, false);
+  clock += 45000;
+  await runtime.recoverQueued(input => input.messageId === result.message.id ? handleMessage(result.message) : undefined);
+  assert.equal(result.message.replies.length, 2, 'the later recovered answer may follow the status note');
+  assert.equal(result.message.replies.filter(payload => /trouble saving this support request/.test(textOf(payload))).length, 1);
+  assert.equal(runtime.store.messages.get(result.message.id).state, 'answered');
+  await runtime.recoverQueued(input => { assert.notEqual(input.messageId, result.message.id, 'answered request must not be replayed'); });
+});
+
+test('a fully unavailable claim store still sends exactly one honest status note and no answer', async t => {
+  t.mock.method(runtime.store, 'claim', async () => { throw new Error('synthetic total claim outage'); });
+  const result = await ask('How can I rename a saved conversation?');
+  assert.equal(result.message.replies.length, 1);
+  assert.match(result.reply, /trouble saving this support request/);
+  assert.equal(result.modelCalled, false);
+  assert.equal(runtime.store.messages.has(result.message.id), false);
+  assert.deepEqual(result.message.replies[0].allowedMentions, { parse: [], repliedUser: false });
+});
+
+test('persistent pre-work failures do not repeat the outage note on automatic recovery sweeps', async t => {
+  const { recoverQueuedRequest } = require('../index');
+  let attempts = 0;
+  t.mock.method(runtime.store, 'repeated', async () => { attempts++; throw new Error('synthetic persistent read outage'); });
+  const result = await ask('Where can I change a saved conversation name?');
+  const queued = runtime.store.queued.bind(runtime.store);
+  t.mock.method(runtime.store, 'queued', async (limit, options) =>
+    (await queued(1000, options)).filter(input => input.messageId === result.message.id).slice(0, limit));
+  t.mock.method(client.channels, 'fetch', async () => ({ messages: { fetch: async () => result.message } }));
+  for (let sweep = 0; sweep < 2; sweep++) await runtime.recoverQueued(recoverQueuedRequest);
+  assert.equal(attempts, 3, 'both recovery sweeps retried the actual pre-work failure');
+  assert.equal(result.message.replies.length, 1);
+  assert.match(result.reply, /trouble saving this support request/);
+  assert.equal(runtime.store.messages.get(result.message.id).state, 'queued');
+  assert.equal(result.modelCalled, false);
+});
+
+test('duplicate intake during a total claim outage coalesces the fixed status note', async t => {
+  t.mock.method(runtime.store, 'claim', async () => { throw new Error('synthetic total claim outage'); });
+  const message = makeMessage('How do I update a saved conversation title?');
+  await Promise.all([handleMessage(message), handleMessage(message)]);
+  assert.equal(message.replies.length, 1);
+  assert.match(replyText(message), /trouble saving this support request/);
+  assert.equal(runtime.store.messages.has(message.id), false);
+});
+
+test('a transient pre-work error sends a note without retiring the recoverable unanswered request', async t => {
+  const repeated = runtime.store.repeated.bind(runtime.store);
+  let fail = true;
+  t.mock.method(runtime.store, 'repeated', async job => {
+    if (fail) { fail = false; throw new Error('synthetic transient repeat-check failure'); }
+    return repeated(job);
+  });
+  const result = await ask('How do I change an Omi conversation title?');
+  assert.equal(result.message.replies.length, 1);
+  assert.match(result.reply, /trouble saving this support request/);
+  const row = runtime.store.messages.get(result.message.id);
+  assert.equal(row.state, 'queued');
+  assert.equal(row.deliveryStarted, false, 'status note is not a delivered answer');
+});
+
 for (const [language, question, expected] of [
   ['es', '¿Cómo comienzo una grabación desde el teléfono?', 'es'],
   ['hi', 'फोन से रिकॉर्डिंग कैसे शुरू करूँ?', 'hi-Deva'],
@@ -1453,6 +1567,73 @@ test('an undelivered tech Handoff gives one help email fallback', async () => {
   assert.equal((r.reply.match(/help@omi\.me/gi) || []).length, 1);
   assert.match(r.reply, /could not deliver this to the support team/i);
 });
+
+test('ordinary support answers keep the next step here and a failed follow-up really reaches staff', async t => {
+  const staff = enableStaffDelivery(t);
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Phone recording guide' });
+  const ownerId = nextId();
+  Object.assign(channel, { guildId: 'synthetic-guild', ownerId });
+  modelReply = { final_answer: 'Open the app and tap the microphone. If you need help, email help@omi.me.' };
+  const first = makeMessage('How do I begin recording on my phone?', { channel, authorId: ownerId });
+  await handleMessage(first);
+  assert.equal(staff.length, 0);
+  assert.match(replyText(first), /reply.*(?:here|thread)/i);
+  assert.doesNotMatch(replyText(first), /help@omi\.me|has this now|will reply/i);
+  const follow = makeMessage('It is still not working after those steps.', { channel, authorId: ownerId });
+  channel.messages.fetch = async () => new Map([[first.id, first], ...first.botReplies.map(m => [m.id, m]), [follow.id, follow]]);
+  modelReply = { final_answer: 'The recording still does not start after those steps.', escalate: false };
+  await handleMessage(follow);
+  assert.equal(staff.length, 1);
+  assert.match(replyText(follow), /person.*(?:team|thread)/i);
+  assert.doesNotMatch(replyText(follow), /help@omi\.me/);
+});
+
+test('redirect-only ordinary drafts fall back to a real handoff, not an empty self-service answer', async t => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'Please email help@omi.me.' };
+  const response = await ask('How do I organize my saved conversations?');
+  assert.equal(staff.length, 1);
+  assert.match(response.reply, /person.*(?:team|thread)/i);
+});
+
+for (const [language, guidance, contact, next] of [
+  ['fr', 'Ouvrez le menu des conversations.', 'Pour la suite, notre boîte est team@basedhardware.com.', /répondez ici dans ce fil/],
+  ['de', 'Öffne die Übersicht deiner Gespräche.', 'Die Hilfeadresse lautet help@omi.me.', /antworte hier in diesem Thread/],
+  ['ja', '会話の一覧を開いてください。', '窓口のメールアドレスは team@basedhardware.com です。', /このスレッドに返信/],
+  ['pt', 'Abra a lista de conversas.', 'O nosso endereço para atendimento é help@omi.me.', /responda aqui nesta conversa/],
+]) {
+  test(`${language} ordinary handler removes an address redirect without creating a staff case`, async t => {
+    const staff = enableStaffDelivery(t);
+    const previousKey = process.env.CMD_API_KEY;
+    process.env.CMD_API_KEY = 'synthetic-provider-key';
+    t.after(() => { process.env.CMD_API_KEY = previousKey; });
+    plannerReplyLanguage = language;
+    modelReply = { final_answer: `${guidance} ${contact}` };
+    const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Synthetic saved conversations' });
+    const result = await ask('How do I view the conversations I saved?', { channel });
+    assert.equal(staff.length, 0);
+    assert.ok(result.reply.includes(guidance));
+    assert.match(result.reply, next);
+    assert.doesNotMatch(result.reply, /help@omi\.me|team@basedhardware\.com/i);
+    assert.equal(result.message.replies.length, 1);
+  });
+  test(`${language} delivered handler removes the competing address but retains the staff next step`, async t => {
+    const staff = enableStaffDelivery(t);
+    const previousKey = process.env.CMD_API_KEY;
+    process.env.CMD_API_KEY = 'synthetic-provider-key';
+    t.after(() => { process.env.CMD_API_KEY = previousKey; });
+    plannerReplyLanguage = language;
+    modelReply = { final_answer: `${guidance} ${contact}`, escalate: true };
+    const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Synthetic conversation screen issue' });
+    const result = await ask('The conversation screen crashes after I open it.', { channel });
+    assert.equal(staff.length, 1);
+    assert.ok(result.reply.includes(guidance));
+    assert.doesNotMatch(result.reply, /help@omi\.me|team@basedhardware\.com/i);
+    const footer = require('../plannerPolicy').handoffFooters({ replyLanguage: language }, '').thread;
+    assert.ok(result.reply.includes(footer), 'the delivered staff next step must survive cleanup');
+    assert.equal(result.message.replies.length, 1);
+  });
+}
 
 test('a delivered Handoff keeps details without directing the customer to another channel', async (t) => {
   const staff = enableStaffDelivery(t);

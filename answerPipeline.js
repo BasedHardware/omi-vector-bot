@@ -47,6 +47,13 @@ const TRAILING_SOURCE = new RegExp(
   'iu'
 );
 
+// Evaluation evidence only: a source line may start the text or follow a newline,
+// with any shared localized label, and need not be trailing-clip eligible.
+const SOURCE_LINE_EVIDENCE = new RegExp(
+  `(?:^|\\n)\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}\\s*https?:\\/\\/`,
+  'iu'
+);
+
 // Reply items are atomic: a wrapped bullet is one item, not a series of lines.
 // Prose can stop at a complete sentence; an oversized first list item cannot.
 // Keep this separate from the raw question/title clipper used elsewhere.
@@ -130,7 +137,7 @@ function stageFingerprint(stage, text) {
     lines: value ? value.split('\n').length : 0,
     hash: crypto.createHash('sha256').update(value).digest('hex').slice(0, 12),
     hasLink: /https?:\/\//i.test(value),
-    hasSourceLine: TRAILING_SOURCE.test(value),
+    hasSourceLine: SOURCE_LINE_EVIDENCE.test(value),
   };
 }
 

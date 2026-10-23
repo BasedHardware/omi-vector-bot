@@ -114,7 +114,11 @@ function createPostgresStore(pool) {
         if (result.state) {
           const at = result.state.updatedAt;
           const caseIds = [...new Set(result.state.versions.flatMap(row => row.provenance.map(item => item.caseId)))];
-          const deleted = await client.query('SELECT case_id FROM support_knowledge_erasures WHERE guild_id=$1 AND expires_at>$2 AND case_id=ANY($3::text[])', [scope.guildId, at, caseIds]);
+          const deleted = await client.query(`SELECT case_id FROM support_knowledge_erasures WHERE guild_id=$1 AND expires_at>$2 AND case_id=ANY($3::text[])
+            UNION SELECT c.id AS case_id FROM support_cases c JOIN support_memory_opt_outs o ON o.customer_id=c.customer_id
+              WHERE c.id=ANY($3::text[]) AND o.guild_id=$1 AND c.guild_id=$1 AND c.forum_id IS NOT NULL
+                AND NULLIF(c.customer_thread_id,'') IS NOT NULL
+                AND o.forum_id IN (c.forum_id,'*')`, [scope.guildId, at, caseIds]);
           const erased = new Set(deleted.rows.map(row => row.case_id));
           for (const version of result.state.versions) version.provenance = version.provenance.filter(item => item.expiresAt > at && !erased.has(item.caseId));
           await client.query('UPDATE support_reviewed_knowledge SET state=$3::jsonb WHERE guild_id=$1 AND fact_id=$2', [scope.guildId, scope.factId, JSON.stringify(result.state)]);
@@ -165,6 +169,55 @@ function createPostgresStore(pool) {
         throw error;
       } finally { client.release(); }
     },
+    async eraseOwnedReferences(scope) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query("SELECT set_config('statement_timeout','5000',true)");
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`knowledge-erasure:${scope.guildId}`]);
+        const result = await (async () => {
+          const optedOut = await client.query(`SELECT 1 FROM support_memory_opt_outs
+            WHERE guild_id=$1 AND forum_id IN ($2,'*') AND customer_id=$3`, [scope.guildId,scope.forumId,scope.customerId]);
+          if (!optedOut.rows.length) return { ok: false, reason: 'opt_out_required' };
+          // Unknown/legacy scope cannot authorize deleting another person's
+          // reference or a complete-deletion claim. No message text is read.
+          const candidates = await client.query(`WITH case_refs AS (
+            SELECT item->>'caseId' AS case_id FROM support_reviewed_knowledge r,
+              LATERAL jsonb_array_elements(coalesce(r.state->'versions','[]'::jsonb)) AS version,
+              LATERAL jsonb_array_elements(coalesce(version->'provenance','[]'::jsonb)) AS item WHERE r.guild_id=$1
+            UNION SELECT case_id FROM support_knowledge_erasures WHERE guild_id=$1)
+            SELECT refs.case_id,c.guild_id,c.forum_id,c.customer_thread_id
+            FROM case_refs refs LEFT JOIN support_cases c ON c.id=refs.case_id
+            WHERE (c.id IS NULL OR (c.customer_id=$3 AND
+              (c.guild_id=$1 OR c.guild_id IS NULL) AND (c.forum_id=$2 OR c.forum_id IS NULL)))
+            ORDER BY case_id LIMIT 1001`, [scope.guildId,scope.forumId,scope.customerId]);
+          if (candidates.rows.some(row => !row.guild_id || !row.forum_id || !row.customer_thread_id)) return { ok: false, reason: 'unverifiable' };
+          // The permanent owner/forum opt-out already fences future writes.
+          // Do not retain redundant case-specific deletion identifiers.
+          const barriers = await client.query(`DELETE FROM support_knowledge_erasures WHERE ctid IN (
+            SELECT e.ctid FROM support_knowledge_erasures e JOIN support_cases c ON c.id=e.case_id
+            WHERE e.guild_id=$1 AND c.guild_id=$1 AND c.forum_id=$2 AND c.customer_id=$3 LIMIT 1000) RETURNING 1`,
+          [scope.guildId,scope.forumId,scope.customerId]);
+          const caseIds = candidates.rows.slice(0,1000).map(row => row.case_id);
+          if (!caseIds.length) return { ok: true, examined: 0, remaining: barriers.rows.length===1000 };
+          const rows = await client.query(`SELECT fact_id,state FROM support_reviewed_knowledge WHERE guild_id=$1 AND EXISTS(
+            SELECT 1 FROM jsonb_array_elements(coalesce(state->'versions','[]'::jsonb)) AS version,
+              LATERAL jsonb_array_elements(coalesce(version->'provenance','[]'::jsonb)) AS item
+            WHERE item->>'caseId'=ANY($2::text[])) ORDER BY fact_id LIMIT 101 FOR UPDATE`, [scope.guildId,caseIds]);
+          const removed = new Set(caseIds);
+          for (const row of rows.rows.slice(0,100)) {
+            for (const version of row.state.versions) version.provenance = version.provenance.filter(item => !removed.has(item.caseId));
+            await client.query('UPDATE support_reviewed_knowledge SET state=$3::jsonb WHERE guild_id=$1 AND fact_id=$2',
+              [scope.guildId,row.fact_id,JSON.stringify(row.state)]);
+          }
+          return { ok: true, examined: Math.min(100,rows.rows.length), remaining: rows.rows.length>100 || candidates.rows.length>1000 || barriers.rows.length===1000 };
+        })();
+        await client.query('COMMIT'); return result;
+      } catch (error) {
+        try { await client.query('ROLLBACK'); } catch { /* Keep failure private. */ }
+        throw error;
+      } finally { client.release(); }
+    },
     async cleanProvenance(guildId, now, caseIds = []) {
       const { rows } = await pool.query(`SELECT fact_id FROM support_reviewed_knowledge WHERE guild_id=$1 AND EXISTS(
         SELECT 1 FROM jsonb_array_elements(coalesce(state->'versions','[]'::jsonb)) AS version,
@@ -198,7 +251,11 @@ function createPostgresStore(pool) {
       const { rows } = await shortQuery(`SELECT guild_id,fact_id FROM support_reviewed_knowledge WHERE EXISTS(
         SELECT 1 FROM jsonb_array_elements(coalesce(state->'versions','[]'::jsonb)) AS version,
         LATERAL jsonb_array_elements(coalesce(version->'provenance','[]'::jsonb)) AS item
-        WHERE (item->>'expiresAt')::bigint<=$1)
+        WHERE (item->>'expiresAt')::bigint<=$1 OR EXISTS(
+          SELECT 1 FROM support_cases c JOIN support_memory_opt_outs o ON o.customer_id=c.customer_id
+          WHERE c.id=item->>'caseId' AND o.guild_id=support_reviewed_knowledge.guild_id
+            AND c.guild_id=o.guild_id AND c.forum_id IS NOT NULL AND NULLIF(c.customer_thread_id,'') IS NOT NULL
+            AND o.forum_id IN (c.forum_id,'*')))
         ORDER BY guild_id,fact_id LIMIT 101`, [now]);
       let examined = 0, barriersDeleted = 0;
       for (const row of rows.slice(0, 100)) {

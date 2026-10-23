@@ -15,6 +15,7 @@ const {
   clipForDiscord,
   clipThreadHistory,
   escalateReply,
+  inThreadReply,
   rewriteUserMentions,
   wantsAuthorPing,
   attachAuthorMention,
@@ -74,6 +75,17 @@ const KNOWLEDGE_REFRESH_MS = 6 * 60 * 60 * 1000;
 const telegramReady = Boolean(process.env.TELEGRAM_TOKEN && process.env.TELEGRAM_CHAT_ID);
 const dbReady = Boolean(process.env.DATABASE_URL);
 const runtime = new SupportRuntime({ store: dbReady ? new PostgresRuntimeStore(db.pool) : new MemoryRuntimeStore() });
+// Cosmetic status-note suppression only, never an answer claim or DB fallback.
+// Background recovery never repeats intake notes, including after a restart.
+const outageNoteAttempts = new Map();
+function attemptOutageNote(messageId) {
+  const now = Date.now();
+  for (const [id, at] of outageNoteAttempts) if (now - at >= 24 * 60 * 60_000) outageNoteAttempts.delete(id);
+  if (outageNoteAttempts.has(messageId)) return false;
+  outageNoteAttempts.set(messageId, now);
+  if (outageNoteAttempts.size > 1000) outageNoteAttempts.delete(outageNoteAttempts.keys().next().value);
+  return true;
+}
 let coordinationReady = !dbReady;
 let httpServer;
 let shutdownPromise;
@@ -537,7 +549,7 @@ function redactStaffQuestion(text) {
   return s.replace(/§(\d+)§/g, (_, i) => orders[Number(i)] || '');
 }
 
-async function handleMessage(message) {
+async function handleMessage(message, { recovery = false } = {}) {
   if (runtime.stopping || !coordinationReady) return { status: 'stopping' };
   // Observe quiet staff/customer continuations too, without making them reply
   // triggers. The observer independently enforces its approved forum boundary.
@@ -573,12 +585,15 @@ async function handleMessage(message) {
     console.log(`[Bot] Cooldown active for ${channel.id}, skipping`);
     return { status: 'ignored' };
   }
+  const input = {
+    messageId: message.id,
+    caseKey: replyCooldownKey,
+    fingerprint: channel.isThread?.() ? questionFingerprint(message.content) : null,
+  };
+  let workStarted = false;
   try {
-    return await runtime.run({
-      messageId: message.id,
-      caseKey: replyCooldownKey,
-      fingerprint: channel.isThread?.() ? questionFingerprint(message.content) : null,
-    }, () => {
+    return await runtime.run(input, () => {
+      workStarted = true;
       // A concurrently queued ordinary-channel question must observe the
       // reply cooldown established by the preceding job, not its arrival time.
       if (!directHistory.length && !isTestChannel(channel) && !channel.isThread?.() && isOnCooldown(replyCooldownKey)) return false;
@@ -586,15 +601,18 @@ async function handleMessage(message) {
     });
   } catch (err) {
     console.error('[SupportRuntime] request coordination failed');
-    // A lost lease means another copy or the recovery queue now owns this message
-    // (expired leases nobody took are resumed), so this worker must not send.
-    if (err.message === 'support lease lost' || err.replyAlreadySent) return { status: 'failed' };
+    // Answers and uncertain sends always keep their ownership fence. A fixed
+    // pre-work outage note is not an answer or proof that the request was saved.
+    if (workStarted || err.replyAlreadySent || err?.message === 'support lease lost' || recovery ||
+        !attemptOutageNote(message.id)) return { status: 'failed' };
     try {
+      // Do not require the unavailable database to report its own outage, and
+      // never retire a recoverable claim because this informational note sent.
       await message.reply({
         content: 'I am having trouble saving this support request. Please email help@omi.me so the team can receive it.',
         allowedMentions: { parse: [], repliedUser: false },
       });
-    } catch { console.error('[SupportRuntime] fallback delivery failed'); }
+    } catch { console.error('[SupportRuntime] outage note delivery unavailable'); }
     return { status: 'failed' };
   }
 }
@@ -610,7 +628,7 @@ async function recoverQueuedRequest(input) {
         await runtime.store.discard(input); return;
       }
     }
-    const result = await handleMessage(message);
+    const result = await handleMessage(message, { recovery: true });
     if (['ignored', 'duplicate'].includes(result?.status)) await runtime.store.discard(input);
   } catch (err) {
     if ([10003, 10008, 50001, 50013].includes(Number(err.code))) await runtime.store.discard(input);
@@ -690,12 +708,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       ? { ...classifiedCurrent, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' }
       : classifiedCurrent;
     const contextRoute = router.classify(routeText);
+    const failedSelfService = splitHistory(contextHistory).current.some(entry => entry.author === 'bot') &&
+      router.isFailedSupportFollowup(asked || question);
     // History preserves the ticket topic, but only the newest customer message
     // decides whether they are currently asking for a human.
     let route = {
       ...contextRoute,
       wantHuman: Boolean(currentRoute.wantHuman),
-      escalate: Boolean(contextRoute.escalate || currentRoute.escalate),
+      escalate: Boolean(contextRoute.escalate || currentRoute.escalate || failedSelfService),
     };
     if (groundedShop) route = { ...route, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' };
     if (plannerPolicy.suppressAcknowledgment(null, asked || question)) return;
@@ -735,7 +755,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const forceGroundedPersonAnswer = Boolean(plannedPersonKind);
     const cannedEnglishReply = cannedEnglish ? router.cannedReply(route, asked || question) : '';
     const supportFollowup =
-      Boolean(currentRoute.wantHuman) || router.looksLikeSupportNudge(asked || question);
+      Boolean(currentRoute.wantHuman) || failedSelfService || router.looksLikeSupportNudge(asked || question);
     const handoffPlanned = Boolean(route.escalate || forceGroundedPersonAnswer ||
       searchPlan.dataLossRisk || hasUnsyncedDataRisk(asked || question));
     if (holdPublicCopy) {
@@ -1042,7 +1062,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const handoffFollowup = continuingPost && supportFollowup;
     const pingAuthor = wantsAuthorPing(caption);
     const localizedFooters = plannerPolicy.handoffFooters(searchPlan, asked || question);
-    const { escalate, signals: escalationSignals } = decideEscalation({
+    const replyLanguage = searchPlan.replyLanguage === 'hi'
+      ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en';
+    let { escalate, signals: escalationSignals } = decideEscalation({
       route,
       question: asked || question,
       answer: cleanAnswer,
@@ -1055,6 +1077,17 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       retrievedUrls: retrievedSourceUrls,
       supportKind: searchPlan.supportKind,
     });
+    if (!escalate && (isHelpThread(channel) || isTestChannel(channel))) {
+      const prepared = inThreadReply(cleanAnswer, { language: replyLanguage });
+      if (prepared.empty) {
+        // A removed contact instruction alone is not a solved question.
+        escalate = true;
+        escalationSignals.push('empty_after_redirect');
+        cleanAnswer = ensureNonEmptyAnswer('');
+      } else {
+        cleanAnswer = prepared.text;
+      }
+    }
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,
       labels: triaged.labels,
@@ -1068,12 +1101,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       await applyThreadName(channel, nameMeta);
     }
 
-    const replyLanguage = searchPlan.replyLanguage === 'hi'
-      ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en';
     if (escalate) {
       await assertCurrentOwnership();
       const previousCase = await supportCases.getCaseByThread(channel.id, message.author.id);
       let supportCase = await supportCases.getOrCreateCase({
+        ...require('./supportKnowledgePrivacy').caseScopeFor(channel, message.author.id),
         channelId: previousCase?.channelId || channel.id, customerId: message.author.id,
         customerThreadId: channel.isThread?.() ? channel.id : undefined,
         sourceMessageId: message.id,
@@ -1459,4 +1491,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, client, handleMessage, shouldHandle, runtime, keepTyping };
+module.exports = { app, client, handleMessage, recoverQueuedRequest, shouldHandle, runtime, keepTyping };

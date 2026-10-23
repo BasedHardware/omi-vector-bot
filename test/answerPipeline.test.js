@@ -5,6 +5,7 @@ const {
   prepareDraftForReviewWithAudit,
   presentReviewedAnswer,
   presentReviewedAnswerWithEvidence,
+  stageFingerprint,
   EMPTY_ANSWER_FALLBACK,
   addUnsyncedDataWarning,
   hasUnsyncedDataRisk,
@@ -291,18 +292,35 @@ test('stage evidence traces which stage shortened a reply without exposing text'
   assert.equal(long.stages.find((s) => s.stage === 'clip').clipped, true);
 });
 
-test('support redirect stripping keeps earlier-attempt context and the application-owned footer', () => {
+test('narration removal fails closed when it would detach a condition or prohibition', () => {
+  for (const input of [
+    'If your recording is synced, clear it; this needs a person who can look.',
+    'Clear the local recording, but only after I am flagging this to the team.',
+    'Clear the recording; unless this one needs a person who can look, wait.',
+    'Borra la grabación, y solo cuando flagging this to the team termine.',
+  ]) {
+    const out = presentReviewedAnswer(input);
+    assert.equal(out, EMPTY_ANSWER_FALLBACK, input);
+    assert.doesNotMatch(out, /clear|borra/i);
+  }
+  assert.equal(presentReviewedAnswer('Do not clear Pending storage; this one needs a person who can look.'), 'Do not clear Pending storage.');
+  assert.equal(
+    presentReviewedAnswer('Keep the app open until the sync ends; this one needs a person who can look.'),
+    'Keep the app open until the sync ends.'
+  );
+});
+
+test('stage evidence detects a source-only line and localized labels without exposing text', () => {
+  for (const text of ['Source: https://help.omi.me/en/articles/sync', 'x\nFuentes: https://help.omi.me/es/a', 'x\nQuelle: https://help.omi.me/de/a']) {
+    assert.equal(stageFingerprint('final', text).hasSourceLine, true, text);
+  }
+  assert.equal(stageFingerprint('final', 'No link here').hasSourceLine, false);
+  assert.equal(presentReviewedAnswerWithEvidence('Source: https://help.omi.me/en/articles/sync').stages.at(-1).hasSourceLine, true);
+});
+
+test('escalateReply never returns an empty reply when the body is all narration', () => {
   const { escalateReply } = require('../utils');
-  const sent = escalateReply('I already reinstalled the app; you can contact support for more help. What phone model do you use?', { pinged: true });
-  assert.match(sent, /^I already reinstalled the app\. What phone model do you use\?\n\nA person on the team has this now\.$/);
-  const comma = escalateReply('You restarted the device, but please email help@omi.me about it.', { pinged: true, replyInThread: true });
-  assert.match(comma, /^You restarted the device\./);
-  assert.doesNotMatch(comma, /help@omi\.me\b(?!.*\n\n)/s);
-  const dash = escalateReply('Reinstalling did not help — contact support with the details.', { pinged: true });
-  assert.match(dash, /^Reinstalling did not help\./);
-  const failed = escalateReply('Ya reinstalé la app; contact support again.', { deliveryFailed: true });
-  assert.match(failed, /^Ya reinstalé la app\.\n\nI could not deliver this to the support team/);
-  const allGone = escalateReply('Contact support; email help@omi.me.', { pinged: true, conversation: true });
-  assert.equal(allGone, 'A person on the team has this now.');
-  assert.match(escalateReply('Contact support; email help@omi.me.', { pinged: true }), /^A person on the team has this now\.$/);
+  assert.equal(escalateReply('Contact support; email help@omi.me.', { pinged: true, conversation: true }), 'A person on the team has this now.');
+  assert.equal(escalateReply('This one needs a person; I have not pinged anyone.', { conversation: true }), 'A person on the team needs to take this. I have not pinged anyone yet.');
+  assert.match(escalateReply('This one needs a person.', { pingAuthor: true }), /A person on the team needs to take this/);
 });

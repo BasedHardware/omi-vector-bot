@@ -178,7 +178,7 @@ function getObserver(botId) {
   return observer;
 }
 
-async function forgetOwnedThread(channel, customerId, { store } = {}) {
+async function forgetOwnedThread(channel, customerId, { store, eraseKnowledge = require('./supportKnowledgePrivacy').eraseOwnedKnowledge } = {}) {
   // Erasure must remain available after the capture kill switch is turned off.
   // This path needs no decryption key and never reads message content.
   if (!channel?.ownerId || String(channel.ownerId) !== String(customerId)) return false;
@@ -189,8 +189,14 @@ async function forgetOwnedThread(channel, customerId, { store } = {}) {
     store: store || require('./supportMemoryStore').createPostgresStore(require('./db').pool) });
   const scope = memory.scopeFor(channel);
   if (!scope) return false;
-  await memory.forgetThread(scope, { optOut: true });
-  return true;
+  if (!await memory.forgetThread(scope, { optOut: true })) return false;
+  // Persist erasure/opt-out first. A later registry failure must not re-enable
+  // context, or let a command claim that every related reference was removed.
+  try { return (await eraseKnowledge(scope))?.ok === true; }
+  catch {
+    console.error('[KnowledgeReview] customer erasure not confirmed');
+    return false;
+  }
 }
 
 function improvementCandidates(outcomes = []) {

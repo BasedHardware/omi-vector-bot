@@ -1,5 +1,43 @@
 # Omi Support Bot Implementation Checklist
 
+## Current October23 — release smoke accepted
+
+- [x] English sourced ordinary answer, private refund delivery and controlled same-commit Redeploy pass. One reply after SIGTERM, clean drain, old instance observed gone after69.197s, stable30s; live6a815fbf/GitHub6b6d97d, optional features off.
+- [x] Merge approved #67 as94e4f57 after verifying automatic deploys remain off; no code deploy.
+- [x] Integrate #67 into #74 as7860417; reviewed privacy files unchanged,952/offline8/SQL and independent298-check integration review pass.
+- [ ] Pass exact-head hosted checks, then merge approved #74. No privacy enablement or new code deployment from this alone.
+- [ ] Finish #71's guarded/shared-page repair and simultaneous-arm comparison; fix the named timing test separately without wall-clock-dependent expectations.
+
+## October23 local integration — #74, not released
+
+- [x] Integrate released main6b6d97d without changing the reviewed owner/forum erasure semantics or the answer/recovery/provider controls. Resolve five document conflicts while preserving the dedicated privacy design and main's current requirements.
+- [x] Preserve owner-derived nullable case scope/non-rebinding, commit-before-ack opt-out, independent facts/other scopes, late/new-case writer fences, mandatory retry, bounds and strict legacy/orphan refusal. Original red-before evidence remains atdfc1398.
+- [x] Local916 tests/offline8/combinedSQL pass, including scoped privacy, retention, two-worker recovery and eight reference-reader groups. No customer data, protected file, provider call or production write.
+- [ ] After the pending release smokes, publish the integration for current-head CI and integration review before readiness. Original notice/privacy/security/backup/processor/pilot gates remain; do not enable memory from this preparation.
+
+## Latest October23 #67 review correction
+
+- [x] Integrate released main6b6d97d via merge commitdc79d80; preserve code and unfinished scope.
+- [x] Confirm frozen comparison main5bafe93/candidatef2781eb share the exact base; record full SHAs in the PR/design.
+- [x] Twenty-five new original regressions fail against pre-repair utilities, then pass: four languages, ordinary/delivered helpers and actual handlers, Source/secret-warning/failed-delivery preservation, intake-tail safety and shared source-label emptiness.
+- [x] Full943, offline8, isolated SQL and final independent185-check review pass. Routing/prompts/evidence budgets/recovery fences and optional defaults unchanged.
+- [ ] Publish current-head hosted checks in the draft PR. No merge/deploy until deferred release smokes pass.
+- [ ] Leave #77 draft until #67 merges, then remove overlapping redirect work; leave #78 untouched until drain review. Keep #62's narration/stage-evidence remainder.
+
+## Separate no-email-redirect draft
+
+- [x] Observe red-before ordinary-answer, redirect-only handoff, clause-preservation and follow-up regressions; implement in the existing delivery/routing pipeline.
+- [x] Focused checks prove ordinary response → still-failing current-post feedback → actual staff delivery; preserve sources, warnings, failed-delivery fallback, localization and unknown-language safety.
+- [x] Local full **850/850**, offline **8/8** and isolated SQL pass before push.
+- [ ] Publish hosted CI; independent comparison/review remain required. No deploy or memory pilot while the combined-release smoke findings #65/#66 are unresolved.
+- [ ] Keep #62 open for its remaining narration and evaluation-stage evidence requirements; do not auto-close it from this partial repair.
+## October 23 finish queue
+
+- [x] Merge reviewed #69/#73/#49 safely; production unchanged.
+- [x] Repair #68 fallback-language metadata and final-review mismatch; current-head tests/CI and independent code review pass. Targeted generated-answer evidence remains before readiness.
+- [x] Reproduce #70 duplicate-send and blocked-sweep failures, then repair ownership-unknown deferral/no-replay and independent recovery dispatch in the existing PR.
+- [ ] Complete #70 final checks, real PostgreSQL two-worker failure/recovery evidence and independent review. Keep #29 receipts/held alerts and remaining queue explicit; no new PR or rollout.
+
 ## October 23 answer-quality priorities
 
 ### Finish every existing PR, without count-driven decisions
