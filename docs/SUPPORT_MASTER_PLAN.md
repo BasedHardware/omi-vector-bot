@@ -63,6 +63,8 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 ### Finish queue — one active completion step
 
+**Live count:11 open PRs.** The authorized #76/#70 merges removed two, but separate drafts #77 (redirect context) and #78 (restart diagnosis) appeared during this work. This finish task created neither. They are unreviewed intake, not assumed safe/duplicate or authority for another merge; assess overlap within the existing queue and preserve the three-PR cap for new work. No automatic closure or deployment.
+
 Aryan asked to bring every existing PR to a deliberate outcome: verify and merge useful work, or close genuinely obsolete/duplicated work with its reason and any unfinished scope preserved. Do not rush a merge or close a useful fix merely to lower the count. The same independent reviewer is authorized for the remaining PRs, one at a time; it does not merge, deploy or access customer data. Use the updated risk-based readiness policy, reusing valid evidence without inventing unrelated certification. Product and release gates remain; ready is not merged or deployed.
 
 **Latest approved order — October23:** maximum three open PRs, no new PR at/above that cap except a production fix, and a reviewed merge-or-close decision within48h. Work down the inherited excess rather than merging unverified code. Existing review decisions target October25 IST; #28 has the explicit October27 deadline. Closing a PR preserves its branch and unmet requirements; it does not claim the customer problem is fixed.
