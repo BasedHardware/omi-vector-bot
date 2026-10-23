@@ -133,7 +133,7 @@ function buildToolFacts({ route, shopifyText, githubText, docsText, releaseText 
   return lines.join('\n');
 }
 
-function buildSystemPrompt(route) {
+function buildSystemPrompt(route, { includeReplyLanguage = false } = {}) {
   const lane = route?.lane || '';
   return `${SUPPORT_VOICE}
 
@@ -199,7 +199,7 @@ Static Omi fallback knowledge. Use this only when retrieved evidence does not co
 ${OFFICIAL}
 
 Reply with ONLY JSON (no markdown fences):
-{"topic":"short problem","labels":["area"],"area":"shop|app|desktop|firmware|privacy","lane":"shop|money|privacy|firmware|tech|faq|account","final_answer":"string","confidence":0.0,"escalate":false,"file_issue":false,"reason":""}`;
+{"topic":"short problem","labels":["area"],"area":"shop|app|desktop|firmware|privacy","lane":"shop|money|privacy|firmware|tech|faq|account","final_answer":"string","confidence":0.0,"escalate":false,"file_issue":false,"reason":""${includeReplyLanguage ? ',"reply_language":"ISO 639-1 code of final_answer"' : ''}}`;
 }
 
 function untrustedQuestion(question) {

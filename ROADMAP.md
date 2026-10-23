@@ -2,7 +2,7 @@
 
 ## October 23 final queue checkpoint
 
-Three reviewed PRs merged (#69/#73/#49); 10 remain open. #70 `9796758` is repaired and ready with 898 tests/offline8/SQL, hosted Node20/24/PostgreSQL39964087202 and independent final PASS. #68 code `477d361` passes 896 tests/CI/code review, but its six user-authorized generated forced-timeout cases fail (13 provider requests, zero invalid; preliminary rule3/6, language+routing2/6—not full quality passes). Preserve all results and keep #68 draft for structural fallback/source/metadata diagnosis and factual grading. No new PRs or further paid run. Aryan confirms his manual `458d4a6f` / `ec51f7a` deploy, health200/`ok`, one active, zero automatic GitHub triggers; agent did not deploy. Progress stays47/100.
+Three reviewed PRs merged (#69/#73/#49); 10 remain open. #70 `9796758` is repaired and ready with 898 tests/offline8/SQL, hosted Node20/24/PostgreSQL39964087202 and independent final PASS. #68's six user-authorized generated forced-timeout cases are independently graded 0/6 correct (13 provider requests, zero invalid; preliminary rule3/6 and language+routing2/6 are not factual passes). Its additional fallback-only language-schema correction passes local896/offline8/SQL and independent narrow code review; current-head CI is tracked on the PR. Preserve all results and keep #68 draft for general source-selection/context repair and passing quality evidence. No new PRs or further paid run. Aryan confirms his manual `458d4a6f` / `ec51f7a` deploy, health200/`ok`, one active, zero automatic GitHub triggers; agent did not deploy. Progress stays47/100.
 
 ## October 23 — three authorized merges complete; repair existing queue
 

@@ -68,15 +68,20 @@ test('a missing planner language requests code metadata from the existing answer
       post: async (_url, body) => {
         calls++;
         assert.equal(/Also return reply_language/.test(body.messages[0].content), expected);
+        assert.equal(/"reply_language":/.test(body.messages[0].content), expected, 'advertised answer JSON schema matches the metadata contract');
         return { data: { choices: [{ message: { content: '{"final_answer":"Abre tus conversaciones.","reply_language":"es"}' } }] } };
       },
     });
     assert.equal(calls, 1);
     assert.equal(answer.replyLanguage, 'es');
+    if (expected) assert.equal(answer.replyLanguageStatus, 'valid');
+    else assert.equal(Object.hasOwn(answer, 'replyLanguageStatus'), false);
   }
   for (const invalid of ['Spanish', 'en-US', 'es\nprivate', '', null]) {
     assert.equal(parseAgentJson(JSON.stringify({ final_answer: 'A useful reply.', reply_language: invalid })).replyLanguage, undefined);
+    assert.equal(parseAgentJson(JSON.stringify({ final_answer: 'A useful reply.', reply_language: invalid }), { includeReplyLanguage: true }).replyLanguageStatus, 'invalid');
   }
+  assert.equal(parseAgentJson('{"final_answer":"A useful reply."}', { includeReplyLanguage: true }).replyLanguageStatus, 'missing');
 });
 
 test('fallback review metadata controls source labels before final rendering and application fallbacks stay English', async () => {
@@ -86,11 +91,13 @@ test('fallback review metadata controls source labels before final rendering and
       understanding: {}, sources: evidence, lane: 'faq', includeReplyLanguage: true,
       post: async (_url, body) => {
         assert.match(body.messages[0].content, /Also return reply_language/);
+        assert.match(body.messages[0].content, /"reply_language":/, 'advertised reviewer JSON schema requires language metadata too');
         return { data: { choices: [{ message: { content: JSON.stringify({ final_answer: 'Abre los ajustes.',
           grounded: true, relevant: true, confidence: 0.9, sources_used: ['S1'], reply_language: code }) } }] } };
       },
     });
     assert.equal(result.replyLanguage, code === 'es' || code === 'zh' ? code : 'en');
+    assert.equal(result.replyLanguageStatus, code === 'es' || code === 'zh' ? 'valid' : 'invalid');
     assert.match(result.final_answer, new RegExp(`${label}: https://help.omi.me/preferences`));
   }
   const fallback = await reviewAnswer({ question: '¿Por qué falla?', draft: 'Restart it.',
@@ -108,6 +115,7 @@ test('fallback review metadata controls source labels before final rendering and
         grounded: true, relevant: true, sources_used: ['S1'], reply_language: code }) } }] } }),
     });
     assert.equal(changed.replyLanguage, 'en', 'missing final metadata must not inherit a different draft language');
+    assert.equal(changed.replyLanguageStatus, code === undefined ? 'missing' : 'invalid');
     assert.match(changed.final_answer, /Source: https:\/\/help.omi.me\/preferences/);
   }
 });
