@@ -1,5 +1,9 @@
 # Omi Support Bot Operations Runbook
 
+**Current October23 decision:** accuracy and reliability take priority over speed, explicitly confirmed by Aryan. Record latency, but do not use an increase alone as a merge blocker or cut necessary evidence for speed. Grounding, safe handoffs, privacy, duplicate/uncertain-delivery fences and review remain mandatory; bounded provider cancellation/recovery stays intact. No deployment/settings authority changes.
+
+**October23 comparison terminal/complete:** execution41676 is exit0; never restart or overwrite `/Users/astar/omi-eval/multipart-fair-20261023/`. Frozen main1235379 / candidate55799ad; candidate972/offline8/exact CI39991802703 pass. Both full arms retain162 rows/81×2/concurrency3, zero invalid, normal structural exit1, no signal/stop, same UTC/IST day and11ms start skew. Pass-both70→73, unwanted13→10, missing5→3. Stage-total p50/p9534.096/55.598→34.417/63.164s; original p95+6s limit fails, but latest user decision makes latency alone nonblocking. Independent output review instead holds unsupported negative compatibility claims/citation contradiction, unsupported case-specific storage reassurance, fallback language and citation completeness. Causation is not established. Do not repair with protected phrasing/URLs or start another provider run automatically. Memory/optional features stay off; production unchanged. No more Discord input or Mac keep-awake needed for this completed job.
+
 ## Current October23 — smoke accepted; #71 fair rerun authorized
 
 Latest: #79 is merged1235379 after954/offline8, independent final review and exact-head CI39990949904. It only fixes test timing/coverage, with no runtime change or deploy. Integrated #71 needs fresh full/current CI because its prior run failed the retained750ms cutoff at1184ms. #68/#29/#30/#66 are closed per the accepted queue decision; branches and unmet scopes remain in #56/#51. Six PRs remain. No new Discord inputs, settings or deployment.

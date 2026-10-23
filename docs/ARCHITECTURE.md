@@ -1,5 +1,9 @@
 # Omi Support Bot Architecture
 
+## Latest October23 — reliability/grounding over latency
+
+The user explicitly prioritizes correct sourced answers and reliable delivery over time. Treat latency as observed metadata, not a standalone merge blocker. Do not reduce required per-part evidence, weaken private delivery/uncertain-send fences or remove bounded provider cancellation to change timing numbers. #71's fair comparison completes162 rows/arm; independent review holds generated negative claims contradicting cited evidence, unjustified case-specific availability reassurance, fallback-language/citation gaps. Structural improvements do not certify those paths. Diagnose evidence selection→generation→review→presentation generally, with original synthetic inputs and no protected-case tailoring; no new capability, setting, enabled memory or production deploy.
+
 ## Current October23 — bounded multipart evidence, no fetch amplification
 
 Test-only #79 is merged1235379 and integrated here: actual loopback body cancellation is gated on client download progress and manually triggered deadlines; exact250ms factory/retry assertions remain in adapter tests. No production timeout/runtime change. Its954/offline8/review/CI passed. A prior #71 full gate failed the original750ms stopwatch oracle; this integrated head needs a fresh full/current CI gate. #67/#74/#79 remain undeployed.

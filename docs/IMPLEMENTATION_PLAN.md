@@ -1,5 +1,13 @@
 # Omi Support Bot Implementation Checklist
 
+## Latest October23 acceptance priority
+
+- [x] Record Aryan's explicit accuracy/reliability-over-time decision: latency increase alone no longer blocks; no waiver of grounding, protected handoffs, privacy, safe delivery/recovery or independent review.
+- [x] #71 integrated verification972/offline8/current CI39991802703; concurrent81×2 per arm complete, zero invalid, same-day/host/source guards pass. No rows dropped or repeated.
+- [x] Independent result review: structural pass-both70→73 and fewer handoff flags, but accuracy HOLD for citation contradiction/negative claims, case-specific storage reassurance, fallback language and incomplete attribution. No clipping regression observed in changed replies; full hidden intent coverage cannot be certified from source-free outputs.
+- [ ] Repair general accuracy/reliability paths with original red-before tests; no protected fixture/URL/feature-specific patch and no blind paid rerun. Current code-review/CI passes do not clear this HOLD.
+- [ ] Same-draft #75/#77/#78 repairs remain; #28 integration/current private-workflow verification and #59's separate prompt-quality gate remain. No new feature PR or deployment.
+
 ## October23 current verification — #71
 
 Latest: #79 test-only repair merged1235379 (954/offline8, independent review, exact CI39990949904) and integrated here. The previous #71 full run failed its unchanged750ms wall-clock assertion at1184ms, with no push. Do not replace that failure with the earlier970-pass checkpoint; fresh integrated full/current CI gates remain. #68/#29/#30 are closed with unmet scope preserved; #66 closed on the successful controlled teardown. Live runtime6b6d97d is unchanged.

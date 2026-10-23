@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## Latest October23 — accuracy and reliability first
+
+Aryan explicitly makes accuracy/reliability decisive; latency increases alone no longer block merges. Keep measurements and bounded cancellation/recovery, but never cut necessary evidence or waive grounding, protected handoffs, privacy or safe-delivery verification for speed. #71's simultaneous comparison is complete (162 rows/arm, zero invalid, source/host/same-day guards pass): pass-both70→73, unwanted13→10, missing5→3; p95+7.566s is preserved, not the HOLD reason. Independent review holds real grounding/reassurance/fallback/citation gaps, with patch causation unresolved. Repair general causes in the existing draft, not protected examples. No automatic rerun/merge/deploy. #75/#77/#78 also have recorded concrete repair findings; six PRs remain open. Live6a815fbf /6b6d97d and optional controls off are unchanged. No more Discord posts/keep-awake period for the completed comparison. Score47/100.
+
 ## Current October23 — merged foundations, multipart gate next
 
 **Latest:** #79's test-only repair merged1235379 with954/offline8, independent review and exact-head CI39990949904. It is integrated into #71; fresh full/hosted checks remain before its push/comparison. The preceding #71 full run failed the retained review deadline fixture (1184ms versus750ms); preserve that failure, do not call it a green rerun. Real HTTP checks now await client-observed body bytes before controlled cancellation, not a tight elapsed-time cutoff. #68/#29/#30 closed with branches/unmet scope preserved in #56 and #51; #66 closed on accepted teardown evidence. Six PRs remain open. Production and optional controls unchanged.
