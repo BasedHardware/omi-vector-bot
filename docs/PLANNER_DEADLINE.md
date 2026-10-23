@@ -20,7 +20,7 @@ Current question/history → deterministic route and default plan → optional p
 
 - `plannerDeadline.js` bounds planner transport, supplies an abort signal and caps its transport timeout without changing answer/reviewer timeouts.
 - Even an adapter ignoring cancellation cannot return a late plan into the answer or leave a late rejection unobserved. The timer is cleared and cannot keep an otherwise finished process alive.
-- Timeout leaves the already-constructed deterministic plan and route in place. No new language detector, prompt or memory path is added.
+- Timeout leaves the already-constructed deterministic plan and route in place. No new language detector or memory path is added; the October 23 repair adds fallback-only language metadata to existing answer/review prompts.
 - One fixed metadata line records the deadline. Other planning errors omit raw provider exceptions; allowlisted authorization/quota status metadata preserves the evaluation harness's stop signal.
 - A planner failure cannot cancel deterministic protected-topic or person-required routing. Existing provider/reviewer fallback behavior is unchanged.
 
