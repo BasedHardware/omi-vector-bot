@@ -53,9 +53,9 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 | Status | What it means now |
 | --- | --- |
-| **Done** | #69 and #73 merged October 23 after review/current checks. The fresh production read confirms `bc2166f9` / `5bafe93`, one successful active deployment and healthy readiness; no new deployment. |
-| **In progress** | Finish #49's reviewed foundation integration, then repair #68 and #70 in their existing PRs. No new PRs until this queue is finished. |
-| **Next** | Fix #68's timeout-language gap and #70's reproduced recovery/delivery gaps in their existing PRs. Finish #75's remaining verification. No new feature PRs. |
+| **Done** | #69/#73/#49 merged earlier. Reviewer-approved #76 merged as `d06e41c`; 884 tests, six local timeout checks and CI pass. #72 is closed; its unfinished overall answer-budget scope is preserved in #56. Production remains Aryan's `458d4a6f` / `ec51f7a`, not the new merge. |
+| **In progress** | #70's required outage-note fix: one honest status note before work starts even when the database is down; a later actual answer stays fenced. Red-before tests pass; final tests/SQL/review/CI precede merge. No new PRs. |
+| **Next** | Merge verified #70, deploy exact GitHub main with optional features off, then English/refund/Redeploy-drain smokes supplied by Aryan. Roll back on failure. Only afterward close #68/#29/#30, preserving failed evidence and unfinished scope. |
 | **Waiting** | Railway's merge safeguard is cleared by authenticated, complete service/environment API reads: zero matching automatic GitHub triggers and unchanged production. Code, speed, dependency and privacy/pilot gates remain below. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
 
@@ -65,25 +65,38 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 Aryan asked to bring every existing PR to a deliberate outcome: verify and merge useful work, or close genuinely obsolete/duplicated work with its reason and any unfinished scope preserved. Do not rush a merge or close a useful fix merely to lower the count. The same independent reviewer is authorized for the remaining PRs, one at a time; it does not merge, deploy or access customer data. Use the updated risk-based readiness policy, reusing valid evidence without inventing unrelated certification. Product and release gates remain; ready is not merged or deployed.
 
+**Latest approved order — October23:** maximum three open PRs, no new PR at/above that cap except a production fix, and a reviewed merge-or-close decision within48h. Work down the inherited excess rather than merging unverified code. Existing review decisions target October25 IST; #28 has the explicit October27 deadline. Closing a PR preserves its branch and unmet requirements; it does not claim the customer problem is fixed.
+
+1. **Done:** merge #76; close #72 while preserving broader budget/retries in #56/A4/B3/E2.
+2. **In progress:** fix/review/verify/merge #70's pre-work outage note. Actual answers stay fenced; a status note does not confirm storage, staff delivery or a solution.
+3. **Pending:** deploy exact combined main, rollback458d4a6f, memory/context/fix-inbox off. Aryan sends English how-to, refund and an armed slow multipart input for same-commit Redeploy; require clean drain and exactly one answer. Close #66 only after that evidence.
+4. **After release passes:** close #68 (generated fallback0/6; preserve comparison/code/quality evidence and the remaining multilingual fallback problem in A2/E2), #29 and #30 (preserve receipts, same-nonce retries, held alerts and closure recovery in #51). #70 does not complete those safeguards.
+5. Integrate current main into #74, verify affected privacy/SQL checks, mark ready for the reviewer's next review; do not enable memory from this alone.
+6. Export #67's changed missing-handoff cases privately for grading, then reviewer decides merge/close. The reviewer treats its +0.200s overrun as non-blocking; retain the measured result, not a rewritten pass.
+7. Diagnose #71's per-stage timing/token evidence and fix a proven general cause before another run; do not assume prompt growth or #76 explains the historical difference.
+8. After step3 is live, one same-day comparison batch: common deployed-main arm and separate #59/#71-fixed/#75 arms, each81×2, global concurrency3, the usual per-arm gates/changed-case files. This supersedes separate fresh-main runs, not per-candidate grading. No combined prompt diff or protected case-file read.
+9. Integrate/verify/review #28 by October27, otherwise close with smaller scopes preserved. Merge commits only; no rebase.
+10. After step3 is clean and the original privacy/notice/pilot prerequisites are verified, test-forum-only memory pilot and two-post scenario, then48h observation; no public-forum enablement or training.
+
 | Existing work | What must happen before it can move forward |
 | --- | --- |
 | #69 — clear status documents | **Merged** as `577c0c0`, reviewed head `dda2cf6`; fresh 839 tests and exact-head hosted Node 20/24/PostgreSQL pass. No deployment. |
 | #73 — memory safety rehearsal | **Merged** as `c61920d`, integrated head `88f8afa`; fresh 839 tests, eight SQL/reader groups, exact-head hosted Node 20/24/PostgreSQL and narrow integration review PASS. Memory stays off. |
-| #68 — faster planning | Independent review HOLD: timeout fallback loses language metadata. Resolve this and the factual-quality disposition before readiness; numerical timing passes, no new protected handoff miss or clipped item was found. No automatic rerun. |
+| #68 — faster planning | **Close after step3 passes, keep branch/evidence.** Authorized six generated fallback checks score0/6 correct; later schema/unit/CI/code-review success does not clear that result. #76 covers the per-request trickle mechanism, not the multilingual retrieval weakness. Preserve the original comparison and fallback source-selection problem in A2/E2; do not import the unapproved prompt into main. |
 | #75 — correct customer intent | Finish evaluation-adapter parity, authorized answer-quality comparison, actual multi-turn verification and independent review. |
-| #67 — in-thread next steps | Repair the failed typical-speed gate (+2.200 s versus +2 allowed), preserve the increased missing flags for independent grading, then obtain the required passing gate. |
+| #67 — in-thread next steps | Export changed missing-handoff cases privately for grading; reviewer decides merge/close. The reviewer explicitly accepts the0.200s excess over the old p50 limit, not a changed measurement. Preserve every flag, reply and signal. |
 | #71 — multipart evidence | Diagnose and resolve the failed slow-reply gate (+18.824 s versus +6 allowed) and obtain independent quality grading. No automatic rerun or topic-specific patch. |
-| #70 — faster abandoned pickup | Independent review HOLD: earlier takeover can duplicate a send when the old worker cannot confirm ownership; an existing recovery batch also blocks later sweeps. Add red-before tests and verify corrected two-worker failure/recovery against isolated PostgreSQL. |
+| #70 — faster abandoned pickup | Reviewer-required outage fix passes907 local tests/offline8/SQL and independent narrow review (185 affected checks). Pre-work total claim outage gives one honest note without a DB fence; later answers retain their fence. Automatic recovery never repeats the note, duplicate intake is bounded/coalesced, and the note does not retire unsent work. Current-head CI precedes the authorized merge. No global exactly-once, complete receipt or staff-alert claim. |
 | #28 — private staff/engineering workflow | Returned to draft: conflicts with current main. Integrate safely, recheck the affected private workflow and obtain independent re-review. Never relax privacy to pass. |
-| #29 — delivery receipts | Preserve existing local edits. Finish same-nonce retries, explicit ledger-outage behavior and staff-visible held-reply alerts; integrate reviewed #28, then verify and review. |
-| #30 — close/reopen safety | Resolve parent dependency/conflicts after #29; verify the actual closure/reopen receipt flow and obtain review. |
+| #29 — delivery receipts | **Close after step3 passes; keep branch/local edits.** Preserve unimplemented same-nonce recovery, ledger-outage handling, receipts and staff-visible held alerts in #51. #70 does not complete them. |
+| #30 — close/reopen safety | **Close after step3 passes; keep branch.** Preserve unfinished closure/reopen receipt and uncertain-send reconciliation in #51, with the existing case/card workflow; not marked fixed. |
 | #59 — consistent Mira voice | Resolve conflicts and complete its separate required answer comparison and review; do not mix prompt changes into another comparison. |
-| #49 — reviewed-fact foundation | Original disabled-foundation review PASS at `3f83024`. Integration preserves that runtime and adds reviewed #69/#73 documents/test rehearsal; fresh 878/offline8/combined SQL pass. Final integration review/current CI precede merge. Missing real validator/UI/jobs remain enablement gates. Nothing enabled. |
+| #49 — reviewed-fact foundation | **Merged** as `ec51f7a`, head `bd985f0`: 878 tests/offline8/combined SQL, exact-head Node 20/24/PostgreSQL CI39958358860 and independent integration review PASS. Runtime preserves reviewed `3f83024`; real validator/UI/jobs remain enablement gates. Nothing deployed/enabled. |
 | #74 — correction-link forgetting | Independent review PASS for the disabled foundation at `dfc1398`; fresh 76 affected tests/isolated SQL and exact-head hosted PostgreSQL pass. Integrate after parent #49, preserve the reviewed diff and recheck affected integration/current-head CI. No pilot or enablement inferred. |
 
 Truthful delivered-versus-accepted wording and supplied-diagnostic continuity remain required repairs; they do not authorize another PR ahead of this queue. Reorganizing work earns no progress points.
 
-**October 23 merge safeguard, resolved:** normal existing-account sign-in succeeds with credential output suppressed. Fully paginated service and production-environment reads both return zero matching automatic GitHub triggers; the repository remains connected. Active/latest deployment `bc2166f9` records `5bafe93`, one running deployment and health HTTP 200/`ok`; subsequent reads confirm no deployment after #69/#73. Repeat the guard around subsequent authorized merges. No API/project key, permission, production setting or deployment was created/changed. This supersedes the earlier UI/CLI blocker, not remaining feature gates or a long-duration health report.
+**October 23 merge safeguard, resolved:** normal existing-account sign-in succeeds with credential output suppressed. Complete service/environment reads return zero matching automatic GitHub triggers and preserve the source. The three agent-authorized merges completed while production stayed `bc2166f9` / `5bafe93`. At 18:58 IST a later deployment started; Aryan confirms he triggered it. Latest `458d4a6f` / `ec51f7a` is successful, one active instance, health HTTP 200/`ok`; the fresh trigger read still returns zero. No agent deployment, setting/key/permission change occurred. This is readiness/state evidence, not a full health window, smoke acceptance or optional-feature approval.
 
 <details>
 <summary>Audit intake and preparation evidence — technical detail</summary>

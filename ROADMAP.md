@@ -1,5 +1,13 @@
 # Omi Support Bot Roadmap
 
+## October 23 reviewer-approved finish order
+
+#76 merged as `d06e41c` after 884 tests, six local loopback checks and current CI. Its per-request deadline fixes the trickling-body mechanism; the unfinished overall answer budget/remainder-bounded retries move from closed #72 to #56/A4/B3/E2. #70's reviewer-required pre-work outage-note correction is now implemented with observed red-before tests: total claim outage gives one honest note without database authorization; lost claim acknowledgment gives one note and preserves later fenced recovery. Actual answers, post-start/uncertain errors and known lost ownership remain fenced. Full tests/SQL/current CI and independent re-review control its next merge. Nothing new deployed yet; rollback baseline458d4a6f/ec51f7a. Then authorized exact-GitHub rollout, Aryan-submitted ordinary/refund smokes and same-commit Redeploy drain test. Subsequent closures/integrations/comparisons follow the master queue; no new PRs. #70 does not implement #51's receipts, same-nonce retries, staff-visible held alerts or #30's full closure recovery. New standing cap is three open PRs and a reviewed merge-or-close decision within48h, with #28's explicit October27 exception. Progress47/100, not an accuracy claim.
+
+## October 23 — authorized merges and existing-PR repairs
+
+#69 (`577c0c0`), #73 (`c61920d`) and #49 (`ec51f7a`) are merged with reviewed exact-head checks: 13→10 open PRs. Aryan confirms his later 18:58 IST deploy, `458d4a6f` / `ec51f7a`; health 200/`ok`, one active, zero automatic GitHub triggers. No agent deploy/settings/enablement occurred. #68's code `477d361` passes review, 896 tests and hosted Node 20/24/PostgreSQL; targeted generated-answer evidence remains for its fallback-only prompt. #70 reproduces original and follow-up review escapes before repair; 896 tests/offline8/expanded isolated SQL now pass. Final hosted checks and re-review precede readiness. No new PRs, paid runs or Discord inputs. Score remains 47/100.
+
 ## October 23: safe merges resumed, no deployment
 
 Authenticated Railway reads verify zero matching automatic GitHub triggers and unchanged healthy production `bc2166f9` / `5bafe93`; no setting change was needed. #69 merged as `577c0c0`; #73 as `c61920d` after docs-only integration, fresh 839 tests/eight SQL groups, exact-head Node 20/24/PostgreSQL and independent review. #49 combines that reviewed test rehearsal with its unchanged disabled runtime; fresh 878/offline8/SQL pass, final integration review/CI precede merge. Then repair #68 and #70; no new PRs. Score stays 47/100: merges alone do not earn delivery points. Historical checkpoints below are retained, not current instructions.
