@@ -3,11 +3,27 @@ Total output lines: 413
 
 # Omi Support Bot Roadmap
 
-## October 21: reviewed-fact draft integrated; expired-reference cleanup tested locally
+## October 23: safe merges resumed, no deployment
 
-Draft #49 now merges deployed main `5bafe93` as `141e718`, preserving references-only memory, ordinary closing language and the off-only prompt guard with its existing availability fixes. A mandatory tracked startup/minute worker prunes expired internal case references and expired barriers in bounded batches, with fresh-row locking, fixed failure retry and shutdown checks. Active barriers and approved/revoked fact state are preserved. Cleanup uses transaction-local server deadlines, not a claimed whole-batch/network guarantee. See [the retention design](docs/KNOWLEDGE_RETENTION.md).
+Authenticated Railway reads verify zero matching automatic GitHub triggers and unchanged healthy production `bc2166f9` / `5bafe93`; no setting change was needed. #69 merged as `577c0c0`; #73 as `c61920d` after docs-only integration, fresh 839 tests/eight SQL groups and exact-head Node 20/24/PostgreSQL plus independent review. #49 combines that reviewed test rehearsal with its unchanged disabled runtime; fresh 878/offline8/SQL pass, final integration review/CI precede merge. Then repair #68 and #70; no new PRs. Score stays 47/100 because merges alone do not earn delivery points. Historical blockers/checkpoints below are retained, not current instructions.
 
-Local 878 unit tests, offline8 and combined isolated SQL pass. Nine new focused checks include eight observed red assertions; SQL adds global 100/3 batching, restart/idempotence, active barriers, unchanged eligible facts, concurrent revocation and timeout restoration. Hosted exact-head checks and independent review remain pending. No new fact publication, validator, mistake collector, review UI, privacy adapter or quality/scorecard job is implied; D1–D6 remain incomplete and disabled. No protected/provider run, production operation, deploy or setting change. The existing milestone already covers the tested foundation, so the score stays 46/100 and full acceptance 2/21.
+## October 23: finish existing work before adding drafts
+
+The [master plan](docs/SUPPORT_MASTER_PLAN.md) lists all 13 existing PRs and their concrete merge/repair/close decisions. #69/#73 passed review and affected checks; #49/#74 passed review for disabled foundations, not feature enablement. #68 and #70 have specific reproduced review findings to repair; #67/#71 retain their failed speed gates. Verify the actual merge-versus-deploy boundary before merging. No count-driven closure or new feature PR. Score is 47/100 solely because milestone 18 gained independent foundation review; full acceptance stays 2/21.
+
+Public-data request is recorded in [Mira's data plan](docs/MIRA_DATA_STRATEGY.md): eight owner/license screens, a blocked-by-default metadata register and 12 original multilingual support scenarios are prepared. No downloaded corpus rows, training job, runtime/prompt change, new feature PR or progress point. Later execution maps to A1/A2/E2 and #59, after the finish queue; rights, provider/cost, actual answer-quality comparison and review remain open. Discord memory is never silently repurposed into training.
+
+## October 23: answer audit becomes an integrated repair checklist
+
+All nine audit themes remain mapped to A1/A2/A4/B2/E2 acceptance in `docs/ANSWER_QUALITY_CONTRACT.md`. Original scoring/evidence stays private, not a current accuracy rate. Draft #75 keeps its actual multi-turn/quality/adapter-parity/comparison/review gates; ownership copy and diagnostic continuity remain required without opening more drafts ahead of the finish queue. No runtime deployment, customer message or optional enablement follows. The current milestone ledger is in the master plan; older dated scores below are historical.
+
+## October 21: forgetting reaches reviewed-correction links in a draft
+
+Separate draft #74 `dfc1398` is stacked on #49, preserving its review head. It adds owner-derived case server/forum metadata and connects durable forum forgetting to verified correction-link erasure without deleting independent facts or other known scopes. Opt-out persists before cleanup, fences late/new-case writes and drives mandatory retry; manual/automatic legacy scope is never guessed and unknown orphan markers cannot produce a success claim. Local 887/offline8/PGlite and exact-head hosted PostgreSQL/Node 20/24 CI `39554963703` pass; nine new focused tests include eight baseline failures, with additional SQL strict-scope regressions observed red/green. Independent parent/child review remains pending. Existing comparison holds, actual ingestion/validator/UI/jobs, privacy/security/data-use/backup and enabled pilot remain open. No comparison rerun, main merge, deploy or optional enablement; score stays 46/100, acceptance 2/21.
+
+## October 21: learning foundation integrated, mandatory expiry tested
+
+Existing draft #49 now merges deployed main `5bafe93` as `141e718`, preserving the reference-memory, closing-language and off-only prompt paths. Head `3f83024` adds tracked, bounded automatic expiry of internal case references and stale erasure barriers with active-barrier protection and concurrent-revocation safety. Local 878/offline8/PGlite and exact-head hosted Node 20/24/real PostgreSQL `39549961373` pass. Nine new focused tests include eight observed red assertions; server deadlines are transaction-local, not client cancellation. Independent review and full D1–D6 work remain: real source/regression validation, owner-scoped minimized signals/drafts, review controls, privacy adapter and nightly/weekly jobs. Nothing is published, merged to main, deployed or enabled; no paid/protected run. Score remains 46/100, full acceptance 2/21, with all existing comparison and memory gates unchanged.
 
 ## October 21: automatic memory SQL/reader rehearsal, still off
 
@@ -35,7 +51,7 @@ Release retry remains accepted live on `13ead500` / GitHub `5bafe93`, optional c
 
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
-## Current — October 19 combined release
+## Historical — October 19 combined release, accepted retry October 20
 
 **October 20 retry complete, 22:20 IST:** all required rechecks pass: Spanish ordinary closure, private refund and the corrected same-commit deployment teardown. Live `13ead500` records GitHub `5bafe93` and matches the approved retry image; one running instance and healthy readiness, all optional controls off. Redeploy dispatch +11.737 s; old SIGTERM 22:18:32.077, reply 22:18:32.131, successful drain 22:18:32.335, replacement login 22:18:20.972; old instance observed removed 22:19:38.246 (66.169 s), stable one-reply proof by 22:20:12.231. No rollback/settings/permissions change. Earlier ordinary/low-risk smokes carry from identical runtime. First pre-dispatch punctuation rejection caused no rollout and is retained separately, with two red/seven green scope checks and 26 observer checks after the private helper repair. No further Discord posts needed. Score is 46/100 (+1 for reviewed #48 now verified live), full A–E 2/21; later draft/generated-answer/memory gates remain. Next is the approved synthetic and full #71 comparison against this deployed main, then separate #67/#68 comparisons.
 
