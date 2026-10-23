@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 23: handoff context preserved when filtering narration and redirects (#62) — draft
+
+Code implemented and tested locally; rollout pending; nothing deployed or production-verified. `dropPingNarration` (presentation) and `stripSupportRedirect` (after confirmed delivery) now remove only the unsupported clause (semicolon, em dash or comma+conjunction joint) and keep the symptom or earlier-attempt clause beside it. If everything is narration the reply falls back to an honest non-empty message; confirmed-delivery, failed-delivery and person-required footers stay application-owned. Evaluation-only stage evidence (`EVAL_STAGE_EVIDENCE=<file>`, JSON lines of lengths, short hashes and flags per generation/safety/review/narration/format/clip/final stage, no text) is written by `scripts/customer-eval.js`. Synthetic red-before tests added; full suite and offline eval pass. Live eval (spends quota), independent review and the quality/release gate remain pending.
+
 ## October 23: safe merges resumed, no deployment
 
 Authenticated Railway reads verify zero matching automatic GitHub triggers and unchanged healthy production `bc2166f9` / `5bafe93`; no setting change was needed. #69 merged as `577c0c0`; #73 as `c61920d` after docs-only integration, fresh 839 tests/eight SQL groups, exact-head Node 20/24/PostgreSQL and independent review. #49 combines that reviewed test rehearsal with its unchanged disabled runtime; fresh 878/offline8/SQL pass, final integration review/CI precede merge. Then repair #68 and #70; no new PRs. Score stays 47/100: merges alone do not earn delivery points. Historical checkpoints below are retained, not current instructions.

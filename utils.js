@@ -146,6 +146,33 @@ function sanitizeReply(text) {
   return stripInventedLookup(stripStaffLies(cleaned));
 }
 
+// Split a sentence into clauses at semicolons, em dashes and comma+conjunction
+// joints, and keep only the clauses `mapClause` returns text for. Only the
+// unsupported clause is removed; useful context joined to it survives.
+const CLAUSE_JOINT = /(\s*[;；]\s*|\s+[—–]\s+|,\s+(?:and|but|so|yet|while|y|pero|aber|und|mais|et|mas|e|но|и)\s+)/iu;
+
+function filterClauses(sentence, mapClause) {
+  const parts = String(sentence).split(CLAUSE_JOINT);
+  if (parts.length < 3) return mapClause(sentence, 0) ?? '';
+  const endMark = String(sentence).match(/[.!?。！？]["'”’)\]]*\s*$/)?.[0].trim() || '';
+  let out = '';
+  let previous = -1;
+  let lastKept = false;
+  for (let i = 0; i < parts.length; i += 2) {
+    const mapped = mapClause(parts[i], i / 2);
+    if (mapped == null || !String(mapped).trim()) continue;
+    if (previous < 0) out = mapped;
+    else out += `${previous === i - 2 ? parts[i - 1] : '; '}${mapped}`;
+    previous = i;
+    lastKept = i === parts.length - 1;
+  }
+  if (previous < 0) return '';
+  out = out.trim();
+  if (endMark && !lastKept) out = `${out.replace(/[,;:\s]+$/u, '')}${endMark}`;
+  if (parts[0] !== out.slice(0, parts[0].length)) out = out.replace(/^\p{Ll}/u, (c) => c.toUpperCase());
+  return out;
+}
+
 function stripSupportRedirect(text) {
   const isRedirect = (sentence) => {
     const supportTarget = '(?:omi\\s+support|support(?:\\s+team)?|(?:the|our|your)\\s+team|(?:a|an|the|real|live)\\s+(?:person|human|agent)|help@omi\\.me|discord\\.omi\\.me|#help\\b|(?:the\\s+)?help\\s+channel|(?:the\\s+)?contact\\s+(?:form|option|page)|(?:the\\s+)?support\\s+(?:form|page|ticket))';
@@ -165,8 +192,14 @@ function stripSupportRedirect(text) {
           // Private /order self-service and its verification steps are not support redirects.
           if (/^\s*include (?:the )?order (?:number|#)/i.test(sentence)) return [];
           if (!isRedirect(sentence)) return [sentence];
-          const details = sentence.match(/\b(?:please\s+)?include\b.+$/i);
-          return details ? [`Please ${details[0].replace(/^please\s+/i, '')}`] : [];
+          const kept = filterClauses(sentence, (clause, index) => {
+            if (!isRedirect(clause)) return clause;
+            const details = clause.match(/\b(?:please\s+)?include\b.+$/i);
+            if (!details) return null;
+            const detail = details[0].replace(/^please\s+/i, '');
+            return index === 0 ? `Please ${detail}` : `please ${detail}`;
+          });
+          return kept ? [kept] : [];
         })
         .join(' ')
         .trim()
@@ -358,8 +391,9 @@ function dropPingNarration(text) {
     .map((line) => {
       if (!PING_NARRATION.some((re) => re.test(line))) return line;
       return line
-        .split(/(?<=[.!?])\s+|\s+[—–]\s+/)
-        .filter((sentence) => !PING_NARRATION.some((re) => re.test(sentence)))
+        .split(/(?<=[.!?])\s+/)
+        .map((sentence) => filterClauses(sentence, (clause) => (PING_NARRATION.some((re) => re.test(clause)) ? null : clause)))
+        .filter(Boolean)
         .join(' ');
     })
     .map((line) => line.replace(/^[,\s]+/, '').replace(/\s{2,}/g, ' ').trim())
@@ -465,7 +499,7 @@ function escalateReply(answer, opts = {}) {
   }
 
   if (opts.conversation) {
-    return body;
+    return body || (pinged ? (footers?.sent || PINGED_FOOTER) : (footers?.pending || ESCALATE_FOOTER));
   }
 
   if (opts.issue && !opts.pingAuthor) {
@@ -482,7 +516,7 @@ function escalateReply(answer, opts = {}) {
     return [body, footer].filter(Boolean).join('\n\n');
   }
 
-  if (opts.pingAuthor) return body;
+  if (opts.pingAuthor) return body || (footers?.pending || ESCALATE_FOOTER);
 
   return [body, footers?.pending || ESCALATE_FOOTER].filter(Boolean).join('\n\n');
 }

@@ -1,4 +1,5 @@
 require('dotenv').config();
+const fs = require('node:fs');
 const router = require('../router');
 const { relevantDocs } = require('../docs');
 const { relevantFeedback } = require('../feedback');
@@ -6,7 +7,7 @@ const { buildToolFacts, OFFICIAL } = require('../prompt');
 const { planSearch, queryAgent, reviewAnswer } = require('../commandcode');
 const { approvedReview, reviewWithSecondLook } = require('../reviewDecision');
 const triage = require('../triage');
-const { prepareDraftForReview, presentReviewedAnswer } = require('../answerPipeline');
+const { prepareDraftForReview, presentReviewedAnswerWithEvidence, stageFingerprint } = require('../answerPipeline');
 const github = require('../github');
 const { loadOfficialSource } = require('../sourcecode');
 const {
@@ -155,6 +156,10 @@ function judge(scene, route, answer) {
   return problems;
 }
 
+// EVAL_STAGE_EVIDENCE=<file> appends one JSON line per model-answered scene:
+// per-stage lengths, short hashes and flags only, never reply text.
+const evidencePath = String(process.env.EVAL_STAGE_EVIDENCE || '').trim();
+
 let modelBlocked = process.env.EVAL_NO_MODEL === '1';
 
 async function replyFor(scene, route) {
@@ -219,9 +224,12 @@ async function replyFor(scene, route) {
       sessionId: `eval-${scene.id}`,
     });
     const draftLane = triage.merge(route, agent, scene.ask).lane;
+    const stages = [stageFingerprint('generation', agent.final_answer)];
+    const preparedDraft = prepareDraftForReview(agent.final_answer, draftLane, scene.ask);
+    stages.push(stageFingerprint('safety_filters', preparedDraft));
     const checked = await reviewWithSecondLook({
       question: scene.ask,
-      draft: prepareDraftForReview(agent.final_answer, draftLane, scene.ask),
+      draft: preparedDraft,
       understanding: searchPlan,
       policy: toolFacts,
       sources: [
@@ -238,7 +246,9 @@ async function replyFor(scene, route) {
       : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
     agent.escalate = Boolean(agent.escalate || checked.escalate || !approved);
     agent.confidence = Math.min(Number(agent.confidence) || 0.4, Number(checked.confidence) || 0.4);
-    return { answer: presentReviewedAnswer(agent.final_answer), agent, from: 'model+review' };
+    stages.push({ ...stageFingerprint('review', checked.final_answer), approved: Boolean(approved), safeHandoff: Boolean(checked.safeHandoff) });
+    const presented = presentReviewedAnswerWithEvidence(agent.final_answer);
+    return { answer: presented.answer, agent, from: 'model+review', stages: [...stages, ...presented.stages] };
   } catch (err) {
     if (/429|usage limit|wallet/i.test(err.message)) modelBlocked = true;
     const down = router.whenModelDown(route, scene.ask);
@@ -271,6 +281,9 @@ async function main() {
     const action = merged.escalate
       ? `person ${specialist || 'staff'}${merged.fileIssue ? ', would file a GitHub issue' : ', no GitHub issue'}`
       : 'answers in the thread, no ping';
+    if (evidencePath && result.stages) {
+      fs.appendFileSync(evidencePath, `${JSON.stringify({ scene: scene.id, from: result.from, stages: result.stages })}\n`);
+    }
     console.log(`\n# ${scene.id} ${problems.length ? 'MISS' : 'OK'} via ${result.from}`);
     console.log(action);
     console.log(result.answer.replace(/\s+/g, ' ').slice(0, 420));

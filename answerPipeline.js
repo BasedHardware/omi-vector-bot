@@ -1,3 +1,4 @@
+const crypto = require('node:crypto');
 const {
   sanitizeReply,
   stripFalseCertainty,
@@ -119,6 +120,35 @@ function presentReviewedAnswer(answer) {
   return ensureNonEmptyAnswer(clipKeepingSource(formatDiscordReply(stripPingNarration(answer))));
 }
 
+// Evaluation-only evidence: the shape of a text at one stage, never the text.
+// A short hash lets two stages be compared for equality without exposing content.
+function stageFingerprint(stage, text) {
+  const value = String(text || '');
+  return {
+    stage,
+    length: value.length,
+    lines: value ? value.split('\n').length : 0,
+    hash: crypto.createHash('sha256').update(value).digest('hex').slice(0, 12),
+    hasLink: /https?:\/\//i.test(value),
+    hasSourceLine: TRAILING_SOURCE.test(value),
+  };
+}
+
+// Same transitions as presentReviewedAnswer, with a fingerprint per stage so a
+// short final reply can be traced to the stage that shortened it.
+function presentReviewedAnswerWithEvidence(answer) {
+  const stages = [stageFingerprint('input', answer)];
+  const narration = stripPingNarration(answer);
+  stages.push({ ...stageFingerprint('narration_filter', narration), changed: narration !== String(answer || '').trim() });
+  const formatted = formatDiscordReply(narration);
+  stages.push(stageFingerprint('format', formatted));
+  const clipped = clipKeepingSource(formatted);
+  stages.push({ ...stageFingerprint('clip', clipped), clipped: clipped !== formatted });
+  const final = ensureNonEmptyAnswer(clipped);
+  stages.push({ ...stageFingerprint('final', final), fallback: final === EMPTY_ANSWER_FALLBACK && !clipped });
+  return { answer: final, stages };
+}
+
 function stripUnverifiedOrderClaims(answer, { verifiedLookup = false } = {}) {
   if (verifiedLookup) return String(answer || '').trim();
   const assertedStatus = /\b(?:(?:your|this|the)\s+(?:order|package|parcel|shipment|delivery|omi|device|necklace|glasses)|it)\s+(?:(?:is|was|has|had|hasn['’]?t|will|would|should|may|might|appears?|seems?|expected|likely)\s+){1,3}(?:(?:been|be|to|have|not|already|currently|probably)\s+){0,3}(?:(?:(?:marked|showing|listed)\s+as\s+)?(?:deliver\w*|shipp\w*|dispatch\w*|arriv\w*|in\s+transit|out\s+for\s+delivery|on\s+its\s+way)|located|at\s+(?:the|a|your)\b|sitting\s+(?:at|with)\s+(?:the\s+)?(?:depot|carrier|customs)\b)/i;
@@ -169,6 +199,8 @@ module.exports = {
   prepareDraftForReview,
   prepareDraftForReviewWithAudit,
   presentReviewedAnswer,
+  presentReviewedAnswerWithEvidence,
+  stageFingerprint,
   stripUnverifiedOrderClaims,
   addUnsyncedDataWarning,
   hasUnsyncedDataRisk,

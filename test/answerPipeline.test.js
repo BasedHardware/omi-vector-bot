@@ -4,6 +4,7 @@ const {
   prepareDraftForReview,
   prepareDraftForReviewWithAudit,
   presentReviewedAnswer,
+  presentReviewedAnswerWithEvidence,
   EMPTY_ANSWER_FALLBACK,
   addUnsyncedDataWarning,
   hasUnsyncedDataRisk,
@@ -244,4 +245,64 @@ test('making room for the data-loss warning also keeps whole steps and complete 
   const shown = addUnsyncedDataWarning(`${first}\n${oversized}\n\n${source}`, 'The recording from my meeting is missing.');
   assert.equal(shown, `${first}\n…\n\n${UNSYNCED_DATA_WARNING}\n\n${source}`);
   assert.ok(shown.length <= 1750);
+});
+
+test('narration filtering removes only the unsupported clause and keeps symptoms and attempts', () => {
+  const cases = [
+    ['The sync stalls after the update; this needs a person who can look. What is your app version?', /sync stalls after the update\. What is your app version\?/],
+    ['The light stays red after charging, but this one needs a person who can look.', /^The light stays red after charging\.$/],
+    ['The app freezes on launch — this one needs a person who can look.', /^The app freezes on launch\.$/],
+    ['Ich habe die App neu gestartet; this one needs a person who can look. Welche Version nutzt du?', /^Ich habe die App neu gestartet\. Welche Version nutzt du\?/],
+    ['Needs a person who can look; I reinstalled the app twice.', /^I reinstalled the app twice\.$/],
+  ];
+  for (const [input, expected] of cases) {
+    const out = presentReviewedAnswer(input);
+    assert.match(out, expected, input);
+    assert.doesNotMatch(out, /needs a person/i);
+  }
+});
+
+test('narration filtering keeps citations and safety warnings beside removed narration', () => {
+  const out = presentReviewedAnswer([
+    `Do not clear Pending storage; this one needs a person who can look.`,
+    'Source: https://help.omi.me/en/articles/sync',
+  ].join('\n'));
+  assert.match(out, /^Do not clear Pending storage\.\nSource: https:\/\/help\.omi\.me\/en\/articles\/sync$/);
+  assert.match(presentReviewedAnswer('Do not reinstall the app; I have not pinged anyone.'), /^Do not reinstall the app\.$/);
+});
+
+test('a reply that is entirely narration falls back to an honest non-empty reply', () => {
+  assert.equal(presentReviewedAnswer('This one needs a person; I have not pinged anyone.'), EMPTY_ANSWER_FALLBACK);
+});
+
+test('stage evidence traces which stage shortened a reply without exposing text', () => {
+  const secret = 'ZZ-private-marker';
+  const { answer, stages } = presentReviewedAnswerWithEvidence(`${secret} stalls; this one needs a person who can look.`);
+  assert.deepEqual(stages.map((s) => s.stage), ['input', 'narration_filter', 'format', 'clip', 'final']);
+  assert.ok(stages[1].length < stages[0].length);
+  assert.equal(stages[1].changed, true);
+  assert.equal(stages[3].clipped, false);
+  assert.equal(stages[4].fallback, false);
+  assert.match(answer, /ZZ-private-marker stalls\./);
+  assert.doesNotMatch(JSON.stringify(stages), /ZZ-private|stalls/);
+  const empty = presentReviewedAnswerWithEvidence('This one needs a person.');
+  assert.equal(empty.stages.at(-1).fallback, true);
+  const long = presentReviewedAnswerWithEvidence(`${'A full sentence here. '.repeat(200)}`);
+  assert.equal(long.stages.find((s) => s.stage === 'clip').clipped, true);
+});
+
+test('support redirect stripping keeps earlier-attempt context and the application-owned footer', () => {
+  const { escalateReply } = require('../utils');
+  const sent = escalateReply('I already reinstalled the app; you can contact support for more help. What phone model do you use?', { pinged: true });
+  assert.match(sent, /^I already reinstalled the app\. What phone model do you use\?\n\nA person on the team has this now\.$/);
+  const comma = escalateReply('You restarted the device, but please email help@omi.me about it.', { pinged: true, replyInThread: true });
+  assert.match(comma, /^You restarted the device\./);
+  assert.doesNotMatch(comma, /help@omi\.me\b(?!.*\n\n)/s);
+  const dash = escalateReply('Reinstalling did not help — contact support with the details.', { pinged: true });
+  assert.match(dash, /^Reinstalling did not help\./);
+  const failed = escalateReply('Ya reinstalé la app; contact support again.', { deliveryFailed: true });
+  assert.match(failed, /^Ya reinstalé la app\.\n\nI could not deliver this to the support team/);
+  const allGone = escalateReply('Contact support; email help@omi.me.', { pinged: true, conversation: true });
+  assert.equal(allGone, 'A person on the team has this now.');
+  assert.match(escalateReply('Contact support; email help@omi.me.', { pinged: true }), /^A person on the team has this now\.$/);
 });
