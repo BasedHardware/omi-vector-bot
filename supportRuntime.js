@@ -468,16 +468,39 @@ class SupportRuntime {
   async drain(timeoutMs = 90_000) {
     this.stopAccepting();
     if (!this.tasks.size) return true;
+    const watched = new Set(this.jobs.values());
     let timer;
     try {
       const drained = await Promise.race([
         Promise.allSettled([...this.tasks]).then(() => true),
         new Promise((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); }),
       ]);
-      if (!drained) {
-        await Promise.all([...this.jobs.values()].filter((job) => !job.started).map((job) => this.store.defer(job)));
+      const finished = [...watched].filter((job) => !this.jobs.has(job.owner));
+      if (drained) {
+        // Every accepted case settled inside the budget; say so per case.
+        for (const job of finished) this.log(`[SupportRuntime] shutdown: finished=${job.messageId}`);
+        return true;
       }
-      return drained;
+      // The budget ran out. Return unstarted work to the recovery queue at once so a
+      // replacement can pick it up instead of waiting for its lease to expire, and
+      // name each case we can no longer see so its outcome is read from these lines
+      // instead of a later abandoned sweep.
+      const unstarted = [...watched].filter((job) => this.jobs.has(job.owner) && !job.started);
+      for (const job of unstarted) {
+        try { await this.store.defer(job); }
+        catch { this.log(`[SupportRuntime] shutdown: unstarted return failed message=${job.messageId}`); }
+      }
+      for (const job of unstarted) {
+        if (job.lost) this.log(`[SupportRuntime] shutdown: left for reclaim message=${job.messageId} delivery=not_started`);
+        else this.log(`[SupportRuntime] shutdown: returned unstarted request message=${job.messageId}`);
+      }
+      for (const job of watched) {
+        if (!this.jobs.has(job.owner) || !job.started) continue;
+        this.log(job.deliveryMarked || job.replySent
+          ? `[SupportRuntime] shutdown: left for reclaim message=${job.messageId} delivery=uncertain`
+          : `[SupportRuntime] shutdown: left for reclaim message=${job.messageId} delivery=not_started`);
+      }
+      return false;
     } finally { clearTimeout(timer); }
   }
 }

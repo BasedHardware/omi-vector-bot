@@ -76,6 +76,94 @@ test('drain has a bounded timeout and keeps existing ownership while work finish
   held.release(); await pending;
 });
 
+test('shutdown lets started work finish within the drain budget and logs it finished', async () => {
+  const logs = [];
+  const runtime = new SupportRuntime({ log: (line) => logs.push(line) });
+  const started = barrier(); const proceed = barrier();
+  const pending = runtime.run(request('finishes'), async () => {
+    started.release(); await proceed.promise; markCurrentReplySent(); return true;
+  });
+  await started.promise;
+  const draining = runtime.drain(1000);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  proceed.release();
+  assert.equal(await draining, true);
+  assert.equal((await pending).status, 'answered');
+  assert.match(logs.join('\n'), /\[SupportRuntime\] shutdown: finished=finishes/);
+  assert.doesNotMatch(logs.join('\n'), /returned unstarted request/);
+  assert.doesNotMatch(logs.join('\n'), /left for reclaim/);
+  assert.doesNotMatch(logs.join('\n'), /delivery=uncertain/);
+});
+
+test('shutdown returns unstarted accepted work to the queue instead of leaving it abandoned', async () => {
+  let now = 1000;
+  const store = new MemoryRuntimeStore({ now: () => now }); const logs = [];
+  const runtime = new SupportRuntime({ store, concurrency: 1, log: (line) => logs.push(line) });
+  const slotHeld = barrier(); const workStarted = barrier();
+  const held = runtime.run(request('busy', 'case:a'), async () => { await slotHeld.promise; return true; });
+  // 'late' passes the durable claim and the per-case gate, then parks on the
+  // occupied local worker slot with its work never started.
+  const parked = runtime.run(request('late', 'case:b'), async () => { workStarted.release(); return true; });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal((await store.queued(10)).length, 0);
+  // SIGTERM: no task finishes before the drain timeout.
+  assert.equal(await runtime.drain(50), false);
+  assert.equal(store.messages.get('late').state, 'queued', 'unstarted request must be returned to the queue');
+  assert.match(logs.join('\n'), /\[SupportRuntime\] shutdown: returned unstarted request message=late/);
+  assert.match(logs.join('\n'), /\[SupportRuntime\] shutdown: left for reclaim message=busy/);
+  assert.doesNotMatch(logs.join('\n'), /delivery=uncertain/);
+  slotHeld.release();
+  await Promise.allSettled([held, parked]);
+  // The returned request stays recoverable and is answered once by the replacement.
+  assert.equal((await store.queued(10)).length, 1);
+  let sends = 0;
+  const survivor = new SupportRuntime({ store, sweepMs: 0, log: (line) => logs.push(line) });
+  await survivor.recoverQueued((input) => survivor.run(input, async () => { sends++; return true; }));
+  assert.equal(sends, 1);
+  assert.doesNotMatch(logs.join('\n'), /requeued abandoned request message=late/,
+    'returned work must not surface as an abandoned requeue');
+  assert.equal(store.messages.get('late').state, 'answered');
+});
+
+test('shutdown logs started-unsent and delivery-started work as distinct left-for-reclaim outcomes', async () => {
+  const store = new MemoryRuntimeStore(); const logs = [];
+  const runtime = new SupportRuntime({ store, log: (line) => logs.push(line) });
+  const unsentStarted = barrier(); const delivering = barrier(); const release = barrier();
+  const a = runtime.run(request('unsent', 'case:a'), async () => { unsentStarted.release(); await release.promise; return true; });
+  const b = runtime.run(request('delivering', 'case:b'), async () => {
+    await assertCurrentOwnership(); markCurrentReplySent(); delivering.release(); await release.promise; return true;
+  });
+  await Promise.all([unsentStarted.promise, delivering.promise]);
+  assert.equal(await runtime.drain(50), false);
+  assert.match(logs.join('\n'), /\[SupportRuntime\] shutdown: left for reclaim message=unsent delivery=not_started/);
+  assert.match(logs.join('\n'), /\[SupportRuntime\] shutdown: left for reclaim message=delivering delivery=uncertain/);
+  assert.doesNotMatch(logs.join('\n'), /returned unstarted request/);
+  release.release();
+  await Promise.allSettled([a, b]);
+});
+
+test('shutdown is not a replay: recovery never resends a request whose delivery began', async () => {
+  let now = 1000;
+  const store = new MemoryRuntimeStore({ now: () => now }); const logs = [];
+  const dead = new SupportRuntime({ store, log: (line) => logs.push(line) });
+  const deliveryBegan = barrier(); const stop = barrier();
+  let sends = 0;
+  dead.run(request('delivering'), async () => {
+    await assertCurrentOwnership(); sends++; markCurrentReplySent();
+    deliveryBegan.release(); await stop.promise;
+  }).catch(() => {});
+  await deliveryBegan.promise;
+  now += 120_001;
+  const survivor = new SupportRuntime({ store, sweepMs: 0, log: (line) => logs.push(line) });
+  await survivor.recoverQueued((input) => survivor.run(input, async () => { sends++; return true; }));
+  now += 10 * 60_000;
+  await survivor.recoverQueued((input) => survivor.run(input, async () => { sends++; return true; }));
+  assert.equal(sends, 1);
+  assert.equal(store.messages.get('delivering').state, 'uncertain');
+  assert.doesNotMatch(logs.join('\n'), /requeued abandoned request message=delivering/);
+  stop.release();
+});
+
 test('lease expiry fences stale replies and does not automatically replay an uncertain started request', async () => {
   let now = 1000; const store = new MemoryRuntimeStore({ now: () => now });
   const runtime = new SupportRuntime({ store }); const held = barrier(); const started = barrier();
