@@ -732,6 +732,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         stageMs.planner += Math.round(performance.now() - stageStart);
       }
     }
+    const recoverReplyLanguage = !supportThreadLanguage.languageCode(searchPlan.replyLanguage);
+    const useReplyLanguage = value => {
+      if (recoverReplyLanguage) searchPlan = { ...searchPlan,
+        replyLanguage: supportThreadLanguage.languageCode(value) || 'en' };
+    };
     if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
     if (plannerPolicy.suppressOffTopic(searchPlan, currentRoute)) return;
     const plannedPersonKind = cannedEnglish ? '' : plannerPolicy.personKind(searchPlan);
@@ -867,6 +872,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         } finally {
           stageMs.answer += Math.round(performance.now() - answerStart);
         }
+        useReplyLanguage(aiResponse?.replyLanguage);
         if (aiResponse?.final_answer) {
           const draftLane = triage.merge(route, aiResponse, question).lane;
           const prepared = prepareDraftForReviewWithAudit(
@@ -885,6 +891,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 draft: aiResponse.final_answer,
                 removedBySafetyFilters: prepared.removed,
                 understanding: searchPlan,
+                includeReplyLanguage: recoverReplyLanguage,
                 policy: toolFacts,
                 lane: draftLane,
                 handoffPlanned: handoffPlanned || aiResponse.escalate === true,
@@ -903,6 +910,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               stageMs.review += Math.round(performance.now() - reviewStart);
             }
             const approved = approvedReview(checked);
+            useReplyLanguage(approved || checked.safeHandoff
+              ? checked.replyLanguage || searchPlan.replyLanguage : 'en');
             if (!approved) observeSupport(observer => observer.signal(channel, {
               eventId: `${message.id}-review`, kind: 'review_rejected', area: route.area,
             }, message.author.id));
@@ -934,6 +943,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               aiResponse.escalate = false;
             }
           } catch (err) {
+            useReplyLanguage('en');
             console.error('[Bot] review failed:', err.message);
             const links = officialHandoffLinks(retrievedEvidence);
             aiResponse.final_answer =
@@ -953,6 +963,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           aiResponse.reason = aiResponse.reason || router.staffReason(route, asked || question);
         }
       } catch (err) {
+        useReplyLanguage('en');
         console.error('[Bot] model failed:', err.message);
         skipModel = true;
         const down = router.whenModelDown(route, caseQuestion);
@@ -981,6 +992,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       cleanAnswer = plannerPolicy.personReply(plannedPersonKind, route, asked || question, searchPlan);
     }
     if (!plannedPersonKind && threadHasKnownIssueTag(channel)) {
+      useReplyLanguage('en');
       cleanAnswer = router.knownIssueReply();
       aiResponse.reason = 'Already tagged Known issue.';
     } else {

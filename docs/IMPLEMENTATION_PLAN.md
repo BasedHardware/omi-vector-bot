@@ -1,5 +1,12 @@
 # Omi Support Bot Implementation Checklist
 
+## October 23 active finish step
+
+- [x] Safely merge reviewed #69, #73 and disabled-foundation #49 with exact-head checks; production unchanged.
+- [x] Reproduce #68's language loss before repair; carry validated final answer/review language through existing closure/handoff without an extra call or changed successful-planner prompt.
+- [ ] Complete #68 current-head CI, independent re-review and targeted generated-answer quality; preserve original comparison/factual-quality observations.
+- [ ] Repair #70's duplicate-send and blocked-sweep findings in its existing branch, including isolated PostgreSQL two-worker verification. No new PRs or rollout.
+
 ## October 23 answer-quality priorities
 
 ### Finish every existing PR, without count-driven decisions

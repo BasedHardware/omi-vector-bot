@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 23 — three authorized merges complete; repair existing queue
+
+#69 (`577c0c0`), #73 (`c61920d`) and #49 (`ec51f7a`) are merged after current checks and independent reviews. Complete Railway trigger reads show zero automatic GitHub triggers; production remains `bc2166f9` / `5bafe93`, with no deployment/settings/enablement change. #68 now has a local timeout-language repair and six observed red-before regressions; 896 tests, offline8, isolated SQL and eight successful-planner prompt-parity pairs pass. Final CI/re-review and targeted generated-answer evidence remain. Next repair #70 in its existing branch; no new PRs. Score stays 47/100, not an accuracy claim.
+
 ## October 23: safe merges resumed, no deployment
 
 Authenticated Railway reads verify zero matching automatic GitHub triggers and unchanged healthy production `bc2166f9` / `5bafe93`; no setting change was needed. #69 merged as `577c0c0`; #73 as `c61920d` after docs-only integration, fresh 839 tests/eight SQL groups, exact-head Node 20/24/PostgreSQL and independent review. #49 combines that reviewed test rehearsal with its unchanged disabled runtime; fresh 878/offline8/SQL pass, final integration review/CI precede merge. Then repair #68 and #70; no new PRs. Score stays 47/100: merges alone do not earn delivery points. Historical checkpoints below are retained, not current instructions.

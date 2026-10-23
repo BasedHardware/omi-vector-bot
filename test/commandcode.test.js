@@ -58,6 +58,51 @@ test('planner transport has a twenty-second cap and abort signal without changin
   } });
 });
 
+test('a missing planner language requests code metadata from the existing answer, not another call', async t => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { if (previous === undefined) delete process.env.CMD_API_KEY; else process.env.CMD_API_KEY = previous; });
+  for (const [understanding, expected] of [[{}, true], [{ replyLanguage: 'es' }, false]]) {
+    let calls = 0;
+    const answer = await queryAgent({ question: '¿Dónde veo mis conversaciones?', understanding,
+      post: async (_url, body) => {
+        calls++;
+        assert.equal(/Also return reply_language/.test(body.messages[0].content), expected);
+        return { data: { choices: [{ message: { content: '{"final_answer":"Abre tus conversaciones.","reply_language":"es"}' } }] } };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(answer.replyLanguage, 'es');
+  }
+  for (const invalid of ['Spanish', 'en-US', 'es\nprivate', '', null]) {
+    assert.equal(parseAgentJson(JSON.stringify({ final_answer: 'A useful reply.', reply_language: invalid })).replyLanguage, undefined);
+  }
+});
+
+test('fallback review metadata controls source labels before final rendering and application fallbacks stay English', async () => {
+  const evidence = '[S1 | Help]\nhttps://help.omi.me/preferences\nOpen preferences.';
+  for (const [code, label] of [['es', 'Fuente'], ['zh', '来源'], [null, 'Source'], ['invalid', 'Source']]) {
+    const result = await reviewAnswer({ question: '¿Dónde están los ajustes?', draft: 'Abre los ajustes.',
+      understanding: {}, sources: evidence, lane: 'faq', includeReplyLanguage: true,
+      post: async (_url, body) => {
+        assert.match(body.messages[0].content, /Also return reply_language/);
+        return { data: { choices: [{ message: { content: JSON.stringify({ final_answer: 'Abre los ajustes.',
+          grounded: true, relevant: true, confidence: 0.9, sources_used: ['S1'], reply_language: code }) } }] } };
+      },
+    });
+    assert.equal(result.replyLanguage, code === 'es' || code === 'zh' ? code : 'en');
+    assert.match(result.final_answer, new RegExp(`${label}: https://help.omi.me/preferences`));
+  }
+  const fallback = await reviewAnswer({ question: '¿Por qué falla?', draft: 'Restart it.',
+    understanding: { replyLanguage: 'es' }, lane: 'tech', sources: '', includeReplyLanguage: true,
+    post: async () => ({ data: { choices: [{ message: { content: JSON.stringify({
+      final_answer: 'Reset your device.', grounded: true, relevant: true, reply_language: 'es',
+    }) } }] } }),
+  });
+  assert.equal(fallback.safeHandoff, true);
+  assert.equal(fallback.replyLanguage, 'en');
+});
+
 test('planned staff handoff tells both answer and review to keep the customer in this thread', async () => {
   const previous = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'test-only-key';

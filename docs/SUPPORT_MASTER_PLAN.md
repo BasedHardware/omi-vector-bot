@@ -53,8 +53,8 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 | Status | What it means now |
 | --- | --- |
-| **Done** | #69 and #73 merged October 23 after review/current checks. The fresh production read confirms `bc2166f9` / `5bafe93`, one successful active deployment and healthy readiness; no new deployment. |
-| **In progress** | Finish #49's reviewed foundation integration, then repair #68 and #70 in their existing PRs. No new PRs until this queue is finished. |
+| **Done** | #69, #73 and #49 merged October 23 after review/current checks. Production remains `bc2166f9` / `5bafe93`, one successful active deployment; no new deployment or optional-feature enablement. |
+| **In progress** | Repair #68's timeout-language path, then #70's recovery/delivery findings in their existing PRs. No new PRs until this queue is finished. |
 | **Next** | Fix #68's timeout-language gap and #70's reproduced recovery/delivery gaps in their existing PRs. Finish #75's remaining verification. No new feature PRs. |
 | **Waiting** | Railway's merge safeguard is cleared by authenticated, complete service/environment API reads: zero matching automatic GitHub triggers and unchanged production. Code, speed, dependency and privacy/pilot gates remain below. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
@@ -69,7 +69,7 @@ Aryan asked to bring every existing PR to a deliberate outcome: verify and merge
 | --- | --- |
 | #69 — clear status documents | **Merged** as `577c0c0`, reviewed head `dda2cf6`; fresh 839 tests and exact-head hosted Node 20/24/PostgreSQL pass. No deployment. |
 | #73 — memory safety rehearsal | **Merged** as `c61920d`, integrated head `88f8afa`; fresh 839 tests, eight SQL/reader groups, exact-head hosted Node 20/24/PostgreSQL and narrow integration review PASS. Memory stays off. |
-| #68 — faster planning | Independent review HOLD: timeout fallback loses language metadata. Resolve this and the factual-quality disposition before readiness; numerical timing passes, no new protected handoff miss or clipped item was found. No automatic rerun. |
+| #68 — faster planning | Timeout-language repair is local with six observed red-before regressions, 896 tests and successful-planner prompt parity. Final language feeds handoff/closure, not routing. Current-head CI, independent re-review and targeted generated-answer quality remain; original comparison and factual-quality observations are preserved in [the deadline record](PLANNER_DEADLINE.md). Still draft, no paid rerun/deploy. |
 | #75 — correct customer intent | Finish evaluation-adapter parity, authorized answer-quality comparison, actual multi-turn verification and independent review. |
 | #67 — in-thread next steps | Repair the failed typical-speed gate (+2.200 s versus +2 allowed), preserve the increased missing flags for independent grading, then obtain the required passing gate. |
 | #71 — multipart evidence | Diagnose and resolve the failed slow-reply gate (+18.824 s versus +6 allowed) and obtain independent quality grading. No automatic rerun or topic-specific patch. |
@@ -78,7 +78,7 @@ Aryan asked to bring every existing PR to a deliberate outcome: verify and merge
 | #29 — delivery receipts | Preserve existing local edits. Finish same-nonce retries, explicit ledger-outage behavior and staff-visible held-reply alerts; integrate reviewed #28, then verify and review. |
 | #30 — close/reopen safety | Resolve parent dependency/conflicts after #29; verify the actual closure/reopen receipt flow and obtain review. |
 | #59 — consistent Mira voice | Resolve conflicts and complete its separate required answer comparison and review; do not mix prompt changes into another comparison. |
-| #49 — reviewed-fact foundation | Original disabled-foundation review PASS at `3f83024`. Integration preserves that runtime and adds reviewed #69/#73 documents/test rehearsal; fresh 878/offline8/combined SQL pass. Final integration review/current CI precede merge. Missing real validator/UI/jobs remain enablement gates. Nothing enabled. |
+| #49 — reviewed-fact foundation | **Merged** as `ec51f7a`, integrated head `bd985f0`; 878 tests/offline8/combined SQL, exact-head hosted Node 20/24/PostgreSQL `39958358860` and independent final integration review PASS. Runtime preserves reviewed `3f83024`. Missing real validator/UI/jobs remain enablement gates. Nothing deployed/enabled. |
 | #74 — correction-link forgetting | Independent review PASS for the disabled foundation at `dfc1398`; fresh 76 affected tests/isolated SQL and exact-head hosted PostgreSQL pass. Integrate after parent #49, preserve the reviewed diff and recheck affected integration/current-head CI. No pilot or enablement inferred. |
 
 Truthful delivered-versus-accepted wording and supplied-diagnostic continuity remain required repairs; they do not authorize another PR ahead of this queue. Reorganizing work earns no progress points.

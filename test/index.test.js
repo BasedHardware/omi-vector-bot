@@ -792,6 +792,78 @@ test('a planner deadline cannot cancel a deterministic protected handoff', async
   assert.ok(response.reply);
 });
 
+for (const [language, question, body, expected] of [
+  ['es', '¿Dónde cambio el nombre de una conversación?', 'Abre la conversación para cambiar su nombre.', 'es'],
+  ['zh', '在哪里修改对话的名称？', '打开对话后修改名称。', 'zh'],
+  ['hi', 'Conversation ka naam kahan badlun?', 'Conversation kholkar uska naam badlein.', 'hi-Latn'],
+  ['hi', 'बातचीत का नाम कहाँ बदलूँ?', 'बातचीत खोलकर उसका नाम बदलें।', 'hi-Deva'],
+]) {
+  test(`planner timeout preserves answer language through ordinary closure (${expected})`, async t => {
+    process.env.CMD_API_KEY = 'synthetic-planner-test-key';
+    t.after(() => { process.env.CMD_API_KEY = ''; });
+    plannerError = Object.assign(new Error('synthetic deadline'), { code: 'PLANNER_DEADLINE' });
+    const saved = [];
+    t.mock.method(supportThreadLanguage, 'getStore', () => ({
+      save: async (scope, code) => saved.push({ scope, code }), get: async () => saved[0]?.code,
+    }));
+    modelReply = { final_answer: body, replyLanguage: language, confidence: 0.95, escalate: false };
+    const ownerId = nextId();
+    const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, parent: { type: ChannelType.GuildForum } });
+    channel.guildId = 'fixture-guild'; channel.ownerId = ownerId;
+    await ask(question, { channel, authorId: ownerId });
+    assert.equal(reviewCalls.at(-1).understanding.replyLanguage, language);
+    assert.equal(saved[0]?.code, expected);
+    const closed = await commands.closeHandoff(channel, { id: 'fixture-staff', locale: 'en-US' }, {
+      db: { getPendingEscalation: async () => null },
+    });
+    assert.equal(closed.ok, true);
+    assert.equal(channel.sent.find(payload => payload?.embeds)?.embeds[0].title,
+      commands.closePayload({ id: 'fixture-staff' }, expected).embeds[0].title);
+  });
+}
+
+test('planner timeout keeps a reported answer language for handoff and stored case', async t => {
+  process.env.CMD_API_KEY = 'synthetic-planner-test-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; });
+  plannerError = Object.assign(new Error('synthetic deadline'), { code: 'PLANNER_DEADLINE' });
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'El equipo debe revisar este problema.', replyLanguage: 'es', escalate: true };
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL });
+  const ownerId = nextId(); channel.guildId = 'fixture-guild'; channel.ownerId = ownerId;
+  const result = await ask('La aplicación muestra un error al abrir mis ajustes.', { channel, authorId: ownerId });
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /Una persona del equipo/);
+  assert.doesNotMatch(result.reply, /A person on the team/);
+  assert.equal((await supportCases.getCaseByThread(channel.id, ownerId)).context.replyLanguage, 'es');
+});
+
+for (const outcome of ['second-review', 'rejected', 'unavailable', 'missing', 'invalid']) {
+  test(`planner timeout follows selected review language or truthful English fallback (${outcome})`, async t => {
+    process.env.CMD_API_KEY = 'synthetic-planner-test-key';
+    t.after(() => { process.env.CMD_API_KEY = ''; });
+    plannerError = Object.assign(new Error('synthetic deadline'), { code: 'PLANNER_DEADLINE' });
+    enableStaffDelivery(t);
+    modelReply = { final_answer: 'Abre los ajustes de Omi.',
+      replyLanguage: outcome === 'missing' ? undefined : outcome === 'invalid' ? 'not-a-code' : 'es', escalate: true };
+    reviewerResponse = ({ draft }) => {
+      if (outcome === 'unavailable') throw new Error('synthetic unavailable');
+      if (outcome === 'rejected' || (outcome === 'second-review' && reviewCalls.length === 1)) {
+        return { final_answer: draft, grounded: false, relevant: false, confidence: 0.1, replyLanguage: 'es' };
+      }
+      return { final_answer: outcome === 'second-review' ? 'Open the Omi settings.' : draft,
+        grounded: true, relevant: true, confidence: 0.9,
+        replyLanguage: outcome === 'second-review' ? 'en' : undefined };
+    };
+    const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL });
+    const ownerId = nextId(); channel.guildId = 'fixture-guild'; channel.ownerId = ownerId;
+    const result = await ask('¿Dónde ajusto el nombre de una conversación?', { channel, authorId: ownerId });
+    assert.equal((await supportCases.getCaseByThread(channel.id, ownerId)).context.replyLanguage, 'en');
+    assert.match(result.reply, /A person on the team/);
+    assert.doesNotMatch(result.reply, /Una persona del equipo/);
+    if (outcome === 'second-review') assert.equal(reviewCalls.length, 2);
+  });
+}
+
 test('official docs retrieval waits for the planner and runs once with its queries', async () => {
   const previousKey = process.env.CMD_API_KEY;
   const previousQueries = searchPlanQueries;

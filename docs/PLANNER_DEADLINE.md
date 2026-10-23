@@ -1,5 +1,15 @@
 # Bound the optional planning step — draft
 
+## October 23 repair — not deployed
+
+The earlier independent review found that deadline fallback had no language code even when the answer was localized. The existing answer call now returns validated language metadata only when planning did not supply it; the existing reviewer returns the final selected reply's code before safety/citation formatting. No extra request or keyword detector is added. Successful-planner prompts are byte-identical in eight synthetic answer/review pairs across four languages. Routing and handoff decisions do not consume recovered metadata.
+
+The handler carries the selected code through handoff notices, case state and ordinary-answer closure, retaining the existing Hindi script rule. Rejected/unavailable reviews, technical safety replacement, model failure and known-issue replacement retain English for application-owned English copy. Missing/invalid metadata falls back to English. This does not claim a provider will always return valid metadata or that every fallback is localized.
+
+Six new regressions were observed failing before repair, then passing: provider metadata contract, Spanish/Chinese/Hindi-script ordinary closure and Spanish handoff/case persistence. Additional negative/final-review checks cover second-look selection, missing/invalid values, rejected/unavailable review and pre-formatting safety/source labels. Local full suite **896/896**, offline **8/8**, combined isolated SQL and eight byte-identical successful-planner prompt pairs pass. Synthetic provider responses are not generated-answer quality evidence.
+
+The original complete comparison is preserved: pass-both 71→71, unwanted handoffs 10→10, missing flags 5→6; p50 34.503→32.450 s and p95 57.020→54.446 s. Independent review found no new protected-topic missed handoff or clipped item, but held the language flaw. Reset does not establish power-off behavior, and non-empty PCM bytes do not establish useful microphone audio; those factual-quality observations are not proven caused by the deadline patch and are not patched with topic-specific rules here. Their general answer-quality work remains in the existing queue. Targeted multilingual generated-answer evidence for the changed timeout-only prompt, exact-head CI and independent re-review remain required. No paid run or broader comparison waiver is inferred.
+
 Customer problem: the optional search-planning step can use most of the response time. It must not prevent the existing answer path from running.
 
 ## Pipeline

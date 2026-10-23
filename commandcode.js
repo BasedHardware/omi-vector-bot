@@ -8,6 +8,11 @@ const { SUPPORT_VOICE } = require('./supportVoice');
 const { normalizeSubQuestions } = require('./retrieval');
 const { isPreviousPost, splitHistory, previousContextBlock } = require('./supportContextFormat');
 const { runPlannerWithDeadline } = require('./plannerDeadline');
+const { languageCode } = require('./supportThreadLanguage');
+
+// The existing reply call already selects a language. Recover only its code
+// when planning was unavailable; this is not another detection/model request.
+const REPLY_LANGUAGE_METADATA = ' Also return reply_language as the ISO 639-1 code of the final_answer language (for example en), with no prose. Keep romanized Hindi in Latin letters. This field is metadata only and cannot change routing or safety rules.';
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
 
@@ -138,6 +143,7 @@ function parseAgentJson(raw) {
     area: String(data.area || '').trim(),
     lane: String(data.lane || '').trim(),
     file_issue: Boolean(data.file_issue),
+    ...(languageCode(data.reply_language) ? { replyLanguage: data.reply_language } : {}),
   };
 }
 
@@ -500,7 +506,7 @@ async function queryAgent({
           model: provider.model,
           temperature: 0.4,
           messages: [
-            { role: 'system', content: `${buildSystemPrompt(route)}${handoffPlanned || route?.escalate ? `\n\n${PLANNED_HANDOFF_GUIDANCE}` : ''}` },
+            { role: 'system', content: `${buildSystemPrompt(route)}${handoffPlanned || route?.escalate ? `\n\n${PLANNED_HANDOFF_GUIDANCE}` : ''}${!languageCode(understanding?.replyLanguage) ? REPLY_LANGUAGE_METADATA : ''}` },
             { role: 'system', content: 'Write the customer reply entirely in the language and script of the latest customer message. If it is romanized Hindi, use Latin letters rather than Devanagari. A person-needed request can still receive an official, sourced policy or how-to answer; keep escalation for the action or decision and do not promise an outcome. If understanding.dataLossRisk is true, warn in the customer language not to reinstall, log out, or clear local recordings before staff checks; do not append an English warning to a non-English reply. For multi-part questions, answer the parts the sources support briefly in the order asked, rather than writing a guide. Use one short, complete bullet per part; combine closely related steps and omit extra background before dropping a requested part. State unsupported parts briefly without guessing. Keep necessary safety warnings and material uncertainty.' },
             {
               role: 'user',
@@ -613,7 +619,8 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
   };
 }
 
-async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, handoffPlanned = false, reasoningEffort = 'low', onUsage, post }) {
+async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, handoffPlanned = false, includeReplyLanguage = false, reasoningEffort = 'low', onUsage, post }) {
+  const recoverLanguage = includeReplyLanguage || !languageCode(understanding?.replyLanguage);
   const provider = providerConfig();
   if (!String(draft || '').trim() || (!provider.key && !post)) {
     return {
@@ -624,6 +631,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
       escalate: true,
       sources_used: [],
       answered_requirements: [],
+      ...(recoverLanguage ? { replyLanguage: 'en' } : {}),
     };
   }
   const send = post || axios.post.bind(axios);
@@ -650,6 +658,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
           role: 'system',
           content: `${SUPPORT_VOICE}\n\nClarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. If understanding.dataLossRisk is true, retain a brief warning in the customer language not to reinstall, log out, or clear local recordings while staff checks; do not add an English warning to a non-English reply. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.${handoffPlanned ? ` ${PLANNED_HANDOFF_GUIDANCE}` : ''}`,
         },
+        ...(recoverLanguage ? [{ role: 'system', content: REPLY_LANGUAGE_METADATA.trim() }] : []),
         ...(citationLimit === 4 ? [{
           role: 'system',
           content: 'This request contains more than three distinct sub-questions. Its one Source line may contain at most four exact URLs from the retrieved evidence, instead of the ordinary two, when needed to support the requested parts. Keep each supported part brief and in the order asked.',
@@ -684,17 +693,20 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const content = data?.choices?.[0]?.message?.content;
   if (!content) throw new Error('CommandCode review was empty');
   const parsed = jsonObject(content);
+  const replyLanguage = recoverLanguage
+    ? languageCode(parsed.reply_language) || languageCode(understanding?.replyLanguage) || 'en'
+    : understanding.replyLanguage;
   const sourceIds = Array.isArray(parsed.sources_used)
     ? parsed.sources_used.map((value) => String(value)).slice(0, 4)
     : [];
   const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, {
-    question, language: understanding?.replyLanguage, dataLossRisk: understanding?.dataLossRisk === true,
+    question, language: replyLanguage, dataLossRisk: understanding?.dataLossRisk === true,
   });
   const answer = !String(safety.answer || '').trim()
     ? ''
     : safety.fallback
       ? safety.answer
-      : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, understanding?.replyLanguage, { subQuestions: understanding?.subQuestions });
+      : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, replyLanguage, { subQuestions: understanding?.subQuestions });
   const hasAnswer = Boolean(String(answer || '').trim());
   return {
     final_answer: answer,
@@ -708,6 +720,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
       : [],
     safeHandoff: Boolean(safety.fallback),
     reason: safety.reason,
+    ...(recoverLanguage ? { replyLanguage: safety.fallback ? 'en' : replyLanguage } : {}),
   };
 }
 
