@@ -1,5 +1,11 @@
 # Omi Support Bot Roadmap
 
+## Latest October23 — finish existing drafts, no release mutation
+
+#67's protected-handoff grade passes; the measured0.200s p50 exception is accepted. Released main6b6d97d is integrated by merge commitdc79d80. Required language-independent address cleanup and shared localized Source handling pass943/offline8/SQL; all25 new regressions fail before the repair, and final independent review passes185 focused checks. Current-head CI is recorded in the PR. #74 is pushed for CI only; Node20/24/PostgreSQL run39978407664 passes. #71's saved arms show retrieval/review tail growth, not answer-prompt growth; no provider run. Release61e8ce70's smokes remain deferred by Aryan; no merge/deploy. #67/#74 are first next merges after smoke acceptance and their gates. Later #77 loses overlapping redirects; #78 stays untouched until drain review. Score47/100, not accuracy.
+
+## Historical preparation
+
 **Separate draft preparation:** `fix/no-email-redirect` adds application-owned in-thread next steps for ordinary answers and a tested real handoff when those steps still fail. No prompt, memory enablement or deployment. See [the scoped design and checks](docs/NO_EMAIL_REDIRECT.md). #62 is only partially related and remains open; current release-smoke failures #65/#66 block further rollout. Current authoritative operational status belongs in the master-plan update, not older snapshots below.
 ## October 23 reviewer-approved finish order
 

@@ -69,3 +69,66 @@ test('contact wording variants preserve a joined protective warning and earlier 
   assert.match(result.text, /already emailed support yesterday/i);
   assert.doesNotMatch(result.text, /help@omi\.me|team@basedhardware\.com/);
 });
+
+for (const [language, body, contact, next] of [
+  ['fr', 'Ouvrez la fiche du rendez-vous.', 'Notre adresse pour la suite est help@omi.me.', /répondez ici dans ce fil/],
+  ['de', 'Wähle den gewünschten Eintrag aus.', 'Für weitere Fragen lautet die Adresse team@basedhardware.com.', /antworte hier in diesem Thread/],
+  ['ja', '一覧から予定を開きます。', 'お問い合わせ先は help@omi.me です。', /このスレッドに返信/],
+  ['pt', 'Selecione o item salvo.', 'O endereço de atendimento é team@basedhardware.com.', /responda aqui nesta conversa/],
+]) {
+  const source = 'Source: https://help.omi.me/synthetic-guide';
+  const answer = `${body} ${contact}\n${source}`;
+  test(`${language} support-address clauses leave an ordinary in-thread next step`, () => {
+    const result = utils.inThreadReply(answer, { language });
+    assert.equal(result.empty, false);
+    assert.ok(result.text.includes(body));
+    assert.match(result.text, next);
+    assert.doesNotMatch(result.text, /help@omi\.me|team@basedhardware\.com/i);
+    assert.ok(result.text.endsWith(source));
+  });
+  test(`${language} delivered handoffs have no competing support-address route`, () => {
+    const result = utils.escalateReply(answer, { pinged: true, replyInThread: true });
+    assert.ok(result.includes(body));
+    assert.ok(result.includes(source));
+    assert.doesNotMatch(result, /help@omi\.me|team@basedhardware\.com/i);
+    assert.match(result, /will reply in this thread/);
+  });
+}
+
+test('address-based stripping keeps Source lines and existing secret-sharing warnings', () => {
+  const text = [
+    'Never share your verification code with help@omi.me.',
+    'No compartas tu código con team@basedhardware.com.',
+    '不要发送验证码到 help@omi.me。',
+    'Source: https://help.omi.me/synthetic-guide?contact=help@omi.me',
+  ].join('\n');
+  assert.equal(utils.stripSupportRedirect(text), text);
+  const failed = utils.escalateReply('O endereço de atendimento é team@basedhardware.com.', { deliveryFailed: true });
+  assert.match(failed, /could not deliver this to the support team/i);
+  assert.equal((failed.match(/help@omi\.me/g) || []).length, 1);
+  assert.doesNotMatch(failed, /team@basedhardware\.com|will reply in this thread/i);
+});
+
+test('retaining intake details cannot reintroduce a stripped support address', () => {
+  const result = utils.inThreadReply('Keep the view open. Contact support and include team@basedhardware.com in the message.');
+  assert.match(result.text, /Keep the view open/);
+  assert.doesNotMatch(result.text, /team@basedhardware\.com/);
+  assert.match(result.text, /reply here/);
+});
+
+for (const label of ['Sources:', '出典:', '出典：', 'Srot:', 'स्रोत:', 'Fontes:', '來源：']) {
+  test(`${label} remains a source, not an address redirect or a useful answer`, () => {
+    const source = `${label} https://help.omi.me/synthetic-guide?contact=help@omi.me`;
+    assert.equal(utils.stripSupportRedirect(source), source);
+    const answer = utils.inThreadReply(`Abra a lista salva. Atendimento: team@basedhardware.com.\n${source}`, { language: 'pt' });
+    assert.ok(answer.text.endsWith(source));
+    assert.match(answer.text, /Abra a lista salva/);
+    assert.doesNotMatch(answer.text, /team@basedhardware\.com/);
+    const sourceOnly = utils.inThreadReply(`窓口は help@omi.me です。\n${label} https://help.omi.me/synthetic-guide`, { language: 'ja' });
+    assert.equal(sourceOnly.empty, true);
+    assert.equal(sourceOnly.text, `${label} https://help.omi.me/synthetic-guide`);
+    const delivered = utils.escalateReply(`窓口は help@omi.me です。\n${source}`, { pinged: true, replyInThread: true });
+    assert.ok(delivered.includes(source));
+    assert.match(delivered, /will reply in this thread/);
+  });
+}

@@ -1,6 +1,8 @@
 const { stripStaffLies, stripInventedLookup } = require('./honesty');
 const { createHash } = require('node:crypto');
 const { isPreviousPost } = require('./supportContextFormat');
+const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
+const SOURCE_HEADING = new RegExp(`^\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}`, 'iu');
 
 const ESCALATION_PATTERNS = [
   /\bbilling\b/i,
@@ -150,31 +152,31 @@ function stripSupportRedirect(text) {
   const isRedirect = (sentence) => {
     // A warning not to send secrets is not an instruction to leave this thread.
     if (/\b(?:never|do not|don['’]t)\s+(?:e-?mail|send|share)|\bno\s+(?:env[ií]es|compartas)|不要(?:发送|分享)/i.test(sentence)) return false;
+    // Support addresses identify the alternate route without guessing its language.
+    if (/(?:help@omi\.me|team@basedhardware\.com)/i.test(sentence)) return true;
     const supportTarget = '(?:omi\\s+support|support(?:\\s+team)?|(?:the|our|your)\\s+team|(?:a|an|the|real|live)\\s+(?:person|human|agent)|help@omi\\.me|discord\\.omi\\.me|#help\\b|(?:the\\s+)?help\\s+channel|(?:the\\s+)?contact\\s+(?:form|option|page)|(?:the\\s+)?support\\s+(?:form|page|ticket))';
     const directContact = new RegExp(`\\b(?:email|e-mail|contact|reach(?:\\s+out\\s+to)?|write\\s+to|message|drop\\s+a\\s+line\\s+to|get\\s+in\\s+touch\\s+with)\\s+(?:(?:the|a|an|omi|our|your)\\s+)?${supportTarget}`, 'i');
     const supportForm = /\b(?:submit\s+(?:a\s+|the\s+)?(?:support\s+)?(?:request|ticket|contact\s+form)|open\s+(?:a\s+|the\s+)?(?:support\s+)?ticket)\b/i;
     const supportChannel = /\b(?:join|post\s+(?:in|on|to)|ask\s+(?:in|on))\s+(?:(?:the|a)\s+)?(?:discord\.omi\.me|#help\b|help\s+channel\b)/i;
     const contactControl = /\b(?:use|select|choose|click|tap)\s+(?:the\s+)?(?:contact\s+(?:omi\s+)?support|contact\s+(?:form|option|page)|support\s+(?:form|page|ticket))\b/i;
-    const translatedEmail = /(?:\b(?:escribe|escribir|env[ií]a|enviar|manda|mandar)\b[^.!?。！？;；\n]{0,80}|(?:发(?:送)?邮件|电邮|联系)[^。！？；\n]{0,50})(?:help@omi\.me|team@basedhardware\.com)/iu;
-    const supportEmail = /\b(?:e-?mail|write|send)\b[^.!?;\n]{0,70}(?:help@omi\.me|team@basedhardware\.com)/i;
-    return directContact.test(sentence) || supportForm.test(sentence) || supportChannel.test(sentence) || contactControl.test(sentence) || translatedEmail.test(sentence) || supportEmail.test(sentence);
+    return directContact.test(sentence) || supportForm.test(sentence) || supportChannel.test(sentence) || contactControl.test(sentence);
   };
   return String(text || '')
     .split('\n')
     .map((line) => {
-      if (/^\s*(?:source|fuente|quelle|fonte|источник|来源|출처)\s*:/i.test(line)) return line;
+      if (SOURCE_HEADING.test(line)) return line;
       // Remove the contact clause, not independent symptoms, attempts or warnings.
       const clauses = line.split(/(?<=[.!?])\s+|[;；]\s*|(?<=[。！？])\s*|\s+(?:and|y)\s+(?=(?:do\s+not|don't|never|no)\b)/iu);
       const privateOrderIntake = sentence => /^\s*include (?:the )?order (?:number|#)/i.test(sentence);
       if (!clauses.some(sentence => isRedirect(sentence) || privateOrderIntake(sentence))) return line;
       return clauses
         .flatMap((sentence) => {
-          if (/^\s*(?:source|fuente|quelle|fonte|источник|来源|출처)\s*:/i.test(sentence)) return [sentence];
+          if (SOURCE_HEADING.test(sentence)) return [sentence];
           // Private /order self-service and its verification steps are not support redirects.
           if (privateOrderIntake(sentence)) return [];
           if (!isRedirect(sentence)) return [sentence];
           const details = sentence.match(/\b(?:please\s+)?include\b.+$/i);
-          return details ? [`Please ${details[0].replace(/^please\s+/i, '')}`] : [];
+          return details && !isRedirect(details[0]) ? [`Please ${details[0].replace(/^please\s+/i, '')}`] : [];
         })
         .join(' ')
         .trim();
@@ -205,7 +207,7 @@ function inThreadReply(answer, { language = 'en' } = {}) {
   const cleaned = stripSupportRedirect(original);
   const normalized = text => text.replace(/\s+/g, ' ').trim();
   if (normalized(cleaned) === normalized(original)) return { text: original, empty: false };
-  const isSource = line => /^\s*(?:source|fuente|quelle|fonte|источник|来源|출처)\s*:/i.test(line);
+  const isSource = line => SOURCE_HEADING.test(line);
   const lines = cleaned.split('\n');
   const sources = lines.filter(isSource);
   const body = lines.filter(line => !isSource(line)).join('\n').trim();
