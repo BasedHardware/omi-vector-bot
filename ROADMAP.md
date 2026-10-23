@@ -1,6 +1,10 @@
 # Omi Support Bot Roadmap
 
-## Latest October23 reviewer decision — branch checks continue, merges paused
+## Current October23 — smoke passed, approved merges resume
+
+All three reliability checks pass: sourced English answer without handoff; one private refund card; same-commit Redeploy with clean drain, one post-SIGTERM reply and old instance observed removed after69.197s, stable30s. Live6a815fbf records unchanged6b6d97d; rollback458d4a6f, optional features off. #67 merged94e4f57 after the auto-deploy-off guard. #74 integration7860417 preserves reviewed privacy/#67 code;952/offline8/SQL and independent298-check review pass. Final hosted CI precedes its approved merge; no new-code deploy or memory enablement. #71's guard/shared-page repair and fair concurrent-arm comparison remain. The named timing test is reproduced by withholding loopback progress; its separate test-only fix stays queued. Score47/100.
+
+## Earlier October23 reviewer decision — historical smoke hold
 
 #67's protected-handoff grade passes; the reviewer accepts the measured 0.200s p50 exception. Its required same-PR fix strips support-address redirects independent of language, preserving sources, secret warnings and the app-owned failed-delivery fallback, with new fr/de/ja/pt tests. #74 may be pushed now for CI only; its integration review already passed77 focused checks. No merge/deploy while release smokes await Aryan. After acceptance, #67/#74 are first next merges. #77 stays draft until #67 lands, then loses overlapping redirect work; #78 waits for drain-smoke review. #71's saved results show retrieval/review tail growth, not answer-prompt growth; no provider rerun or proven latency fix. Score47/100.
 
