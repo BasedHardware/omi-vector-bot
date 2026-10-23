@@ -19,7 +19,9 @@ Omi Support answers Omi customers in Discord. Every customer message must end on
 
 ## Rules
 - Work on a branch and open a PR. Never push to main. Never deploy; deployment is a manual Railway step after the eval gate.
+- Aryan sends every Discord message and slash command, including live test inputs. Give him one exact input when needed and verify its result; never post or invoke a command on his behalf. Arm any required observer before asking for a time-sensitive test input.
 - One problem per PR. Explain the customer failure being prevented.
+- Every PR starts draft. Before readiness or merge, review the final diff, pass required current-commit checks and verify the changed boundary proportionately: rendering/links or an executable functional regression for low-risk work; affected-flow local integration for normal application changes; relevant sandbox or physical-device checks only for material boundaries that require them. Reuse valid evidence and rerun affected checks, not unrelated full certification. Repository-required comparisons, independent approvals and task authorization remain mandatory. Keep a required missing/failing gate explicit and the PR draft; distinguish verified, merged, deployed and customer-confirmed.
 - Every behavior change needs a test that fails before the change and passes after.
 - Fix causes in general. Never add code aimed at one test question: no hard-coded URLs or phrases from an eval case, and no search query that contains the expected answer.
 - Never put customer text, emails, order data or attachments anywhere public. Use privacy.js.

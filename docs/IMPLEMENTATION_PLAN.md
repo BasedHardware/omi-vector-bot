@@ -1,12 +1,121 @@
 # Omi Support Bot Implementation Checklist
 
+## October 23 answer-quality priorities
+
+### Finish every existing PR, without count-driven decisions
+
+- [x] Audit all 13 open PRs, their exact heads/checks and dependency/conflict state. Preserve existing local #29 edits.
+- [x] Complete independent #69/#73 review and appropriate documentation/integration verification; no bot deployment or memory enablement required for those scopes.
+- [x] Independently review #68's full existing output package: timing passes; no new protected-handoff miss or clipped item found; language fallback and factual-quality disposition remain open. Keep draft.
+- [x] Independently review #70 and reproduce duplicate-delivery/recovery-loop gaps with synthetic workers. Keep draft; existing green checks do not cover these failures.
+- [x] Independently review #49 as a disabled foundation under the updated risk-based policy: no actionable findings, focused/isolated SQL/exact-head hosted PostgreSQL pass. Separate unfinished enablement gates remain.
+- [x] Complete #74's disabled-foundation privacy review: no actionable findings, fresh 76 affected tests/isolated SQL pass and exact-head real PostgreSQL execution confirmed. Parent integration/current-head checks still precede merge; enablement remains separately gated.
+- [ ] Continue the remaining reviews serially. Correct actual findings in existing PRs; merge verified useful work or close obsolete/duplicated work with durable rationale, never simply to lower the count.
+- [ ] Verify that main merges cannot trigger an unapproved deployment. Current Railway branch lookup/CLI session cannot establish an explicit OFF state; no settings or deployment changes made.
+
+The [master plan](SUPPORT_MASTER_PLAN.md) controls the finish-existing queue and all nine [answer-quality themes](ANSWER_QUALITY_CONTRACT.md). #68's independent grade is now HOLD, so its fallback gap needs repair; #70 also has reproduced recovery/delivery findings. Finish existing PRs with risk-appropriate verification and review, not new feature drafts. Customer-intent work #75 is not live; all remaining ownership, diagnostic, source, safety, hardware/surface and humane-copy requirements remain. No raw audit/transcript is published or release/privacy gate waived. Score 47/100 records milestone 18's independent foundation review only, not answer accuracy or enablement.
+
+## October 21: scoped forgetting draft, stacked on #49
+
+- [x] Publish draft #74 `dfc1398` from #49 `3f83024`, keeping the parent review head separate. Store only additive case server/forum metadata from current configured-post owner scope; preserve known scope and existing case state.
+- [x] Persist forum memory erasure/opt-out first, then remove verified correction links/extra owned markers. Preserve facts and other scopes; fence late/new-case references and let mandatory cleanup retry scoped opted-out links. Unknown legacy/post/orphan scope and partial/error results never confirm complete deletion.
+- [x] Restore interrupted uncommitted work into a permanent workspace and rerun evidence: local 887/offline8/PGlite pass. Nine new tests include eight observed baseline failures; SQL baseline and additional strict-scope/orphan-marker regressions fail before repair. SQL covers 101-fact batching, real memory-command/service/store composition, new/late/concurrent writers, retry, idempotence and legacy refusal.
+- [x] Exact-head Node 20/24/real PostgreSQL CI `39554963703` passes. The database log confirms the new privacy checks ran at `dfc1398`; PGlite alone is not claimed as multi-connection proof.
+- [x] Parent/child disabled-foundation review completed October 23 with no actionable findings; current review evidence is recorded above. This supersedes the October 21 review-pending checkpoint.
+- [ ] Resolve remaining legacy/privacy/security/backup/data-use/pilot gates. Real ingestion/validator, signals/UI and nightly/weekly jobs remain unfinished. No provider/protected run, main merge, deploy or enablement. Current score is 47/100 for #49's foundation review only; full acceptance 2/21.
+
+## October 21: reviewed-fact draft integration and mandatory retention
+
+- [x] Merge deployed main `5bafe93` into existing draft #49 as `141e718`, preserving reference-only memory, closing-language schema/checks and the off-only prompt guard. Integrated baseline 869 tests/isolated SQL pass.
+- [x] Push `3f83024`: mandatory tracked startup/minute expiry, at most 100 facts/1,000 expired barriers per pass, active-barrier protection, fresh-row locking, fixed failure retry and shutdown checks. Approved facts and concurrent revocation survive; optional publication stays off. Transaction-local server deadlines are not a whole-operation/network guarantee.
+- [x] Local 878/offline8/PGlite and exact-head hosted Node 20/24/real PostgreSQL run `39549961373` pass; the database log confirms global batching/restart/active-barrier/concurrent-revocation checks ran. Nine new focused checks include eight observed red assertions; static wiring/query assertions are not live tests.
+- [x] Independent review of #49's disabled foundation completed October 23; focused/SQL/hosted evidence is recorded above. No daily-inbox or enablement approval follows.
+- [ ] Remaining D1–D6 implementation: real official-evidence/regression validator, minimized owner-scoped signals/drafts, staff controls, ownership-verified privacy adapter integration, nightly alerts and weekly counts. No new comparison, fact publication, merge to main, deploy or enablement; current score 47/100, acceptance 2/21.
+
+## October 21: test-only memory SQL/reader preparation
+
+- [x] Publish draft #73 `c2953f2` from main: existing guarded verifier now composes SQL storage/service and live-context reader against synthetic fixtures. Eight groups cover scope/role boundaries, uncached edits, reader recreation, deleted-reference outcome invalidation, off-switch forgetting, persistent opt-out/expiry and text-free rows before erasure.
+- [x] Local 839/offline8/PGlite pass. Real PostgreSQL plus Node 20/24 CI run `39546418506` passes at the exact head; its database log confirms all eight groups executed. Five in-memory faults are rejected while the baseline passes; runtime files stay untouched.
+- [x] Independent review of #73 `c2953f2` found no actionable issues; exact-head PostgreSQL/Node 20/24 CI and execution of all eight groups were independently confirmed. October 23 fresh 839 tests, isolated SQL/reader baseline and five deliberate-fault checks pass without runtime edits or external calls. Record final readiness evidence in the PR.
+- [ ] C1–C4 remain open: no enabled generated answers, full bot restart/pilot, processor/backup/security/notice approval or memory switch change is implied. Keep all earlier comparison and later learning/reliability gates intact; score remains 46/100.
+
+## October 21: separate redirect and planner comparisons
+
+- [x] Fresh exact-head local checks: #67 `f2781eb` 850 tests; #68 `1ffae62` 845; both offline8, isolated SQL and hosted Node 20/24/Postgres pass. Preserve clean frozen source and identical baseline harness/judge/lockfile.
+- [x] Aryan confirms two more hours open/plugged in. Launch one sequential keep-awake supervisor: #67 five-case timing check starts 07:51:48 IST, fresh main/candidate arms follow, then independent #68 check. No overlapping provider jobs or Discord posts.
+- [x] Reproduce the shared response-body timeout gap locally, without credentials/customer/protected inputs. Save wider coherent answer/review deadline work as parked #72; do not assign it as the proven historical slowdown cause.
+- [x] Finish #67's complete same-day 81×2 arms/concurrency3 and export both JSONs, all five changed cases, word counts and audits in a twelve-file private ZIP. Zero invalid rows or interruption; full host coverage records no system sleep. Preserve the failed p50 gate (30.255→32.455 s, +2.200 versus +2 allowed) and increased missing-handoff flags (4→6); independent grade and a passing release gate remain required.
+- [x] Finish #68's own fresh main/candidate comparison: both 162 rows, zero invalid/unscored, no interruption/retry. p50 34.503→32.450 s; p95 57.020→54.446 s meets no-rise rule. Missing-handoff flags 5→6 still require independent review; numerical success is not a grade.
+- [x] Audit both complete runs, generate twelve-file private review ZIPs with all changed replies/signals/problems and words, and update the simple master status. Both full host histories record no system sleep; immutable hashes/archive/known-secret scans pass. Read-only production is still accepted `13ead500` / `5bafe93`, healthy/one instance/optional off. No merge/deploy/settings/memory changes; #71 not rerun.
+- [x] Record #68's four deadline fallbacks separately from two generic planning failures. Per-row planning totals sum turns; maximum single-turn stage 20.007 s. Keep all rows and state the whole-answer budget remains #72, not solved by this draft.
+- [ ] Obtain independent grades of #67/#68, including increased missing flags and protected topics; clear #67's failed p50 gate before any rollout. Keep #70/#71 and memory/pilot gates distinct. No new provider run is authorized by this checklist.
+
+## October 21: multipart comparison complete, release held
+
+- [x] Both full arms complete on October 20 UTC/IST: 162 rows each, 81 cases/two runs/concurrency three, no invalid/unscored rows, no process signal/stop, normal structural-failure exit 1. Source/input-metadata/lockfile guards hold; known-secret scan zero.
+- [x] Audit full power history: zero recorded system sleep/wake/DarkWake events; max clock drift 45 ms, longest heartbeat gap 54.104 s. Preserve every slow/error row.
+- [x] Generate and verify both JSONs, all five changed cases' verbatim replies/signals/problems, word counts and an eleven-file private review ZIP. No protected case file or raw logs attached.
+- [x] Record the failed p95 gate: 42.508 → 61.332 s (+18.824 versus +6 allowed). Pass-both 71→72, unwanted flags 10→10, missing flags 5→5; no independent safety/quality approval inferred.
+- [x] Read-only production recheck October 21: accepted `13ead500` / GitHub `5bafe93` remains healthy/latest/one instance; all optional controls off. No deploy/settings/permission/Discord writes.
+- [ ] Diagnose remote timeouts/transport failures before any rerun; existing logs do not prove whether patch, remote services or local scheduling explain the aggregate slowdown. Do not tune from protected cases.
+- [ ] Obtain independent per-case grading and clear the failed timing gate before any #71 merge/deploy. #70 review, #67/#68 comparisons, memory/pilot and remaining product checks retain their separate gates.
+
+<details>
+<summary>Historical implementation checkpoints — not the current work queue</summary>
+
+Unchecked steps and "not started" statements here describe their dated checkpoints. Later completion records above supersede them; they do not undo completed work or authorize reruns. Preserve the remaining release/security requirements after this archive.
+
+## October 20: post-release multipart preparation — historical checkpoints
+
+- [x] Preserve the first complete six synthetic rows: main `5bafe93` complete answers 0/3; candidate `21b21b1` 2/3; zero provider-invalid rows. Full comparison not started.
+- [x] Trace actual answer/reviewer evidence, reproduce overlapping match loss with two general non-phone tests and repair within the same four-page/eight-chunk/9,000-character/search limits. Draft `baec24d`: 850 local, offline8, isolated SQL and hosted Node 20/24/Postgres pass.
+- [x] Complete and review all six fresh synthetic rows against frozen revised candidate: main 0/3, candidate 3/3, zero invalid rows and identical official corpus fingerprint; files and manual assessment in `/Users/astar/omi-eval/multipart-recheck-20261020/`. No selective failed-row retry.
+- [x] Launch under caffeinate after AC/open-lid checks and five serial timing cases all below 90 s; zero invalid rows, normal exit 1 for structural flags, not a crash. Main full arm started 22:46 IST; candidate follows.
+- [x] Main finishes all 162 rows at 23:10:40 IST: zero invalid rows, no signal/interruption, normal structural-failure exit 1, max clock drift 9 ms. Candidate starts at that checkpoint; its completion/grade are pending. One preflight structural permission-concept failure is retained, not presented as five quality passes.
+- [x] Finish and preserve the standard fresh same-day comparison; it fails the p95 threshold as recorded above. Independent review and a passing release gate are still open; completion of the run is not approval.
+
+## Current October 20 retry and separate drafts
+
+- [x] Retry exact GitHub main `5bafe93` as `6e0fa65d`; verify source/startup/schema/login/health, one running instance, optional controls off and rollback `adcfb8b4` available.
+- [x] Read-only production-identity audience check returns `private_staff_destination`.
+- [x] Spanish ordinary closure: October 20 22:02 IST screenshot and scoped REST agree on one 84-word sourced answer, no handoff, archived/locked post, and Spanish closing title/description/review field/all four buttons. The cited guide supports the answer. No repeat post needed.
+- [x] Private refund recheck: October 20 22:07 IST screenshots and scoped REST confirm one 33-word customer reply, one positive staff-delivery outcome and one matching private card awaiting acceptance. No refund outcome/time promised; post remains open.
+- [x] Prepare/self-test the corrected same-commit redeploy observer and prohibit Restart as a drain-test trigger.
+- [x] First arm at 22:09:53 IST; diagnose terminal-punctuation scope rejection before any dispatch. Read-only history confirms no redeploy/SIGTERM and one normal reply. Do not call this a teardown failure/pass or roll back unchanged healthy production.
+- [x] Correct only terminal-punctuation matching after two observed red fixtures; seven scope tests/26 observer self-checks pass. Preserve every other scope/ownership/delivery/source guard. First process is terminal; re-arm one watcher at 22:16:31 IST and request a new post only afterward.
+- [x] Corrected teardown passes: one same-image GitHub-commit redeploy at +11.737 s; successful drain, exactly one post-SIGTERM reply stable for 30 s, replacement login and old instance observed gone in 66.169 s. Current `13ead500`/`5bafe93` healthy/one instance/optional off; no rollback/settings change. Earlier pre-dispatch fixture abort is retained separately.
+- [x] Separate recovery draft #70 (`62beb1e`): three red-before behavior assertions, eight new checks, full 847/offline8/isolated SQL and hosted Node 20/24/Postgres pass. No merge/deploy; independent review pending.
+- [x] Publish general 2+ part evidence draft #71 (`21b21b1`): original three red tests plus coverage/budget/citation/live-fetch checks pass; nine new checks, eight observed red on pre-change source, full 848/offline8/SQL pass. No protected input opened.
+- [x] #71 exact head passes hosted Node 20/24/Postgres run `39389362750`.
+- [x] Offline comparison-readiness verifier and self-checks pass: pinned heads, identical grading/lockfiles, shared harness/runtime hashes, strict changed-file scope and completeness checks. Step A remains closed; zero provider/credential/Discord/case-file operations. Private manifest is recorded in the master plan.
+- [x] #71 six live synthetic checks and standard comparison now complete; full timing gate fails. No merge/deploy or independent grade.
+- [x] Step A live retry passes; carry prior ordinary/low-risk smoke evidence from identical runtime without new posts. Record one new live milestone for reviewed #48: score 46/100, full acceptance still 2/21; memory earns no live point while off.
+- [ ] Resolve #71's timing/grade hold; run the separate #67/#68 comparisons/reviews as authorized, with fresh provenance and completed timeout diagnosis. Keep memory/pilot and all other A–E work separately gated.
+
+## Latest regression/restart diagnosis — October 19
+
+- [x] Run the exact operator-authored multipart phone-only smoke 3 times each against frozen `7fe0e0a` and `5bafe93`, same live harness/corpus; no Discord/private/protected input. All six fail phone-only startup, zero invalid rows. Preserve planner parts, selected URLs/projection limits, replies and timings privately.
+- [x] Classify #65 as pre-existing under the requested rule; no merge bisect. Keep the general fix forward separate from the reviewed combination.
+- [x] Write three structurally different two/three-part regression variants with generated synthetic URLs; observe all three red on both sources before any repair. Local branch `fix/phone-only-multipart`; no runtime edits, commit/push or passing-fix claim yet.
+- [x] Read both restart windows/configuration/snapshots/events. Draining is 100 s in both and current service; no environment override. Record identifiable old-process markers and replacement logins, same-tag limit, absent historical exit reason, and documentation's lack of manual-Restart grace guarantee. Do not assert proven 20 s SIGKILL or change a setting blindly.
+- [ ] Report Steps 1–2 before any faster-pickup implementation. No Discord posts/deploys/restarts/settings changes. #67/#68 remain drafts; comparisons use `5bafe93` after baseline decision, none started.
+- [ ] Then separate `fix/faster-abandoned-pickup`: ~45 s dead-owner recovery, live 30 s stall not taken over, delivery-started never resent; preserve assertOwned/markDelivering/uncertain fences and run verify-support-db. Not started at this checkpoint.
+
+Evidence: `/Users/astar/omi-eval/phone-only-20261019/comparison-and-restart-report.md` plus both result JSONs. Product score remains 45/100 and full A–E acceptance 2/21. No new acceptance or production change is inferred.
+
 ## Current combined-release integration — October 19
 
 - [x] Read-only Step 0: nine escalation-branch/answer events, four real Help posts, zero smoke traffic, one new staff card and eight follow-ups across three existing staff cases; all four mapped privately. Do not infer a first-question handoff rate.
 - [x] Recheck Apple Watch line live; rerun four synthetic historical-loss diagnostics. Exact historical stage is unavailable; shared filter/review files predate #48. No protected rerun.
 - [x] Merge #60 as `05c0b48` after local 771/offline8/SQL and hosted checks; acknowledge Aryan's separate manual deploy `d49bfa68` with recorded source commit. No duplicate deploy.
 - [x] Merge #48 as `46282bb` after local 802/offline8/SQL and hosted Node 20/24/Postgres run `39216244319`.
-- [ ] Complete #61 integration/final-SHA full tests/CI/SQL, preserving snapshot guard and forum-erasure/language checks; then approved GitHub deployment and five smokes, rollback `e1f76a93`, all optional flags off.
+- [x] Complete #61 integration `bc46930` and main merge `5bafe93`, preserving snapshot guard and forum-erasure/language checks. Final main passes 839/839, offline8, isolated SQL and hosted Node 20/24/Postgres run `39217854468`.
+- [x] Deploy one exact GitHub SHA as `89d45a3a`; recorded source matches final main. SUCCESS, one running instance, schema initialization, Discord login and health verified; rollback `e1f76a93` available and optional controls off.
+- [x] Run the five Aryan-submitted smokes: first four pass; final check is not accepted. One reply recovered after restart, but phone-only instructions were wrong and clean drain unverified. Record #65/#66; do not turn this into a passed release.
+- [x] Invoke requested rollback `e1f76a93` once and verify current `adcfb8b4` matches its image, SUCCESS/one instance/schema/login/health, optional flags off. No production settings/permissions change.
+- [x] Create/apply `parked` to #52–#58. Prepare separate drafts #67 (local850/offline8/SQL) and #68 (local845/offline8/SQL) with red-before evidence.
+- [x] Verify both draft heads pass hosted Node 20/24/Postgres; no provider comparison or independent grade inferred.
+- [ ] Resolve smoke findings/review the retry and comparison baseline before another rollout, provider comparison or enabled-memory pilot. Quality/review checks on both new drafts remain.
 
 ## Latest operational checkpoint — October 19
 
@@ -101,7 +210,11 @@ Deferred work has durable [GitHub issue links and resumption gates](SUPPORT_MAST
 
 Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. Reports 1–3 passed. The retained #43 release record has localization deployed at `dad2505`, but its live close/reopen smoke is still pending; this branch does not recheck production. The support-experience foundation below is a separate draft. Each runtime change needs regression checks and release verification. No cloud access grants accompany this work.
 
+</details>
+
 ## Release and security prerequisites
+
+The dated implementation evidence below does not authorize a new deployment or enablement. Remaining privacy, security, review and pilot prerequisites still apply; use the current master plan to distinguish completed code from open acceptance work.
 
 ### Release 2 bounded reader checkpoint — local checks pass
 
