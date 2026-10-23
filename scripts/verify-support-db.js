@@ -1,6 +1,6 @@
 // Integration fixtures only: never point this script at a customer database.
 const assert = require('node:assert/strict');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 const runtime = require('../supportRuntime');
 const cases = require('../supportCases');
 const cards = require('../caseCards');
@@ -8,7 +8,10 @@ const { SupportIdentityStore, initSchema: initIdentity } = require('../supportId
 const supportMemory = require('../supportMemory');
 const memoryStore = require('../supportMemoryStore');
 const { createObserver } = require('../supportLearning');
+const knowledge = require('../knowledge');
+const reviewedStore = require('../knowledgeReviewStore');
 const threadLanguage = require('../supportThreadLanguage');
+const { verifyMemoryContext } = require('./verify-memory-context');
 
 async function isolatedPool() {
   const moduleAt = process.argv.indexOf('--pglite');
@@ -36,6 +39,157 @@ async function isolatedPool() {
   }
   const { Pool } = require('pg');
   return new Pool({ connectionString: raw, max: 6 });
+}
+
+async function verifyEarlyPickup(pool, store, prefix) {
+  const make = suffix => ({ messageId: `${prefix}-heartbeat-${suffix}`, caseKey: `${prefix}:heartbeat-${suffix}`,
+    owner: `${prefix}-heartbeat-owner-${suffix}`, fingerprint: null });
+  const columns = (await pool.query(`SELECT column_name FROM information_schema.columns
+    WHERE table_name='support_message_claims'`)).rows.map(row => row.column_name);
+  assert.ok(columns.includes('heartbeat_at') && columns.includes('heartbeat_owner'));
+  const dead = make('dead'), live = make('live');
+  for (const job of [dead, live]) {
+    assert.equal(await store.claim(job), true); assert.equal(await store.acquire(job), true);
+  }
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '30 seconds' WHERE message_id=$1", [live.messageId]);
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [dead.messageId]);
+  const recovered = await store.abandoned();
+  assert.ok(recovered.some(row => row.messageId === dead.messageId && row.state === 'queued'));
+  assert.ok(!recovered.some(row => row.messageId === live.messageId));
+  assert.equal(await store.owned(live), true, 'unrelated live capacity remains owned');
+  assert.equal(await store.owned(dead), false); assert.equal(await store.markDelivering(dead), false);
+  const replacement = { ...dead, owner: `${prefix}-heartbeat-replacement`, slot: undefined };
+  assert.equal(await store.claim(replacement), true);
+  assert.equal(await store.acquire(replacement), true, 'old case/slot leases were released atomically');
+  assert.equal(await store.reclaim(dead), false);
+  await store.finish(replacement, 'answered'); await store.finish(live, 'answered');
+
+  const legacy = make('legacy');
+  assert.equal(await store.claim(legacy), true);
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds', heartbeat_owner=$2 WHERE message_id=$1",
+    [legacy.messageId, `${prefix}-different-generation`]);
+  assert.ok(!(await store.abandoned()).some(row => row.messageId === legacy.messageId));
+  await store.finish(legacy, 'ignored');
+
+  const delivering = make('delivering');
+  assert.equal(await store.claim(delivering), true); assert.equal(await store.acquire(delivering), true);
+  assert.equal(await store.markDelivering(delivering), true);
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [delivering.messageId]);
+  assert.ok(!(await store.abandoned()).some(row => row.messageId === delivering.messageId));
+  assert.ok(!(await store.queued(100)).some(row => row.messageId === delivering.messageId));
+  await store.finish(delivering, 'answered');
+
+  // Either the delivery marker or recovery wins the row lock, never both.
+  for (const deliveryFirst of [true, false]) {
+    const race = make(`race-${deliveryFirst}`);
+    assert.equal(await store.claim(race), true); assert.equal(await store.acquire(race), true);
+    await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [race.messageId]);
+    const actions = deliveryFirst
+      ? [store.markDelivering(race), store.abandoned()]
+      : [store.abandoned(), store.markDelivering(race)];
+    const results = await Promise.all(actions);
+    const started = results[deliveryFirst ? 0 : 1], swept = results[deliveryFirst ? 1 : 0];
+    assert.equal(started && swept.some(row => row.messageId === race.messageId && row.state === 'queued'), false);
+    const row = (await pool.query('SELECT state,delivery_started FROM support_message_claims WHERE message_id=$1', [race.messageId])).rows[0];
+    assert.equal(row.state === 'queued' && row.delivery_started, false);
+    await store.finish(race, 'answered');
+    await store.discard(race);
+  }
+  await verifyRuntimePickupFences(pool, prefix);
+}
+
+async function verifyRuntimePickupFences(pool, prefix) {
+  const gate = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
+  const oldStore = new runtime.PostgresRuntimeStore(pool);
+  const nextStore = new runtime.PostgresRuntimeStore(pool);
+  // Other verifier groups deliberately leave queued fixtures. Scope dispatch to
+  // this group's identifiers; claims, leases, fences and mutations use real SQL.
+  const pickupIds = new Set();
+  const queued = nextStore.queued.bind(nextStore);
+  nextStore.queued = async (limit, options) => (await queued(100, options)).filter(row => pickupIds.has(row.messageId)).slice(0, limit);
+  const old = new runtime.SupportRuntime({ store: oldStore, heartbeatMs: 1000000, log: () => {} });
+  const next = new runtime.SupportRuntime({ store: nextStore, heartbeatMs: 1000000, sweepMs: 0, log: () => {} });
+  const started = gate(), held = gate();
+  let unavailable = false, sends = 0;
+  const owned = oldStore.owned.bind(oldStore);
+  oldStore.owned = async job => { if (unavailable) throw new Error('synthetic old-worker partition'); return owned(job); };
+  const send = async () => { await runtime.assertCurrentOwnership(); sends++; runtime.markCurrentReplySent(); return true; };
+  const messageId = `${prefix}-two-worker-partition`;
+  pickupIds.add(messageId);
+  const pending = old.run({ messageId, caseKey: `${prefix}:partition-case`, fingerprint: null }, async () => {
+    started.release(); await held.promise; return send();
+  });
+  const settled = pending.then(value => ({ value }), error => ({ error }));
+  try {
+    await started.promise;
+    await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [messageId]);
+    await next.recoverQueued(input => next.run(input, send));
+    assert.equal(sends, 1);
+    unavailable = true; held.release();
+    assert.equal((await settled).error?.code, 'SUPPORT_OWNERSHIP_UNKNOWN');
+    assert.equal(sends, 1, 'old owner cannot send through its failed ownership read');
+    assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [messageId])).rows[0].state, 'answered');
+  } finally { held.release(); await settled; }
+
+  const slow = `${prefix}-recovery-slow`, orphan = {
+    messageId: `${prefix}-recovery-later`, caseKey: `${prefix}:recovery-later`, owner: `${prefix}-dead-worker`, fingerprint: null,
+  };
+  const began = gate(), resume = gate();
+  pickupIds.add(slow); pickupIds.add(orphan.messageId);
+  await nextStore.enqueue({ messageId: slow, caseKey: `${prefix}:recovery-slow`, fingerprint: null });
+  await nextStore.claim(orphan); await nextStore.acquire(orphan);
+  const handler = input => next.run(input, async () => {
+    if (input.messageId === slow) { began.release(); await resume.promise; }
+    return send();
+  });
+  const first = next.recoverQueued(handler);
+  try {
+    await began.promise;
+    await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [orphan.messageId]);
+    await next.recoverQueued(handler);
+    assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [orphan.messageId])).rows[0].state, 'answered');
+    assert.equal(next.running, 1, 'the first answer is still held while later recovery completes');
+  } finally { resume.release(); await first; }
+
+  const ambiguous = { messageId: `${prefix}-ambiguous-marker`, caseKey: `${prefix}:ambiguous-marker`, owner: `${prefix}-marker-owner`, fingerprint: null };
+  await nextStore.claim(ambiguous); await nextStore.acquire(ambiguous); await nextStore.markDelivering(ambiguous);
+  await nextStore.defer(ambiguous);
+  assert.equal((await pool.query('SELECT state,delivery_started FROM support_message_claims WHERE message_id=$1', [ambiguous.messageId])).rows[0].state, 'processing');
+  assert.ok(!(await nextStore.queued(100)).some(row => row.messageId === ambiguous.messageId));
+  await nextStore.finish(ambiguous, 'uncertain');
+
+  // Exclusions must apply before LIMIT, even with earlier still-queued fetches.
+  const heldIds = ['a', 'b', 'c'].map(suffix => `${prefix}-000-held-${suffix}`);
+  const laterId = `${prefix}-999-later`;
+  for (const id of [...heldIds, laterId]) await nextStore.enqueue({ messageId: id, caseKey: `${prefix}:${id}`, fingerprint: null });
+  const ordered = await queued(100);
+  const limit = ordered.findIndex(row => row.messageId === laterId) - heldIds.length + 1;
+  assert.ok((await queued(limit, { exclude: heldIds })).some(row => row.messageId === laterId), 'SQL excludes in-flight rows before applying the dispatch limit');
+  for (const id of [...heldIds, laterId]) await nextStore.discard({ messageId: id });
+
+  const lostAck = `${prefix}-lost-claim-ack`;
+  pickupIds.add(lostAck);
+  const claim = oldStore.claim.bind(oldStore);
+  oldStore.claim = async job => { await claim(job); throw new Error('synthetic lost claim acknowledgement'); };
+  await assert.rejects(old.run({ messageId: lostAck, caseKey: `${prefix}:lost-ack`, fingerprint: null }, send));
+  assert.equal((await next.run({ messageId: lostAck, caseKey: `${prefix}:lost-ack`, fingerprint: null }, send)).status, 'duplicate');
+  const before = sends;
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [lostAck]);
+  await next.recoverQueued(input => next.run(input, send));
+  assert.equal(sends, before + 1, 'lost claim acknowledgement is recovered once, not sent as an unfenced note');
+  const transient = `${prefix}-transient-pre-work`;
+  pickupIds.add(transient);
+  const repeated = nextStore.repeated.bind(nextStore);
+  let fail = true;
+  nextStore.repeated = async job => {
+    if (fail) { fail = false; throw new Error('synthetic transient coordinator failure'); }
+    return repeated(job);
+  };
+  await assert.rejects(next.run({ messageId: transient, caseKey: `${prefix}:transient`, fingerprint: null }, send));
+  assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [transient])).rows[0].state, 'queued');
+  await next.recoverQueued(input => next.run(input, send));
+  assert.equal((await pool.query('SELECT state FROM support_message_claims WHERE message_id=$1', [transient])).rows[0].state, 'answered');
+  console.log('Early pickup two-worker SQL: partition fences, independent sweeps, queue-limit exclusion, transient/lost-ack recovery and ambiguous-marker no-replay passed');
 }
 
 async function verify(pool) {
@@ -82,8 +236,10 @@ async function verify(pool) {
   for (let count = 0; count < 2; count++) {
     await runtime.initSchema(pool); await cases.initSchema(pool); await cards.initSchema(pool); await initIdentity(pool);
     await memoryStore.initSchema(pool);
+    await reviewedStore.initSchema(pool);
     await threadLanguage.initSchema(pool);
   }
+  await verifyReviewedKnowledge(pool, prefix);
   const memoryColumns = (await pool.query(`SELECT column_name FROM information_schema.columns
     WHERE table_name='support_memory_messages' ORDER BY column_name`)).rows.map(row => row.column_name);
   assert.deepEqual(memoryColumns, ['at','customer_id','expires_at','forum_id','guild_id','message_id','role','thread_id']);
@@ -163,6 +319,8 @@ async function verify(pool) {
   assert.ok(sweptLater.some((item) => item.messageId === partial.messageId && item.state === 'uncertain'));
   assert.equal(await store.reclaim(partial), false);
   await store.finish(local, 'answered');
+
+  await verifyEarlyPickup(pool, store, prefix);
 
   const service = cases.createCaseService(cases.createPostgresStore(pool));
   const aliceInput = { channelId: `${prefix}-general`, customerId: `${prefix}-alice`, context: { area: 'app', summary: 'private content must not persist' } };
@@ -317,7 +475,120 @@ async function verify(pool) {
   assert.equal(await forumSaving, false);
   assert.equal(await journalRestart.signal({ ...forumScope, eventId: `${prefix}-delayed-signal`, kind: 'needs_help' }), false);
   assert.deepEqual(await journalRestart.otherThreads(forumScope), []);
+  const contextChecks = await verifyMemoryContext(pool, `${prefix}-reader`);
+  assert.equal(contextChecks.length, 8);
+  console.log('Support memory SQL/live-reader rehearsal: 8 synthetic scenario groups passed; no Discord/provider calls');
   console.log('Support database integration: schema upgrade, claims, lease recovery, queue, case isolation, live cards, notices, verification, reference-only memory, forum erasure, edit/delete races, revocation and text-free thread languages passed');
+
+}
+
+async function verifyReviewedKnowledge(pool, prefix) {
+  const guildId = `${prefix}-knowledge`, actor = `${prefix}-reviewer`, now = Date.now();
+  const firstStore = reviewedStore.createPostgresStore(pool), secondStore = reviewedStore.createPostgresStore(pool);
+  let validations = 0, clock = now;
+  const fixtureProof = row => ({ ok: true, digest: row.digest, reviewApproved: true,
+    regression: { passed: true, questionHash: reviewedStore.hashContent(row.regressionQuestion) },
+    evidence: row.sources.map(url => ({ url, sha256: createHash('sha256').update(`Synthetic public source ${url}`).digest('hex'), checkedAt: row.approvedAt })) });
+  const options = { allowedStaffIds: () => [actor], enabled: () => true, now: () => clock,
+    validate: async row => { validations++; return fixtureProof(row); } };
+  const first = knowledge.createReviewService({ ...options, store: firstStore });
+  const second = knowledge.createReviewService({ ...options, store: secondStore });
+  const input = { guildId, factId: 'task-guide', expectedVersion: 0,
+    content: 'The task list displays conversation action items.',
+    sources: ['https://help.omi.me/en/articles/synthetic-task-list'], productVersion: 'Synthetic app fixture',
+    regressionQuestion: 'Where does the app display action items?',
+    provenance: [{ caseId: `${prefix}-case`, expiresAt: now + 30 * 86400000 }] };
+  assert.equal((await first.propose(input, actor)).ok, true);
+  const action = { guildId, factId: input.factId, version: 1 };
+  const double = await Promise.all([first.approve(action, actor), second.approve(action, actor)]);
+  assert.equal(double.filter(row => row.ok).length, 1); assert.equal(validations, 1);
+  assert.equal((await second.search(guildId, 'task list'))[0].content, input.content);
+  assert.deepEqual(await second.search(`${guildId}-other`, 'task list'), []);
+  assert.equal((await first.inspect(input, actor)).versions[0].approvedBy, actor);
+  await second.eraseProvenance(guildId, [`${prefix}-case`]);
+  assert.deepEqual((await firstStore.read(input)).versions[0].provenance, []);
+  await first.propose({ ...input, factId: 'queued-after-erasure' }, actor);
+  assert.deepEqual((await secondStore.read({ ...input, factId: 'queued-after-erasure' })).versions[0].provenance, [], 'erasure survives another writer');
+  await reviewedStore.initSchema(pool);
+  assert.equal((await second.search(guildId, 'task list')).length, 1, 'repeat schema initialization preserves approval');
+  const edited = await second.propose({ ...input, expectedVersion: 1, content: 'The task list includes next actions.' }, actor);
+  assert.equal(edited.version, 2);
+  assert.equal((await first.search(guildId, 'task list'))[0].content, input.content, 'pending edits preserve the working version');
+  assert.equal((await second.reject({ ...action, version: 2 }, actor)).ok, true);
+  assert.equal((await first.search(guildId, 'task list')).length, 1);
+  assert.equal((await first.revoke({ ...action, version: 2 }, actor)).ok, true);
+  knowledge.resetKnowledge(); knowledge.addSnippet(input.content);
+  assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: true }), []);
+  assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: false }), []);
+  knowledge.resetKnowledge(); knowledge.addSnippet(`${input.content} Source: ${input.sources[0]}`);
+  assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: true }), []);
+  assert.deepEqual(await knowledge.searchForAnswers('task list', { guildId, store: secondStore, enabled: false }), []);
+  knowledge.resetKnowledge();
+  assert.deepEqual(await second.search(guildId, 'task list'), []);
+
+  // A late validator in another process cannot undo an explicit revocation.
+  let release, entered;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { entered = resolve; });
+  const slow = knowledge.createReviewService({ ...options, store: firstStore,
+    validate: async row => { entered(); await waiting; return fixtureProof(row); } });
+  const next = { ...input, factId: 'late-guide' };
+  assert.equal((await slow.propose(next, actor)).ok, true);
+  const accepting = slow.approve({ ...action, factId: next.factId }, actor);
+  await started;
+  assert.equal((await second.revoke({ ...action, factId: next.factId }, actor)).ok, true);
+  release(); assert.equal((await accepting).ok, false);
+
+  const expiring = { ...input, factId: 'expiring-guide' };
+  expiring.provenance = [{ caseId: `${prefix}-expiry-case`, expiresAt: now + 30 * 86400000 }];
+  await first.propose(expiring, actor);
+  await first.approve({ ...action, factId: expiring.factId }, actor);
+  clock += 90 * 86400000;
+  assert.deepEqual(await second.search(guildId, 'task list'), []);
+  await first.pruneProvenance(guildId);
+  assert.deepEqual((await secondStore.read(expiring)).versions[0].provenance, []);
+  // Failed compare-and-swap creation must not leave an empty durable record.
+  assert.equal((await first.propose({ ...input, factId: 'stale-create', expectedVersion: 3, provenance: [] }, actor)).reason, 'stale');
+  assert.equal(await firstStore.read({ ...input, factId: 'stale-create' }), null);
+
+  // Mandatory retention is global, bounded and independent of publication.
+  const retentionNow = clock;
+  const retainedInputs = ['retention-a', 'retention-b'].map((guild, index) => ({ ...input,
+    guildId: `${prefix}-${guild}`, factId: 'retention-fact', expectedVersion: 0,
+    provenance: [{ caseId: `${prefix}-expired-${index}`, expiresAt: retentionNow + 86400000 },
+      { caseId: `${prefix}-live-${index}`, expiresAt: retentionNow + 30 * 86400000 }] }));
+  for (const candidate of retainedInputs) {
+    assert.equal((await first.propose(candidate, actor)).ok, true);
+    assert.equal((await first.approve({ ...candidate, version: 1 }, actor)).ok, true);
+  }
+  const beforeCleanup = await firstStore.read(retainedInputs[0]);
+  const priorStatementTimeout = (await pool.query("SELECT current_setting('statement_timeout') AS value")).rows[0].value;
+  for (let i = 0; i < 101; i++) assert.equal((await first.propose({ ...input,
+    guildId: `${prefix}-retention-bulk`, factId: 'bulk-' + String(i).padStart(3, '0'), expectedVersion: 0,
+    provenance: [{ caseId: `${prefix}-bulk-expired`, expiresAt: retentionNow + 86400000 }] }, actor)).ok, true);
+  await firstStore.eraseProvenance(retainedInputs[0].guildId, retentionNow - 31 * 86400000, [`${prefix}-old-barrier`]);
+  await firstStore.eraseProvenance(retainedInputs[0].guildId, retentionNow, [`${prefix}-active-barrier`]);
+  clock += 2 * 86400000;
+  const raceAction = { ...retainedInputs[1], version: 1 };
+  const [batch, revocation] = await Promise.all([firstStore.pruneExpiredProvenance(clock), second.revoke(raceAction, actor)]);
+  assert.equal(batch.examined, 100); assert.equal(batch.remaining, true); assert.equal(revocation.ok, true);
+  assert.equal(batch.barriersDeleted, 1);
+  assert.deepEqual(await secondStore.pruneExpiredProvenance(clock), { examined: 3, barriersDeleted: 0, remaining: false });
+  assert.equal((await pool.query("SELECT current_setting('statement_timeout') AS value")).rows[0].value, priorStatementTimeout);
+  beforeCleanup.versions[0].provenance = retainedInputs[0].provenance.slice(1);
+  assert.deepEqual(await secondStore.read(retainedInputs[0]), beforeCleanup, 'expiry changes provenance, not reviewed product state');
+  assert.equal((await second.search(retainedInputs[0].guildId, 'task list'))[0].content, input.content);
+  const revokedAfterCleanup = await firstStore.read(retainedInputs[1]);
+  assert.equal(revokedAfterCleanup.versions[0].status, 'revoked');
+  assert.equal(revokedAfterCleanup.publishedVersion, null);
+  assert.deepEqual(revokedAfterCleanup.versions[0].provenance, retainedInputs[1].provenance.slice(1));
+  assert.equal((await first.propose({ ...input, guildId: retainedInputs[0].guildId,
+    factId: 'barrier-still-active', expectedVersion: 0,
+    provenance: [{ caseId: `${prefix}-active-barrier`, expiresAt: clock + 86400000 }] }, actor)).ok, true);
+  assert.deepEqual((await secondStore.read({ guildId: retainedInputs[0].guildId, factId: 'barrier-still-active' })).versions[0].provenance, []);
+  assert.equal((await firstStore.pruneExpiredProvenance(clock)).examined, 0);
+  console.log('Reviewed knowledge retention: global bounded expiry, restart, active barriers and concurrent revocation passed');
+
 }
 
 (async () => {

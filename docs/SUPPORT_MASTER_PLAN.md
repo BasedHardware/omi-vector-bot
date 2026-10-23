@@ -1,25 +1,10 @@
 # Omi Support Bot: master product plan
 
-Updated October 20, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+Updated October 23, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
-## Current work — short version
+## Progress: 47 / 100 delivery milestones
 
-| Work | State | Next |
-| --- | --- | --- |
-| Approved release retry | Passed; current `13ead500` records GitHub main `5bafe93`; memory/context/fix inbox off | Spanish closing, private refund and same-commit graceful teardown pass. No more Discord posts. Rollback `adcfb8b4`. |
-| Faster recovery, [#70](https://github.com/BasedHardware/omi-vector-bot/pull/70) | Draft; 847 local tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass | Independent review; not merged or live. |
-| Sources for every question part, #65 / #71 | Initial synthetic check: main 0/3 complete, draft 2/3; overlap correction now passes 850 local tests | Recheck the revised frozen draft before the standard comparison. Full comparison has not started; independent review required. |
-| Other fixes and memory pilot | Preserved, not discarded | #67/#68 comparisons follow the retry; no memory enablement or later draft deploy without its gates. |
-
-**Aryan sends every Discord message and command.** The same-commit redeploy test passed: successful old drain, one reply after SIGTERM and old instance observed gone within 66.169 seconds. Optional capabilities stay off. No further Discord posts are needed. Earlier entries below are historical; this checkpoint controls current status. Progress is **46/100**, full acceptance **2/21**, as recorded in the canonical status draft #69.
-
-The multipart fix gives every request with **two or more parts** complementary evidence before shared filler. It reuses the existing selector and overall eight-chunk/9,000-character/four-page limits; short requests retain their existing search-call caps. It changes no topic-specific rule, expected URL, source authority, safety routing or memory control. Nine new tests pass: eight were observed failing before the change; the remaining test preserves the older baseline evaluation path. Passing local tests is not a generated-answer grade, review or rollout.
-
-**Synthetic check found another coverage gap, now repaired locally:** overlapping part matches could reserve the same overview twice, then use the spare pages for aggregate background. The selector now gives each part its next distinct relevant page before shared filler, without increasing any budget. Two general non-phone overlap regressions fail before and pass after; full 850, offline 8/8 and isolated SQL pass. Initial six rows and their actual provider evidence are retained privately in `/Users/astar/omi-eval/multipart-20261020/`; no protected input was read and no full comparison started. The revised candidate needs fresh synthetic checks, hosted CI, the full gate and review; production remains unchanged.
-
-## Progress: 46 / 100 delivery milestones
-
-**Built and tested: 14/25 · Reviewed: 11/25 · Verified live: 7/25.**
+**Built and tested: 14/25 · Reviewed: 12/25 · Verified live: 7/25.**
 
 This measures delivery work, **not answer accuracy or model speed**. The earlier 5/100 hid partial work; changing the count does not mean more work suddenly shipped.
 
@@ -35,7 +20,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 1 | Short, plain replies — Release 1 / A1 | yes | yes | yes | yes |
 | 2 | How-to versus failure routing — Release 1 / A2 | yes | yes | yes | — |
 | 3 | Multipart sources, whole-item clipping and damage intake — Release 1 / A2 | yes | yes | yes | — |
-| 4 | Source-ranking/confidence follow-up — #48 / A2; limited reviewed release verified, broader A2 remains open | yes | yes | yes | yes |
+| 4 | Source-ranking/confidence follow-up — #48 / A2; reviewed release verified live, broader A2 remains open | yes | yes | yes | yes |
 | 5 | Consistent calm, warm and practical Mira character — #59 / A1 | yes | yes | — | — |
 | 6 | Typing and cosmetic-error isolation — #46 / A4 | yes | yes | yes | yes |
 | 7 | Production-configured read-only staff audience check — B1 | yes | yes | yes | yes |
@@ -49,7 +34,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 15 | Bounded same-owner context reuse — C2; approved for code release with memory off, pilot pending | yes | yes | yes | — |
 | 16 | Forum-wide forgetting, deletion, expiry and isolation — C3 | — | — | — | — |
 | 17 | Reviewed memory pilot and controlled expansion — C4 | — | — | — | — |
-| 18 | Versioned reviewed-fact store and revocation foundation — #49 / D5 | yes | yes | — | — |
+| 18 | Versioned reviewed-fact store and revocation foundation — #49 / D5; independent foundation review passed October 23, not enabled | yes | yes | yes | — |
 | 19 | Owner-scoped problem signals — D1 | — | — | — | — |
 | 20 | Private grouped daily review inbox and staff controls — D2/D4 | — | — | — | — |
 | 21 | Real source/regression validator and controlled fact publication — D3/D5 | — | — | — | — |
@@ -58,11 +43,181 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 24 | Existing automated regression/SQL checks and independently graded comparison tooling — E2 | yes | yes | yes | yes |
 | 25 | Full support → memory → reviewed fix → revocation demonstration — E3 | — | — | — | — |
 
-Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The newest point records #48's limited reviewed release verified live, not general answer accuracy or every confidence boundary. The preceding three review points covered #48 and #61's store/reader with memory off; memory remains off and earns no live point. Cosmetic-error isolation has automated regression evidence; no production fault was deliberately injected. Technical-failure routing, forced-overflow clipping and damage-intake groups do not gain separate live points from the limited smoke. Full A–E acceptance remains **2/21** (B1 and A3); every unfinished checkbox stays open. Mira's character still needs its comparison/review/live checks. Existing automation does not complete all future E2 scenarios.
+Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 point records independent review of #49's versioned fact/revocation foundation, with no enablement. The prior live point records #48's approved retry: sourced ordinary/low-risk answers and protected refund delivery, with the latter checks and teardown verified anew on the same runtime. It is not general answer accuracy or proof that every confidence boundary was triggered. The prior 45 included independent review of #48/#61, not enabled memory. Memory stays off and earns no live point. Cosmetic-error isolation has automated regression evidence; no production fault was deliberately injected. Technical-failure routing, forced-overflow clipping and damage-intake groups gain no separate live points from this limited smoke. Full A–E acceptance remains **2/21** (B1 and A3); all unfinished checkboxes stay open. Mira's changed character, memory, learning and later reliability work retain their own gates.
 
 </details>
 
-## Start here — priorities and status
+## Start here — what is done and what comes next
+
+**Progress: 47/100 delivery milestones. One new point is #49's independent foundation review—not a deployment or an accuracy gain.**
+
+| Status | What it means now |
+| --- | --- |
+| **Done** | #69/#73/#49 merged earlier. Reviewer-approved #76 merged as `d06e41c`; 884 tests, six local timeout checks and CI pass. #72 is closed; its unfinished overall answer-budget scope is preserved in #56. Production remains Aryan's `458d4a6f` / `ec51f7a`, not the new merge. |
+| **In progress** | #70's required outage-note fix: one honest status note before work starts even when the database is down; a later actual answer stays fenced. Red-before tests pass; final tests/SQL/review/CI precede merge. No new PRs. |
+| **Next** | Merge verified #70, deploy exact GitHub main with optional features off, then English/refund/Redeploy-drain smokes supplied by Aryan. Roll back on failure. Only afterward close #68/#29/#30, preserving failed evidence and unfinished scope. |
+| **Waiting** | Railway's merge safeguard is cleared by authenticated, complete service/environment API reads: zero matching automatic GitHub triggers and unchanged production. Code, speed, dependency and privacy/pilot gates remain below. |
+| **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
+
+**New request, prepared—not trained:** [Mira's data plan](MIRA_DATA_STRATEGY.md) screens eight public datasets and adds 12 original support scenarios. It targets understanding frustration, clear help and truthful follow-through, not psychological profiling. No data imported, model trained, prompt changed or new feature PR opened. Implement through A1/A2/E2 after the current finish queue; score remains **47/100**.
+
+### Finish queue — one active completion step
+
+Aryan asked to bring every existing PR to a deliberate outcome: verify and merge useful work, or close genuinely obsolete/duplicated work with its reason and any unfinished scope preserved. Do not rush a merge or close a useful fix merely to lower the count. The same independent reviewer is authorized for the remaining PRs, one at a time; it does not merge, deploy or access customer data. Use the updated risk-based readiness policy, reusing valid evidence without inventing unrelated certification. Product and release gates remain; ready is not merged or deployed.
+
+**Latest approved order — October23:** maximum three open PRs, no new PR at/above that cap except a production fix, and a reviewed merge-or-close decision within48h. Work down the inherited excess rather than merging unverified code. Existing review decisions target October25 IST; #28 has the explicit October27 deadline. Closing a PR preserves its branch and unmet requirements; it does not claim the customer problem is fixed.
+
+1. **Done:** merge #76; close #72 while preserving broader budget/retries in #56/A4/B3/E2.
+2. **In progress:** fix/review/verify/merge #70's pre-work outage note. Actual answers stay fenced; a status note does not confirm storage, staff delivery or a solution.
+3. **Pending:** deploy exact combined main, rollback458d4a6f, memory/context/fix-inbox off. Aryan sends English how-to, refund and an armed slow multipart input for same-commit Redeploy; require clean drain and exactly one answer. Close #66 only after that evidence.
+4. **After release passes:** close #68 (generated fallback0/6; preserve comparison/code/quality evidence and the remaining multilingual fallback problem in A2/E2), #29 and #30 (preserve receipts, same-nonce retries, held alerts and closure recovery in #51). #70 does not complete those safeguards.
+5. Integrate current main into #74, verify affected privacy/SQL checks, mark ready for the reviewer's next review; do not enable memory from this alone.
+6. Export #67's changed missing-handoff cases privately for grading, then reviewer decides merge/close. The reviewer treats its +0.200s overrun as non-blocking; retain the measured result, not a rewritten pass.
+7. Diagnose #71's per-stage timing/token evidence and fix a proven general cause before another run; do not assume prompt growth or #76 explains the historical difference.
+8. After step3 is live, one same-day comparison batch: common deployed-main arm and separate #59/#71-fixed/#75 arms, each81×2, global concurrency3, the usual per-arm gates/changed-case files. This supersedes separate fresh-main runs, not per-candidate grading. No combined prompt diff or protected case-file read.
+9. Integrate/verify/review #28 by October27, otherwise close with smaller scopes preserved. Merge commits only; no rebase.
+10. After step3 is clean and the original privacy/notice/pilot prerequisites are verified, test-forum-only memory pilot and two-post scenario, then48h observation; no public-forum enablement or training.
+
+| Existing work | What must happen before it can move forward |
+| --- | --- |
+| #69 — clear status documents | **Merged** as `577c0c0`, reviewed head `dda2cf6`; fresh 839 tests and exact-head hosted Node 20/24/PostgreSQL pass. No deployment. |
+| #73 — memory safety rehearsal | **Merged** as `c61920d`, integrated head `88f8afa`; fresh 839 tests, eight SQL/reader groups, exact-head hosted Node 20/24/PostgreSQL and narrow integration review PASS. Memory stays off. |
+| #68 — faster planning | **Close after step3 passes, keep branch/evidence.** Authorized six generated fallback checks score0/6 correct; later schema/unit/CI/code-review success does not clear that result. #76 covers the per-request trickle mechanism, not the multilingual retrieval weakness. Preserve the original comparison and fallback source-selection problem in A2/E2; do not import the unapproved prompt into main. |
+| #75 — correct customer intent | Finish evaluation-adapter parity, authorized answer-quality comparison, actual multi-turn verification and independent review. |
+| #67 — in-thread next steps | Export changed missing-handoff cases privately for grading; reviewer decides merge/close. The reviewer explicitly accepts the0.200s excess over the old p50 limit, not a changed measurement. Preserve every flag, reply and signal. |
+| #71 — multipart evidence | Diagnose and resolve the failed slow-reply gate (+18.824 s versus +6 allowed) and obtain independent quality grading. No automatic rerun or topic-specific patch. |
+| #70 — faster abandoned pickup | Reviewer-required outage fix passes907 local tests/offline8/SQL and independent narrow review (185 affected checks). Pre-work total claim outage gives one honest note without a DB fence; later answers retain their fence. Automatic recovery never repeats the note, duplicate intake is bounded/coalesced, and the note does not retire unsent work. Current-head CI precedes the authorized merge. No global exactly-once, complete receipt or staff-alert claim. |
+| #28 — private staff/engineering workflow | Returned to draft: conflicts with current main. Integrate safely, recheck the affected private workflow and obtain independent re-review. Never relax privacy to pass. |
+| #29 — delivery receipts | **Close after step3 passes; keep branch/local edits.** Preserve unimplemented same-nonce recovery, ledger-outage handling, receipts and staff-visible held alerts in #51. #70 does not complete them. |
+| #30 — close/reopen safety | **Close after step3 passes; keep branch.** Preserve unfinished closure/reopen receipt and uncertain-send reconciliation in #51, with the existing case/card workflow; not marked fixed. |
+| #59 — consistent Mira voice | Resolve conflicts and complete its separate required answer comparison and review; do not mix prompt changes into another comparison. |
+| #49 — reviewed-fact foundation | **Merged** as `ec51f7a`, head `bd985f0`: 878 tests/offline8/combined SQL, exact-head Node 20/24/PostgreSQL CI39958358860 and independent integration review PASS. Runtime preserves reviewed `3f83024`; real validator/UI/jobs remain enablement gates. Nothing deployed/enabled. |
+| #74 — correction-link forgetting | Independent review PASS for the disabled foundation at `dfc1398`; fresh 76 affected tests/isolated SQL and exact-head hosted PostgreSQL pass. Integrate after parent #49, preserve the reviewed diff and recheck affected integration/current-head CI. No pilot or enablement inferred. |
+
+Truthful delivered-versus-accepted wording and supplied-diagnostic continuity remain required repairs; they do not authorize another PR ahead of this queue. Reorganizing work earns no progress points.
+
+**October 23 merge safeguard, resolved:** normal existing-account sign-in succeeds with credential output suppressed. Complete service/environment reads return zero matching automatic GitHub triggers and preserve the source. The three agent-authorized merges completed while production stayed `bc2166f9` / `5bafe93`. At 18:58 IST a later deployment started; Aryan confirms he triggered it. Latest `458d4a6f` / `ec51f7a` is successful, one active instance, health HTTP 200/`ok`; the fresh trigger read still returns zero. No agent deployment, setting/key/permission change occurred. This is readiness/state evidence, not a full health window, smoke acceptance or optional-feature approval.
+
+<details>
+<summary>Audit intake and preparation evidence — technical detail</summary>
+
+**October 23 audit intake:** checked the supplied ledger's arithmetic privately and traced the affected pipeline. Routing currently mixes earlier bot/participant words into request evidence and can preserve a rejected personal-action interpretation. [Draft #75](https://github.com/BasedHardware/omi-vector-bot/pull/75), `75d0c12`, limits routing history to the current customer's messages and constrains rejected planner goals without deleting answer/reviewer context. Eleven new synthetic groups pass; seven fail on frozen main (six behavioral assertions plus the new normalization seam). Genuine financial/privacy requests remain protected in the covered tests, including mixed requests and version-only continuations. Full local 850/offline8/isolated SQL and exact-head hosted Node 20/24/real PostgreSQL run `39900379575` pass. Actual multi-turn/generated-answer verification, adapter parity, authorized comparison and independent review remain. This is partial A2/E2 work, not completion of the nine-theme contract or a new production quality claim. The private audit stays private; public tests use fresh synthetic inputs. No customer messages, case closure, new comparison, deployment or memory enablement.
+
+**Existing comparison status, updated October 23:** #67 and #71 remain held on speed. #68's independent grade is complete: HOLD for fallback-language repair and factual-quality disposition, not a failed timing limit.
+
+#68 meets the numerical limits; independent review found no newly missed protected handoff or mid-item clipping, but did find the fallback-language gap. #67 still fails its speed limit. Original result packages remain unchanged; nothing new has been merged, deployed or switched on.
+
+**Memory preparation, reverified October 23:** test-only [#73](https://github.com/BasedHardware/omi-vector-bot/pull/73), `c2953f2`, passes a fresh 839-test run and all eight SQL/reader rehearsal groups. The baseline passes while all five deliberate in-memory faults are rejected. Independent review found no actionable issues and confirmed the exact-head real PostgreSQL/Node 20/24 CI evidence. Record final readiness evidence in the PR; this verifies the test harness, not enabled generated answers, a full bot restart, the pilot or privacy approval. Memory stays off and the overall score is 47/100 solely because #49 gained its independent foundation review; this test harness adds no point.
+
+**Learning foundation, reviewed October 23:** [#49](https://github.com/BasedHardware/omi-vector-bot/pull/49), `3f83024`, passes independent review for its disabled foundation. Fresh 38 focused tests/isolated SQL and existing 878/offline8/exact-head hosted PostgreSQL evidence pass. Publication fails closed without a configured validator. The real validator, review interface/jobs, controlled pilot and cold/outage revocation limitation remain enablement gates. This earns milestone 18 its review point: total 47/100. Nothing merged, deployed or enabled.
+
+**Privacy foundation, reviewed October 23:** [#74](https://github.com/BasedHardware/omi-vector-bot/pull/74), `dfc1398`, passes independent review of the disabled #49 integration. Fresh 76 affected tests/isolated SQL and exact-head 887/offline8/hosted PostgreSQL evidence pass. Ownership, commit-before-ack, late writers, retry and legacy/orphan refusal are verified synthetically and against isolated SQL, not real customer data. Parent integration/current-head checks and the original privacy/security/backup/pilot gates remain; no enablement or extra milestone point.
+
+</details>
+
+<details>
+<summary>Current comparison and live-release evidence</summary>
+
+**Complete — October 21:** #67 (`f2781eb`, in-thread next steps) finishes **08:50:34 IST**; #68 (`1ffae62`, planner deadline) finishes **09:56:33 IST**. Each uses a separate fresh deployed-main `5bafe93` arm and candidate arm: 162 rows/81 cases/two runs/concurrency three each, zero invalid/unscored rows, normal structural-failure exit 1, no signal/interruption or retry. Both full arms share the unchanged harness/judge/lockfile and finish the same UTC/IST day. All five serial timing cases finish below 47 s / 42 s respectively; each preflight retains one quality failure, not a provider-invalid result. Complete power-history coverage records no system sleep/wake/DarkWake; max clock drift 179 ms / 12 ms. All slow/error/empty rows remain. Local 850/845, offline8, isolated SQL and exact-head hosted checks pass. No Discord posts, merge/deploy/settings/memory change; no new score points.
+
+| Check, main → draft | #67: in-thread next steps | #68: planner deadline |
+| --- | --- | --- |
+| Pass both / flaky / fail both, cases | 73/3/5 → 72/3/6 | 71/4/6 → 71/4/6 |
+| Unwanted / missing handoff flags | 8/4 → 9/6 | 10/5 → 10/6 |
+| Typical reply time, p50 seconds | 30.255 → 32.455 — **fails +2 s** | 34.503 → 32.450 — within limit |
+| Slow reply time, p95 seconds | 47.351 → 52.850 — within +6 s | 57.020 → 54.446 — meets no-rise rule |
+| Delivered-reply median / p90 words | 73/99 → 73/103 | 72/97 → 71/101 |
+| Decision, updated October 23 | **Held on speed and independent grade** | **Timing passes; independent HOLD for fallback language and factual-quality disposition** |
+
+Private review directories: `/Users/astar/omi-eval/redirect-gate-20261021/` and `/Users/astar/omi-eval/planner-gate-20261021/`. Each contains `main.json`, `candidate.json`, `comparison-summary.md`, all five/six changed cases' two runs with verbatim replies/escalating signals/judge problems in `per-case-comparison.json`, `word-counts.json`, provenance, preflight, timing/host/gate audits and `review-package.zip`. Each ZIP has twelve explicit result files, no raw logs or protected input; known-secret scans, immutable JSON hashes and archive checks pass. The result-only supervisor never opens protected contents. Provider/transport errors remain in the evidence; zero invalid rows does not mean zero remote errors. No automatic rerun or factual/protected-handoff approval follows from these totals.
+
+#68 metadata records four planner-deadline fallbacks and two other planning failures. Maximum single-turn planning stage is 20.007 s; two larger row totals combine two turns, not one request. Generic failure counters in the immutable package exclude the separately named deadline line; supplemental counts are in `/Users/astar/omi-eval/planner-deadline-metadata-20261021.json`. Whole-response delays still exceed 90 s on some rows; planning-only cancellation does not solve the broader #72 budget. Cause of aggregate differences is not established from stage totals.
+
+**Slow-reply follow-up:** a safe local experiment confirms that a connection timeout can miss a continuously trickling response body. This weakness is shared by main and #71; it does **not** prove the cause of #71's historical slowdown. #68 guards only planning. The wider answer/review deadline is saved as [parked issue #72](https://github.com/BasedHardware/omi-vector-bot/issues/72), mapped to A4/B3/E2; no extra runtime fix or paid rerun is started for it.
+
+**Current — October 20, after 22:20 IST:** live deployment **`13ead500`** records exact GitHub main **`5bafe93`**, SUCCESS/latest with one running instance, startup/login/health verified and optional memory/policy/context/forum/fix-inbox controls **off**. This is the same image as the approved retry `6e0fa65d`, replaced once through the authorized teardown test. **All three required retry checks pass:** Spanish ordinary closure, private refund delivery and graceful teardown with one reply. The two previously accepted ordinary/low-risk smokes on this exact runtime are carried forward, not rerun. Rollback remains **`adcfb8b4`**; no rollback, settings or permission change occurred. This accepts the limited approved release, not the full product or enabled memory.
+
+**Live evidence:** Spanish ordinary closure has one 84-word sourced answer, zero escalation/private cards and a Spanish title/description/review field/all four buttons on the archived/locked post. The cited phone-only guide supports the steps. Refund has one 33-word customer reply, one positive delivery outcome and one matching private card **awaiting acceptance**, with no refund approval/time promise. Screenshots and scoped REST agree. The teardown dispatched 11.737 seconds into processing; replacement login **22:18:20.972**, old SIGTERM **22:18:32.077**, one reply **22:18:32.131**, successful drain **22:18:32.335**, old instance observed gone **22:19:38.246** (66.169 seconds after SIGTERM), proof stable through **22:20:12.231**. This is an observed scenario, not global exactly-once delivery. No more Discord posts are needed for this release.
+
+The first observer attempt stopped before dispatch on a missing final full stop; unchanged healthy production sent one ordinary reply. It caused no deploy/SIGTERM or rollback. Its private fixture guard now ignores only terminal `.?!`; two observed red regressions become seven passing scope tests, with 26 observer checks passing and every ownership/source/delivery guard retained. The repaired observer ran once and is now terminal/pass. Attempt and final evidence are retained privately, not rewritten as two successful teardown tests.
+
+</details>
+
+<details>
+<summary>Existing PRs — detailed evidence and remaining gates</summary>
+
+| Draft | Built/tested | Still needed |
+| --- | --- | --- |
+| [#67 — keep the next step in the thread](https://github.com/BasedHardware/omi-vector-bot/pull/67), `f2781eb` | Fresh 850 tests, offline8, isolated SQL and hosted checks pass; full comparison complete | **Held:** p50 +2.200 s fails +2 s. Missing-handoff flags 4→6; independent grade required. No merge/deploy or automatic rerun. |
+| [#68 — stop slow planning sooner](https://github.com/BasedHardware/omi-vector-bot/pull/68), `1ffae62` | Fresh 845 tests, offline8, isolated SQL, hosted checks and numerical comparison limits pass | **Independent HOLD:** deadline fallback loses language metadata; factual-quality disposition remains. Timing passes and no new protected miss/clipped item was found. Resolve the actual gap before readiness; no automatic rerun. |
+| [#70 — faster recovery](https://github.com/BasedHardware/omi-vector-bot/pull/70), `62beb1e` | 847 tests, offline 8/8, isolated SQL and hosted Node 20/24/Postgres pass | **Independent HOLD:** reproduced duplicate-delivery overlap on ownership-read failure and blocked recovery sweeps despite spare capacity. Red-before repairs and combined two-worker PostgreSQL failure/recovery verification required. |
+| [#71 — keep a source for each question part](https://github.com/BasedHardware/omi-vector-bot/pull/71), `baec24d` | 850 tests, offline8, SQL and hosted checks pass. Focused check: main 0/3 → draft 3/3. Full check: both 162/162, zero invalid. | **Held:** slow replies 42.5 → 61.3 s, beyond the allowed +6 s. Diagnose timeouts and obtain independent grading; no merge/deploy or automatic rerun. |
+| [#73 — automatic memory safety rehearsal](https://github.com/BasedHardware/omi-vector-bot/pull/73), `c2953f2` | Test-only: fresh 839 tests, eight SQL/reader groups and five fault checks pass October 23; exact-head hosted Node 20/24/Postgres evidence independently confirmed; no actionable review findings | Final readiness evidence belongs in the PR. No bot/runtime/schema/settings change, no generated-answer or live-pilot proof, and no memory enablement. |
+| [#49 — reviewed-fact foundation and expired-reference cleanup](https://github.com/BasedHardware/omi-vector-bot/pull/49), `3f83024` | Merges deployed main with `141e718`; 878 tests/offline8/isolated SQL and exact-head Node 20/24/Postgres CI `39549961373` pass. Nine new checks include eight observed red assertions. | **Independent foundation review PASS:** fresh 38 focused tests/isolated SQL and exact-head real PostgreSQL evidence pass. Ready for review, not merged/deployed. Real validator/UI/jobs and rollout/privacy/cold-revocation limits remain enablement gates. |
+| [#74 — forget verified correction links](https://github.com/BasedHardware/omi-vector-bot/pull/74), `dfc1398` | Stacked on #49; 887/offline8/PGlite and exact-head Node 20/24/real PostgreSQL CI `39554963703` pass. Nine new tests include eight baseline failures; SQL covers batching, ownership/scope, late writes, retry and legacy refusal. | **Independent foundation review PASS:** fresh 76 affected tests/isolated SQL and exact-head real PostgreSQL confirmed. Parent integration/current-head checks precede merge; legacy reconciliation/privacy/security/backup/pilot remain open. No enablement. |
+
+</details>
+
+<details>
+<summary>Multipart evidence, full comparison numbers and private review files</summary>
+
+**What changed:** #71 fixes the focused multipart example, but the larger run is not a release pass. Pass-both improved 71 → 72; unwanted-handoff flags stayed 10. Slow replies exceeded the agreed limit. The complete review package is ready, with every result retained. Production was rechecked read-only on October 21: still `13ead500` / `5bafe93`, healthy, one running instance and all optional controls off. No new rollout or memory enablement.
+
+#71 applies the existing per-part rule to 2+ parts, within the same evidence/search limits; no topic-specific production rule or expected URL. The initial six own-synthetic provider checks completed: main answers all parts in **0/3**, draft `21b21b1` in **2/3**, with no provider-invalid rows. The failing draft run loses the phone-only page before the answer and reviewer requests. Two parts can choose the same broad guide, then background consumes spare page slots. The general repair in `baec24d` reserves each part's next distinct relevant page before aggregate filler; two non-phone regressions fail before and pass after. Original outputs and actual provider evidence are preserved in `/Users/astar/omi-eval/multipart-20261020/`. All six fresh synthetic checks now complete: **main 0/3, revised candidate 3/3**, same official corpus fingerprint and zero invalid rows, with every requested source present in the candidate's answer and reviewer requests. This is a small synthetic check, not broad accuracy or independent approval. #67/#68 remain drafts with separate gates. The larger memory, learning and reliability checklist is unchanged; these partial drafts add no score points.
+
+**Full comparison complete, response-time gate failed:** frozen deployed main `5bafe93` and draft `baec24d` each complete **162/162 rows**, 81 cases × two runs/concurrency three, zero invalid or unscored rows. Both run on October 20 in UTC and IST: main **22:46:04–23:10:40**, draft **23:10:40–23:38:00 IST**. Normal child exit 1 records structural answer failures, not a crash. No process signal/stop or automatic retry; shared harness/judge/lockfile and source/input-metadata guards hold. Known-secret scan matches zero values.
+
+| Measure | Main | Draft |
+| --- | ---: | ---: |
+| Pass both / flaky / fail both, cases | 71 / 5 / 5 | 72 / 3 / 6 |
+| Unwanted / missing handoff flags, rows | 10 / 5 | 10 / 5 |
+| p50 / p95 reply time, seconds | 27.114 / 42.508 | 27.731 / 61.332 |
+| Delivered-reply median / p90 words | 74 / 106 | 75 / 103 |
+| Empty turns, retained in scoring/timing | 8 | 8 |
+
+p50 adds 0.617 s (within +2 s); p95 adds **18.824 s** (fails +6 s). All slow rows remain: main maximum 94.237 s / one ≥90 s; draft maximum 143.187 s / four ≥90 s. Full local power-history coverage records zero system sleep/wake/DarkWake events; maximum clock drift 45 ms, longest heartbeat gap 54.104 s. These are observed run checks, not general service reliability.
+
+Transport evidence needs diagnosis before another paid run: main has two docs-fetch timeout lines; draft has nine docs-fetch timeouts, fourteen fetch-failed lines, one planner timeout and one review EPIPE failure. The unchanged review path can retry after a timeout; one review stage lasts 103.810 s. Logs do not retain per-request transport provenance or exact attempt timings, so they cannot assign the full p95 difference to the patch, a remote service or local scheduling. No protected wording is used to tune code. Protected handoffs, false how-to handoffs, grounded facts and complete items still need independent grading; unchanged aggregate flag counts are not proof of safety.
+
+The five serial timing cases completed at **33.920, 19.176, 19.673, 28.395 and 0.003 seconds**, all under 90 s, zero invalid rows or process signal. Four pass their structural checks; one misses a microphone-permission concept. This is timing readiness, not a clean quality grade. All results remain in the private preflight artifact.
+
+Review files are complete under `/Users/astar/omi-eval/multipart-gate-20261020/`: `main.json`, `candidate.json`, `comparison-summary.md`/`.json`, all **five** changed cases' verbatim replies/signals/judge problems in `per-case-comparison.json`, `word-counts.json`, provenance, preflight, host audit, gate audit and `latency-diagnosis.json`. `review-package.zip` contains eleven explicit result files, no raw logs or protected input, with zero known-secret matches and verified immutable JSON hashes. Only the existing harness consumed sealed inputs; no case file was opened or attached. Revised own-synthetic results/assessment are in `/Users/astar/omi-eval/multipart-recheck-20261020/`; the older readiness manifest is historical. The evaluation process is terminal; no more Mac keep-awake or Discord action is needed for this run. No later merge, deploy, rerun or memory enablement.
+
+**Previous checkpoint — October 19 diagnosis:** six authorized synthetic live-provider checks are complete. `7fe0e0a` fails **3/3**, main `5bafe93` fails **3/3** to explain phone-only startup; all six planners preserve that requirement. Same harness and identical live Help/website corpus fingerprint, zero provider-invalid rows. Three independent two/three-part stored-retrieval regressions also fail on both versions before any fix. #65 is **pre-existing / fix forward separately**, not by itself a reason to hold #60/#48/#61. No bisect is indicated by the requested rule. The report-first checkpoint was delivered before the separate recovery draft began. Current Step C branch name is `fix/multipart-part-evidence`; its provider quality gates remain pending.
+
+Both restart snapshots and the current service configure **100 seconds** of deployment draining, with no historical environment override. Replacement logins appear about **20 seconds** after SIGTERM. October 18 reaches successful drain and database close; October 19 has no identifiable later old-process line or exit reason. The same instance tag spans each in-container restart. Railway documents the grace for deployment teardown, but does not promise that manual Restart honors it. A 20-second SIGKILL is **not proven**; no setting change is justified yet. Private per-run/planner/URL/timeline evidence: `/Users/astar/omi-eval/phone-only-20261019/comparison-and-restart-report.md`, with both JSONs alongside it. No Discord writes, deploy/restart/settings changes or protected-input reads.
+
+**Subsequent authorization controls:** Aryan approved the retry and corrected teardown test after that report. The retry is now deployed as recorded above; do not apply the earlier blanket hold or ask for the same approval again. This does not waive the remaining live checks, authorize settings changes, approve later draft merges/deploys or enable memory.
+
+</details>
+
+<details>
+<summary>Accepted release record and older diagnosis — through October 21</summary>
+
+This dated record is not the active finish queue or a new health check. The October 19 manual-Restart diagnosis was followed by the accepted October 20 deployment-teardown check.
+
+| Order | Work | Status |
+| --- | --- | --- |
+| 1 | Health report and handoff-count check | **Done.** One new staff case plus eight follow-up answers; not nine new tickets. |
+| 2 | Closing language #60, source ranking #48, memory-off code #61 | **Running in the approved retry.** Main `5bafe93` passed 839 tests, eight offline checks, isolated SQL and hosted Node 20/24/Postgres. Memory stays off. |
+| 3 | Exact GitHub-commit rollout | **Verified live.** Current `13ead500` records `5bafe93`, same image as retry `6e0fa65d`. Rollback `adcfb8b4`; earlier failed attempt/rollback retained as history. |
+| 4 | Retry live checks | **Passed.** Spanish closure, private refund and same-commit graceful teardown/one reply; prior ordinary/low-risk checks carried from identical runtime. No Restart/settings change; #65 remains a separate fix. |
+| 5 | Label parked issues #52–#58 | **Done.** All seven have the `parked` label. |
+| 6 | Separate recovery, multipart, redirect and slow-planner fixes | **Drafts, not live.** #67 is held on timing/grade; #68 meets numbers but awaits independent grade. #70 awaits review. #71 is held on speed and independent grade. No automatic reruns. Wider timeout work is parked in #72. |
+| 7 | Test-only memory pilot and later learning/reliability work | **Next staged work, not discarded.** Release retry passed; privacy, functional and independent-review gates still apply. No automatic capture/context enablement or public Help expansion. |
+
+**Historical rollback:** requested target **`e1f76a93`** was invoked once, creating **`adcfb8b4`** from that same image. It passed startup/readiness and is now the retry's rollback target, not the active retry. That historical image has no recorded GitHub commit; provenance is the verified image match, not an invented commit record. The approved retry above uses recorded GitHub main `5bafe93` with the ordinary closing-language fix included. Memory/policy/context/forum/fix-inbox remain off; no settings or permissions were changed.
+
+**October 21 review checkpoint:** the completed packages await independent review, especially the increased missing-handoff flags. #67 and #71 fail a speed limit; #68 meets the numbers but is not approved. No further keep-awake or Discord action is needed for those completed runs. The current finish queue above controls; later draft code stays off production and memory/pilot gates remain.
+
+The Apple Watch line was observed on the live page during the October 19 check, not freshly checked on October 23. The historical short reply's exact intermediate loss stage was not retained; shared synthetic reproductions are not historical proof. Private reports `/Users/astar/omi-eval/release-step0-1-20261019.md` and `/Users/astar/omi-eval/release2-result-20261019.md` preserve evidence and limits; case IDs never enter public trackers. The October 19 manual-Restart logs show abandoned-request recovery without clean-drain proof. The subsequent October 20 deployment-teardown check did complete the drain, as recorded above; do not confuse the two observations or infer a general platform root cause or exactly-once guarantee. Full A–E acceptance remains **2/21 complete**; the failed October 19 attempt adds no score points.
+
+</details>
+
+<details>
+<summary>Earlier checkpoints — historical; the status above controls</summary>
+
+## Earlier priorities and status
 
 **Current integration, October 19:** #60 is merged as `05c0b48`; Aryan confirmed he manually deployed it as `d49bfa68` (recorded GitHub commit matches). No second deploy was started by this task. #48 is now merged as `46282bb` after local 802/offline8/SQL and hosted Node 20/24/Postgres run `39216244319` passed. #61 is being merged with that main; preserve its exact baseline snapshot guard. Combined tests/CI/SQL and the planned final GitHub deployment/smokes remain unfinished; all memory/context/fix-inbox switches stay off. The pre-deploy guard now requires the specifically acknowledged active deployment, while rollback remains the explicitly requested `e1f76a93` (platform-eligible).
 
@@ -233,7 +388,7 @@ Native Discord input is unreliable; no synthetic post or command was submitted b
 
 Keep the full acceptance requirements below. Update this front page whenever implementation, tests, review, deployment or a blocker changes. Use **done / in progress / waiting / parked**, and always distinguish built from live.
 
-## Start here — progress 38 / 100
+## Earlier scoring snapshot — 38 / 100 (historical)
 
 Delivery milestones, not answer accuracy: **12 built + 12 tested + 8 reviewed + 6 verified live = 38/100**. The fixed 25-milestone rubric is retained in the active product plan; this narrow correction does not add a milestone or claim the larger product is complete. All unfinished A–E requirements below remain in scope.
 
@@ -252,6 +407,8 @@ Aryan explicitly waived the 24-hour deployment wait after accepting Release 1. T
 After a successful ordinary answer to the post owner, save only guild/thread/owner, the existing planner reply-language code and a 30-day expiry in Postgres. Reuse the existing Hindi script rule; no detector or conversation text is added. `/done` chooses case language, then that owner's saved thread language, then English; never staff locale. Language-query failures produce fixed metadata-only logs and English fallback, with no in-process preference copy. Existing case-state database failures still retain the earlier safe no-archive behavior. Thread deletion erases saved preferences; startup/minute sweeps prune expired records independently of optional memory switches.
 
 Local checks: 771/771 tests, offline 8/8, and isolated database verification pass. Eight new behavior regressions failed before wiring the fix (Spanish/Chinese no-case closure, language-read error diagnostic, three normal-answer/script saves, save failure handling and thread deletion); the SQL extension also failed before schema registration. Additional checks cover case precedence, absent/unknown language, staff-locale exclusion, owner isolation and no-text schema/expiry/restart. Hosted CI and independent review remain pending. No merge, deploy, setting change or data capture has occurred.
+
+</details>
 
 ## The goal stays the same
 
@@ -300,7 +457,7 @@ Aryan requested GitHub tracking for parked work on October 18. These issues pres
 
 | Parked item | Issue | Resume only when |
 | --- | --- | --- |
-| Customer closing language after a no-handoff answer | [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50) | Unparked by the latest brief; draft #60 is built/tested and needs independent review before merge/release |
+| Customer closing language after a no-handoff answer | [#50](https://github.com/BasedHardware/omi-vector-bot/issues/50), closed | **Completed:** #60 is merged in accepted live main; the Spanish ordinary-answer closure passes. Retained here as a resolved return point, not waiting for review. |
 | Full uncertain-send reconciliation/outbox beyond queued work | [#51](https://github.com/BasedHardware/omi-vector-bot/issues/51) | Existing #29/#30 scope/evidence reviewed; no parallel delivery rewrite |
 | Minimized cumulative case summaries | [#52](https://github.com/BasedHardware/omi-vector-bot/issues/52) | References-only context demonstrates a real gap and additional retention/security approval is obtained |
 | Staff queue, operating ownership and reminders | [#53](https://github.com/BasedHardware/omi-vector-bot/issues/53) | Team agrees ownership/coverage; no invented response-time commitments |
@@ -309,6 +466,7 @@ Aryan requested GitHub tracking for parked work on October 18. These issues pres
 | Capability/outage/backlog/freshness monitoring | [#56](https://github.com/BasedHardware/omi-vector-bot/issues/56) | Alert ownership, coverage/denominators and privacy-safe thresholds agreed |
 | Customer-authorized recording diagnostics | [#57](https://github.com/BasedHardware/omi-vector-bot/issues/57) | Omi backend agreement plus privacy/security authorization before implementation/access |
 | Authorized credential lifecycle maintenance | [#58](https://github.com/BasedHardware/omi-vector-bot/issues/58) | Explicit owner authorization and the private security checklist; public issue is a neutral reminder only |
+| Whole-answer/review deadline and retry budget | [#72](https://github.com/BasedHardware/omi-vector-bot/issues/72) | Agree on one bounded pipeline budget and safe fallback, then separate tests/review; no automatic rerun of held comparisons |
 
 The public security reminder deliberately omits findings, severity, provider/identity inventories and access details. The retained private-context N12 decision remains unchanged; opening an issue does not resolve or downgrade it. None of these issues enables training, capture, access, monitoring, deployment or automatic work scheduling.
 
@@ -324,7 +482,7 @@ The public security reminder deliberately omits findings, severity, provider/ide
 - [x] **A3 — Complete the Release 1 gate and rollout.** Both fresh comparison arms, deltas, signals, word counts and provenance were delivered; independent review approved the frozen release with its documented borderline handoff exception. Main `7fe0e0a` is deployed as `e1f76a93`, rollback `0eabf17b`, and all six requested live smoke scenarios pass with the accepted no-handoff English-card exception. Optional flags remain off. This closes the approved Release 1 gate/rollout only; #48 and later prompt changes still need their own fresh comparisons and review.
 - [ ] **A4 — Honest progress while waiting.** Verify the refreshed typing indicator and cosmetic-error isolation after release. Never invent an investigation, accepted case, deadline, recovery or fix to fill the wait. Retain evidence for the previously pending localized closing/reopen smoke before calling it verified.
 
-Implementation: shared voice, routing, retrieval, answer/review, honesty filters and delivery remain one pipeline. Research and its limitations are recorded in [SUPPORT_EXPERIENCE.md](SUPPORT_EXPERIENCE.md); research findings are not an Omi performance forecast.
+Implementation: shared voice, routing, retrieval, answer/review, honesty filters and delivery remain one pipeline. Research and its limitations are recorded in [SUPPORT_EXPERIENCE.md](SUPPORT_EXPERIENCE.md). October 23 public-data/empathy preparation and its unchecked execution gates are in [MIRA_DATA_STRATEGY.md](MIRA_DATA_STRATEGY.md), mapped to A1/A2/E2 and the existing #59 voice workstream; this is not another feature PR or a production change. Research findings are not an Omi performance forecast.
 
 ## B. Reliable support from question to real follow-through
 
@@ -339,12 +497,14 @@ Inspected B2 follow-up: `utils.js` still uses “a person ... has this now” fo
 
 ## C. Remember the case safely
 
+**October 21 engineering evidence, not enablement:** test-only draft #73 joins the actual Postgres reference adapter/service with the live-context reader. Eight synthetic groups cover same-owner/guild/forum/role selection, live uncached edits, reader recreation, changed-owner rejection, deletion/outcome invalidation, off-switch erasure, durable opt-out/expiry and no stored text before erasure. Local 839/offline8/PGlite pass; real PostgreSQL and Node 20/24 CI pass at `c2953f2`, run `39546418506`. The database log explicitly confirms the new rehearsal executed. Five in-memory faults are independently rejected; private sensitivity artifact `/Users/astar/omi-eval/memory-sql-sensitivity-2026-10-21T04-50-26-504Z.json`. No runtime code, schema, prompt, setting, provider/Discord call or protected-input read changes. This is reader recreation, not a full bot restart, and context delivery, not generated-answer behavior. Keep C1–C4 open for the remaining review, privacy/processor/backup/notice and live-pilot checks; no score point or data-use approval.
+
 - [ ] **C1 — Complete the references-only replacement and data-use gates.** Thirty-day retention is approved; do not keep asking for that decision. After Release 1 is actually deployed, create `feat/memory-references` from main as one problem per PR. Remove message text/ciphertext/IV/tag from support memory with an idempotent, data-safe migration even if old rows exist. Keep only guild/thread/owner/message/role/time/expiry references and text-free outcome categories; memory must not depend on an encryption key. Preserve encryption for unrelated identity/order records. Review the actual implementation, accurate published notice/policy, processor restrictions, backup erasure and any required platform review before enablement. References are still customer-related data, not anonymous records; flags are not approval.
 - [ ] **C2 — Verify cross-post context without making answers depend on it.** In the same guild and allowlisted forum, look up at most two **other** posts owned by the current post owner within 30 days. Fetch the live title, owner's last three messages, this bot's last reply and stored outcome. Verify the live owner and destination; never include another customer's, staff-channel or handoff-thread context. Mark it `conversation_only`, never cite it or use it as product policy. Use it only to avoid requesting information or repeating a step already given/tried. Bound the entire extra database/Discord operation to 1.5 seconds; on a database error, denied read or timeout, keep the normal current-post answer. Log one fixed metadata outcome, never text; `/health` stays independent. Unknown/deleted messages or posts are skipped and their references removed; other errors are skipped without claiming deletion.
 - [ ] **C3 — Prove erasure, expiry, isolation and failure behavior.** `/forget-support-history` must erase the owner's references and signals across all their posts in the forum and persist customer/forum opt-out, including against queued writes and across restarts. Keep message/bulk/thread deletion, creation-based 30-day expiry and non-starvable cleanup working with capture/context off. Test fresh-post remembered attempts, cross-customer exclusion, deleted-post reference removal, database failure/timeout with a normal reply, forum-wide opt-out, no text columns/values in any memory table, expiry/pruning, ownership changes and injected instructions. Observe red before green. Run local tests, hosted CI and local Postgres schema checks. The originally required same-day memory-off 81×2 comparison is **explicitly waived for #61's off-only release**, conditional on the committed pre-feature parity snapshots described above. This is not a passed benchmark or proof of enabled memory; its real two-post scenario and remaining C3/C4 checks are not waived. Do not open protected inputs or merge/deploy before the remaining release gates.
 - [ ] **C4 — Pilot, then expand only with verified control.** Script the approved two-post remembered-attempt scenario in an isolated test destination without bypassing the release gate: an undeployed candidate cannot receive real test-forum events until an explicitly approved isolated runtime is available. After review, deploy test-forum-only with the context switch separately controlled; verify the scenario, edits/deletes, opt-out, restart, expiry, timeouts and kill switches, and observe at least 48 clean hours. Elapsed time alone is not a pass. Then obtain reviewed expansion approval, add only the help forum and pin the exact notice in the runbook. Disabling capture/context must stop new saving/use immediately while deletion/expiry continue. Explain that forgetting removes bot references/signals, not Discord posts, backups or other support systems; minimal opt-out state remains to honor the request.
 
-This is case memory, not model training. Public visibility, server administration, consent or simple redaction alone is not permission to train on Discord API messages. No scraping, fine-tuning, training set or identifiable case export is part of this plan.
+This is case memory, not model training. Public visibility, server administration, consent or simple redaction alone is not permission to train on Discord API messages. No scraping, fine-tuning, training set or identifiable case export is part of this memory plan. The separately requested [public/synthetic-data research](MIRA_DATA_STRATEGY.md) does not change that prohibition or the C1–C4 gates.
 
 ## D. Turn observed problems into reviewed improvements
 
@@ -357,7 +517,7 @@ Build as a separate `feat/fix-inbox` change on the approved foundation, default 
 - [ ] **D5 — Validate, publish, recheck and undo.** Extend the existing named-staff `faq:` path with provenance, versioning, official evidence and a 90-day recheck. Approval starts automatic validation; publish/use immediately **after** checks pass, not before. Add a genuinely synthetic regression question, never a copied customer message. Preserve source ranking and the independent answer gate. Support rejection/revocation, expiry, correction rollback and cache invalidation. Approval does not edit code/model weights or guarantee a mistake can never recur.
 - [ ] **D6 — Close the loop automatically.** Run the synthetic regression set nightly offline, including approved-fact retrieval and revoked/expired facts. Alert the verified staff destination on regressions and make job/alert failures visible. Separate provider-based quality evaluation/cost approvals from offline checks. Maintain a tested kill switch; held failures must not silently publish a correction or claim successful improvement.
 
-The existing aggregate report is a foundation only: **it does not complete any of D1–D6.** Staff review is intentional; the system automates detection, preparation, checks and follow-up, not blind learning from chat.
+The aggregate report and #49's reviewed-fact store/expiry worker are foundations only: **they do not complete any of D1–D6.** The worker removes expired case references/barriers in tracked bounded batches, independently of publication flags. The ownership-verified erasure adapter is now prepared separately in #74, not reviewed/deployed; complete legacy/data-use/privacy verification, real validation, review UI and reporting jobs remain unfinished. The existing denial-only fallback cannot discover unseen revocations during a cold-start/offline lookup; keep that review limitation explicit. Staff review is intentional; the system automates detection, preparation, checks and follow-up, not blind learning from chat.
 
 Draft #49 implements part of D5: guild-scoped review versions, named approvers, validation claims/proof, 90-day recheck, revocation and expiring internal provenance. The real validator, review UI, signals, jobs and privacy-adapter wiring are unfinished. Its optional answer lookup now returns existing local staff notes without database calls when off; while on, an unavailable registry falls back to those notes minus governed hashes already observed in the same guild/process. This is a denial-only cache, not durable approval state or a claim to know unseen revocations. The current quality/review/release and security gates still apply.
 
@@ -387,6 +547,6 @@ No new account/backend access, permission changes, secret rotation, production v
 
 The first product version is complete only when A–E are checked with evidence, required gates are cleared, rollout is verified and operating ownership exists. Until then, report the next open item and exact blockers; retain this plan across reviews and chat handoffs. Codex owns maintaining and progressing it, not asking Aryan to restate the goal.
 
-Potential future capabilities—customer-authorized backend diagnostics, refunds/account writes, a native app or training on separately licensed data—are not hidden prerequisites for this version and are not authorized here. Keep them in the existing roadmap/access ladder until separately scoped and approved. This plan improves the existing ecosystem; it is not a rewrite or an unlimited feature wishlist.
+Potential future capabilities—customer-authorized backend diagnostics, refunds/account writes or a native app—are not hidden prerequisites for this version and are not authorized here. Aryan's October 23 request separately authorizes public/synthetic-data research and preparation; actual training still needs its specific rights/provider/cost/review gates and is not a prerequisite for finishing this version. Keep broader capabilities in the existing roadmap/access ladder until separately scoped and approved. This plan improves the existing ecosystem; it is not a rewrite or an unlimited feature wishlist.
 
 </details>
