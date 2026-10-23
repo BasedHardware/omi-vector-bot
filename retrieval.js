@@ -325,11 +325,12 @@ function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQues
     byPage.set(key, page);
   }
   // Prefer pages answering several parts, then preserve the requested order.
-  // One useful chunk per page goes first so the unchanged character cap cannot
-  // spend its budget on repeats before complementary guidance arrives.
+  // Different chunks on one page may answer different requirements. Reserve
+  // every selected part's best chunk before optional page diversity or filler.
   const selectedPages = [...byPage.values()]
     .sort((a, b) => b.rows.length - a.rows.length || a.firstPart - b.firstPart)
     .slice(0, 4);
+  const requiredRows = selectedPages.flatMap(page => page.rows);
   const allowedPages = new Set(selectedPages.map((page) => page.key));
   // Different requirements can have the same strongest overview match. Use
   // spare page slots for each part's next distinct match before aggregate
@@ -353,8 +354,8 @@ function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQues
   const selected = [];
   const seen = new Set();
   for (const row of [
+    ...requiredRows,
     ...selectedPages.map((page) => page.rows[0]),
-    ...selectedPages.flatMap((page) => page.rows.slice(1)),
     ...rows,
   ]) {
     const page = String(row.url || row.title || '');
@@ -386,7 +387,7 @@ function diverseTop(rows, limit, maxPerPage = 2) {
   return selected;
 }
 
-function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
+function mergeRanked(resultSets, limit = 8, { customerQuestion = '', maxPerPage = 2 } = {}) {
   const phoneQuestion = isConsumerPhoneQuestion(customerQuestion);
   const merged = new Map();
   for (const rows of resultSets || []) {
@@ -408,7 +409,7 @@ function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
     .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
       consumerSourceFit(customerQuestion, b) - consumerSourceFit(customerQuestion, a) ||
       b.fusedScore - a.fusedScore || b.authority - a.authority);
-  return diverseTop(ranked, limit);
+  return diverseTop(ranked, limit, maxPerPage);
 }
 
 function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQuestions = [] } = {}) {
@@ -527,7 +528,7 @@ function jointMultipartEvidence(question, docsEvidence, officialChunks, { querie
   return formatEvidence(rankLocalChunks(
     supportQueries(question, queries, { subQuestions: parts }), chunks, 8,
     { customerQuestion: question, subQuestions: parts }
-  ), { onSources: urls => onSources?.(urls.filter(url => retrieved.has(url))) });
+  ), { maxPerPage: hasMultipleParts(parts) ? 8 : 2, onSources: urls => onSources?.(urls.filter(url => retrieved.has(url))) });
 }
 
 module.exports = {
