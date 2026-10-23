@@ -1,5 +1,21 @@
 # Omi Support Bot Implementation Checklist
 
+## Latest October23 #67 review correction
+
+- [x] Integrate released main6b6d97d via merge commitdc79d80; preserve code and unfinished scope.
+- [x] Confirm frozen comparison main5bafe93/candidatef2781eb share the exact base; record full SHAs in the PR/design.
+- [x] Twenty-five new original regressions fail against pre-repair utilities, then pass: four languages, ordinary/delivered helpers and actual handlers, Source/secret-warning/failed-delivery preservation, intake-tail safety and shared source-label emptiness.
+- [x] Full943, offline8, isolated SQL and final independent185-check review pass. Routing/prompts/evidence budgets/recovery fences and optional defaults unchanged.
+- [ ] Publish current-head hosted checks in the draft PR. No merge/deploy until deferred release smokes pass.
+- [ ] Leave #77 draft until #67 merges, then remove overlapping redirect work; leave #78 untouched until drain review. Keep #62's narration/stage-evidence remainder.
+
+## Separate no-email-redirect draft
+
+- [x] Observe red-before ordinary-answer, redirect-only handoff, clause-preservation and follow-up regressions; implement in the existing delivery/routing pipeline.
+- [x] Focused checks prove ordinary response → still-failing current-post feedback → actual staff delivery; preserve sources, warnings, failed-delivery fallback, localization and unknown-language safety.
+- [x] Local full **850/850**, offline **8/8** and isolated SQL pass before push.
+- [ ] Publish hosted CI; independent comparison/review remain required. No deploy or memory pilot while the combined-release smoke findings #65/#66 are unresolved.
+- [ ] Keep #62 open for its remaining narration and evaluation-stage evidence requirements; do not auto-close it from this partial repair.
 ## October 23 finish queue
 
 - [x] Merge reviewed #69/#73/#49 safely; production unchanged.

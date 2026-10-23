@@ -1,6 +1,8 @@
 const { stripStaffLies, stripInventedLookup } = require('./honesty');
 const { createHash } = require('node:crypto');
 const { isPreviousPost } = require('./supportContextFormat');
+const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
+const SOURCE_HEADING = new RegExp(`^\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}`, 'iu');
 
 const ESCALATION_PATTERNS = [
   /\bbilling\b/i,
@@ -148,6 +150,10 @@ function sanitizeReply(text) {
 
 function stripSupportRedirect(text) {
   const isRedirect = (sentence) => {
+    // A warning not to send secrets is not an instruction to leave this thread.
+    if (/\b(?:never|do not|don['’]t)\s+(?:e-?mail|send|share)|\bno\s+(?:env[ií]es|compartas)|不要(?:发送|分享)/i.test(sentence)) return false;
+    // Support addresses identify the alternate route without guessing its language.
+    if (/(?:help@omi\.me|team@basedhardware\.com)/i.test(sentence)) return true;
     const supportTarget = '(?:omi\\s+support|support(?:\\s+team)?|(?:the|our|your)\\s+team|(?:a|an|the|real|live)\\s+(?:person|human|agent)|help@omi\\.me|discord\\.omi\\.me|#help\\b|(?:the\\s+)?help\\s+channel|(?:the\\s+)?contact\\s+(?:form|option|page)|(?:the\\s+)?support\\s+(?:form|page|ticket))';
     const directContact = new RegExp(`\\b(?:email|e-mail|contact|reach(?:\\s+out\\s+to)?|write\\s+to|message|drop\\s+a\\s+line\\s+to|get\\s+in\\s+touch\\s+with)\\s+(?:(?:the|a|an|omi|our|your)\\s+)?${supportTarget}`, 'i');
     const supportForm = /\b(?:submit\s+(?:a\s+|the\s+)?(?:support\s+)?(?:request|ticket|contact\s+form)|open\s+(?:a\s+|the\s+)?(?:support\s+)?ticket)\b/i;
@@ -157,24 +163,58 @@ function stripSupportRedirect(text) {
   };
   return String(text || '')
     .split('\n')
-    .map((line) =>
-      line
-        .split(/(?<=[.!?])\s+/)
+    .map((line) => {
+      if (SOURCE_HEADING.test(line)) return line;
+      // Remove the contact clause, not independent symptoms, attempts or warnings.
+      const clauses = line.split(/(?<=[.!?])\s+|[;；]\s*|(?<=[。！？])\s*|\s+(?:and|y)\s+(?=(?:do\s+not|don't|never|no)\b)/iu);
+      const privateOrderIntake = sentence => /^\s*include (?:the )?order (?:number|#)/i.test(sentence);
+      if (!clauses.some(sentence => isRedirect(sentence) || privateOrderIntake(sentence))) return line;
+      return clauses
         .flatMap((sentence) => {
-          if (/^\s*(?:source|fuente|quelle|fonte|источник|来源|출처)\s*:/i.test(sentence)) return [sentence];
+          if (SOURCE_HEADING.test(sentence)) return [sentence];
           // Private /order self-service and its verification steps are not support redirects.
-          if (/^\s*include (?:the )?order (?:number|#)/i.test(sentence)) return [];
+          if (privateOrderIntake(sentence)) return [];
           if (!isRedirect(sentence)) return [sentence];
           const details = sentence.match(/\b(?:please\s+)?include\b.+$/i);
-          return details ? [`Please ${details[0].replace(/^please\s+/i, '')}`] : [];
+          return details && !isRedirect(details[0]) ? [`Please ${details[0].replace(/^please\s+/i, '')}`] : [];
         })
         .join(' ')
-        .trim()
-    )
+        .trim();
+    })
     .filter(Boolean)
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+const IN_THREAD_NEXT = {
+  en: 'If you still need help, reply here in this thread.',
+  es: 'Si aún necesitas ayuda, responde aquí en este hilo.',
+  zh: '如果还需要帮助，请在这个讨论串中回复。',
+  pt: 'Se ainda precisar de ajuda, responda aqui nesta conversa.',
+  de: 'Wenn du noch Hilfe brauchst, antworte hier in diesem Thread.',
+  fr: 'Si vous avez encore besoin d’aide, répondez ici dans ce fil.',
+  it: 'Se hai ancora bisogno di aiuto, rispondi qui in questa conversazione.',
+  tr: 'Hâlâ yardıma ihtiyacınız varsa bu başlıkta yanıt verin.',
+  id: 'Jika masih perlu bantuan, balas di utas ini.',
+  ja: 'まだお困りの場合は、このスレッドに返信してください。',
+  'hi-Deva': 'अगर अभी भी मदद चाहिए, तो इसी थ्रेड में जवाब दें।',
+  'hi-Latn': 'Agar abhi bhi madad chahiye, to isi thread mein reply karein.',
+};
+
+function inThreadReply(answer, { language = 'en' } = {}) {
+  const original = String(answer || '').trim();
+  const cleaned = stripSupportRedirect(original);
+  const normalized = text => text.replace(/\s+/g, ' ').trim();
+  if (normalized(cleaned) === normalized(original)) return { text: original, empty: false };
+  const isSource = line => SOURCE_HEADING.test(line);
+  const lines = cleaned.split('\n');
+  const sources = lines.filter(isSource);
+  const body = lines.filter(line => !isSource(line)).join('\n').trim();
+  if (!body) return { text: cleaned, empty: true };
+  const code = Object.hasOwn(IN_THREAD_NEXT, language) ? language : String(language).toLowerCase().split('-')[0];
+  const next = Object.hasOwn(IN_THREAD_NEXT, code) ? IN_THREAD_NEXT[code] : IN_THREAD_NEXT.en;
+  return { text: [body, next, ...sources].filter(Boolean).join('\n\n'), empty: false };
 }
 
 function expandPipeLists(text) {
@@ -501,6 +541,7 @@ module.exports = {
   typingDelay,
   sanitizeReply,
   stripSupportRedirect,
+  inThreadReply,
   formatDiscordReply,
   clipForDiscord,
   DISCORD_REPLY_MAX,
