@@ -573,12 +573,13 @@ async function handleMessage(message) {
     console.log(`[Bot] Cooldown active for ${channel.id}, skipping`);
     return { status: 'ignored' };
   }
+  const input = {
+    messageId: message.id,
+    caseKey: replyCooldownKey,
+    fingerprint: channel.isThread?.() ? questionFingerprint(message.content) : null,
+  };
   try {
-    return await runtime.run({
-      messageId: message.id,
-      caseKey: replyCooldownKey,
-      fingerprint: channel.isThread?.() ? questionFingerprint(message.content) : null,
-    }, () => {
+    return await runtime.run(input, () => {
       // A concurrently queued ordinary-channel question must observe the
       // reply cooldown established by the preceding job, not its arrival time.
       if (!directHistory.length && !isTestChannel(channel) && !channel.isThread?.() && isOnCooldown(replyCooldownKey)) return false;
@@ -590,11 +591,18 @@ async function handleMessage(message) {
     // (expired leases nobody took are resumed), so this worker must not send.
     if (isLeaseLost(err) || err.replyAlreadySent) return { status: 'failed' };
     try {
-      await message.reply({
-        content: 'I am having trouble saving this support request. Please email help@omi.me so the team can receive it.',
-        allowedMentions: { parse: [], repliedUser: false },
+      // A generic error may follow a committed claim or another worker's send.
+      // The same durable claim and delivery fence must authorize even this note.
+      await runtime.run(input, async () => {
+        await assertCurrentOwnership();
+        await message.reply({
+          content: 'I am having trouble saving this support request. Please email help@omi.me so the team can receive it.',
+          allowedMentions: { parse: [], repliedUser: false },
+        });
+        markCurrentReplySent();
+        return 'failed';
       });
-    } catch { console.error('[SupportRuntime] fallback delivery failed'); }
+    } catch { console.error('[SupportRuntime] fallback held; ownership or delivery unavailable'); }
     return { status: 'failed' };
   }
 }

@@ -106,7 +106,7 @@ async function verifyRuntimePickupFences(pool, prefix) {
   // this group's identifiers; claims, leases, fences and mutations use real SQL.
   const pickupIds = new Set();
   const queued = nextStore.queued.bind(nextStore);
-  nextStore.queued = async limit => (await queued(100)).filter(row => pickupIds.has(row.messageId)).slice(0, limit);
+  nextStore.queued = async (limit, options) => (await queued(100, options)).filter(row => pickupIds.has(row.messageId)).slice(0, limit);
   const old = new runtime.SupportRuntime({ store: oldStore, heartbeatMs: 1000000, log: () => {} });
   const next = new runtime.SupportRuntime({ store: nextStore, heartbeatMs: 1000000, sweepMs: 0, log: () => {} });
   const started = gate(), held = gate();
@@ -157,7 +157,27 @@ async function verifyRuntimePickupFences(pool, prefix) {
   assert.equal((await pool.query('SELECT state,delivery_started FROM support_message_claims WHERE message_id=$1', [ambiguous.messageId])).rows[0].state, 'processing');
   assert.ok(!(await nextStore.queued(100)).some(row => row.messageId === ambiguous.messageId));
   await nextStore.finish(ambiguous, 'uncertain');
-  console.log('Early pickup two-worker SQL: partition fences, independent later sweep and ambiguous-marker no-replay passed');
+
+  // Exclusions must apply before LIMIT, even with earlier still-queued fetches.
+  const heldIds = ['a', 'b', 'c'].map(suffix => `${prefix}-000-held-${suffix}`);
+  const laterId = `${prefix}-999-later`;
+  for (const id of [...heldIds, laterId]) await nextStore.enqueue({ messageId: id, caseKey: `${prefix}:${id}`, fingerprint: null });
+  const ordered = await queued(100);
+  const limit = ordered.findIndex(row => row.messageId === laterId) - heldIds.length + 1;
+  assert.ok((await queued(limit, { exclude: heldIds })).some(row => row.messageId === laterId), 'SQL excludes in-flight rows before applying the dispatch limit');
+  for (const id of [...heldIds, laterId]) await nextStore.discard({ messageId: id });
+
+  const lostAck = `${prefix}-lost-claim-ack`;
+  pickupIds.add(lostAck);
+  const claim = oldStore.claim.bind(oldStore);
+  oldStore.claim = async job => { await claim(job); throw new Error('synthetic lost claim acknowledgement'); };
+  await assert.rejects(old.run({ messageId: lostAck, caseKey: `${prefix}:lost-ack`, fingerprint: null }, send));
+  assert.equal((await next.run({ messageId: lostAck, caseKey: `${prefix}:lost-ack`, fingerprint: null }, send)).status, 'duplicate');
+  const before = sends;
+  await pool.query("UPDATE support_message_claims SET heartbeat_at=NOW() - INTERVAL '46 seconds' WHERE message_id=$1", [lostAck]);
+  await next.recoverQueued(input => next.run(input, send));
+  assert.equal(sends, before + 1, 'lost claim acknowledgement is recovered once, not sent as an unfenced note');
+  console.log('Early pickup two-worker SQL: partition fences, independent sweeps, queue-limit exclusion, lost claim acknowledgement and ambiguous-marker no-replay passed');
 }
 
 async function verify(pool) {

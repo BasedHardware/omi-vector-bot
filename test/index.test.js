@@ -417,6 +417,45 @@ test('an ownership outage at delivery cannot escape through a second unfenced fa
   assert.equal(runtime.store.messages.get(result.message.id).state, 'queued');
 });
 
+test('a generic repeat-check failure after takeover cannot send an unfenced coordination fallback', async t => {
+  const { SupportRuntime, assertCurrentOwnership, markCurrentReplySent } = require('../supportRuntime');
+  let clock = Date.now(); t.mock.method(Date, 'now', () => clock);
+  let begin, resume, block = true;
+  const started = new Promise(resolve => { begin = resolve; });
+  const held = new Promise(resolve => { resume = resolve; });
+  const repeated = runtime.store.repeated.bind(runtime.store);
+  t.mock.method(runtime.store, 'repeated', async job => {
+    if (block) { block = false; begin(); await held; throw new Error('synthetic coordinator failure'); }
+    return repeated(job);
+  });
+  const message = makeMessage('How do I change the title of an Omi conversation?');
+  const pending = handleMessage(message);
+  try {
+    await started; clock += 45000;
+    const next = new SupportRuntime({ store: runtime.store, sweepMs: 0, log: () => {} });
+    await next.recoverQueued(input => input.messageId !== message.id ? undefined : next.run(input, async () => {
+      await assertCurrentOwnership(); await message.reply({ content: 'Open the conversation to edit its title.' });
+      markCurrentReplySent(); return true;
+    }));
+    assert.equal(message.replies.length, 1);
+    resume(); await pending;
+    assert.equal(message.replies.length, 1);
+  } finally { resume(); await pending; }
+});
+
+test('a lost claim acknowledgement cannot authorize an unfenced fallback', async t => {
+  const claim = runtime.store.claim.bind(runtime.store);
+  let lose = true;
+  t.mock.method(runtime.store, 'claim', async job => {
+    const result = await claim(job);
+    if (lose) { lose = false; throw new Error('synthetic lost claim acknowledgement'); }
+    return result;
+  });
+  const result = await ask('How do I change a conversation title in Omi?');
+  assert.equal(result.message.replies.length, 0);
+  assert.equal(runtime.store.messages.get(result.message.id).state, 'processing');
+});
+
 for (const [language, question, expected] of [
   ['es', '¿Cómo comienzo una grabación desde el teléfono?', 'es'],
   ['hi', 'फोन से रिकॉर्डिंग कैसे शुरू करूँ?', 'hi-Deva'],

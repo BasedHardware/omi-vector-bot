@@ -67,9 +67,9 @@ class PostgresRuntimeStore {
       WHERE message_id=$1 AND owner=$2 AND state='processing' AND delivery_started=false`, [job.messageId, job.owner]);
     await this.release(job);
   }
-  async queued(limit) {
+  async queued(limit, { exclude = [] } = {}) {
     const { rows } = await this.pool.query(`SELECT message_id,case_key,fingerprint FROM support_message_claims
-      WHERE state='queued' ORDER BY message_id LIMIT $1`, [limit]);
+      WHERE state='queued' AND NOT (message_id = ANY($2::text[])) ORDER BY message_id LIMIT $1`, [limit, exclude]);
     return rows.map((row) => ({ messageId: row.message_id, caseKey: row.case_key, fingerprint: row.fingerprint }));
   }
   async discard(input) {
@@ -208,7 +208,7 @@ class MemoryRuntimeStore {
     if (value?.owner === job.owner && value.state === 'processing' && !value.deliveryStarted) Object.assign(value, { state: 'queued', owner: 'queued', until: this.now() });
     await this.release(job);
   }
-  async queued(limit) { return [...this.messages.values()].filter((row) => row.state === 'queued').slice(0, limit).map(({ messageId, caseKey, fingerprint }) => ({ messageId, caseKey, fingerprint })); }
+  async queued(limit, { exclude = [] } = {}) { return [...this.messages.values()].filter((row) => row.state === 'queued' && !exclude.includes(row.messageId)).slice(0, limit).map(({ messageId, caseKey, fingerprint }) => ({ messageId, caseKey, fingerprint })); }
   async discard(input) { const row = this.messages.get(input.messageId); if (row?.state === 'queued') Object.assign(row, { state: 'ignored', at: this.now() }); }
   async repeated(job) {
     return Boolean(job.fingerprint && [...this.messages.values()].some((item) => item.caseKey === job.caseKey &&
@@ -448,7 +448,7 @@ class SupportRuntime {
             : `[SupportRuntime] abandoned request with uncertain delivery message=${item.messageId}`);
         }
       }
-      const queued = await this.store.queued(Math.min(this.concurrency, available));
+      const queued = await this.store.queued(Math.min(this.concurrency, available), { exclude: [...this.recoveryMessages] });
       pending = queued.filter(input => !this.recoveryMessages.has(input.messageId)).map(input => {
         this.recoveryMessages.add(input.messageId);
         return Promise.resolve().then(() => handler(input))

@@ -53,7 +53,7 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 | Status | What it means now |
 | --- | --- |
-| **Done** | #69, #73 and #49 merged October 23 after review/current checks. Production remains `bc2166f9` / `5bafe93`, with no new deployment or enablement. |
+| **Done** | #69, #73 and #49 merged October 23 after review/current checks: 13→10 open PRs. Aryan then manually deployed main `ec51f7a` as `458d4a6f` at 18:58 IST; one successful active deployment and health HTTP 200/`ok` are verified. Agent did not deploy; no memory/learning enablement was performed by this work. |
 | **In progress** | #68's code repair passes review/CI; its targeted answer-quality check remains. Finish #70's recovery/delivery repair and verification in its existing PR. No new PRs. |
 | **Next** | Finish these two repairs' real remaining gates, then continue #75 and the existing queue. Do not create more drafts or close useful work just to lower the count. |
 | **Waiting** | Railway's merge safeguard is cleared by authenticated, complete service/environment API reads: zero matching automatic GitHub triggers and unchanged production. Code, speed, dependency and privacy/pilot gates remain below. |
@@ -73,7 +73,7 @@ Aryan asked to bring every existing PR to a deliberate outcome: verify and merge
 | #75 — correct customer intent | Finish evaluation-adapter parity, authorized answer-quality comparison, actual multi-turn verification and independent review. |
 | #67 — in-thread next steps | Repair the failed typical-speed gate (+2.200 s versus +2 allowed), preserve the increased missing flags for independent grading, then obtain the required passing gate. |
 | #71 — multipart evidence | Diagnose and resolve the failed slow-reply gate (+18.824 s versus +6 allowed) and obtain independent quality grading. No automatic rerun or topic-specific patch. |
-| #70 — faster abandoned pickup | Both review failures were reproduced before repair. Local code now blocks unknown-ownership sends and unsafe error fallbacks, durably defers definitely-unsent work, preserves ambiguous markers and lets later sweeps run during a slow answer. Full local 893/offline8 and serialized SQL pass; final real PostgreSQL two-worker checks and independent review remain. No global exactly-once or staff-alert claim. |
+| #70 — faster abandoned pickup | Original failures and follow-up review escapes were reproduced before repair: unknown/generic ownership errors, lost claim acknowledgment and three held fetches blocking a later queued request. All public coordination fallbacks now require the same durable claim/send fence; exclusions apply before SQL/Memory queue limits. Full local 896/offline8 and expanded serialized SQL pass; final-head real PostgreSQL and independent re-review remain. No global exactly-once or staff-alert claim. |
 | #28 — private staff/engineering workflow | Returned to draft: conflicts with current main. Integrate safely, recheck the affected private workflow and obtain independent re-review. Never relax privacy to pass. |
 | #29 — delivery receipts | Preserve existing local edits. Finish same-nonce retries, explicit ledger-outage behavior and staff-visible held-reply alerts; integrate reviewed #28, then verify and review. |
 | #30 — close/reopen safety | Resolve parent dependency/conflicts after #29; verify the actual closure/reopen receipt flow and obtain review. |
@@ -83,7 +83,7 @@ Aryan asked to bring every existing PR to a deliberate outcome: verify and merge
 
 Truthful delivered-versus-accepted wording and supplied-diagnostic continuity remain required repairs; they do not authorize another PR ahead of this queue. Reorganizing work earns no progress points.
 
-**October 23 merge safeguard, resolved:** normal existing-account sign-in succeeds with credential output suppressed. Fully paginated service and production-environment reads both return zero matching automatic GitHub triggers; the repository remains connected. Active/latest deployment `bc2166f9` records `5bafe93`, one running deployment and health HTTP 200/`ok`; subsequent reads confirm no deployment after #69/#73. Repeat the guard around subsequent authorized merges. No API/project key, permission, production setting or deployment was created/changed. This supersedes the earlier UI/CLI blocker, not remaining feature gates or a long-duration health report.
+**October 23 merge safeguard, resolved:** normal existing-account sign-in succeeds with credential output suppressed. Complete service/environment reads return zero matching automatic GitHub triggers and preserve the source. The three agent-authorized merges completed while production stayed `bc2166f9` / `5bafe93`. At 18:58 IST a later deployment started; Aryan confirms he triggered it. Latest `458d4a6f` / `ec51f7a` is successful, one active instance, health HTTP 200/`ok`; the fresh trigger read still returns zero. No agent deployment, setting/key/permission change occurred. This is readiness/state evidence, not a full health window, smoke acceptance or optional-feature approval.
 
 <details>
 <summary>Audit intake and preparation evidence — technical detail</summary>

@@ -220,3 +220,26 @@ test('one failed recovery fetch cannot remove drain tracking for another unfinis
   assert.ok((await settled).error);
   assert.equal(await runtime.drain(1000), true);
 });
+
+test('three held fetches cannot hide a later abandoned request behind the queue limit', async () => {
+  let now = 0, begin, resume, fetches = 0, sends = 0;
+  const started = new Promise(resolve => { begin = resolve; });
+  const held = new Promise(resolve => { resume = resolve; });
+  const store = new MemoryRuntimeStore({ now: () => now });
+  const runtime = new SupportRuntime({ store, sweepMs: 0, heartbeatMs: 1000000 });
+  for (const suffix of ['a', 'b', 'c']) await store.enqueue({ messageId: `held-${suffix}`, caseKey: `case-${suffix}` });
+  const orphan = { messageId: 'later-dead', caseKey: 'case-later', owner: 'dead-owner' };
+  await store.claim(orphan); await store.acquire(orphan);
+  const handler = async input => {
+    if (input.messageId.startsWith('held-')) { if (++fetches === 3) begin(); await held; return; }
+    return runtime.run(input, async () => { await assertCurrentOwnership(); sends++; markCurrentReplySent(); return true; });
+  };
+  const first = runtime.recoverQueued(handler);
+  try {
+    await started; now = 45000;
+    await runtime.recoverQueued(handler);
+    assert.equal(sends, 1);
+    assert.equal(store.messages.get(orphan.messageId).state, 'answered');
+    assert.equal(fetches, 3, 'in-flight fetches stay deduplicated');
+  } finally { resume(); await first; }
+});
