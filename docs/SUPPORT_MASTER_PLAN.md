@@ -53,7 +53,7 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 | Status | What it means now |
 | --- | --- |
-| **Done** | #69, #73 and #49 merged: 13→10 open PRs. #70's repair is verified and marked ready, not merged. Aryan confirms his later deploy `458d4a6f` / `ec51f7a` at 18:58 IST; health 200/`ok`, one active instance, zero automatic GitHub triggers. Agent did not deploy or enable memory/learning. |
+| **Done** | #69, #73 and #49 merged: 10 of the original 13 remain. A separately opened #76 makes 11 open overall; it was not created or changed by this finish task. #70's repair is verified and marked ready, not merged. Aryan confirms his later deploy `458d4a6f` / `ec51f7a` at 18:58 IST; health 200/`ok`, one active instance, zero automatic GitHub triggers. Agent did not deploy or enable memory/learning. |
 | **In progress** | #68's six generated checks are independently graded **0/6 correct answers**. Its language-schema correction passes code review and local checks, but does not repair the missed guide or clear the quality gate. Keep draft; no new PRs or paid rerun. |
 | **Next** | Finish #68's real quality blocker; #70 is ready for maintainer review. Continue #75 and the existing queue afterward. No further paid run or deployment is inferred. |
 | **Waiting** | Railway's merge safeguard is cleared by authenticated, complete service/environment API reads: zero matching automatic GitHub triggers and unchanged production. Code, speed, dependency and privacy/pilot gates remain below. |
@@ -64,6 +64,8 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 ### Finish queue — one active completion step
 
 Aryan asked to bring every existing PR to a deliberate outcome: verify and merge useful work, or close genuinely obsolete/duplicated work with its reason and any unfinished scope preserved. Do not rush a merge or close a useful fix merely to lower the count. The same independent reviewer is authorized for the remaining PRs, one at a time; it does not merge, deploy or access customer data. Use the updated risk-based readiness policy, reusing valid evidence without inventing unrelated certification. Product and release gates remain; ready is not merged or deployed.
+
+The original queue below has ten open items after the three merges. Separately opened [#76](https://github.com/BasedHardware/omi-vector-bot/pull/76) was observed October23; its readiness is not verified by this task and does not replace the #68/#70 priority or authorize a merge/deployment. No new PR was created here.
 
 | Existing work | What must happen before it can move forward |
 | --- | --- |
