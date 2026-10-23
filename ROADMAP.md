@@ -1,6 +1,10 @@
 # Omi Support Bot Roadmap
 
-## Latest October23 state — deployed reliability, smoke deferred
+## Latest October23 reviewer decision — branch checks continue, merges paused
+
+#67's protected-handoff grade passes; the reviewer accepts the measured 0.200s p50 exception. Its required same-PR fix strips support-address redirects independent of language, preserving sources, secret warnings and the app-owned failed-delivery fallback, with new fr/de/ja/pt tests. #74 may be pushed now for CI only; its integration review already passed77 focused checks. No merge/deploy while release smokes await Aryan. After acceptance, #67/#74 are first next merges. #77 stays draft until #67 lands, then loses overlapping redirect work; #78 waits for drain-smoke review. #71's saved results show retrieval/review tail growth, not answer-prompt growth; no provider rerun or proven latency fix. Score47/100.
+
+## Earlier October23 state — deployed reliability, smoke deferred
 
 #76/#70 are merged; main6b6d97d is live as61e8ce70 with recorded GitHub commit, one healthy instance and optional features off.907 tests/offline8/SQL, independent re-review and candidate/final-main Node20/24/PostgreSQL pass. The production-configured audience check is private_staff_destination. Actual rollout SIGTERM/drain20:23:12IST is clean; the separately required English/refund/controlled Redeploy smokes remain pending because Aryan will send inputs later. No #66/PR closure, later merge or memory enablement yet. While waiting, #74 is locally integrated with this main;916/offline8/combinedSQL pass, with only document conflicts resolved. It is not pushed or marked ready; integration review/current-head CI remain. Read-only #71 timing analysis finds answer prompts smaller, so blindly cutting evidence is not a supported latency fix. All original comparison results remain unchanged. Score47/100, not accuracy.
 
