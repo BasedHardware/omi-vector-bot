@@ -4,24 +4,64 @@ const test = require('node:test');
 const axios = require('axios');
 const { queryAgent, reviewAnswer, understandQuestion } = require('../commandcode');
 
-// A loopback provider that sends headers at once, then trickles the JSON body
-// one byte at a time so socket inactivity never fires, far past the budget.
-function trickleServer(body, { intervalMs = 20 } = {}) {
+// A real HTTP body stays unfinished until the application aborts it. The test
+// drives the deadline after headers/body bytes arrive, not after a wall-clock
+// race between a streaming interval, socket inactivity and a busy runner.
+function unfinishedServer(t) {
+  const requests = [];
+  const waiting = [];
   const server = http.createServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    let index = 0;
-    const timer = setInterval(() => {
-      res.write(body[index]);
-      index += 1;
-      if (index >= body.length) { clearInterval(timer); res.end(); }
-    }, intervalMs);
-    res.on('close', () => clearInterval(timer));
+    res.write('{"choices":[');
+    const closed = new Promise(resolve => res.on('close', resolve));
+    const request = { res, closed };
+    if (waiting.length) waiting.shift()(request);
+    else requests.push(request);
   });
+  t.after(() => { server.closeAllConnections(); server.close(); });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({
     server,
     url: `http://127.0.0.1:${server.address().port}/`,
-    nominalMs: body.length * intervalMs,
+    nextRequest: () => requests.length ? Promise.resolve(requests.shift()) : new Promise(resolve => waiting.push(resolve)),
   })));
+}
+
+function manualDeadlines(t, milliseconds) {
+  const controllers = [];
+  t.mock.method(AbortSignal, 'timeout', actual => {
+    assert.equal(actual, milliseconds);
+    const controller = new AbortController();
+    controllers.push(controller);
+    return controller.signal;
+  });
+  return controllers;
+}
+
+function observedHttpPost() {
+  const bodies = [];
+  const post = (url, body, options) => {
+    let received;
+    const observed = new Promise(resolve => { received = resolve; });
+    bodies.push(observed);
+    return axios.post(url, body, { ...options, onDownloadProgress: event => {
+      if (event.loaded > 0) received();
+    } });
+  };
+  return { post, bodies };
+}
+
+async function abortHttpAttempts(provider, deadlines, bodies, attempts) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const { res, closed } = await provider.nextRequest();
+    assert.ok(bodies[attempt], 'the real HTTP client registered a body observation');
+    await bodies[attempt];
+    assert.equal(res.writableEnded, false, 'headers arrived but the response body is unfinished');
+    assert.equal(deadlines.length, attempt + 1, 'each HTTP attempt has its own full-operation deadline');
+    assert.equal(deadlines[attempt].signal.aborted, false);
+    deadlines[attempt].abort(new Error('manual deadline elapsed'));
+    await closed;
+    assert.equal(res.writableEnded, false, 'the actual HTTP connection closed without completing the body');
+  }
 }
 
 function withProvider(t, url, timeoutMs) {
@@ -41,22 +81,20 @@ const LATE_ANSWER = JSON.stringify({ choices: [{ message: { content: JSON.string
   final_answer: 'This arrived after the deadline.', grounded: true, relevant: true, confidence: 0.9, escalate: false, sources_used: [],
 }) } }] });
 
-for (const [name, call] of [
-  ['planner', () => understandQuestion({ question: 'How do I pair my device?', route: { lane: 'tech', area: 'device' } })],
-  ['answer', () => queryAgent({ question: 'How do I pair my device?', route: { lane: 'tech', area: 'device' } })],
-  ['review', () => reviewAnswer({ question: 'How do I pair my device?', draft: 'Open the app.', lane: 'general', understanding: {} })],
+for (const [name, attempts, call] of [
+  ['planner', 1, post => understandQuestion({ question: 'How do I pair my device?', route: { lane: 'tech', area: 'device' }, post })],
+  ['answer', 2, post => queryAgent({ question: 'How do I pair my device?', route: { lane: 'tech', area: 'device' }, post })],
+  ['review', 2, post => reviewAnswer({ question: 'How do I pair my device?', draft: 'Open the app.', lane: 'general', understanding: {}, post })],
 ]) {
-  test(`${name} request stops at the deadline even when the response body keeps trickling`, async (t) => {
-    const { server, url, nominalMs } = await trickleServer(LATE_ANSWER);
-    t.after(() => server.close());
-    const timeoutMs = 250;
-    withProvider(t, url, timeoutMs);
-    const started = Date.now();
-    await assert.rejects(call(), (err) => /timeout/i.test(String(err.message)) || err.code === 'ECONNABORTED');
-    const elapsed = Date.now() - started;
-    // Each stage retries at most once on timeout, so two budgets is the ceiling;
-    // the unbounded body would have taken the full nominal stream time.
-    assert.ok(elapsed < Math.min(nominalMs, timeoutMs * 3), `took ${elapsed}ms; nominal stream ${nominalMs}ms`);
+  test(`${name} deadline aborts the actual HTTP transport before the response body completes`, { timeout: 30_000 }, async (t) => {
+    const provider = await unfinishedServer(t);
+    withProvider(t, provider.url, 30_000);
+    const deadlines = manualDeadlines(t, 30_000);
+    const { post, bodies } = observedHttpPost();
+    const checked = assert.rejects(call(post), { code: 'ECONNABORTED' });
+    await abortHttpAttempts(provider, deadlines, bodies, attempts);
+    await checked;
+    assert.equal(deadlines.length, attempts, 'no extra retry after the allowed attempts');
   });
 }
 
@@ -72,20 +110,56 @@ test('a normal successful provider response still completes inside the deadline'
   assert.equal(parsed.final_answer, 'This arrived after the deadline.');
 });
 
-test('the deadline error carries no response text', async (t) => {
-  const { server, url } = await trickleServer(LATE_ANSWER);
-  t.after(() => server.close());
-  withProvider(t, url, 100);
-  await assert.rejects(queryAgent({ question: 'Where is my order?' }), (err) => {
+test('the deadline error carries no response text', { timeout: 30_000 }, async (t) => {
+  const provider = await unfinishedServer(t);
+  withProvider(t, provider.url, 30_000);
+  const deadlines = manualDeadlines(t, 30_000);
+  const { post, bodies } = observedHttpPost();
+  const checked = assert.rejects(queryAgent({ question: 'Where is my order?', post }), (err) => {
+    assert.equal(err.code, 'ECONNABORTED');
+    assert.doesNotMatch(String(err.message), /choices/);
     assert.doesNotMatch(String(err.message), /arrived after the deadline/);
     return true;
   });
+  await abortHttpAttempts(provider, deadlines, bodies, 2);
+  await checked;
 });
 
-test('axios timeout alone does not bound a trickling body (documents the mechanism)', async (t) => {
-  const { server, url, nominalMs } = await trickleServer('{"ok":true}', { intervalMs: 40 });
-  t.after(() => server.close());
-  const started = Date.now();
-  await axios.post(url, {}, { timeout: 100 });
-  assert.ok(Date.now() - started >= nominalMs - 60);
+for (const [stage, attempts, call] of [
+  ['planner', 1, post => understandQuestion({ question: 'How do I organize notes?', route: { lane: 'faq' }, post })],
+  ['answer', 2, post => queryAgent({ question: 'How do I organize notes?', route: { lane: 'faq' }, post })],
+  ['review', 2, post => reviewAnswer({ question: 'How do I organize notes?', draft: 'Open the notes.', understanding: {}, post })],
+]) test(`${stage} manual deadline cancels an unfinished response body without a wall clock`, async t => {
+  withProvider(t, 'https://provider.invalid/synthetic-test', 250);
+  const deadlines = [];
+  t.mock.method(AbortSignal, 'timeout', milliseconds => {
+    assert.equal(milliseconds, 250);
+    const controller = new AbortController();
+    deadlines.push(controller);
+    return controller.signal;
+  });
+  const calls = [];
+  const post = async (_url, _body, options) => {
+    assert.equal(options.timeout, 250, 'keep the existing transport timeout too');
+    assert.ok(options.signal instanceof AbortSignal, 'the full-operation deadline reaches the adapter');
+    return new Promise((resolve, reject) => {
+      calls.push({ signal: options.signal, finishBody: () => resolve({ data: JSON.parse(LATE_ANSWER) }) });
+      options.signal.addEventListener('abort', () => reject(Object.assign(new Error('synthetic cancellation'), { code: 'ERR_CANCELED' })), { once: true });
+    });
+  };
+  let settled = false;
+  const pending = call(post).finally(() => { settled = true; });
+  const checked = assert.rejects(pending, { code: 'ECONNABORTED' });
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    for (let turn = 0; turn < 30; turn++) await Promise.resolve();
+    assert.equal(calls.length, attempt + 1);
+    assert.equal(deadlines.length, attempt + 1, 'each retry gets its own deadline');
+    assert.equal(settled, false, 'an unfinished body has not been accepted');
+    assert.equal(calls[attempt].signal.aborted, false);
+    deadlines[attempt].abort(new Error('manual deadline elapsed'));
+  }
+  await checked;
+  assert.equal(calls.length, attempts, 'no extra request after the allowed retries');
+  for (const attempt of calls) attempt.finishBody();
+  assert.ok(calls.every(attempt => attempt.signal.aborted), 'late bodies cannot undo cancellation');
 });
