@@ -53,17 +53,17 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 | Status | What it means now |
 | --- | --- |
-| **Done** | #76/#70 are live as `61e8ce70` / GitHub `6b6d97d`, optional features off. #67's repair is pushed:943 tests/offline8/SQL, independent185-check review and hosted Node20/24/PostgreSQL CI39981028525 pass at2ce2dae. #74's916 tests and hosted CI39980708410 pass at1b27a46. Later status-only commits use the current checks on each PR. No new merge/deploy. |
-| **In progress** | Release smoke checks await Aryan's English/refund posts and an armed slow-answer same-commit Redeploy test. He will send them later. The actual rollout drained cleanly, but is not the controlled test. No memory enablement or #66 closure. |
-| **Next** | Finish the release smoke checks when Aryan sends the test posts. No merge/deploy before that. #67 and #74 are then the first next merges, subject to final branch checks/review. Keep #68/#29/#30 branches and unfinished scope when closing them. |
-| **Waiting** | The three release smokes need Aryan's Discord inputs. Automatic GitHub deploy triggers remain absent; no repeat health-only wait or permission repair is needed. Later quality, privacy and pilot gates remain below. |
+| **Done** | All three reliability smokes pass. Live `6a815fbf` runs unchanged `6b6d97d`, optional features off. English:68 words/no handoff. Refund:one private card, awaiting acceptance. Redeploy:clean drain, one reply, old instance gone within69.2s. #67 merged `94e4f57`, not deployed. |
+| **In progress** | #74 integrates #67;952 tests/offline8/SQL and independent298-check review pass. Exact-head CI precedes its approved merge. #71's fetch guard passes both versions; a separate shared-page evidence bug is repaired locally and reviewed. |
+| **Next** | Merge verified #74, then finish #71 integration/CI and its fair concurrent comparison. Fix the named flaky timing test in a separate small PR now that merges have reopened. Preserve #68/#29/#30 branches and unmet scope when closing them. |
+| **Waiting** | No more Discord posts are needed. #71 still needs the reviewed comparison on updated main. Memory stays off until its original privacy/notice/pilot gates pass; no new-code deploy is implied. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
 
 **New request, prepared—not trained:** [Mira's data plan](MIRA_DATA_STRATEGY.md) screens eight public datasets and adds 12 original support scenarios. It targets understanding frustration, clear help and truthful follow-through, not psychological profiling. No data imported, model trained, prompt changed or new feature PR opened. Implement through A1/A2/E2 after the current finish queue; score remains **47/100**.
 
 ### Finish queue — one active completion step
 
-**Live count:11 open PRs.** The authorized #76/#70 merges removed two. The reviewer confirms #77/#78 came from their issue prompts. #77 overlaps #67: leave it draft until #67 merges, then integrate main and retain only narration cleanup plus per-stage evidence. Leave #78 untouched until the drain smoke is reviewed. Neither authorizes another merge/deploy; preserve the three-PR cap for new work.
+**Live count:10 open PRs after #67 merged.** #74 is next after its final checks. #77 later drops its overlapping redirects; #78 waits for the drain evidence review. Keep the existing queue cap and preserve unfinished scope; no count-driven merge or closure.
 
 Aryan asked to bring every existing PR to a deliberate outcome: verify and merge useful work, or close genuinely obsolete/duplicated work with its reason and any unfinished scope preserved. Do not rush a merge or close a useful fix merely to lower the count. The same independent reviewer is authorized for the remaining PRs, one at a time; it does not merge, deploy or access customer data. Use the updated risk-based readiness policy, reusing valid evidence without inventing unrelated certification. Product and release gates remain; ready is not merged or deployed.
 

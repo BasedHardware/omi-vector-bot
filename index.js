@@ -1105,6 +1105,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       await assertCurrentOwnership();
       const previousCase = await supportCases.getCaseByThread(channel.id, message.author.id);
       let supportCase = await supportCases.getOrCreateCase({
+        ...require('./supportKnowledgePrivacy').caseScopeFor(channel, message.author.id),
         channelId: previousCase?.channelId || channel.id, customerId: message.author.id,
         customerThreadId: channel.isThread?.() ? channel.id : undefined,
         sourceMessageId: message.id,

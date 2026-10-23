@@ -1,5 +1,20 @@
 # Omi Support Bot Implementation Checklist
 
+## Current October23 — release smoke accepted
+
+- [x] English sourced ordinary answer, private refund delivery and controlled same-commit Redeploy pass. One reply after SIGTERM, clean drain, old instance observed gone after69.197s, stable30s; live6a815fbf/GitHub6b6d97d, optional features off.
+- [x] Merge approved #67 as94e4f57 after verifying automatic deploys remain off; no code deploy.
+- [x] Integrate #67 into #74 as7860417; reviewed privacy files unchanged,952/offline8/SQL and independent298-check integration review pass.
+- [ ] Pass exact-head hosted checks, then merge approved #74. No privacy enablement or new code deployment from this alone.
+- [ ] Finish #71's guarded/shared-page repair and simultaneous-arm comparison; fix the named timing test separately without wall-clock-dependent expectations.
+
+## October23 local integration — #74, not released
+
+- [x] Integrate released main6b6d97d without changing the reviewed owner/forum erasure semantics or the answer/recovery/provider controls. Resolve five document conflicts while preserving the dedicated privacy design and main's current requirements.
+- [x] Preserve owner-derived nullable case scope/non-rebinding, commit-before-ack opt-out, independent facts/other scopes, late/new-case writer fences, mandatory retry, bounds and strict legacy/orphan refusal. Original red-before evidence remains atdfc1398.
+- [x] Local916 tests/offline8/combinedSQL pass, including scoped privacy, retention, two-worker recovery and eight reference-reader groups. No customer data, protected file, provider call or production write.
+- [ ] After the pending release smokes, publish the integration for current-head CI and integration review before readiness. Original notice/privacy/security/backup/processor/pilot gates remain; do not enable memory from this preparation.
+
 ## Latest October23 #67 review correction
 
 - [x] Integrate released main6b6d97d via merge commitdc79d80; preserve code and unfinished scope.

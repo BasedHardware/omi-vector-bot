@@ -1,5 +1,17 @@
 # Omi Support Bot Roadmap
 
+## Current October23 — smoke passed, approved merges resume
+
+All three reliability checks pass: sourced English answer without handoff; one private refund card; same-commit Redeploy with clean drain, one post-SIGTERM reply and old instance observed removed after69.197s, stable30s. Live6a815fbf records unchanged6b6d97d; rollback458d4a6f, optional features off. #67 merged94e4f57 after the auto-deploy-off guard. #74 integration7860417 preserves reviewed privacy/#67 code;952/offline8/SQL and independent298-check review pass. Final hosted CI precedes its approved merge; no new-code deploy or memory enablement. #71's guard/shared-page repair and fair concurrent-arm comparison remain. The named timing test is reproduced by withholding loopback progress; its separate test-only fix stays queued. Score47/100.
+
+## Earlier October23 reviewer decision — historical smoke hold
+
+#67's protected-handoff grade passes; the reviewer accepts the measured 0.200s p50 exception. Its required same-PR fix strips support-address redirects independent of language, preserving sources, secret warnings and the app-owned failed-delivery fallback, with new fr/de/ja/pt tests. #74 may be pushed now for CI only; its integration review already passed77 focused checks. No merge/deploy while release smokes await Aryan. After acceptance, #67/#74 are first next merges. #77 stays draft until #67 lands, then loses overlapping redirect work; #78 waits for drain-smoke review. #71's saved results show retrieval/review tail growth, not answer-prompt growth; no provider rerun or proven latency fix. Score47/100.
+
+## Earlier October23 state — deployed reliability, smoke deferred
+
+#76/#70 are merged; main6b6d97d is live as61e8ce70 with recorded GitHub commit, one healthy instance and optional features off.907 tests/offline8/SQL, independent re-review and candidate/final-main Node20/24/PostgreSQL pass. The production-configured audience check is private_staff_destination. Actual rollout SIGTERM/drain20:23:12IST is clean; the separately required English/refund/controlled Redeploy smokes remain pending because Aryan will send inputs later. No #66/PR closure, later merge or memory enablement yet. While waiting, #74 is locally integrated with this main;916/offline8/combinedSQL pass, with only document conflicts resolved. It is not pushed or marked ready; integration review/current-head CI remain. Read-only #71 timing analysis finds answer prompts smaller, so blindly cutting evidence is not a supported latency fix. All original comparison results remain unchanged. Score47/100, not accuracy.
+
 ## Latest October23 — finish existing drafts, no release mutation
 
 #67's protected-handoff grade passes; the measured0.200s p50 exception is accepted. Released main6b6d97d is integrated by merge commitdc79d80. Required language-independent address cleanup and shared localized Source handling pass943/offline8/SQL; all25 new regressions fail before the repair, and final independent review passes185 focused checks. Current-head CI is recorded in the PR. #74 is pushed for CI only; Node20/24/PostgreSQL run39978407664 passes. #71's saved arms show retrieval/review tail growth, not answer-prompt growth; no provider run. Release61e8ce70's smokes remain deferred by Aryan; no merge/deploy. #67/#74 are first next merges after smoke acceptance and their gates. Later #77 loses overlapping redirects; #78 stays untouched until drain review. Score47/100, not accuracy.
