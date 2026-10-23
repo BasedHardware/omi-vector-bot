@@ -160,6 +160,26 @@ Production uses the existing `DATABASE_URL` for support state as well as knowled
 
 Keep one primary running service. Shared claims and worker slots protect overlap, but the platform still needs an adequate termination grace period. The bot stops taking new work and waits up to 90 seconds for accepted replies/interactions and active Telegram polling. Unstarted work is returned to the queue; a timed-out, started request is an uncertain outcome that must not be automatically replayed.
 
+### Restart drain evidence (#66)
+
+On shutdown the runtime logs one privacy-safe line per accepted case so a bounded log window shows exactly what happened to it. Lines carry only the internal message reference — never customer text, Discord identities or order data:
+
+- `[SupportRuntime] shutdown: finished=<message>` — accepted and settled inside the drain budget. Clean for that case.
+- `[SupportRuntime] shutdown: returned unstarted request message=<message>` — accepted but never started; re-queued at once. The replacement picks it up without waiting for a lease to expire.
+- `[SupportRuntime] shutdown: left for reclaim message=<message> delivery=not_started` — started but no customer-visible send began. The abandoned sweep will requeue it after the lease lapses; expect one later `requeued abandoned request` line and one answer.
+- `[SupportRuntime] shutdown: left for reclaim message=<message> delivery=uncertain` — a customer-visible send may have begun. The request is **not** replayed; after the uncertain grace it is recorded `uncertain`. Inspect the thread before any manual follow-up.
+- `[SupportRuntime] shutdown: unstarted return failed message=<message>` — the queue return itself failed; treat the case like `delivery=not_started` and expect the abandoned sweep to recover it.
+- `[SupportRuntime] drain completed=true|false telegram_completed=true|false` — the aggregate outcome. `false` means at least one case did not settle in the budget; read the per-case lines above it.
+
+To run the redeploy drain smoke (human-operated; needs the same authorization, guards and rollback target as any release smoke):
+
+1. Use an approved **same-commit redeploy**, never Railway Restart — Restart is an in-container signal that has not documented the teardown grace, and an earlier Restart observation produced a replacement login about 20 s after SIGTERM with no drain line.
+2. Arm the log observer first; only then have Aryan send one exact synthetic slow request in the test forum.
+3. About 10 s into logged processing, dispatch the redeploy of the exact running commit.
+4. In the old instance's logs, find `Received SIGTERM` and then one of the per-case shutdown lines above plus `drain completed=`. No per-case line and no `drain completed=` line means the old process was stopped before it could report — that is platform teardown evidence to raise with Railway, not a clean drain.
+5. In the replacement's logs, confirm the login line and that the same message reference produces exactly one customer reply. A `requeued abandoned request` line for it is expected only after a `left for reclaim delivery=not_started` outcome — not after `returned unstarted` (already queued) and never after `delivery=uncertain`.
+6. Confirm the old instance is removed within the configured teardown grace (currently 100 s) and keep the thread under a bounded observation interval before claiming there was no duplicate reply.
+
 Before deploying, pass PR tests and relevant answer-quality checks, finish the existing smoke-test prerequisite, and record the current successful deployment as the rollback target. Verify the new deployment, health endpoint, Discord login, staff receipt and actual customer replies. Configuration presence is not a staff-delivery test. Do not change unrelated Railway variables or cloud permissions during rollout.
 
 Remaining staged order is gated #42 → localized closing-card fix → #28 → #29 → #30, with one smoke report and 24 clean hours between releases unless Aryan explicitly says go. Aryan granted that exception for #41, which is live at main `b9eeb16`. Current deployment after the required same-image restart test is `4a8e93d5-771c-486e-91f6-335839f05be4`, created October 12 at 01:02:10 UTC / 06:32:10 IST; Phase 3's rollback target is `6ddd1673-2e45-4cac-9d0d-28c71a9107fd`. REPORT 3 was graded PASS; the reviewer accepted button removal plus tested database notice uniqueness without a live retest. The next deployment needs its own gates and 24 clean hours from this latest restart unless Aryan says go again. Verify the active deployment and interval before dispatch; never use a historical release's hard-coded rollback helper for a later release. No automatic rollout is booked.
