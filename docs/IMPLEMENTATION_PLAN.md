@@ -1,5 +1,43 @@
 # Omi Support Bot Implementation Checklist
 
+## Latest October23 acceptance priority
+
+- [x] Record Aryan's explicit accuracy/reliability-over-time decision: latency increase alone no longer blocks; no waiver of grounding, protected handoffs, privacy, safe delivery/recovery or independent review.
+- [x] #71 integrated verification972/offline8/current CI39991802703; concurrent81×2 per arm complete, zero invalid, same-day/host/source guards pass. No rows dropped or repeated.
+- [x] Independent result review: structural pass-both70→73 and fewer handoff flags, but accuracy HOLD for citation contradiction/negative claims, case-specific storage reassurance, fallback language and incomplete attribution. No clipping regression observed in changed replies; full hidden intent coverage cannot be certified from source-free outputs.
+- [ ] Repair general accuracy/reliability paths with original red-before tests; no protected fixture/URL/feature-specific patch and no blind paid rerun. Current code-review/CI passes do not clear this HOLD.
+- [ ] Same-draft #75/#77/#78 repairs remain; #28 integration/current private-workflow verification and #59's separate prompt-quality gate remain. No new feature PR or deployment.
+
+## October23 current verification — #71
+
+Latest: #79 test-only repair merged1235379 (954/offline8, independent review, exact CI39990949904) and integrated here. The previous #71 full run failed its unchanged750ms wall-clock assertion at1184ms, with no push. Do not replace that failure with the earlier970-pass checkpoint; fresh integrated full/current CI gates remain. #68/#29/#30 are closed with unmet scope preserved; #66 closed on the successful controlled teardown. Live runtime6b6d97d is unchanged.
+
+- [x] Integrate maind108e1a with merge commits, retaining #76/#70 provider/recovery changes and #67/#74 disabled foundations. #67/#74 are merged, not deployed; live6a815fbf remains6b6d97d and optional controls stay off.
+- [x] Preserve all required per-part chunks ahead of alternate/filler chunks, including three required chunks sharing one page. Observed-red regressions pass with unchanged overall8 chunks/9,000 characters/4 pages and ordinary formatting defaults.
+- [x] Four deterministic live/stored fetch-contract tests pass candidate and frozen main; reject six deliberate in-memory faults. Keep live pages≤6/parallel/10s, stored query/row limits and no unnecessary HTTP fallback.
+- [x]970 full tests, offline8 and independent134 focused checks plus final narrow main-integration review pass.
+- [ ] Exact-current-head hosted Node20/24/PostgreSQL CI.
+- [ ] Fresh simultaneous main/candidate81×2 comparison, per-arm concurrency3, same machine/UTC+IST day, all rows preserved; usual protected-handoff/grounding/clipping/speed grade.
+- [ ] Separate named timing-test repair: retain failure evidence and real HTTP cancellation coverage; review/current CI before readiness. No feature/deploy authorization follows.
+
+## October 20: general multipart evidence correction
+
+- [x] Finish the approved release retry separately: Spanish closing, private refund and same-commit graceful teardown pass on `13ead500` / `5bafe93`, optional controls off.
+- [x] Run the initial six own-synthetic checks: main completes 0/3, draft 2/3. Preserve all six outputs and actual answer/review evidence; no protected run.
+- [x] Reproduce overlapping shared matches with two general non-phone regressions; both fail before and pass after reserving next-distinct per-part matches before background. Full 850, offline 8/8 and isolated SQL pass.
+- [ ] Verify revised hosted CI, freeze the new candidate and rerun all six own-synthetic checks before launching the protected comparison. No merge/deploy from local success.
+
+The original 848-test publication was hosted-green; the additional overlap repair has its own pending hosted/provider gates. Older counts and unchecked publication entries below are historical, not the current state.
+
+- [x] Trace planner → stored/live retrieval → compact evidence → answer/reviewer citations; reproduce the same weakness on both earlier sources with three independent customer-shaped variants.
+- [x] Apply the existing per-part evidence selector to every request with 2+ parts, preserving the overall eight-chunk/9,000-character/four-page budgets and short-request search caps. No phone-specific rule or expected URL.
+- [x] Add nine tests: three original red variants plus compact coverage/budget, planner fallback, citations, baseline-adapter parity and six-fetch-slot coverage. Eight observed red before implementation; all nine and full 848 pass.
+- [x] Full 848, offline 8/8 and isolated SQL pass; no production database used.
+- [ ] Publish draft and confirm hosted Node 20/24/Postgres. These are not independent answer-quality approval.
+- [ ] After Step A's retry passes, run the six synthetic provider checks, then fresh same-day standard 81×2 comparison against deployed main. Preserve both result files and review artifacts; protected inputs stay sealed.
+- [ ] Independent review before any merge/deploy. Keep #70, #67/#68, the memory pilot and full A–E checklist separately gated.
+
+Current retry `6e0fa65d`/`5bafe93` is healthy with optional controls off, but Spanish/refund/teardown checks are pending. Rollback `adcfb8b4`. Aryan sends every Discord message and command; Codex has not armed/dispatched the corrected redeploy test. Progress stays 45/100, acceptance 2/21. Older integration checkpoints below are historical.
 ## Current October23 — release smoke accepted
 
 - [x] English sourced ordinary answer, private refund delivery and controlled same-commit Redeploy pass. One reply after SIGTERM, clean drain, old instance observed gone after69.197s, stable30s; live6a815fbf/GitHub6b6d97d, optional features off.

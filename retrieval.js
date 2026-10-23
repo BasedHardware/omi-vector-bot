@@ -242,6 +242,10 @@ function normalizeSubQuestions(value) {
   return parts;
 }
 
+function hasMultipleParts(value) {
+  return normalizeSubQuestions(value).length >= 2;
+}
+
 function supportQueries(question, planned = [], { subQuestions = [] } = {}) {
   const text = [question, ...(planned || [])].filter(Boolean).join(' ');
   const variants = [];
@@ -271,10 +275,10 @@ function supportQueries(question, planned = [], { subQuestions = [] } = {}) {
   }
   const parts = normalizeSubQuestions(subQuestions);
   // Preserve every interpreted part before optional synonyms or generic searches.
-  // Ordinary requests keep the existing five-query budget. Multipart requests
+  // Two/three-part requests keep the existing five-query budget. Longer requests
   // have at most eight part queries plus the customer's original wording.
-  return parts.length > 3
-    ? uniqueQueries(question, [...parts.map((part) => part.query), ...(planned || []), ...variants], 9)
+  return hasMultipleParts(parts)
+    ? uniqueQueries(question, [...parts.map((part) => part.query), ...(planned || []), ...variants], parts.length > 3 ? 9 : 5)
     : uniqueQueries(question, [...variants, ...(planned || [])]);
 }
 
@@ -304,13 +308,15 @@ function consumerSourceFit(question, row) {
 
 function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQuestion = '' } = {}) {
   const parts = normalizeSubQuestions(subQuestions);
-  if (parts.length <= 3) return rows.slice(0, limit);
+  if (!hasMultipleParts(parts)) return rows.slice(0, limit);
   const byPage = new Map();
+  const perPartMatches = [];
   for (const [index, part] of parts.entries()) {
     const matches = rows.map((row) => ({ row, score: queryMatchScore(part.query, row) }))
       .filter((hit) => hit.score > 0)
       .sort((a, b) => b.score - a.score || consumerSourceFit(customerQuestion, b.row) - consumerSourceFit(customerQuestion, a.row) ||
         sourceAuthority(b.row.source || sourceKind(b.row.url)) - sourceAuthority(a.row.source || sourceKind(a.row.url)));
+    perPartMatches.push(matches);
     const row = matches[0]?.row;
     if (!row) continue;
     const key = String(row.url || row.title || '');
@@ -319,12 +325,24 @@ function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQues
     byPage.set(key, page);
   }
   // Prefer pages answering several parts, then preserve the requested order.
-  // One useful chunk per page goes first so the unchanged character cap cannot
-  // spend its budget on repeats before complementary guidance arrives.
+  // Different chunks on one page may answer different requirements. Reserve
+  // every selected part's best chunk before optional page diversity or filler.
   const selectedPages = [...byPage.values()]
     .sort((a, b) => b.rows.length - a.rows.length || a.firstPart - b.firstPart)
     .slice(0, 4);
+  const requiredRows = selectedPages.flatMap(page => page.rows);
   const allowedPages = new Set(selectedPages.map((page) => page.key));
+  // Different requirements can have the same strongest overview match. Use
+  // spare page slots for each part's next distinct match before aggregate
+  // background, which may have no useful coverage of that requirement.
+  for (const matches of perPartMatches) {
+    if (allowedPages.size >= 4) break;
+    const row = matches.find(hit => !allowedPages.has(String(hit.row.url || hit.row.title || '')))?.row;
+    if (!row) continue;
+    const key = String(row.url || row.title || '');
+    allowedPages.add(key);
+    selectedPages.push({ key, rows: [row] });
+  }
   for (const row of rows) {
     const key = String(row.url || row.title || '');
     if (allowedPages.size >= 4) break;
@@ -336,8 +354,8 @@ function selectSubQuestionEvidence(rows, subQuestions, limit = 8, { customerQues
   const selected = [];
   const seen = new Set();
   for (const row of [
+    ...requiredRows,
     ...selectedPages.map((page) => page.rows[0]),
-    ...selectedPages.flatMap((page) => page.rows.slice(1)),
     ...rows,
   ]) {
     const page = String(row.url || row.title || '');
@@ -369,7 +387,7 @@ function diverseTop(rows, limit, maxPerPage = 2) {
   return selected;
 }
 
-function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
+function mergeRanked(resultSets, limit = 8, { customerQuestion = '', maxPerPage = 2 } = {}) {
   const phoneQuestion = isConsumerPhoneQuestion(customerQuestion);
   const merged = new Map();
   for (const rows of resultSets || []) {
@@ -391,7 +409,7 @@ function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
     .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
       consumerSourceFit(customerQuestion, b) - consumerSourceFit(customerQuestion, a) ||
       b.fusedScore - a.fusedScore || b.authority - a.authority);
-  return diverseTop(ranked, limit);
+  return diverseTop(ranked, limit, maxPerPage);
 }
 
 function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQuestions = [] } = {}) {
@@ -430,7 +448,7 @@ function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQ
     .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
       consumerSourceFit(customerQuestion || queries?.[0], b) - consumerSourceFit(customerQuestion || queries?.[0], a) ||
       b.rank - a.rank || b.authority - a.authority);
-  return normalizeSubQuestions(subQuestions).length > 3
+  return hasMultipleParts(subQuestions)
     ? selectSubQuestionEvidence(ranked, subQuestions, limit, { customerQuestion: customerQuestion || queries?.[0] })
     : diverseTop(ranked, limit);
 }
@@ -510,7 +528,7 @@ function jointMultipartEvidence(question, docsEvidence, officialChunks, { querie
   return formatEvidence(rankLocalChunks(
     supportQueries(question, queries, { subQuestions: parts }), chunks, 8,
     { customerQuestion: question, subQuestions: parts }
-  ), { onSources: urls => onSources?.(urls.filter(url => retrieved.has(url))) });
+  ), { maxPerPage: hasMultipleParts(parts) ? 8 : 2, onSources: urls => onSources?.(urls.filter(url => retrieved.has(url))) });
 }
 
 module.exports = {
@@ -529,6 +547,7 @@ module.exports = {
   isDeveloperPageCompatibleQuestion,
   supportQueries,
   normalizeSubQuestions,
+  hasMultipleParts,
   selectSubQuestionEvidence,
   consumerSourceFit,
   mergeRanked,

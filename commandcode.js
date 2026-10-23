@@ -5,7 +5,7 @@ const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING, hasUnsyncedDataRisk } = re
 const { isInstructionSentence, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 const { redactSensitive } = require('./privacy');
 const { SUPPORT_VOICE } = require('./supportVoice');
-const { normalizeSubQuestions } = require('./retrieval');
+const { normalizeSubQuestions, hasMultipleParts } = require('./retrieval');
 const { isPreviousPost, splitHistory, previousContextBlock } = require('./supportContextFormat');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
@@ -181,12 +181,14 @@ function parseSearchPlan(raw, question) {
   let subQuestions = normalizeSubQuestions(data.sub_questions);
   // Older planner outputs remain valid. On a genuinely multipart request,
   // missing queries fall back to the neutral requirement, never a guessed fact.
-  if (!subQuestions.length && mustAnswer.length > 3) {
+  if (!subQuestions.length && hasMultipleParts(mustAnswer)) {
     subQuestions = normalizeSubQuestions(mustAnswer.map((part, index) => ({
       question: part, query: Array.isArray(data.search_queries) ? data.search_queries[index] : part,
     })));
   }
-  const multipart = subQuestions.length > 3;
+  // Reserve evidence for 2+ parts, but preserve the existing search-call cap:
+  // short requests still have at most four planner queries.
+  const queryLimit = subQuestions.length > 3 ? 8 : 4;
   const queries = [];
   const seen = new Set();
   for (const value of [
@@ -199,7 +201,7 @@ function parseSearchPlan(raw, question) {
     if (!query || seen.has(key)) continue;
     seen.add(key);
     queries.push(query);
-    if (queries.length >= (multipart ? 8 : 4)) break;
+    if (queries.length >= queryLimit) break;
   }
   return {
     standaloneQuestion: standaloneQuestion || String(question || '').trim(),
@@ -410,7 +412,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en', { subQu
   const urls = evidenceUrls(sources);
   const chosen = [
     ...new Set((sourceIds || []).map((id) => urls.get(String(id))).filter(Boolean)),
-  ].slice(0, normalizeSubQuestions(subQuestions).length > 3 ? 4 : 2);
+  ].slice(0, hasMultipleParts(subQuestions) ? 4 : 2);
   const text = String(answer || '').split('\n').map(unwrapEmphasis).join('\n');
   const modelLabel = text.split('\n').map((line) => {
     const citation = sourceCitationSuffix(line);
@@ -473,7 +475,7 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
         },
         {
           role: 'system',
-          content: 'Multipart search coverage: represent every distinct sub-question in sub_questions as {"question":"neutral requirement","query":"short English official-search wording"}, in the order asked. Produce one search query for each distinct sub-question, without adding an expected answer or diagnosis. Use at most eight distinct parts; group closely related requirements only when necessary. For more than three parts, one query per part takes priority over generic search variants; otherwise keep two to four short searches. Include these pairs alongside the existing JSON fields.',
+          content: 'Multipart search coverage: represent every distinct sub-question in sub_questions as {"question":"neutral requirement","query":"short English official-search wording"}, in the order asked. Produce one search query for each distinct sub-question, without adding an expected answer or diagnosis. Use at most eight distinct parts; group closely related requirements only when necessary. For two or more parts, one query per part takes priority over generic search variants; otherwise keep two to four short searches. Include these pairs alongside the existing JSON fields.',
         },
         {
           role: 'user',
@@ -638,7 +640,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     };
   }
   const send = providerSend(post || axios.post.bind(axios), provider);
-  const citationLimit = normalizeSubQuestions(understanding?.subQuestions).length > 3 ? 4 : 2;
+  const citationLimit = hasMultipleParts(understanding?.subQuestions) ? 4 : 2;
   const separatedHistory = splitHistory(threadHistory);
   const earlierContext = previousContextBlock(separatedHistory.previous);
   let data;
@@ -663,7 +665,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
         },
         ...(citationLimit === 4 ? [{
           role: 'system',
-          content: 'This request contains more than three distinct sub-questions. Its one Source line may contain at most four exact URLs from the retrieved evidence, instead of the ordinary two, when needed to support the requested parts. Keep each supported part brief and in the order asked.',
+          content: 'This request contains multiple distinct sub-questions. Its one Source line may contain at most four exact URLs from the retrieved evidence, instead of the ordinary two, when needed to support the requested parts. Keep each supported part brief and in the order asked.',
         }] : []),
         {
           role: 'user',
