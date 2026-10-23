@@ -1568,6 +1568,73 @@ test('an undelivered tech Handoff gives one help email fallback', async () => {
   assert.match(r.reply, /could not deliver this to the support team/i);
 });
 
+test('ordinary support answers keep the next step here and a failed follow-up really reaches staff', async t => {
+  const staff = enableStaffDelivery(t);
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Phone recording guide' });
+  const ownerId = nextId();
+  Object.assign(channel, { guildId: 'synthetic-guild', ownerId });
+  modelReply = { final_answer: 'Open the app and tap the microphone. If you need help, email help@omi.me.' };
+  const first = makeMessage('How do I begin recording on my phone?', { channel, authorId: ownerId });
+  await handleMessage(first);
+  assert.equal(staff.length, 0);
+  assert.match(replyText(first), /reply.*(?:here|thread)/i);
+  assert.doesNotMatch(replyText(first), /help@omi\.me|has this now|will reply/i);
+  const follow = makeMessage('It is still not working after those steps.', { channel, authorId: ownerId });
+  channel.messages.fetch = async () => new Map([[first.id, first], ...first.botReplies.map(m => [m.id, m]), [follow.id, follow]]);
+  modelReply = { final_answer: 'The recording still does not start after those steps.', escalate: false };
+  await handleMessage(follow);
+  assert.equal(staff.length, 1);
+  assert.match(replyText(follow), /person.*(?:team|thread)/i);
+  assert.doesNotMatch(replyText(follow), /help@omi\.me/);
+});
+
+test('redirect-only ordinary drafts fall back to a real handoff, not an empty self-service answer', async t => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'Please email help@omi.me.' };
+  const response = await ask('How do I organize my saved conversations?');
+  assert.equal(staff.length, 1);
+  assert.match(response.reply, /person.*(?:team|thread)/i);
+});
+
+for (const [language, guidance, contact, next] of [
+  ['fr', 'Ouvrez le menu des conversations.', 'Pour la suite, notre boîte est team@basedhardware.com.', /répondez ici dans ce fil/],
+  ['de', 'Öffne die Übersicht deiner Gespräche.', 'Die Hilfeadresse lautet help@omi.me.', /antworte hier in diesem Thread/],
+  ['ja', '会話の一覧を開いてください。', '窓口のメールアドレスは team@basedhardware.com です。', /このスレッドに返信/],
+  ['pt', 'Abra a lista de conversas.', 'O nosso endereço para atendimento é help@omi.me.', /responda aqui nesta conversa/],
+]) {
+  test(`${language} ordinary handler removes an address redirect without creating a staff case`, async t => {
+    const staff = enableStaffDelivery(t);
+    const previousKey = process.env.CMD_API_KEY;
+    process.env.CMD_API_KEY = 'synthetic-provider-key';
+    t.after(() => { process.env.CMD_API_KEY = previousKey; });
+    plannerReplyLanguage = language;
+    modelReply = { final_answer: `${guidance} ${contact}` };
+    const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Synthetic saved conversations' });
+    const result = await ask('How do I view the conversations I saved?', { channel });
+    assert.equal(staff.length, 0);
+    assert.ok(result.reply.includes(guidance));
+    assert.match(result.reply, next);
+    assert.doesNotMatch(result.reply, /help@omi\.me|team@basedhardware\.com/i);
+    assert.equal(result.message.replies.length, 1);
+  });
+  test(`${language} delivered handler removes the competing address but retains the staff next step`, async t => {
+    const staff = enableStaffDelivery(t);
+    const previousKey = process.env.CMD_API_KEY;
+    process.env.CMD_API_KEY = 'synthetic-provider-key';
+    t.after(() => { process.env.CMD_API_KEY = previousKey; });
+    plannerReplyLanguage = language;
+    modelReply = { final_answer: `${guidance} ${contact}`, escalate: true };
+    const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Synthetic conversation screen issue' });
+    const result = await ask('The conversation screen crashes after I open it.', { channel });
+    assert.equal(staff.length, 1);
+    assert.ok(result.reply.includes(guidance));
+    assert.doesNotMatch(result.reply, /help@omi\.me|team@basedhardware\.com/i);
+    const footer = require('../plannerPolicy').handoffFooters({ replyLanguage: language }, '').thread;
+    assert.ok(result.reply.includes(footer), 'the delivered staff next step must survive cleanup');
+    assert.equal(result.message.replies.length, 1);
+  });
+}
+
 test('a delivered Handoff keeps details without directing the customer to another channel', async (t) => {
   const staff = enableStaffDelivery(t);
   modelReply = {
