@@ -1,5 +1,9 @@
 # Omi Support Bot Implementation Checklist
 
+## October 23 answer-quality priorities
+
+The [answer-quality repair checklist](ANSWER_QUALITY_CONTRACT.md) maps all nine audit themes to the existing A/B/E milestones. First: customer-authored current intent and explicit corrections (main-based draft, synthetic tests; not live). Next: truthful delivered-versus-accepted wording, then supplied-diagnostic continuity/non-repetition. Link relevance, log semantics, sync/deletion isolation, hardware families, circular redirects and humane case-stage copy remain open, not silently parked or claimed fixed. No raw audit/transcript is published. Required E2E/quality checks and independent review precede readiness; the current release/comparison/memory/learning gates remain intact. Delivery score stays 46/100, not answer accuracy.
+
 ## October 21: scoped forgetting draft, stacked on #49
 
 - [x] Publish draft #74 `dfc1398` from #49 `3f83024`, keeping the parent review head separate. Store only additive case server/forum metadata from current configured-post owner scope; preserve known scope and existing case state.

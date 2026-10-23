@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 23: answer audit becomes an integrated repair checklist
+
+All nine audit themes now map to existing A1/A2/A4/B2/E2 acceptance in `docs/ANSWER_QUALITY_CONTRACT.md`. Original scoring/evidence stays private; historical sample scores are not current overall accuracy. First isolated draft repairs customer-intent provenance and explicit correction handling using new synthetic fixtures. It preserves answer history, genuine personal actions and existing risk/delivery controls; no full-contract or generated-answer claim follows. Next are delivered-versus-accepted copy and diagnostic continuity, not more persona decoration. Existing #67/#68/#71 comparisons remain terminal with their recorded holds; reviews, memory/privacy, learning and later reliability work are preserved. No external audit forwarding, protected-input read, paid comparison, customer post, merge/deploy or enablement. Score remains 46/100.
+
 ## October 21: forgetting reaches reviewed-correction links in a draft
 
 Separate draft #74 `dfc1398` is stacked on #49, preserving its review head. It adds owner-derived case server/forum metadata and connects durable forum forgetting to verified correction-link erasure without deleting independent facts or other known scopes. Opt-out persists before cleanup, fences late/new-case writes and drives mandatory retry; manual/automatic legacy scope is never guessed and unknown orphan markers cannot produce a success claim. Local 887/offline8/PGlite and exact-head hosted PostgreSQL/Node 20/24 CI `39554963703` pass; nine new focused tests include eight baseline failures, with additional SQL strict-scope regressions observed red/green. Independent parent/child review remains pending. Existing comparison holds, actual ingestion/validator/UI/jobs, privacy/security/data-use/backup and enabled pilot remain open. No comparison rerun, main merge, deploy or optional enablement; score stays 46/100, acceptance 2/21.

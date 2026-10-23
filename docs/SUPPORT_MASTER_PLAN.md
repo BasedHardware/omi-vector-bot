@@ -1,6 +1,6 @@
 # Omi Support Bot: master product plan
 
-Updated October 21, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+Updated October 23, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
 ## Progress: 46 / 100 delivery milestones
 
@@ -49,7 +49,19 @@ Total: **14 built + 14 tested + 11 reviewed + 7 live = 46/100**. The new point r
 
 ## Start here — what is done and what comes next
 
-**Progress: 46/100. The approved release is live. Both new checks are finished: #67 is held on speed; #68 needs independent review. #71 also stays held on speed.**
+**Progress: 46/100 delivery milestones. The new answer audit does not increase this score or establish current overall accuracy.**
+
+| Status | What it means now |
+| --- | --- |
+| **Done** | The approved release passed its limited live checks. Last production verification was October 21; this audit update is not a fresh health check. |
+| **In progress** | Stop old bot labels and rejected action guesses from rerouting the customer's case. [Draft #75](https://github.com/BasedHardware/omi-vector-bot/pull/75) passes 850 tests, offline checks and isolated SQL; required actual E2E/quality verification and review remain. Not merged or live. |
+| **Next** | Make every handoff acknowledgment distinguish delivery from a person accepting the case; then stop repeated intake after supplied diagnostics. |
+| **Waiting** | Independent grades for #67/#68/#71 and reviews for the other drafts. Existing timing failures, memory/privacy/pilot gates and release order remain. |
+| **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
+
+**October 23 audit intake:** checked the supplied ledger's arithmetic privately and traced the affected pipeline. Routing currently mixes earlier bot/participant words into request evidence and can preserve a rejected personal-action interpretation. [Draft #75](https://github.com/BasedHardware/omi-vector-bot/pull/75), `75d0c12`, limits routing history to the current customer's messages and constrains rejected planner goals without deleting answer/reviewer context. Eleven new synthetic groups pass; seven fail on frozen main (six behavioral assertions plus the new normalization seam). Genuine financial/privacy requests remain protected in the covered tests, including mixed requests and version-only continuations. Full local 850/offline8/isolated SQL and exact-head hosted Node 20/24/real PostgreSQL run `39900379575` pass. Actual multi-turn/generated-answer verification, adapter parity, authorized comparison and independent review remain. This is partial A2/E2 work, not completion of the nine-theme contract or a new production quality claim. The private audit stays private; public tests use fresh synthetic inputs. No customer messages, case closure, new comparison, deployment or memory enablement.
+
+**Existing comparison status:** #67 is held on speed; #68 needs independent review. #71 also stays held on speed.
 
 #68 meets the numerical limits, but its extra missed-handoff flag needs review. #67 does not meet its speed limit. Both review packages are ready. Nothing new has been merged, deployed or switched on.
 
