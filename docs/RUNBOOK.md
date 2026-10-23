@@ -2,7 +2,9 @@
 
 ## Current operating rule — October 23
 
-Follow the [master plan's finish queue](SUPPORT_MASTER_PLAN.md): #69/#73, then #68's independent grade, then #75's remaining verification. Finish existing work before adding feature PRs. The last production verification recorded here is October 21, not a fresh health check. This queue authorizes no deployment, settings change, memory enablement or paid rerun.
+Follow the [master plan's finish queue](SUPPORT_MASTER_PLAN.md): finish #69/#73, repair the completed #68 HOLD and #70's reproduced recovery/delivery findings, and finish #75's remaining verification. #49/#74 passed review for disabled foundations only. Finish existing work before adding feature PRs. The last production health verification recorded here is October 21; the October 23 source-setting read is not a fresh health report or an explicit automatic-deploy OFF proof. This queue authorizes no deployment, settings change, memory enablement or paid rerun.
+
+**October 23 risk-based readiness:** documentation needs rendered pages/links/instruction review; isolated logic needs its executable functional regression; normal behavior needs the affected integration flow. Material privacy, authorization or delivery boundaries need targeted realistic failure/recovery checks, not unrelated hardware/customer certification. Reuse evidence only where the code/dependencies/environment still match. Existing required answer comparisons, failed speed limits and independent approvals are not waived. Merge is separate from deployment and feature enablement.
 
 **Do not use Railway Restart for drain tests.** Use an approved same-commit redeploy through deployment teardown; the October 20 scenario passed. Any future live test needs its own applicable authorization, current guards and rollback verification. Aryan sends all Discord inputs. Never reuse an old watcher or process handle from the historical checkpoints below.
 

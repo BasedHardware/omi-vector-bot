@@ -2,7 +2,18 @@
 
 ## October 23 answer-quality priorities
 
-The [master plan](SUPPORT_MASTER_PLAN.md) controls the finish queue: complete existing #69/#73, resolve #68's independent comparison grade, then finish #75's required actual multi-turn/quality verification and review. Do not start another feature PR ahead of that queue. The [answer-quality repair checklist](ANSWER_QUALITY_CONTRACT.md) retains all nine audit themes in the existing A/B/E milestones. Customer-intent work is a synthetic-tested draft, not live; truthful delivery/acceptance wording, diagnostic continuity, link fit, log semantics, sync/deletion isolation, hardware families, non-circular routes and humane copy remain required. No raw audit/transcript is published. Current release/comparison/memory/learning gates remain intact. Delivery score stays 46/100, not answer accuracy.
+### Finish every existing PR, without count-driven decisions
+
+- [x] Audit all 13 open PRs, their exact heads/checks and dependency/conflict state. Preserve existing local #29 edits.
+- [x] Complete independent #69/#73 review and appropriate documentation/integration verification; no bot deployment or memory enablement required for those scopes.
+- [x] Independently review #68's full existing output package: timing passes; no new protected-handoff miss or clipped item found; language fallback and factual-quality disposition remain open. Keep draft.
+- [x] Independently review #70 and reproduce duplicate-delivery/recovery-loop gaps with synthetic workers. Keep draft; existing green checks do not cover these failures.
+- [x] Independently review #49 as a disabled foundation under the updated risk-based policy: no actionable findings, focused/isolated SQL/exact-head hosted PostgreSQL pass. Separate unfinished enablement gates remain.
+- [x] Complete #74's disabled-foundation privacy review: no actionable findings, fresh 76 affected tests/isolated SQL pass and exact-head real PostgreSQL execution confirmed. Parent integration/current-head checks still precede merge; enablement remains separately gated.
+- [ ] Continue the remaining reviews serially. Correct actual findings in existing PRs; merge verified useful work or close obsolete/duplicated work with durable rationale, never simply to lower the count.
+- [ ] Verify that main merges cannot trigger an unapproved deployment. Current Railway branch lookup/CLI session cannot establish an explicit OFF state; no settings or deployment changes made.
+
+The [master plan](SUPPORT_MASTER_PLAN.md) controls the finish-existing queue and all nine [answer-quality themes](ANSWER_QUALITY_CONTRACT.md). #68's independent grade is now HOLD, so its fallback gap needs repair; #70 also has reproduced recovery/delivery findings. Finish existing PRs with risk-appropriate verification and review, not new feature drafts. Customer-intent work #75 is not live; all remaining ownership, diagnostic, source, safety, hardware/surface and humane-copy requirements remain. No raw audit/transcript is published or release/privacy gate waived. Score 47/100 records milestone 18's independent foundation review only, not answer accuracy or enablement.
 
 ## October 21: scoped forgetting draft, stacked on #49
 
@@ -10,14 +21,16 @@ The [master plan](SUPPORT_MASTER_PLAN.md) controls the finish queue: complete ex
 - [x] Persist forum memory erasure/opt-out first, then remove verified correction links/extra owned markers. Preserve facts and other scopes; fence late/new-case references and let mandatory cleanup retry scoped opted-out links. Unknown legacy/post/orphan scope and partial/error results never confirm complete deletion.
 - [x] Restore interrupted uncommitted work into a permanent workspace and rerun evidence: local 887/offline8/PGlite pass. Nine new tests include eight observed baseline failures; SQL baseline and additional strict-scope/orphan-marker regressions fail before repair. SQL covers 101-fact batching, real memory-command/service/store composition, new/late/concurrent writers, retry, idempotence and legacy refusal.
 - [x] Exact-head Node 20/24/real PostgreSQL CI `39554963703` passes. The database log confirms the new privacy checks ran at `dfc1398`; PGlite alone is not claimed as multi-connection proof.
-- [ ] Obtain independent parent/child review and resolve legacy/privacy/security/backup/data-use/pilot gates. Real ingestion/validator, signals/UI and nightly/weekly jobs remain unfinished. No provider/protected run, main merge, deploy or enablement. Score stays 46/100; full acceptance 2/21.
+- [x] Parent/child disabled-foundation review completed October 23 with no actionable findings; current review evidence is recorded above. This supersedes the October 21 review-pending checkpoint.
+- [ ] Resolve remaining legacy/privacy/security/backup/data-use/pilot gates. Real ingestion/validator, signals/UI and nightly/weekly jobs remain unfinished. No provider/protected run, main merge, deploy or enablement. Current score is 47/100 for #49's foundation review only; full acceptance 2/21.
 
 ## October 21: reviewed-fact draft integration and mandatory retention
 
 - [x] Merge deployed main `5bafe93` into existing draft #49 as `141e718`, preserving reference-only memory, closing-language schema/checks and the off-only prompt guard. Integrated baseline 869 tests/isolated SQL pass.
 - [x] Push `3f83024`: mandatory tracked startup/minute expiry, at most 100 facts/1,000 expired barriers per pass, active-barrier protection, fresh-row locking, fixed failure retry and shutdown checks. Approved facts and concurrent revocation survive; optional publication stays off. Transaction-local server deadlines are not a whole-operation/network guarantee.
 - [x] Local 878/offline8/PGlite and exact-head hosted Node 20/24/real PostgreSQL run `39549961373` pass; the database log confirms global batching/restart/active-barrier/concurrent-revocation checks ran. Nine new focused checks include eight observed red assertions; static wiring/query assertions are not live tests.
-- [ ] Independent review and remaining D1–D6 implementation: real official-evidence/regression validator, minimized owner-scoped signals/drafts, staff controls, ownership-verified privacy adapter, nightly alerts and weekly counts. No new comparison, fact publication, merge to main, deploy or enablement; score remains 46/100, acceptance 2/21.
+- [x] Independent review of #49's disabled foundation completed October 23; focused/SQL/hosted evidence is recorded above. No daily-inbox or enablement approval follows.
+- [ ] Remaining D1–D6 implementation: real official-evidence/regression validator, minimized owner-scoped signals/drafts, staff controls, ownership-verified privacy adapter integration, nightly alerts and weekly counts. No new comparison, fact publication, merge to main, deploy or enablement; current score 47/100, acceptance 2/21.
 
 ## October 21: test-only memory SQL/reader preparation
 

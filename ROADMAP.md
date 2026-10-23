@@ -2,11 +2,11 @@
 
 ## October 23: finish existing work before adding drafts
 
-The [master plan](docs/SUPPORT_MASTER_PLAN.md) controls: finish #69 documentation and #73 test-only verification/review, resolve #68's existing comparison grade, then finish #75's actual multi-turn and quality verification. No new feature PRs ahead of this queue. Keep all other drafts, audit themes and safety gates; no merge, deployment, memory enablement or paid rerun follows from reprioritizing. Delivery score remains 46/100, not answer accuracy.
+The [master plan](docs/SUPPORT_MASTER_PLAN.md) lists all 13 existing PRs and their concrete merge/repair/close decisions. #69/#73 passed review and affected checks; #49/#74 passed review for disabled foundations, not feature enablement. #68 and #70 have specific reproduced review findings to repair; #67/#71 retain their failed speed gates. Verify the actual merge-versus-deploy boundary before merging. No count-driven closure or new feature PR. Score is 47/100 solely because milestone 18 gained independent foundation review; full acceptance stays 2/21.
 
 ## October 23: answer audit becomes an integrated repair checklist
 
-All nine audit themes now map to existing A1/A2/A4/B2/E2 acceptance in `docs/ANSWER_QUALITY_CONTRACT.md`. Original scoring/evidence stays private; historical sample scores are not current overall accuracy. First isolated draft repairs customer-intent provenance and explicit correction handling using new synthetic fixtures. It preserves answer history, genuine personal actions and existing risk/delivery controls; no full-contract or generated-answer claim follows. Next are delivered-versus-accepted copy and diagnostic continuity, not more persona decoration. Existing #67/#68/#71 comparisons remain terminal with their recorded holds; reviews, memory/privacy, learning and later reliability work are preserved. No external audit forwarding, protected-input read, paid comparison, customer post, merge/deploy or enablement. Score remains 46/100.
+All nine audit themes remain mapped to A1/A2/A4/B2/E2 acceptance in `docs/ANSWER_QUALITY_CONTRACT.md`. Original scoring/evidence stays private, not a current accuracy rate. Draft #75 keeps its actual multi-turn/quality/adapter-parity/comparison/review gates; ownership copy and diagnostic continuity remain required without opening more drafts ahead of the finish queue. No runtime deployment, customer message or optional enablement follows. The current milestone ledger is in the master plan; older dated scores below are historical.
 
 ## October 21: forgetting reaches reviewed-correction links in a draft
 
