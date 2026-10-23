@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 23 final queue checkpoint
+
+Three reviewed PRs merged (#69/#73/#49); 10 remain open. #70 `9796758` is repaired and ready with 898 tests/offline8/SQL, hosted Node20/24/PostgreSQL39964087202 and independent final PASS. #68 code `477d361` passes 896 tests/CI/code review, but its six user-authorized generated forced-timeout cases fail (13 provider requests, zero invalid; preliminary rule3/6, language+routing2/6—not full quality passes). Preserve all results and keep #68 draft for structural fallback/source/metadata diagnosis and factual grading. No new PRs or further paid run. Aryan confirms his manual `458d4a6f` / `ec51f7a` deploy, health200/`ok`, one active, zero automatic GitHub triggers; agent did not deploy. Progress stays47/100.
+
 ## October 23 — three authorized merges complete; repair existing queue
 
 #69 (`577c0c0`), #73 (`c61920d`) and #49 (`ec51f7a`) are merged after current checks and independent reviews. Complete Railway trigger reads show zero automatic GitHub triggers; production remains `bc2166f9` / `5bafe93`, with no deployment/settings/enablement change. #68 now has a local timeout-language repair and six observed red-before regressions; 896 tests, offline8, isolated SQL and eight successful-planner prompt-parity pairs pass. Final CI/re-review and targeted generated-answer evidence remain. Next repair #70 in its existing branch; no new PRs. Score stays 47/100, not an accuracy claim.

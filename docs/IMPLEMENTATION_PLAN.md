@@ -4,8 +4,9 @@
 
 - [x] Safely merge reviewed #69, #73 and disabled-foundation #49 with exact-head checks; production unchanged.
 - [x] Reproduce #68's language loss before repair; carry validated final answer/review language through existing closure/handoff without an extra call or changed successful-planner prompt.
-- [ ] Complete #68 current-head CI, independent re-review and targeted generated-answer quality; preserve original comparison/factual-quality observations.
-- [ ] Repair #70's duplicate-send and blocked-sweep findings in its existing branch, including isolated PostgreSQL two-worker verification. No new PRs or rollout.
+- [x] #68 code `477d361`: 896 tests, exact-head hosted checks and independent code re-review pass; eight successful-planner prompt pairs remain byte-identical.
+- [ ] #68 generated behavior: six authorized original synthetic checks complete but fail; diagnose fallback metadata/retrieval/grounding without eval-specific patches. Keep draft, preserve all results/original comparison and obtain passing quality evidence before readiness.
+- [x] #70 `9796758`: repair and independently verify original/follow-up delivery/recovery races; 898 tests/offline8/real PostgreSQL CI39964087202 and final review PASS. Marked ready, not merged/deployed; #29 receipts/alerts remain separate.
 
 ## October 23 answer-quality priorities
 

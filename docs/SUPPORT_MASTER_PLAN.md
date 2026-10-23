@@ -53,9 +53,9 @@ Total: **14 built + 14 tested + 12 reviewed + 7 live = 47/100**. The October 23 
 
 | Status | What it means now |
 | --- | --- |
-| **Done** | #69, #73 and #49 merged October 23 after review/current checks. Production remains `bc2166f9` / `5bafe93`, one successful active deployment; no new deployment or optional-feature enablement. |
-| **In progress** | Repair #68's timeout-language path, then #70's recovery/delivery findings in their existing PRs. No new PRs until this queue is finished. |
-| **Next** | Fix #68's timeout-language gap and #70's reproduced recovery/delivery gaps in their existing PRs. Finish #75's remaining verification. No new feature PRs. |
+| **Done** | #69, #73 and #49 merged: 13→10 open PRs. #70's repair is verified and marked ready, not merged. Aryan confirms his later deploy `458d4a6f` / `ec51f7a` at 18:58 IST; health 200/`ok`, one active instance, zero automatic GitHub triggers. Agent did not deploy or enable memory/learning. |
+| **In progress** | #68's six authorized generated checks completed but failed: one language-code mismatch, three needless handoffs and unsupported phone-only recording claims. Keep it draft and diagnose the fallback structurally. No new PRs. |
+| **Next** | Finish #68's real quality blocker; #70 is ready for maintainer review. Continue #75 and the existing queue afterward. No further paid run or deployment is inferred. |
 | **Waiting** | Railway's merge safeguard is cleared by authenticated, complete service/environment API reads: zero matching automatic GitHub triggers and unchanged production. Code, speed, dependency and privacy/pilot gates remain below. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
 
@@ -69,11 +69,11 @@ Aryan asked to bring every existing PR to a deliberate outcome: verify and merge
 | --- | --- |
 | #69 — clear status documents | **Merged** as `577c0c0`, reviewed head `dda2cf6`; fresh 839 tests and exact-head hosted Node 20/24/PostgreSQL pass. No deployment. |
 | #73 — memory safety rehearsal | **Merged** as `c61920d`, integrated head `88f8afa`; fresh 839 tests, eight SQL/reader groups, exact-head hosted Node 20/24/PostgreSQL and narrow integration review PASS. Memory stays off. |
-| #68 — faster planning | Timeout-language repair is local with six observed red-before regressions, 896 tests and successful-planner prompt parity. Final language feeds handoff/closure, not routing. Current-head CI, independent re-review and targeted generated-answer quality remain; original comparison and factual-quality observations are preserved in [the deadline record](PLANNER_DEADLINE.md). Still draft, no paid rerun/deploy. |
+| #68 — faster planning | Code repair `477d361` passes 896 tests, SQL, CI39960954167 and independent code review. But the subsequent six authorized original synthetic forced-timeout checks fail: rule3/6, language+routing2/6, not full quality passes. One Spanish body gets English metadata, three how-tos hand off, and manual source checks find unsupported recording claims. **Still HOLD** for structural fallback/grounding diagnosis and factual grading. Preserve original comparison and all six results; no automatic rerun. |
 | #75 — correct customer intent | Finish evaluation-adapter parity, authorized answer-quality comparison, actual multi-turn verification and independent review. |
 | #67 — in-thread next steps | Repair the failed typical-speed gate (+2.200 s versus +2 allowed), preserve the increased missing flags for independent grading, then obtain the required passing gate. |
 | #71 — multipart evidence | Diagnose and resolve the failed slow-reply gate (+18.824 s versus +6 allowed) and obtain independent quality grading. No automatic rerun or topic-specific patch. |
-| #70 — faster abandoned pickup | Independent review HOLD: earlier takeover can duplicate a send when the old worker cannot confirm ownership; an existing recovery batch also blocks later sweeps. Add red-before tests and verify corrected two-worker failure/recovery against isolated PostgreSQL. |
+| #70 — faster abandoned pickup | **Ready, not merged/deployed**, head `9796758`. Original and follow-up review races were reproduced red, then fixed: fenced generic/unknown ownership errors, recoverable unsent failures, lost claim acknowledgment, exclusion-before-limit and drain tracking. 898 tests/offline8/expanded SQL, hosted Node20/24/PostgreSQL39964087202 and independent final review PASS (182 focused checks). #29 receipts/held alerts and global exactly-once are not claimed. |
 | #28 — private staff/engineering workflow | Returned to draft: conflicts with current main. Integrate safely, recheck the affected private workflow and obtain independent re-review. Never relax privacy to pass. |
 | #29 — delivery receipts | Preserve existing local edits. Finish same-nonce retries, explicit ledger-outage behavior and staff-visible held-reply alerts; integrate reviewed #28, then verify and review. |
 | #30 — close/reopen safety | Resolve parent dependency/conflicts after #29; verify the actual closure/reopen receipt flow and obtain review. |
@@ -83,7 +83,7 @@ Aryan asked to bring every existing PR to a deliberate outcome: verify and merge
 
 Truthful delivered-versus-accepted wording and supplied-diagnostic continuity remain required repairs; they do not authorize another PR ahead of this queue. Reorganizing work earns no progress points.
 
-**October 23 merge safeguard, resolved:** normal existing-account sign-in succeeds with credential output suppressed. Fully paginated service and production-environment reads both return zero matching automatic GitHub triggers; the repository remains connected. Active/latest deployment `bc2166f9` records `5bafe93`, one running deployment and health HTTP 200/`ok`; subsequent reads confirm no deployment after #69/#73. Repeat the guard around subsequent authorized merges. No API/project key, permission, production setting or deployment was created/changed. This supersedes the earlier UI/CLI blocker, not remaining feature gates or a long-duration health report.
+**October 23 merge safeguard, resolved:** complete authenticated service/environment reads find zero automatic GitHub triggers and preserve the source. Agent merges #69/#73/#49 completed while production stayed `bc2166f9` / `5bafe93`. Aryan confirms he then triggered the 18:58 IST deploy: `458d4a6f` / `ec51f7a`, successful, one active, health200/`ok`; a fresh read still shows zero automatic triggers. No agent deployment, setting/key/permission change occurred. This does not establish a full health window, new smoke acceptance or optional-feature approval.
 
 <details>
 <summary>Audit intake and preparation evidence — technical detail</summary>
