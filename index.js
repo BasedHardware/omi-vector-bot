@@ -5,6 +5,7 @@ const express = require('express');
 const db = require('./db');
 const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion, officialHandoffLinks } = require('./commandcode');
 const { splitHistory } = require('./supportContextFormat');
+const { requestCorrection } = require('./requestCorrections');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -415,12 +416,15 @@ async function hasEarlierMessages(channel, messageId) {
   }
 }
 
-async function getHistory(channel, excludeId, customerId) {
+async function getHistory(channel, excludeId, customerId, onCustomerHistory = () => {}) {
   // Parent #vector-test is a pile of unrelated tickets. Only follow-ups
   // inside an existing Handoff or help post may see prior messages.
   const samePost = channel.isThread?.() && (isHelpThread(channel) || isTestChannel(channel));
   if (!isTrustedHandoffThread(channel) && !samePost) return [];
   const messages = await channel.messages.fetch({ limit: 50 });
+  onCustomerHistory(clipThreadHistory([...messages.values()].reverse()
+    .filter(m => m.id !== excludeId && !m.author?.bot && String(m.author?.id || '') === String(customerId || ''))
+    .map(m => ({ author: 'customer', content: String(m.content || '') }))));
   if (learning().contextEnabled && learning().supports(channel)) return clipThreadHistory(await learning().history(channel, excludeId, [...messages.values()], customerId));
   const entries = [...messages.values()]
     .reverse()
@@ -668,14 +672,18 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       .filter(Boolean)
       .join('\n');
     let contextHistory = directHistory;
-    let prior = contextHistory.map((entry) => entry.content).join('\n');
+    // Direct continuation contains an ownership-verified customer message and
+    // the bot reply. Only the former may establish a customer request.
+    let prior = splitHistory(contextHistory).current.filter(entry => entry.author !== 'bot')
+      .map(entry => entry.content).join('\n');
     if (
       channel.isThread?.() &&
       (isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel))
     ) {
       try {
-        contextHistory = await getHistory(channel, message.id, message.author.id);
-        prior = splitHistory(contextHistory).current.map((entry) => entry.content).join('\n');
+        contextHistory = await getHistory(channel, message.id, message.author.id, entries => {
+          prior = entries.map(entry => entry.content).join('\n');
+        });
       } catch (err) {
         console.error('[Bot] thread context failed:', err.message);
       }
@@ -695,6 +703,15 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       wantHuman: Boolean(currentRoute.wantHuman),
       escalate: Boolean(contextRoute.escalate || currentRoute.escalate),
     };
+    // An explicit correction can withdraw that old action, not a separate
+    // current positive action. Version-only and ambiguous continuations still
+    // retain the customer's earlier protected case topic.
+    const denied = requestCorrection(asked || question).denied;
+    const rejectedContext = (denied.has('money') && contextRoute.lane === 'money') ||
+      (denied.has('privacy') && ['privacy', 'account'].includes(contextRoute.lane));
+    if (rejectedContext && !['money', 'privacy', 'account', 'shop'].includes(currentRoute.lane)) {
+      route = currentRoute;
+    }
     if (groundedShop) route = { ...route, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' };
     if (plannerPolicy.suppressAcknowledgment(null, asked || question)) return;
     const cannedEnglish = plannerPolicy.skipPlannerForCanned(currentRoute, asked || question);
@@ -725,7 +742,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
     if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
     if (plannerPolicy.suppressOffTopic(searchPlan, currentRoute)) return;
-    const plannedPersonKind = cannedEnglish ? '' : plannerPolicy.personKind(searchPlan);
+    searchPlan = plannerPolicy.constrainUnderstanding(searchPlan, asked || question);
+    const plannedPersonKind = cannedEnglish ? '' : plannerPolicy.personKind(searchPlan, asked || question);
     route = cannedEnglish
       ? currentRoute
       : plannerPolicy.routeWithUnderstanding(route, searchPlan, asked || question);

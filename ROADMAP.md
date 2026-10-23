@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October 23: isolate current customer intent from old action guesses
+
+Separate main-based draft repairs one failure path: only current-customer messages establish routing history, and bounded English/Spanish action corrections constrain both route and planner-generated retrieval requirements. Other participants/bot guesses remain context, not request provenance. Genuine mixed financial/privacy/replacement requests and version-only continuations retain protected handling. Eleven new synthetic checks yield seven frozen-main failures (six behavioral assertions plus one new seam) and all pass afterward; full 850/offline8/isolated SQL pass. See `docs/CUSTOMER_INTENT_ROUTING.md`. Generated-answer/E2E verification, comparison-adapter parity, authorized quality comparison, hosted checks and independent review remain; draft only, no merge/deploy or enabled memory. Other audit themes and all prior work remain open.
+
 This is the living implementation record. A checked implementation item means code exists and its regression checks passed; it does not mean production was deployed. Record release verification separately. Preserve the current official-source answer/review pipeline and improve the whole customer workflow, not isolated examples.
 
 ## October 19: health wait ended; return to approved release checks

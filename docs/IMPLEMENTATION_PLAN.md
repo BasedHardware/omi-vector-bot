@@ -1,5 +1,12 @@
 # Omi Support Bot Implementation Checklist
 
+## October 23: current-customer intent draft
+
+- [x] Reproduce old bot/participant action labels hijacking technical follow-ups with synthetic handler tests.
+- [x] Separate routing provenance from answer context; constrain explicit rejected actions through routing and planner retrieval requirements.
+- [x] Preserve real independent personal actions and version-only continuations. Eleven new checks, 850 full/offline8/isolated SQL pass; frozen-main evidence is documented in `CUSTOMER_INTENT_ROUTING.md`.
+- [ ] Exact-head hosted checks, independent review, evaluation-adapter parity, authorized quality comparison and appropriate actual multi-turn verification. Stay draft; not merged/deployed/live. All other answer audit themes remain open in the canonical master plan.
+
 ## Current combined-release integration — October 19
 
 - [x] Read-only Step 0: nine escalation-branch/answer events, four real Help posts, zero smoke traffic, one new staff card and eight follow-ups across three existing staff cases; all four mapped privately. Do not infer a first-question handoff rate.

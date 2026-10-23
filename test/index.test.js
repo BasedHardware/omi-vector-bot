@@ -535,6 +535,99 @@ function enableStaffDelivery(t) {
   return delivered;
 }
 
+test('bot and other-participant action labels cannot reroute a customer technical follow-up', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; });
+  plannerSupportKind = 'technical_problem';
+  modelReply = { final_answer: 'Your app version and sync log are noted. The stalled sync needs review.',
+    confidence: 0.9, escalate: true };
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Sync investigation' });
+  const follow = makeMessage('Android app build 8.4.2 still fails to sync after reconnecting.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['bot', { id: 'bot', author: { id: BOT_ID, bot: true, username: 'mira' }, content: 'You need help with a payment or charge.' }],
+    ['other', { id: 'other', author: { id: nextId(), bot: false, username: 'another-user' }, content: 'Please delete my account.' }],
+    ['owner', { id: 'owner', author: { id: owner, bot: false, username: 'customer' }, content: 'My Android recordings stopped syncing.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].route.lane, 'tech');
+  assert.doesNotMatch(replyText(follow), /payment or charge|privacy review|redemption/i);
+  assert.equal(modelCalls[0].threadHistory.length, 3, 'answer context is retained, not erased to repair routing');
+});
+
+test('a current technical correction wins over an earlier customer financial request and a mistaken plan', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; });
+  plannerSupportKind = 'money';
+  plannerStandaloneQuestion = 'Please refund the purchase.';
+  modelReply = { final_answer: 'The supplied app version is noted. The sync failure needs review.', confidence: 0.9, escalate: true };
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Refund question' });
+  const follow = makeMessage('I am not asking for a refund; Android sync still fails on build 8.4.2.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['owner', { id: 'owner', author: { id: owner, bot: false, username: 'customer' }, content: 'I want a refund.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].route.lane, 'tech');
+  assert.doesNotMatch(replyText(follow), /asking for a refund|paid plan|payment or charge/i);
+  assert.match(replyText(follow), /sync failure/i);
+});
+
+test('a real new refund request still bypasses the model after a technical history', async t => {
+  const delivered = enableStaffDelivery(t);
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Android sync failure' });
+  const follow = makeMessage('I want a refund for this purchase.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['owner', { id: 'owner', author: { id: owner, bot: false, username: 'customer' }, content: 'Android sync fails.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(modelCalls.length, 0);
+  assert.match(replyText(follow), /refund.*team review/i);
+  assert.equal(delivered.length, 1);
+});
+
+test('supplying a technical version alone does not cancel a real earlier financial request', async () => {
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Purchase review' });
+  const follow = makeMessage('My Android app build is 8.4.2.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['owner', { id: 'owner', author: { id: owner, bot: false, username: 'customer' }, content: 'I want a refund for my purchase.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(modelCalls.length, 0);
+  const supportCase = await supportCases.getCaseByThread(channel.id, owner);
+  assert.equal(supportCase.context.area, 'shop');
+  assert.equal(supportCase.context.needsPerson, true);
+  assert.match(replyText(follow), /payment or charge/i);
+});
+
+test('a correction without a repeated symptom can withdraw an older financial route', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; });
+  plannerSupportKind = 'money';
+  plannerStandaloneQuestion = 'Please refund the purchase.';
+  modelReply = { final_answer: 'Thanks for correcting that. What do you need help with instead?', confidence: 0.9, escalate: false };
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Purchase review' });
+  const follow = makeMessage('We never requested a refund.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['owner', { id: 'owner', author: { id: owner, bot: false, username: 'customer' }, content: 'I want a refund.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].route.lane, 'unknown');
+  assert.equal(modelCalls[0].understanding.standaloneQuestion, follow.content);
+  assert.doesNotMatch(replyText(follow), /asking for a refund|payment or charge/i);
+});
+
 test.beforeEach(() => {
   supportCases.setStoreForTests(supportCases.createMemoryStore());
   modelCalls.length = 0;

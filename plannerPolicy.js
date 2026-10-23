@@ -1,4 +1,5 @@
 const router = require('./router');
+const { requestCorrection } = require('./requestCorrections');
 
 const PERSON_KINDS = new Set(['order_lookup', 'account_action', 'exception_request', 'money', 'privacy']);
 const CANNED_LANES = new Set(['money', 'privacy', 'shop', 'account']);
@@ -32,9 +33,30 @@ function suppressOffTopic(understanding, route) {
     !CANNED_LANES.has(route?.lane) && !router.isTechLane(route);
 }
 
-function personKind(understanding) {
+function personKind(understanding, question = '') {
   const kind = String(understanding?.supportKind || '').trim();
+  const correction = requestCorrection(question);
+  if (correction.denied.size) {
+    const remaining = router.classify(correction.text);
+    const independentAction = CANNED_LANES.has(remaining.lane) ||
+      /\b(?:rma|replacement|warranty|reemplazo|garant[ií]a)\b/i.test(correction.text) ||
+      // A change of mind can refer back with "one/it/that". Do not veto that
+      // ambiguous positive request; let the existing protected planner act.
+      /\b(?:but|however|now|instead)\b[^.!?]{0,60}\b(?:want|need|request|asking\s+for)\s+(?:one|it|that)\b/i.test(correction.text);
+    if (!independentAction && (
+      (correction.denied.has('money') && ['money', 'exception_request'].includes(kind)) ||
+      (correction.denied.has('privacy') && ['privacy', 'account_action'].includes(kind))
+    )) return '';
+  }
   return PERSON_KINDS.has(kind) ? kind : '';
+}
+
+function constrainUnderstanding(understanding, question) {
+  if (!PERSON_KINDS.has(understanding?.supportKind) || personKind(understanding, question)) return understanding;
+  // A rejected action must not survive as a search query, requirement or
+  // rewritten goal after its route was removed. Keep language/risk/human flags.
+  return { ...understanding, supportKind: 'other', standaloneQuestion: question,
+    customerGoal: question, mustAnswer: [question], customerFacts: [], queries: [], subQuestions: [] };
 }
 
 function routeWithUnderstanding(route, understanding, originalQuestion = '') {
@@ -42,7 +64,8 @@ function routeWithUnderstanding(route, understanding, originalQuestion = '') {
   const current = understanding?.wantsPerson === true
     ? { ...base, wantHuman: true, escalate: true }
     : base;
-  const kind = String(understanding?.supportKind || '').trim();
+  const rawKind = String(understanding?.supportKind || '').trim();
+  const kind = PERSON_KINDS.has(rawKind) ? personKind(understanding, originalQuestion) : rawKind;
   const translated = router.classify(understanding?.standaloneQuestion || '');
   // A checkout quote needs a human decision, but it is not a tracking lookup.
   if (current.intent === 'shipping_quote') return current;
@@ -179,4 +202,4 @@ function personReason(kind) {
   return 'Exception request requires staff review';
 }
 
-module.exports = { personKind, routeWithUnderstanding, skipPlannerForCanned, suppressAcknowledgment, suppressOffTopic, personReply, personReason, handoffFooters, isGroundedHowTo, verifiedCannedReply };
+module.exports = { personKind, constrainUnderstanding, routeWithUnderstanding, skipPlannerForCanned, suppressAcknowledgment, suppressOffTopic, personReply, personReason, handoffFooters, isGroundedHowTo, verifiedCannedReply };
