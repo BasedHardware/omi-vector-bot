@@ -1,6 +1,6 @@
 # Mira's personality
 
-Updated October 18, 2026. Reply-style implementation is a draft, not deployed. The accepted Release 1 restart restored the visible **Mira · Omi AI support** nickname. This draft keeps that disclosure and the existing fictional portrait; it does not change the live profile. The latest review narrows the voice to calm, warm and practical. Its own comparison stays held until #48 is graded.
+Updated October24, 2026. Reply-style implementation remains draft and undeployed, integrated with current main `d550dc1`. The visible **Mira · Omi AI support** nickname and existing fictional portrait are preserved; no live profile change occurs. The voice is calm, warm and practical. Full979/offline8 and hosted Node20/24/Postgres run40088380215 pass; independent runtime review passes67 focused checks. Its own representative generated-answer comparison and current release-smoke gate remain open. The earlier October18 wait for #48's grade below is historical, not the current blocker.
 
 ## The character
 
@@ -33,6 +33,6 @@ These are original, manually curated design rules—not copied customer conversa
 
 Latest correction: six focused assertions failed before the runtime change, covering the old persona in the reviewer/all answer lanes, the missing display-name disclosure and the unwanted rewrite of an already disclosed nickname. Two of these are new regression tests. All eight focused tests, the full 760-test suite and eight offline checks pass afterward. The existing serious-problem, no-flirting/pet-names, fictional-identity and safety boundaries remain. This supersedes the earlier short-name/elegant-persona preparation; prompt-presence tests do not prove every generated reply stays in character.
 
-Hosted Node 20/24/Postgres checks pass at runtime `698609f` (run `39125817220`). Before release: independent review plus the required answer-quality gate and representative synthetic multi-turn review, including an upset customer, repeated failed steps, a request to pretend to be human, language changes and a truthful delivery failure. Do not run this draft's protected comparison until #48 is graded. Local/hosted checks or the waived deployment timer do not authorize deployment. Preserve the current release/review sequence, with memory and fix-inbox off.
+Historical October18 checkpoint: hosted Node20/24/Postgres passed at runtime `698609f` (run39125817220), and its comparison waited for #48's grade. That dependency is now cleared. Current remaining gates are the deployed A+B smokes, current-head checks/review and #59's own generated-answer/representative multi-turn evaluation, including an upset customer, repeated failed steps, a request to pretend to be human, language changes and a truthful delivery failure. No comparison ran during this current-main integration. Local/hosted checks or the earlier waived timer do not authorize deployment. Keep memory and fix-inbox off.
 
 The selected portrait and exact generation prompt are in [the asset record](../assets/MIRA_AVATAR.md). It was created with the built-in image tool; no real person's likeness was supplied.
