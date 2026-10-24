@@ -174,6 +174,33 @@ test('official source search retrieves and labels current app behavior', async (
   }
 });
 
+test('official code provenance survives a cache hit without treating body links as retrieved pages', async t => {
+  const previous = process.env.GITHUB_TOKEN;
+  process.env.GITHUB_TOKEN = 'test-only-token';
+  github.resetGithubMemory();
+  t.after(() => {
+    if (previous === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = previous;
+    github.resetGithubMemory();
+  });
+  const path = 'app/lib/synthetic_task_list.dart';
+  const source = `https://github.com/BasedHardware/omi/blob/main/${path}`;
+  const calls = [];
+  let fetches = 0;
+  const fetchImpl = async url => {
+    fetches++;
+    return { ok: true, json: async () => String(url).includes('/search/code')
+      ? { items: [{ path, html_url: source, url: `https://api.github.com/repos/BasedHardware/omi/contents/${path}` }] }
+      : { encoding: 'base64', content: Buffer.from('// Task list guidance. https://docs.omi.me/synthetic-not-fetched').toString('base64') } };
+  };
+  const first = await github.searchOfficialCode('Task list guidance', { fetchImpl, onSources: urls => calls.push(urls) });
+  const previousFetches = fetches;
+  const second = await github.searchOfficialCode('Task list guidance', { fetchImpl, onSources: urls => calls.push(urls) });
+  assert.equal(second, first);
+  assert.equal(fetches, previousFetches);
+  assert.deepEqual(calls, [[source], [source]]);
+});
+
 test('createIssue posts to the repo', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   let posted;

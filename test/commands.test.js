@@ -30,7 +30,8 @@ test('customers can delete retained history only for their own support post, wit
     deferReply: async value => replies.push(value), editReply: async value => replies.push(value) };
   await handleForgetSupportHistory(interaction, { forget: async (channel, userId) => { removed.push([channel.id, userId]); return true; } });
   assert.equal(removed.length, 1);
-  assert.match(replies.at(-1).content, /won.t save new history here/);
+  assert.match(replies.at(-1).content, /all your support posts in this forum/i);
+  assert.match(replies.at(-1).content, /won.t save.*new history.*forum/i);
   assert.match(replies.at(-1).content, /Discord.*unchanged/);
   const before = replies.length;
   await handleForgetSupportHistory({ ...interaction, user: { id: 'other-customer' } }, { forget: async () => { throw Error('must not be called'); } });

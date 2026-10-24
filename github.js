@@ -412,13 +412,16 @@ function decodeGithubContent(data) {
   }
 }
 
-async function searchOfficialCode(question, { queries: planned = [], fetchImpl, maxFiles = 6 } = {}) {
+async function searchOfficialCode(question, { queries: planned = [], fetchImpl, maxFiles = 6, onSources } = {}) {
   if (!isConfigured()) return '';
   const searches = officialCodeQueries(question, planned);
   if (!searches.length) return '';
   const cacheKey = searches.join('\n').toLowerCase();
   const cached = officialCodeCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < OFFICIAL_CODE_CACHE_MS) return cached.text;
+  if (cached && Date.now() - cached.at < OFFICIAL_CODE_CACHE_MS) {
+    onSources?.([...(cached.sourceUrls || [])]);
+    return cached.text;
+  }
   const found = new Map();
 
   try {
@@ -454,8 +457,10 @@ async function searchOfficialCode(question, { queries: planned = [], fetchImpl, 
 
     const rankingQueries = [question, ...planned, ...searches].filter(Boolean);
     const chunks = pages.flatMap((page) => chunkDocument(page));
-    const text = formatEvidence(rankLocalChunks(rankingQueries, chunks, 8));
-    officialCodeCache.set(cacheKey, { at: Date.now(), text });
+    let sourceUrls = [];
+    const text = formatEvidence(rankLocalChunks(rankingQueries, chunks, 8), { onSources: urls => { sourceUrls = urls; } });
+    officialCodeCache.set(cacheKey, { at: Date.now(), text, sourceUrls });
+    onSources?.([...sourceUrls]);
     while (officialCodeCache.size > 200) {
       officialCodeCache.delete(officialCodeCache.keys().next().value);
     }

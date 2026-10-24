@@ -194,8 +194,9 @@ function evaluationDocsEvidence(retrieval, question, options, officialDocs, offi
   const official = retrieval.formatEvidence(
     retrieval.rankLocalChunks(retrieval.supportQueries(question, options.queries), officialChunks, 7, {
       customerQuestion: options.customerQuestion || question,
-    })
+    }), { onSources: options.onSources }
   );
+  options.onSources?.(options.sourceUrls || []);
   return retrieval.combineEvidence(officialDocs, official);
 }
 
@@ -235,12 +236,15 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   const officialChunks = [...helpPages, ...websitePages].flatMap((page) => retrieval.chunkDocument(page));
   const realRelevantDocs = docs.relevantDocs;
   docs.relevantDocs = async (question, options = {}) => {
-    const officialDocs = await realRelevantDocs(question, options);
+    const sourceUrls = [];
+    const officialDocs = await realRelevantDocs(question, {
+      ...options, onSources: urls => sourceUrls.push(...urls),
+    });
     // The live harness has no Postgres index, so it loads Help Center and docs
     // separately. Put the directly matched docs chunks before the broad local
     // Help Center matches so the answer/reviewer context limits retain both.
     // Source authority is still carried by each block and enforced by policy.
-    return evaluationDocsEvidence(retrieval, question, options, officialDocs, officialChunks);
+    return evaluationDocsEvidence(retrieval, question, { ...options, sourceUrls }, officialDocs, officialChunks);
   };
   const utils = inRoot('utils.js');
   utils.typingDelay = async () => {};

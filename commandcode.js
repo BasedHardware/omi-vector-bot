@@ -6,6 +6,7 @@ const { isInstructionSentence, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = req
 const { redactSensitive } = require('./privacy');
 const { SUPPORT_VOICE } = require('./supportVoice');
 const { normalizeSubQuestions } = require('./retrieval');
+const { isPreviousPost, splitHistory, previousContextBlock } = require('./supportContextFormat');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
 
@@ -26,6 +27,27 @@ function providerHeaders(provider) {
     Authorization: `Bearer ${provider.key}`,
     'Content-Type': 'application/json',
     'User-Agent': 'omi-vector-bot/1.0',
+  };
+}
+
+// axios's `timeout` only guards until response headers arrive; afterwards it
+// relies on socket inactivity, so a body that keeps trickling can run far past
+// the configured budget. The abort signal bounds the whole operation,
+// including body consumption, and surfaces as the same timeout error shape
+// callers already handle.
+function providerSend(send, provider) {
+  return async (url, body) => {
+    const signal = AbortSignal.timeout(provider.timeout);
+    try {
+      return await send(url, body, { timeout: provider.timeout, signal, headers: providerHeaders(provider) });
+    } catch (err) {
+      if (signal.aborted && err?.response === undefined) {
+        const timeoutError = new Error(`timeout of ${provider.timeout}ms exceeded`);
+        timeoutError.code = 'ECONNABORTED';
+        throw timeoutError;
+      }
+      throw err;
+    }
   };
 }
 
@@ -205,6 +227,7 @@ function contextualQuestion(question, threadHistory = [], max = 6_000) {
   const parts = [];
   const seen = new Set();
   for (const item of [...(threadHistory || []), { author: 'customer', content: question }]) {
+    if (isPreviousPost(item)) continue;
     if (String(item?.author || '').toLowerCase() === 'bot') continue;
     const content = String(item?.content || '').replace(/\s+/g, ' ').trim();
     const key = content.toLowerCase();
@@ -419,8 +442,8 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en', { subQu
 async function understandQuestion({ question, threadHistory = [], route, onUsage, post }) {
   const provider = providerConfig();
   if (!provider.key) throw new Error('Missing CMD_API_KEY');
-  const send = post || axios.post.bind(axios);
-  const history = modelThread(threadHistory)
+  const send = providerSend(post || axios.post.bind(axios), provider);
+  const history = modelThread(splitHistory(threadHistory).current)
     .map((item) => `${item.author}: ${item.content}`)
     .join('\n')
     .slice(-8_000);
@@ -457,11 +480,7 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
           content: `Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,
         },
       ],
-    }),
-    {
-      timeout: provider.timeout,
-      headers: providerHeaders(provider),
-    }
+    })
   );
   recordModelUsage(data, 'planner', provider.model, onUsage);
   const content = data?.choices?.[0]?.message?.content;
@@ -489,7 +508,7 @@ async function queryAgent({
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const send = post || axios.post.bind(axios);
+      const send = providerSend(post || axios.post.bind(axios), provider);
       const { data } = await send(
         provider.url,
         privateProviderBody({
@@ -510,11 +529,7 @@ async function queryAgent({
               }),
             },
           ],
-        }),
-        {
-          timeout: provider.timeout,
-          headers: providerHeaders(provider),
-        }
+        })
       );
       recordModelUsage(data, 'answer', provider.model, onUsage);
 
@@ -622,8 +637,10 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
       answered_requirements: [],
     };
   }
-  const send = post || axios.post.bind(axios);
+  const send = providerSend(post || axios.post.bind(axios), provider);
   const citationLimit = normalizeSubQuestions(understanding?.subQuestions).length > 3 ? 4 : 2;
+  const separatedHistory = splitHistory(threadHistory);
+  const earlierContext = previousContextBlock(separatedHistory.previous);
   let data;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const compact = attempt === 1;
@@ -650,9 +667,9 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
         }] : []),
         {
           role: 'user',
-          content: `Earlier thread:\n${modelThread(compact ? threadHistory.slice(-3) : threadHistory)
+          content: `Earlier thread:\n${modelThread(compact ? separatedHistory.current.slice(-3) : separatedHistory.current)
             .map((item) => `${item.author}: ${item.content}`)
-            .join('\n') || '(none)'}\n\nNewest customer message:\n${question}\n\nProposed understanding:\n${JSON.stringify(
+            .join('\n') || '(none)'}${earlierContext ? '\n\n' + earlierContext : ''}\n\nNewest customer message:\n${question}\n\nProposed understanding:\n${JSON.stringify(
             understanding || {}
           )}\n\nDraft reply:\n${draft}\n\nRemoved by safety filters. Restore a sentence only if a cited official source supports it exactly. Never restore pings, refund or replacement promises, dates, or root causes:\n${(removedBySafetyFilters || []).map((item) => String(item).trim()).filter(Boolean).join('\n') || '(none)'}\n\nSystem policy and tool capabilities:\n${String(policy || '').slice(
             0,
@@ -660,11 +677,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
           )}\n\nSource pages:\n${String(sources || '').slice(0, compact ? 6000 : 10000)}`,
         },
       ],
-    }),
-    {
-      timeout: provider.timeout,
-      headers: providerHeaders(provider),
-    }
+    })
       ));
       recordModelUsage(data, 'review', provider.reviewModel, onUsage);
       if (data?.choices?.[0]?.message?.content) break;

@@ -72,3 +72,68 @@ for (const [language, title] of [['es', '¿Cómo lo hicimos?'], ['zh', '我们�
     assert.equal((await cases.getCaseById(value.id)).status, 'closed');
   });
 }
+
+function ordinaryThread() {
+  const channel = { id: 'language-thread', guildId: 'language-guild', ownerId: 'customer',
+    name: 'Handoff · language fixture', isThread: () => true, sent: [],
+    send: async payload => { channel.sent.push(payload); return { id: 'closing-receipt' }; },
+    edit: async () => {},
+  };
+  return channel;
+}
+
+for (const [language, title] of [['es', '¿Cómo lo hicimos?'], ['zh', '我们的服务怎么样？']]) {
+  test(`/done uses durable thread language without a case (${language}), ignoring staff locale`, async () => {
+    const channel = ordinaryThread();
+    let lookups = 0;
+    const result = await closeHandoff(channel, { id: 'staff', locale: 'en-US' }, {
+      cases: createCaseService(createMemoryStore()), db: { getPendingEscalation: async () => null },
+      languageStore: { get: async scope => {
+        assert.deepEqual(scope, { guildId: channel.guildId, threadId: channel.id, ownerId: channel.ownerId });
+        lookups++; return language;
+      } },
+    });
+    assert.equal(result.ok, true);
+    assert.equal(channel.sent[0].embeds[0].title, title);
+    assert.equal(lookups, 1);
+    assert.deepEqual(channel.sent[0].components[0].components.map(item => item.custom_id), ['rate:yes', 'rate:no']);
+  });
+}
+
+test('case language wins over the saved thread language', async () => {
+  const channel = ordinaryThread();
+  const cases = createCaseService(createMemoryStore());
+  await cases.getOrCreateCase({ channelId: channel.id, customerThreadId: channel.id,
+    customerId: channel.ownerId, context: { replyLanguage: 'es' } });
+  let lookups = 0;
+  const result = await closeHandoff(channel, { id: 'staff', locale: 'zh' }, { cases,
+    db: { getPendingEscalation: async () => null }, languageStore: { get: async () => { lookups++; return 'zh'; } } });
+  assert.equal(result.ok, true);
+  assert.equal(channel.sent[0].embeds[0].title, '¿Cómo lo hicimos?');
+  assert.equal(lookups, 0);
+});
+
+for (const language of [null, 'xx']) {
+  test(`missing or unsupported saved thread language (${language}) uses English, not staff locale`, async () => {
+    const channel = ordinaryThread();
+    const result = await closeHandoff(channel, { id: 'staff', locale: 'es-ES' }, {
+      cases: createCaseService(createMemoryStore()), db: { getPendingEscalation: async () => null },
+      languageStore: { get: async () => language },
+    });
+    assert.equal(result.ok, true);
+    assert.equal(channel.sent[0].embeds[0].title, 'How did we do?');
+  });
+}
+
+test('language database failure falls back to English, logs metadata only and still closes', async t => {
+  const logs = [];
+  t.mock.method(console, 'error', (...args) => logs.push(args));
+  const channel = ordinaryThread();
+  const result = await closeHandoff(channel, { id: 'staff', locale: 'es' }, {
+    cases: createCaseService(createMemoryStore()), db: { getPendingEscalation: async () => null },
+    languageStore: { get: async () => { throw new Error('fixture-private-database-detail'); } },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(channel.sent[0].embeds[0].title, 'How did we do?');
+  assert.deepEqual(logs, [['[SupportLanguage] read failed; using English']]);
+});
