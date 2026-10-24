@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-10-23",
+  "status": "research_metadata_only",
+  "default_ingestion_allowed": false,
+  "production_use_allowed": false,
+  "scope": "License and task-fit screening; no external corpus rows downloaded or model training performed.",
+  "import_requirements": [
+    "Pin original-owner revision and content hashes",
+    "Record applicable data license, attribution and upstream terms",
+    "Resolve commercial use, privacy, provenance and redistribution questions",
+    "Review bounded sample without executing dataset scripts",
+    "Remove unnecessary identifiers and unsafe or unsupported action claims",
+    "Group translations and paraphrases before train/development/evaluation split",
+    "Obtain named data-use review and experiment cost approval"
+  ],
+  "sources": [
+    {
+      "id": "google-goemotions",
+      "owner": "Google Research",
+      "source_url": "https://github.com/google-research/google-research/blob/master/goemotions/README.md",
+      "terms_url": "https://github.com/google-research/google-research/blob/master/README.md",
+      "observed_data_license": "CC-BY-4.0",
+      "candidate_use": "Offline expressed-emotion language-understanding experiment, not answer generation",
+      "disposition": "candidate_pending_review",
+      "specific_limits": ["Reddit provenance and identifying metadata", "Documented bias and problematic content", "English does not certify multilingual empathy", "No psychological profiling or diagnosis"],
+      "pinned_revision": null,
+      "corpus_downloaded": false,
+      "ingestion_allowed": false
+    },
+    {
+      "id": "amazon-massive",
+      "owner": "Amazon",
+      "source_url": "https://github.com/alexa/massive",
+      "terms_url": "https://github.com/alexa/massive/blob/main/NOTICE.md",
+      "observed_data_license": "CC-BY-4.0",
+      "candidate_use": "Multilingual intent and semantic-preservation experiments",
+      "disposition": "candidate_pending_review",
+      "specific_limits": ["Retain SLURP provenance and attribution", "Split by source family, not translated row", "Assistant requests are not Omi facts or support replies"],
+      "pinned_revision": null,
+      "corpus_downloaded": false,
+      "ingestion_allowed": false
+    },
+    {
+      "id": "polyai-banking77",
+      "owner": "PolyAI",
+      "source_url": "https://huggingface.co/datasets/PolyAI/banking77/blob/main/README.md",
+      "terms_url": "https://github.com/PolyAI-LDN/task-specific-datasets/blob/master/LICENSE",
+      "observed_data_license": "CC-BY-4.0",
+      "candidate_use": "Fine-grained intent tests, not financial advice or Omi policy",
+      "disposition": "candidate_pending_review",
+      "specific_limits": ["English and banking-domain transfer must be measured", "Preserve Omi protected handoffs", "No banking-policy import"],
+      "pinned_revision": null,
+      "corpus_downloaded": false,
+      "ingestion_allowed": false
+    },
+    {
+      "id": "clinc150",
+      "owner": "Clinc research authors",
+      "source_url": "https://github.com/clinc/oos-eval",
+      "terms_url": "https://github.com/clinc/oos-eval/blob/master/LICENSE",
+      "observed_data_license": "CC-BY-3.0",
+      "candidate_use": "Out-of-scope and uncertainty experiments",
+      "disposition": "candidate_pending_review",
+      "specific_limits": ["Single-intent English queries", "No multipart or multilingual quality claim", "Preserve original splits and attribution"],
+      "pinned_revision": null,
+      "corpus_downloaded": false,
+      "ingestion_allowed": false
+    },
+    {
+      "id": "bitext-customer-support",
+      "owner": "Bitext",
+      "source_url": "https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset/blob/main/README.md",
+      "terms_url": "https://cdla.dev/sharing-1-0/",
+      "observed_data_license": "CDLA-Sharing-1.0",
+      "candidate_use": "Support-language variation and intent experiments",
+      "disposition": "candidate_pending_terms_and_content_review",
+      "specific_limits": ["Distinguish data/enhanced-data publication from computational results", "Hybrid synthetic quality is not independent evidence", "Exclude fictional policies and unsupported account/refund actions"],
+      "pinned_revision": null,
+      "corpus_downloaded": false,
+      "ingestion_allowed": false
+    },
+    {
+      "id": "asapp-abcd",
+      "owner": "ASAPP Research",
+      "source_url": "https://github.com/asappresearch/abcd",
+      "terms_url": "https://github.com/asappresearch/abcd/blob/master/LICENSE",
+      "observed_data_license": "Unresolved; repository MIT software license observed",
+      "candidate_use": "Research into ordered support actions and constraints",
+      "disposition": "blocked_data_license_clarification",
+      "specific_limits": ["Repository code license alone is not verified data authorization", "Fictional shopping actions do not grant Mira account access or refund authority"],
+      "pinned_revision": null,
+      "corpus_downloaded": false,
+      "ingestion_allowed": false
+    },
+    {
+      "id": "meta-empathetic-dialogues",
+      "owner": "Meta / original Facebook Research authors",
+      "source_url": "https://github.com/facebookresearch/EmpatheticDialogues",
+      "terms_url": "https://github.com/facebookresearch/EmpatheticDialogues/blob/main/LICENSE",
+      "observed_data_license": "CC-BY-NC-4.0",
+      "candidate_use": "Read research methodology only; no dataset-row use",
+      "disposition": "excluded_without_separate_permission",
+      "specific_limits": ["Non-commercial restriction", "No commercial prompt examples, training or paraphrase laundering"],
+      "pinned_revision": null,
+      "corpus_downloaded": false,
+      "ingestion_allowed": false
+    },
+    {
+      "id": "tsinghua-esconv",
+      "owner": "CoAI Group, Tsinghua University",
+      "source_url": "https://github.com/thu-coai/Emotional-Support-Conversation",
+      "terms_url": "https://github.com/thu-coai/Emotional-Support-Conversation/blob/main/README.md",
+      "observed_data_license": "Academic research use only, as stated by owner",
+      "candidate_use": "Read research methodology only; no dataset-row use",
+      "disposition": "excluded_without_separate_permission",
+      "specific_limits": ["Academic-only restriction", "Therapy-like domain mismatch", "No invented personal self-disclosure"],
+      "pinned_revision": null,
+      "corpus_downloaded": false,
+      "ingestion_allowed": false
+    }
+  ]
+}

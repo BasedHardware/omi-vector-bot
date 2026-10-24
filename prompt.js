@@ -1,6 +1,7 @@
 const { describe } = require('./router');
 const { askedWhereRecordingsWent } = require('./honesty');
 const { SUPPORT_VOICE } = require('./supportVoice');
+const { splitHistory, previousContextBlock } = require('./supportContextFormat');
 
 const HOWTO_FAQ = [
   'Omi works with iPhone and Android. Keep the Omi app open. If you fully close it (swipe it away), it stops writing down what was said and the device disconnects.',
@@ -209,7 +210,8 @@ function untrustedQuestion(question) {
 }
 
 function buildUserPrompt({ question, threadHistory, knowledgeSnippets, route, toolFacts, understanding }) {
-  const history = (threadHistory || [])
+  const separated = splitHistory(threadHistory || []);
+  const history = separated.current
     .map((m) => `${m.author}: ${m.content}`)
     .join('\n');
   const knowledge = (knowledgeSnippets || []).filter(Boolean).join('\n---\n');
@@ -234,6 +236,7 @@ function buildUserPrompt({ question, threadHistory, knowledgeSnippets, route, to
     history
       ? `Thread (earlier messages in this same post, oldest first):\n${history}\nThis is one continuing conversation. Resolve “same,” “it,” “that,” “them,” “still,” and similar references from these messages. Do not say you cannot see the thread or treat the newest message as a new problem. Preserve what the customer already tried, sent, or opened. Do not ask them to repeat device details, screenshots, diagnostics, an email, or a ticket that the thread says they already supplied. Leave handoff delivery and ping acknowledgments to application code. A staff statement about a merged pull request is useful context, not proof that a fix was released or deployed; verify status against official evidence before making a claim.`
       : '',
+    previousContextBlock(separated.previous),
     askedWhereRecordingsWent(question)
       ? 'They asked whether recordings were deleted. Without verified diagnostic evidence, do not infer where the audio is stored, whether it was deleted, or whether it can be recovered. Preserve possible unsynced recordings and keep the human review path.'
       : '',

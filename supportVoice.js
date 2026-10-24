@@ -31,7 +31,7 @@ async function ensureSupportIdentity(client, channelIds) {
       seen.add(guild.id);
       const me = guild.members?.me;
       if (me?.setNickname && me.nickname !== SUPPORT_DISPLAY_NAME) {
-        await me.setNickname(SUPPORT_DISPLAY_NAME, 'Consistent support display name');
+        await me.setNickname(SUPPORT_DISPLAY_NAME, 'Consistent AI support identity');
       }
     } catch { console.error('[Bot] support nickname update failed'); }
   }

@@ -23,7 +23,7 @@ function clip(text) {
   return plain.length > 280 ? `${plain.slice(0, 280)}…` : plain;
 }
 
-function bestNote(question, notes) {
+function bestNote(question, notes, { onSources } = {}) {
   const wanted = new Set(words(question));
   let best = null;
   let score = 0;
@@ -38,6 +38,7 @@ function bestNote(question, notes) {
   const releaseUrl = best.tag
     ? `https://github.com/BasedHardware/omi/releases/tag/${encodeURIComponent(best.tag)}`
     : '';
+  onSources?.(releaseUrl ? [releaseUrl] : []);
   return `${best.name} (${best.tag}). ${clip(best.body)} ${releaseUrl}`.trim();
 }
 
@@ -74,16 +75,16 @@ async function loadNotes(fetchImpl, store) {
   }
 }
 
-async function matchingRelease(question, { fetchImpl, store } = {}) {
+async function matchingRelease(question, { fetchImpl, store, onSources } = {}) {
   if (!wantsReleaseNote(question)) return '';
   const saved = store || (process.env.DATABASE_URL ? require('./db') : null);
   const notes = await loadNotes(fetchImpl, saved);
-  const live = bestNote(question, notes);
+  const live = bestNote(question, notes, { onSources });
   if (live) return live;
   if (!saved?.searchReleases) return '';
   try {
     const rows = await saved.searchReleases(question);
-    return bestNote(question, rows);
+    return bestNote(question, rows, { onSources });
   } catch (err) {
     console.error('[Releases] stored lookup failed:', err.message);
     return '';
