@@ -3,6 +3,20 @@ const assert = require('node:assert/strict');
 const router = require('../router');
 const policy = require('../plannerPolicy');
 
+test('negating unrelated help cannot erase a later protected request', () => {
+  const {requestCorrection} = require('../requestCorrections');
+  for (const [question,kind] of [
+    ['I do not need setup help and would like a refund.','money'],
+    ['I did not ask for a call and I want to delete my data.','privacy'],
+    ['No quiero instrucciones y quiero un reembolso.','money'],
+    ['No he pedido ayuda y quiero borrar mi cuenta.','privacy'],
+  ]) {
+    assert.equal(requestCorrection(question).denied.size,0,question);
+    assert.equal(router.classify(question).escalate,true,question);
+    assert.equal(policy.personKind({supportKind:kind},question),kind,question);
+  }
+});
+
 test('a rejected financial interpretation does not replace the technical request', () => {
   for (const question of [
     'I am not asking for a refund; the Android app freezes during playback.',
