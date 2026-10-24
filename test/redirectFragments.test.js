@@ -73,3 +73,9 @@ test('risk/consequence warnings and Markdown instructions retain their own usefu
   const step = 'This time, you can **open** the saved entry.';
   assert.equal(stripSupportRedirect(`Email help@omi.me. ${step}`), step);
 });
+
+test('describing a support topic is not itself a protective consequence warning', () => {
+  for (const tail of ['They process deletion tickets.', 'Those are the staff who investigate data loss.']) {
+    assert.equal(stripSupportRedirect(`Contact support; ${tail}`), '');
+  }
+});

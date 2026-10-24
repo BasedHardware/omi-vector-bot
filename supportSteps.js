@@ -28,7 +28,13 @@ function hasTroubleshootingStep(answer) {
 // warning sentences. This only prevents deletion; it never authorizes a step.
 function hasSafetyWarning(text) {
   const shown = String(text || '').replace(/[*_~`]/g, '');
-  return /\b(?:do not|don['’]t|never|must not|should not|avoid|no\s+(?:env[ií]es|compartas)|ne\b.*\bpas|nicht|nunca|danger\w*|risk\w*|los[est]\w*|loss|eras\w*|delet\w*|wip\w*|permanen\w*|irrevers\w*|effac\w*|supprim\w*|perd\w*|borr\w*|elimin\w*|verlor\w*|l[oö]sch\w*|gel[oö]sch\w*|apaga\w*)\b|不要|丢失|遺失|失わ|消去|削除|しないで|하지\s*마|손실/iu.test(shown);
+  const prohibition = /\b(?:do not|don['’]t|never|must not|should not|avoid|no\s+(?:env[ií]es|compartas)|ne\b.*\bpas|nicht|nunca)\b|不要|しないで|하지\s*마/iu;
+  // A consequence needs a predicate, not just a nominal support-topic mention
+  // such as "deletion requests" or "people who investigate data loss".
+  const predictor = /\b(?:may|might|can|could|will|would|risk(?:s|ing)?|caus(?:e|es|ing)|lead(?:s)?\s+to|result(?:s)?\s+in|peut|peuvent|pourrait|risque|entra[iî]ne|pued[ea]n?|podr[ií]a|provoca|kann|k[oö]nnte|wird|w[uü]rde|pode|poderia|pu[oò]|potrebbe)\b/iu;
+  const loss = /\b(?:los(?:e|es|ing|t)|loss|eras(?:e|es|ed|ing)|delet(?:e|es|ed|ing)|wip(?:e|es|ed|ing)|effac\w*|supprim\w*|perd\w*|borr\w*|elimin\w*|verlor\w*|l[oö]sch\w*|gel[oö]sch\w*|apaga\w*)\b|丢失|遺失|失わ|消去|削除|손실/iu;
+  const prediction = predictor.exec(shown);
+  return prohibition.test(shown) || Boolean(prediction && loss.test(shown.slice(prediction.index + prediction[0].length)));
 }
 
 module.exports = { isInstructionSentence, hasTroubleshootingStep, hasSafetyWarning, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR };
