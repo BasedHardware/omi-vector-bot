@@ -118,6 +118,8 @@ October 12 release holds: #42's fresh comparison is complete and meets numerical
 
 ## Startup and deployment
 
+**Current October 18 persona checkpoint:** Release 1 is live and its six smoke checks are accepted. Its restart restored **Mira · Omi AI support**; keep that visible disclosure. Draft #59 now uses calm, warm and practical rather than elegant/charming wording and preserves the full AI-labelled nickname. Eight focused checks, 760 full tests and eight offline checks pass after six observed red assertions. No live profile, avatar, permissions, settings or deployment changed during this correction. Its own comparison waits for #48 grading; independent review/release gates remain despite Aryan waiving the fixed 24-hour deployment delay. Do not bundle changed instructions into an unchanged-image restart or silently enable memory. The existing image prompt remains in `assets/MIRA_AVATAR.md`; older release holds below are history, superseded by the master plan.
+
 The October 17 updated brief authorizes combining #42/#45 into Release 1 and running a fresh same-day comparison after #46's verified merge (`273550c`). It does not authorize deployment before independent grading, memory enablement or model training. #28's audience check stays stopped. Keep capture/context switches off; Release 2's approved private pilot is separate. The retained #43 release record and its pending live smoke are not overwritten by unit/SQL results.
 
 ### Release 2 approval and replacement — do not enable existing text retention
