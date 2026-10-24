@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 // Real evaluation wrapper, stubbed at provider/source boundaries only. No key,
 // network, Discord post or protected fixture is used.
+for (const key of ['CMD_API_KEY','OPENCODE_API_KEY','DATABASE_URL','DISCORD_TOKEN','TELEGRAM_TOKEN','SHOPIFY_ACCESS_TOKEN']) process.env[key] = '';
 process.env.EVAL_NO_MODEL = '';
 globalThis.fetch = async () => { throw new Error('Unexpected network use in synthetic evaluation test'); };
 let language = 'en';
