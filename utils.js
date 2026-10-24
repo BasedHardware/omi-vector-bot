@@ -148,50 +148,33 @@ function sanitizeReply(text) {
   return stripInventedLookup(stripStaffLies(cleaned));
 }
 
-// Split a sentence into clauses at semicolons, em dashes and comma+conjunction
-// joints, and keep only the clauses `mapClause` returns text for. Only the
-// unsupported clause is removed; useful context joined to it survives.
-// A removed clause that carries a condition or prohibition, or a kept clause
-// that opens with a condition, cannot be separated from its neighbour without
-// changing what the customer is told to do. Those sentences fail closed.
-const GUARD_WORD = '(?:if|unless|only|until|once|before|after|when|whenever|wait|without|provided|as\\s+long\\s+as|do\\s+not|don[\'’]t|never|avoid|si|solo|solamente|salvo|hasta|antes|despu[eé]s|cuando|nunca|evita|evite|wenn|bevor|nur|bis|nachdem|nicht|niemals|sobald|sauf|jusqu|avant|apr[eè]s|quand|jamais|ne\\s+pas|se|apenas|at[eé]|n[aã]o|если|пока|только|перед|после|не)';
-const GUARD_ANYWHERE = new RegExp(`(?<![\\p{L}\\p{N}])${GUARD_WORD}(?![\\p{L}\\p{N}])`, 'iu');
-const CONDITION_WORD = '(?:if|unless|only|until|once|before|after|when|whenever|wait|provided|as\\s+long\\s+as|si|solo|solamente|salvo|hasta|antes|despu[eé]s|cuando|wenn|bevor|nur|bis|nachdem|sobald|sauf|jusqu|avant|apr[eè]s|quand|se|apenas|at[eé]|если|пока|только|перед|после)';
-const GUARD_LEADING = new RegExp(`^\\s*${CONDITION_WORD}(?![\\p{L}\\p{N}])`, 'iu');
-const GUARD_CJK = /如果|除非|直到|之前|之后|不要|请勿|只有|仅|等到|不可/;
-const hasGuard = (clause) => GUARD_ANYWHERE.test(clause) || GUARD_CJK.test(clause);
-const opensWithGuard = (clause) => GUARD_LEADING.test(clause) || /^\s*(?:如果|除非|只有|等到)/.test(clause);
-
 const CLAUSE_JOINT = /(\s*[;；]\s*|\s+[—–]\s+|,\s+(?:and|but|so|yet|while|y|pero|aber|und|mais|et|mas|e|но|и)\s+)/iu;
 
-function filterClauses(sentence, mapClause) {
+// A closed set of protective warnings and bounded past-attempt reports, not a
+// general natural-language independence detector. Unknown shapes/languages,
+// symptoms, instructions, qualifications and additional clauses fail closed.
+const PRESERVABLE_WARNINGS = new Set([
+  'do not clear pending storage',
+  'do not clear all storage',
+  'do not reinstall the app',
+  'do not log out',
+]);
+const PAST_ATTEMPT = /^(?:I|you|we) (?:restarted|reinstalled|rebooted|updated|charged|tested) (?:the|my|your|our) (?:Omi app|app|phone|device|recorder|Omi)(?: (?:once|twice|again|(?:[2-9]|[1-9]\d) times))?$/i;
+function canPreserveNarrationPrefix(clause) {
+  const plain = String(clause).trim();
+  return PRESERVABLE_WARNINGS.has(plain.toLowerCase()) || PAST_ATTEMPT.test(plain);
+}
+
+function filterClauses(sentence, mapClause, canDetach) {
   const parts = String(sentence).split(CLAUSE_JOINT);
   if (parts.length < 3) return mapClause(sentence, 0) ?? '';
-  const endMark = String(sentence).match(/[.!?。！？]["'”’)\]]*\s*$/)?.[0].trim() || '';
-  let out = '';
-  let previous = -1;
-  let lastKept = false;
-  let removed = false;
-  const keptClauses = [];
-  for (let i = 0; i < parts.length; i += 2) {
-    const mapped = mapClause(parts[i], i / 2);
-    if (mapped == null || !String(mapped).trim()) {
-      removed = true;
-      if (hasGuard(parts[i])) return '';
-      continue;
-    }
-    keptClauses.push(mapped);
-    if (previous < 0) out = mapped;
-    else out += `${previous === i - 2 ? parts[i - 1] : '; '}${mapped}`;
-    previous = i;
-    lastKept = i === parts.length - 1;
-  }
-  if (previous < 0) return '';
-  if (removed && keptClauses.some(opensWithGuard)) return '';
-  out = out.trim();
-  if (endMark && !lastKept) out = `${out.replace(/[,;:\s]+$/u, '')}${endMark}`;
-  if (parts[0] !== out.slice(0, parts[0].length)) out = out.replace(/^\p{Ll}/u, (c) => c.toUpperCase());
-  return out;
+  // Exactly one independently retainable prefix and one standalone narration
+  // suffix. Never preserve reversed/interleaved or action-bearing clauses.
+  if (parts.length !== 3) return '';
+  const prefix = mapClause(parts[0], 0);
+  const suffix = mapClause(parts[2], 1);
+  if (!prefix || suffix != null || !canDetach(parts[2]) || !canPreserveNarrationPrefix(prefix)) return '';
+  return `${String(prefix).trim()}.`;
 }
 
 function stripSupportRedirect(text) {
@@ -428,6 +411,26 @@ const PING_NARRATION = [
   /needs the app side to look/i,
 ];
 
+// A broad narration match (for example "person on the team") is not proof that
+// the clause is disposable: it may be an approval or another prerequisite.
+// Only complete, standalone routing-status forms may be detached. Unknown or
+// extended forms retain the previous whole-sentence removal behavior rather
+// than guessing whether a neighbouring instruction is independent.
+const DETACHABLE_PING_NARRATION = [
+  /^(?:(?:this(?: one)?|it|that)\s+)?needs a person(?: who can look)?$/i,
+  /^(?:this(?: one)?|it|that)\s+needs the app side to look$/i,
+  /^I(?: have)? not (?:pinged|messaged|contacted|notified) (?:anyone|the(?: support)? team|staff)$/i,
+  /^(?:I(?:'m| am) )?flagging this(?: to the(?: support)? team)?$/i,
+  /^(?:I(?: have)? )?(?:sent|passed) this along$/i,
+  /^(?:I(?:'m| am) )?passing it along(?: as-is)?$/i,
+  /^a person on the team (?:has this now|needs to take this)$/i,
+];
+
+function canDetachPingNarration(clause) {
+  const plain = String(clause).trim().replace(/[.!?。！？]+$/u, '').trim();
+  return DETACHABLE_PING_NARRATION.some((pattern) => pattern.test(plain));
+}
+
 const ALREADY_SAID_PINGED = [
   /sent this to a person/i,
   /posted this to the team/i,
@@ -445,7 +448,12 @@ function dropPingNarration(text) {
       if (!PING_NARRATION.some((re) => re.test(line))) return line;
       return line
         .split(/(?<=[.!?])\s+/)
-        .map((sentence) => filterClauses(sentence, (clause) => (PING_NARRATION.some((re) => re.test(clause)) ? null : clause)))
+        .map((sentence) => {
+          if (!PING_NARRATION.some((re) => re.test(sentence))) return sentence;
+          return filterClauses(sentence,
+            (clause) => (PING_NARRATION.some((re) => re.test(clause)) ? null : clause),
+            canDetachPingNarration);
+        })
         .filter(Boolean)
         .join(' ');
     })
@@ -552,7 +560,7 @@ function escalateReply(answer, opts = {}) {
   }
 
   if (opts.conversation) {
-    return body || (pinged ? (footers?.sent || PINGED_FOOTER) : (footers?.pending || ESCALATE_FOOTER));
+    return body;
   }
 
   if (opts.issue && !opts.pingAuthor) {
@@ -569,7 +577,7 @@ function escalateReply(answer, opts = {}) {
     return [body, footer].filter(Boolean).join('\n\n');
   }
 
-  if (opts.pingAuthor) return body || (footers?.pending || ESCALATE_FOOTER);
+  if (opts.pingAuthor) return body;
 
   return [body, footers?.pending || ESCALATE_FOOTER].filter(Boolean).join('\n\n');
 }

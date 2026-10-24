@@ -1,5 +1,18 @@
 # Omi Support Bot Implementation Checklist
 
+## Current October24 — live verification and scoped #77 repair
+
+- [x] Verify existing deployment `0262f351` records exact GitHub main `1235379`, one healthy ready instance and optional features off; accepted `6a815fbf`/`6b6d97d` rollback remains available. Do not deploy the same code again.
+- [x] Confirm shutdown/recovery code unchanged; reuse accepted teardown smoke. Aryan supplied French no-email/handoff, same-thread follow-up/private delivery and refund/private delivery. No public cards, conflicting answer-invite or email redirects. French starts with a handoff; do not claim the ordinary-answer transition was exercised. Two cards share one French case; all cards await acceptance.
+- [x] Close #78 without deleting its branch; retain optional diagnostic scope and remote head in #51. Open PR count is five, not the three-PR target.
+- [x] Reuse #77's existing main merge `f08bef8`; remove overlapping redirect and standalone-footer changes. Reproduce approval/prerequisite and sequencing safety failures before repairing them.
+- [x] Keep partial narration removal within a closed grammar: one of four protective warnings or a bounded simple-past attempt, followed by one complete standalone narration clause. General symptoms, other languages, unknown/action-bearing/guarded/reversed/interleaved shapes fail closed. Preserve main redirect/footer behavior and localized source fingerprints; no customer text in stage evidence.
+- [x] Independent scoped code re-review passes after five red-before regression tests and the narrowed contract:31 focused tests,14 presentation-parity inputs, metadata privacy/source-only checks and exact main redirect/in-thread/footer parity. This is code review, not answer-quality comparison or release approval.
+- [x] Local full965/offline8 pass on the repaired source; rerun before pushing. No provider or protected-file access was needed.
+- [ ] Complete exact-head hosted Node20/24/Postgres checks; keep #77 draft for Aryan's review and its remaining comparison gate.
+- [x] Reuse #71's completed simultaneous 162/162 comparison on main `1235379`/candidate `55799ad`; its current `c3b4b2b` adds docs only. Accuracy HOLD remains; speed alone is not a rejection. No unchanged paid rerun or readiness inferred.
+- [ ] Finish remaining #28/#59/#71/#75/#77 review decisions without new feature PRs, rushed closures or unverified merges. #28 deadline remains October27; optional memory/pilot requirements remain separate.
+
 ## Current October23 — release smoke accepted
 
 - [x] English sourced ordinary answer, private refund delivery and controlled same-commit Redeploy pass. One reply after SIGTERM, clean drain, old instance observed gone after69.197s, stable30s; live6a815fbf/GitHub6b6d97d, optional features off.

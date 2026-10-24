@@ -1,5 +1,11 @@
 # Omi Support Bot Operations Runbook
 
+## October24 — existing exact-main deployment verified
+
+Railway already runs GitHub `1235379` as successful deployment `0262f351-aae7-41e1-84cd-64154925a31e` (created October23 18:08:59 UTC /23:38:59 IST). The operator did not dispatch a duplicate deployment: the expected-old-baseline guard correctly refused that preflight. Subsequent read-only checks confirm one running instance, health OK/configured staff route, initialized schema/Discord login, no matched startup/staff-failure lines in the retrieved deployment logs, zero automatic GitHub triggers, optional features off and accepted rollback `6a815fbf`/`6b6d97d` available. The initiator was not established by these reads.
+
+Aryan's October24 test-forum French question, same-thread failed-attempt follow-up and refund meet the requested no-email/private-delivery smoke criteria. No public staff cards or simultaneous answer-invite/handoff line. First French answer already handed off; do not claim a successful ordinary-answer-to-handoff transition. The follow-up delivered a second card for the same case ID, not a second case or staff acceptance; refund delivered one card. Customer resolution is not established. Reuse the prior controlled Redeploy drain smoke because shutdown/recovery code and handler are unchanged; never use Restart as a substitute. No new setting, optional enablement, deployment or rollback was performed here. Earlier operating snapshots below are history.
+
 ## Current operating rule — October 23
 
 **Current acceptance:** all three reliability smokes pass; Aryan submitted every input. Live6a815fbf records GitHub6b6d97d, same image as61e8ce70. Controlled Redeploy: processing21:43:07.103IST; dispatch21:43:21.813; replacement login21:43:31.874; SIGTERM21:43:37.361; one reply21:43:44.626; clean drain21:43:46.120; old instance observed gone21:44:46.557 (69.197s after SIGTERM), stable30s. Rollback458d4a6f; optional features off. #67 merged94e4f57, not deployed. Complete #74's current-head checks before its approved merge. No additional code deploy/settings change or memory enablement follows from a merge.

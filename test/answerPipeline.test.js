@@ -248,13 +248,12 @@ test('making room for the data-loss warning also keeps whole steps and complete 
   assert.ok(shown.length <= 1750);
 });
 
-test('narration filtering removes only the unsupported clause and keeps symptoms and attempts', () => {
+test('narration filtering preserves only bounded past attempts before standalone narration', () => {
   const cases = [
-    ['The sync stalls after the update; this needs a person who can look. What is your app version?', /sync stalls after the update\. What is your app version\?/],
-    ['The light stays red after charging, but this one needs a person who can look.', /^The light stays red after charging\.$/],
-    ['The app freezes on launch — this one needs a person who can look.', /^The app freezes on launch\.$/],
-    ['Ich habe die App neu gestartet; this one needs a person who can look. Welche Version nutzt du?', /^Ich habe die App neu gestartet\. Welche Version nutzt du\?/],
-    ['Needs a person who can look; I reinstalled the app twice.', /^I reinstalled the app twice\.$/],
+    ['I restarted the app; this needs a person who can look. What is your app version?', /^I restarted the app\. What is your app version\?$/],
+    ['You charged your device twice, but this one needs a person who can look.', /^You charged your device twice\.$/],
+    ['We rebooted the phone — this one needs a person who can look.', /^We rebooted the phone\.$/],
+    ['I reinstalled the app twice; needs a person who can look.', /^I reinstalled the app twice\.$/],
   ];
   for (const [input, expected] of cases) {
     const out = presentReviewedAnswer(input);
@@ -278,14 +277,14 @@ test('a reply that is entirely narration falls back to an honest non-empty reply
 
 test('stage evidence traces which stage shortened a reply without exposing text', () => {
   const secret = 'ZZ-private-marker';
-  const { answer, stages } = presentReviewedAnswerWithEvidence(`${secret} stalls; this one needs a person who can look.`);
+  const { answer, stages } = presentReviewedAnswerWithEvidence(`${secret}\nI restarted the app; this one needs a person who can look.`);
   assert.deepEqual(stages.map((s) => s.stage), ['input', 'narration_filter', 'format', 'clip', 'final']);
   assert.ok(stages[1].length < stages[0].length);
   assert.equal(stages[1].changed, true);
   assert.equal(stages[3].clipped, false);
   assert.equal(stages[4].fallback, false);
-  assert.match(answer, /ZZ-private-marker stalls\./);
-  assert.doesNotMatch(JSON.stringify(stages), /ZZ-private|stalls/);
+  assert.match(answer, /ZZ-private-marker\nI restarted the app\./);
+  assert.doesNotMatch(JSON.stringify(stages), /ZZ-private|restarted/);
   const empty = presentReviewedAnswerWithEvidence('This one needs a person.');
   assert.equal(empty.stages.at(-1).fallback, true);
   const long = presentReviewedAnswerWithEvidence(`${'A full sentence here. '.repeat(200)}`);
@@ -306,8 +305,79 @@ test('narration removal fails closed when it would detach a condition or prohibi
   assert.equal(presentReviewedAnswer('Do not clear Pending storage; this one needs a person who can look.'), 'Do not clear Pending storage.');
   assert.equal(
     presentReviewedAnswer('Keep the app open until the sync ends; this one needs a person who can look.'),
-    'Keep the app open until the sync ends.'
+    EMPTY_ANSWER_FALLBACK
   );
+});
+
+test('broad narration matches cannot detach an approval or another prerequisite', () => {
+  for (const input of [
+    'Get approval from a person on the team; then clear Pending storage.',
+    'Obtain permission from a person on the team, and erase the local recording.',
+    'A person on the team must confirm the prerequisite; disconnect the recorder.',
+    'Send the backup to a person on the team; remove the local copy.',
+    'Please ask a person on the team for permission — remove the archive afterward.',
+    'The action requires a person on the team to approve it; reset the device.',
+  ]) {
+    assert.equal(presentReviewedAnswer(input), EMPTY_ANSWER_FALLBACK, input);
+  }
+});
+
+test('only complete standalone narration can be detached from useful context', () => {
+  assert.equal(
+    presentReviewedAnswer('I tested my recorder twice; this one needs a person who can look.'),
+    'I tested my recorder twice.'
+  );
+  for (const input of [
+    'This one needs a person who can look to approve the next action; reset the recorder.',
+    'I have not pinged anyone to confirm the backup; erase the cache.',
+    'A person on the team needs to approve the export; delete its original.',
+  ]) {
+    assert.equal(presentReviewedAnswer(input), EMPTY_ANSWER_FALLBACK, input);
+  }
+});
+
+test('clauses following removed narration cannot inherit an unsafe next-action dependency', () => {
+  for (const input of [
+    'This one needs a person who can look; then clear Pending storage.',
+    'A person on the team needs to take this; afterward, erase the local recording.',
+    'This one needs a person who can look, and reset the device.',
+    'I have not pinged anyone; perform that operation next.',
+    // Even apparently factual trailing clauses fail closed: the filter is not
+    // a semantic parser and cannot prove their independence after a removal.
+    'I have not pinged anyone; the upload stops at the same point.',
+    'Needs a person who can look; I reinstalled the app twice.',
+  ]) {
+    assert.equal(presentReviewedAnswer(input), EMPTY_ANSWER_FALLBACK, input);
+  }
+});
+
+test('preceding actions and unknown context are not treated as independent safe reports', () => {
+  for (const prefix of [
+    'Clear Pending storage',
+    'You should have erased the recording',
+    'I tried to reset the recorder',
+    'Tap "Clear Pending storage"',
+    'Do not hesitate to erase the archive',
+    'I restarted the app and now erase the cache',
+    'The app freezes on launch',
+    'Ich habe die App neu gestartet',
+    'I restarted the app; do not clear storage',
+    'I restarted the app, and I tested the device',
+    'I restarted the app after clearing the recordings',
+    'I restarted the app "Clear Pending storage"',
+  ]) {
+    assert.equal(presentReviewedAnswer(`${prefix}, but this one needs a person who can look.`), EMPTY_ANSWER_FALLBACK, prefix);
+  }
+});
+
+test('a separate sentence without narration bypasses the strict partial-clause grammar', () => {
+  for (const sentence of [
+    'Do not reinstall the app; keep the existing recordings.',
+    'The app freezes on launch; the light stays red.',
+    'I restarted the app, and nothing changed.',
+  ]) {
+    assert.equal(presentReviewedAnswer(`${sentence} This one needs a person.`), sentence, sentence);
+  }
 });
 
 test('stage evidence detects a source-only line and localized labels without exposing text', () => {
@@ -316,11 +386,4 @@ test('stage evidence detects a source-only line and localized labels without exp
   }
   assert.equal(stageFingerprint('final', 'No link here').hasSourceLine, false);
   assert.equal(presentReviewedAnswerWithEvidence('Source: https://help.omi.me/en/articles/sync').stages.at(-1).hasSourceLine, true);
-});
-
-test('escalateReply never returns an empty reply when the body is all narration', () => {
-  const { escalateReply } = require('../utils');
-  assert.equal(escalateReply('Contact support; email help@omi.me.', { pinged: true, conversation: true }), 'A person on the team has this now.');
-  assert.equal(escalateReply('This one needs a person; I have not pinged anyone.', { conversation: true }), 'A person on the team needs to take this. I have not pinged anyone yet.');
-  assert.match(escalateReply('This one needs a person.', { pingAuthor: true }), /A person on the team needs to take this/);
 });
