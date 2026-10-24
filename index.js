@@ -25,6 +25,7 @@ const {
 const { hasUsableAttachment, fetchTextAttachments, formatQuestion, shouldMentionUnreadMedia, unreadMediaSentence, imageErrorLines, videoErrorLines, chatFiles } = require('./attachments');
 const {
   notifyStaff,
+  sendToStaffChannel,
   canNotifyStaff,
   isHandoffThread,
   isHelpForumThread,
@@ -57,8 +58,12 @@ const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const { reviewRejectionReply } = require('./supportReplyCopy');
 const triage = require('./triage');
 const supportCases = require('./supportCases');
+const { isDedicatedCustomerThread } = require('./customerThreadScope');
+const supportIssueLinks = require('./supportIssueLinks');
+const githubFlow = require('./githubFlow').createGithubFlow();
 const supportThreadLanguage = require('./supportThreadLanguage');
 const caseCards = require('./caseCards');
+const staffDestination = require('./staffDestination');
 const { ensureSupportIdentity } = require('./supportVoice');
 const supportLearning = require('./supportLearning');
 const learning = () => supportLearning.getObserver(client.user?.id);
@@ -494,8 +499,25 @@ async function handleFaqSave(message) {
   return true;
 }
 
-async function noteCustomerLead() {
-  return;
+async function noteCustomerLead(channel, message) {
+  if (!github.isConfigured() || !github.isApprovalReady() || !channel.isThread?.() ||
+    !github.isImportantLead(message.content, message.attachments)) return;
+  try {
+    const value = await supportCases.getCaseByThread(channel.id, message.author.id);
+    if (!value || value.customerId !== String(message.author.id)) return;
+    if (!(await isDedicatedCustomerThread(channel, value))) return;
+    const rows = await supportIssueLinks.listForThread(value.id, github.repo(), channel.id);
+    const linked = [...new Map(rows.filter((row) => row.customerId === String(message.author.id))
+      .map((row) => [`${row.repo}:${row.issueNumber}`, row])).values()];
+    if (linked.length !== 1) return;
+    const approval = await githubFlow.prepare({ message, client, supportCase: value, kind: 'comment', issueNumber: linked[0].issueNumber });
+    if (!approval || approval.cardMessageId || approval.status !== 'pending') return;
+    const payload = githubFlow.approvalCard(approval, message.url);
+    await sendToStaffChannel(client, payload, channel.id, null, { onSent: async (sent) => { await githubFlow.bindCard(approval, sent); } });
+  } catch (err) {
+    if (isLeaseLost(err)) throw err;
+    console.error('[GitHubFlow] customer update staging failed');
+  }
 }
 
 async function postIssueCard(channel, draft, githubHit) {
@@ -1121,8 +1143,12 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       const deliveredCase = ['delivered', 'accepted'].includes(supportCase.status);
       console.log(`[Bot] Escalating channel=${channel.id} area=${triaged.area} signals=${escalationSignals.join(',')}`);
       const techLane = router.isTechLane({ lane: triaged.lane, area: triaged.area });
-      if (github.isConfigured() && techLane && !githubHit?.duplicate) {
-        fileIssueId = github.stashDraft(draft);
+      if (github.isConfigured() && techLane) {
+        try {
+          const approval = await githubFlow.prepare({ message, client, supportCase,
+            kind: githubHit?.duplicate ? 'comment' : 'issue', issueNumber: githubHit?.duplicate?.number });
+          fileIssueId = approval?.id;
+        } catch { console.error('[GitHubFlow] issue proposal staging unavailable'); }
       }
       let pinged = false;
       let duplicate = false;
@@ -1162,6 +1188,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           await assertCurrentOwnership();
           const handoff = await notifyStaff({
             caseId: supportCase.id,
+            onStaffSent: fileIssueId ? async (sent) => {
+              const approval = await github.getScopedApproval(fileIssueId);
+              await githubFlow.bindCard(approval, sent);
+            } : undefined,
             client,
             message,
             question: staffQuestion,
@@ -1194,9 +1224,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             rememberOpenHandoff(channel.id, message.author?.id, handoff.thread);
             await applyThreadName(handoff.thread, nameMeta);
           }
-          if (handoff.threadId && githubHit?.duplicate?.number) {
-            github.linkIssueThread(githubHit.duplicate.number, handoff.threadId);
-          }
+          // Search similarity is background, not a customer-owned issue link.
+          // The reviewed publication records that link after staff approval.
           console.log(
             `[Bot] Handoff ${channel.id} via=${handoff.via || 'none'} ok=${pinged}`
           );
@@ -1355,6 +1384,10 @@ async function nickOmiSupport(client) {
 }
 
 client.once(Events.ClientReady, async () => {
+  const staff = staffMentionIds();
+  await runtime.track(() => staffDestination.checkBootStaffDestination(client, {
+    staffUsers: staff.users, staffRoleIds: staff.roles,
+  }));
   if (supportThreadLanguage.getStore()) {
     const pruneLanguages = () => runtime.track(() => supportThreadLanguage.getStore().prune())
       .catch(() => console.error('[SupportLanguage] expiry cleanup failed'));
@@ -1493,4 +1526,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, client, handleMessage, recoverQueuedRequest, shouldHandle, runtime, keepTyping };
+module.exports = { app, client, handleMessage, recoverQueuedRequest, shouldHandle, runtime, noteCustomerLead, keepTyping };

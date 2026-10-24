@@ -376,7 +376,6 @@ Native Discord input is unreliable; no synthetic post or command was submitted b
 
 <details>
 <summary>Deployment, rollback and scheduled health check</summary>
-
 | Item | Evidence |
 | --- | --- |
 | Release 1 source | Main `7fe0e0a`; 755 local tests passed; hosted checks passed |

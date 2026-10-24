@@ -206,11 +206,15 @@ test('a confirmed staff send registers its existing Discord card for later case 
   supportCases.setStoreForTests(f.caseStore); module.setStoreForTests(f.store);
   try {
     const messageId = '734567890123456789';
-    const result = await handoff.notifyStaff({ client: { channels: { fetch: async () => ({ id: STAFF, isTextBased: () => true,
-      send: async () => ({ id: messageId }) }) } }, caseId: f.value.id,
+    const staff = require('./fixtures/discord-staff-channel').makeStaffChannel({ id: STAFF,
+      send: async () => ({ id: messageId, author: { id: 'bot-user' } }) });
+    let approvalBound = false;
+    const result = await handoff.notifyStaff({ client: { user: { id: staff.botUserId }, channels: { fetch: async () => staff.channel } }, caseId: f.value.id,
+      onStaffSent: async sent => { approvalBound = sent.id === messageId; },
       message: { author: { id: 'customer' }, channel: { id: 'help' } }, question: 'Synthetic support request',
       area: 'app', route: { area: 'app', lane: 'tech' }, skipDedupe: true });
     assert.equal(result.ok, true); assert.equal(result.via, 'staff-channel');
+    assert.equal(approvalBound, true);
     assert.ok((await f.store.list(f.value.id)).some(c => c.messageId === messageId && c.channelId === STAFF));
   } finally {
     supportCases.setStoreForTests(null); module.setStoreForTests(null); telegram.sendEscalation = sendTelegram; handoff.resetHandoffMemory();
