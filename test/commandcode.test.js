@@ -1,5 +1,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+// Existing approved-review fixtures include the new required scope checks.
+// Missing/malformed/rejected checks are exercised separately by contract tests.
+const passingClaimChecks = {unsupported_absence:false,unsupported_customer_data:false,citations_supported:true};
 const {
   parseAgentJson,
   parseSearchPlan,
@@ -85,6 +88,7 @@ test('the answer keeps communication guidance while both review efforts keep onl
     return { data: { choices: [{ message: { content: JSON.stringify({
       final_answer: 'You want a refund. The request needs a team review.',
       grounded: true, relevant: true, confidence: 0.8, escalate: true, sources_used: [],
+      claim_checks: passingClaimChecks,
     }) } }] } };
   };
   await queryAgent({ question: 'Please refund my purchase', route: { lane: 'money', area: 'shop' }, post });
@@ -423,7 +427,7 @@ test('the reviewer accepts raw string line breaks without losing grounding check
     question: 'What happens to the selected setting?', draft: 'The setting stays unchanged.',
     lane: 'faq', sources: '[S1 | Help]\nhttps://help.omi.me/settings\nThe setting stays unchanged.',
     post: async () => ({ data: { choices: [{ message: { content:
-      '{\n"final_answer":"The setting\nstays unchanged.","grounded":true,"relevant":true,"escalate":false,"confidence":0.9,"sources_used":["S1"]\n}',
+      '{\n"final_answer":"The setting\nstays unchanged.","grounded":true,"relevant":true,"escalate":false,"confidence":0.9,"sources_used":["S1"],"claim_checks":{"unsupported_absence":false,"unsupported_customer_data":false,"citations_supported":true}\n}',
     } }] } }),
   });
   assert.equal(reviewed.final_answer, 'The setting\nstays unchanged.\n\nSource: https://help.omi.me/settings');
@@ -523,7 +527,7 @@ test('the review gate returns grounding status and exact source ids', async () =
               {
                 message: {
                   content:
-                    '{"final_answer":"Hold the button while placing it on the charger.\\n\\nSource: https://help.omi.me/reset","grounded":true,"relevant":true,"escalate":false,"confidence":0.97,"sources_used":["S1"],"answered_requirements":["How to reset the device"]}',
+                    '{"final_answer":"Hold the button while placing it on the charger.\\n\\nSource: https://help.omi.me/reset","grounded":true,"relevant":true,"escalate":false,"confidence":0.97,"sources_used":["S1"],"answered_requirements":["How to reset the device"],"claim_checks":{"unsupported_absence":false,"unsupported_customer_data":false,"citations_supported":true}}',
                 },
               },
             ],
@@ -636,7 +640,7 @@ test('the review gate rejects a grounded but irrelevant answer', async () => {
               {
                 message: {
                   content:
-                    '{"final_answer":"I cannot verify a lower checkout route from the available information.","grounded":true,"relevant":false,"escalate":true,"confidence":0.3,"sources_used":[],"answered_requirements":[]}',
+                    '{"final_answer":"I cannot verify a lower checkout route from the available information.","grounded":true,"relevant":false,"escalate":true,"confidence":0.3,"sources_used":[],"answered_requirements":[],"claim_checks":{"unsupported_absence":false,"unsupported_customer_data":false,"citations_supported":true}}',
                 },
               },
             ],
@@ -977,6 +981,7 @@ test('FAQ review may use lower-ranked team product facts without treating them a
         return { data: { choices: [{ message: { content: JSON.stringify({
           final_answer: 'The 24-hour figure is battery life, not standalone recording time.',
           grounded: true, relevant: true, escalate: false, confidence: 0.9, sources_used: [],
+          claim_checks: passingClaimChecks,
         }) } }] } };
       },
     });

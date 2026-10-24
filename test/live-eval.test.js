@@ -8,6 +8,16 @@ test('live-eval keeps per-call model usage next to stage timings', () => {
   assert.deepEqual(state.modelCalls, [{ stage: 'planner', model: 'test-model', promptTokens: 30, completionTokens: 12, reasoningTokens: 4 }]);
 });
 const { hasTroubleshootingStep } = require('../supportSteps');
+test('claim review evidence copies only boolean metadata from the current case', () => {
+  const {captureClaimChecks} = require('../scripts/live-eval');
+  const state = {turn:2,reviewClaimChecks:[]};
+  const checks = {complete:true,unsupportedAbsence:true,unsupportedCustomerData:false,citationsSupported:true,passed:false,answer:'PRIVATE-SYNTHETIC-SENTINEL'};
+  captureClaimChecks(state, checks);
+  captureClaimChecks(state, undefined);
+  captureClaimChecks(null, checks);
+  assert.deepEqual(state.reviewClaimChecks,[{turn:2,complete:true,unsupportedAbsence:true,unsupportedCustomerData:false,citationsSupported:true,passed:false}]);
+  assert.doesNotMatch(JSON.stringify(state.reviewClaimChecks),/PRIVATE|answer/);
+});
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -85,6 +95,28 @@ test('multi-part live evidence uses one joint corpus while ordinary lookup keeps
   assert.ok(ordinary.length > 17000);
   assert.ok(ordinary.includes('[Help Center blocks]'));
   assert.equal(calls.length, 1, 'ordinary evidence must not be re-budgeted or merged through multipart policy');
+});
+
+test('shared evaluation evidence follows the evaluated root multipart policy', () => {
+  for (const currentPolicy of [false,true]) {
+    for (const count of [1,2,3,4]) {
+      const parts = Array.from({length:count},(_,i)=>({question:`Part ${i+1}`}));
+      const options = {subQuestions:parts};
+      const calls = [];
+      const retrieval = {
+        normalizeSubQuestions: value => value || [],
+        ...(currentPolicy ? {hasMultipleParts:value=>(value || []).length>=2} : {}),
+        jointMultipartEvidence: (...args) => {calls.push(args);return 'joint';},
+        supportQueries:()=>[],rankLocalChunks:()=>[],formatEvidence:()=>'',
+        combineEvidence:()=> 'ordinary',
+      };
+      const joint = currentPolicy ? count>=2 : count>3;
+      assert.equal(evaluationDocsEvidence(retrieval,'Synthetic request',options,'evidence',[]),
+        joint ? 'joint' : 'ordinary',`root policy=${currentPolicy}, parts=${count}`);
+      assert.equal(calls.length,joint ? 1 : 0);
+      if (joint) assert.deepEqual(calls[0],['Synthetic request','evidence',[],options]);
+    }
+  }
 });
 
 test('ordinary evaluation evidence forwards only actual retrieved metadata, not prose links', () => {

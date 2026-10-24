@@ -123,6 +123,13 @@ function captureEscalation(state, parts) {
   if (/^\[Bot\] Escalating channel=/.test(line)) state.escalationSignals.push(line);
 }
 
+function captureClaimChecks(state, checks) {
+  if (!state || !checks || typeof checks !== 'object') return;
+  if (!Array.isArray(state.reviewClaimChecks)) state.reviewClaimChecks = [];
+  const flags = ['complete','unsupportedAbsence','unsupportedCustomerData','citationsSupported','passed'];
+  state.reviewClaimChecks.push({turn:state.turn || 1,...Object.fromEntries(flags.map(key=>[key,checks[key]===true]))});
+}
+
 function summarize(rows, runs) {
   const byCase = new Map();
   for (const row of rows) {
@@ -188,7 +195,10 @@ function makeMessage(content, channel, history, authorId) {
 }
 
 function evaluationDocsEvidence(retrieval, question, options, officialDocs, officialChunks) {
-  if (retrieval.normalizeSubQuestions?.(options.subQuestions).length > 3) {
+  const multipart = typeof retrieval.hasMultipleParts === 'function'
+    ? retrieval.hasMultipleParts(options.subQuestions)
+    : retrieval.normalizeSubQuestions?.(options.subQuestions).length > 3;
+  if (multipart) {
     return retrieval.jointMultipartEvidence(question, officialDocs, officialChunks, options);
   }
   const official = retrieval.formatEvidence(
@@ -256,6 +266,13 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
     state.handoff = true;
     return { ok: true, via: 'staff-channel' };
   };
+  const commandcode = inRoot(fs.existsSync(path.join(root,'commandcode.js')) ? 'commandcode.js' : 'opencode.js');
+  const realReview = commandcode.reviewAnswer;
+  commandcode.reviewAnswer = async (...args) => {
+    const reviewed = await realReview(...args);
+    captureClaimChecks(caseContext.getStore(), reviewed?.claimChecks);
+    return reviewed;
+  };
   const { client, handleMessage } = inRoot('index.js');
   const router = inRoot('router.js');
   const { User } = require('discord.js');
@@ -293,16 +310,18 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   let next = 0;
   let incomplete = false;
   async function runOne({ scene, runIndex }) {
-    const state = { handoff: false, providerError: '', timings: {}, modelCalls: [], escalationSignals: [] };
+    const state = { handoff: false, providerError: '', timings: {}, modelCalls: [], escalationSignals: [], reviewClaimChecks:[] };
     return caseContext.run(state, async () => {
       const { channel, history } = makeChannel(process.env.VECTOR_TEST_CHANNEL_ID);
       const authorId = nextId();
       const start = performance.now();
+      const startedAtUTC = new Date().toISOString();
       let reply = '';
       const turnReplies = [];
       let error = '';
       try {
-        for (const turn of scene.turns || [scene.ask]) {
+        for (const [turnIndex, turn] of (scene.turns || [scene.ask]).entries()) {
+          state.turn = turnIndex + 1;
           const message = makeMessage(turn, channel, history, authorId);
           await handleMessage(message);
           reply = message.replies.map(payloadText).join('\n');
@@ -319,6 +338,9 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
       return {
         id: scene.id, run: runIndex, reply, turnReplies, handoff: state.handoff, urls,
         escalationSignals: state.escalationSignals,
+        reviewClaimChecks:state.reviewClaimChecks,
+        claimChecksAvailable:state.reviewClaimChecks.length>0,
+        startedAtUTC,completedAtUTC:new Date().toISOString(),
         timings: state.timings, modelCalls: state.modelCalls, latencyMs: Math.round(performance.now() - start),
         pass: scene.observeOnly || Boolean(state.providerError) ? null : problems.length === 0,
         invalid: Boolean(state.providerError), problems,
@@ -342,6 +364,7 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
     console.error = originalError;
     process.off('omiSupportTimings', onTiming);
     process.off('omiSupportModelUsage', onModelUsage);
+    commandcode.reviewAnswer = realReview;
   }
   rows.sort((a, b) => a.run - b.run || selected.findIndex((scene) => scene.id === a.id) - selected.findIndex((scene) => scene.id === b.id));
   return {
@@ -380,4 +403,4 @@ async function main() {
 
 if (require.main === module) main().catch((err) => { console.error(err.message); process.exitCode = 1; });
 
-module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, captureEscalation, makeChannel, makeMessage, evaluationDocsEvidence, run };
+module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, captureEscalation, captureClaimChecks, makeChannel, makeMessage, evaluationDocsEvidence, run };
