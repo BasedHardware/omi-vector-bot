@@ -23,4 +23,12 @@ function hasTroubleshootingStep(answer) {
     .some(isInstructionSentence);
 }
 
-module.exports = { isInstructionSentence, hasTroubleshootingStep, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR };
+// Presentation must not remove a safety consequence merely because it starts
+// with a pronoun. Match risk/loss concepts, not particular modal verbs or whole
+// warning sentences. This only prevents deletion; it never authorizes a step.
+function hasSafetyWarning(text) {
+  const shown = String(text || '').replace(/[*_~`]/g, '');
+  return /\b(?:do not|don['’]t|never|must not|should not|avoid|no\s+(?:env[ií]es|compartas)|ne\b.*\bpas|nicht|nunca|danger\w*|risk\w*|los[est]\w*|loss|eras\w*|delet\w*|wip\w*|permanen\w*|irrevers\w*|effac\w*|supprim\w*|perd\w*|borr\w*|elimin\w*|verlor\w*|l[oö]sch\w*|gel[oö]sch\w*|apaga\w*)\b|不要|丢失|遺失|失わ|消去|削除|しないで|하지\s*마|손실/iu.test(shown);
+}
+
+module.exports = { isInstructionSentence, hasTroubleshootingStep, hasSafetyWarning, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR };
