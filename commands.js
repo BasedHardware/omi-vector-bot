@@ -3,6 +3,7 @@ const { isCloseableThread, canStaffAct, staffMentionIds, markHandoffClosed, send
 const github = require('./github');
 const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
+const { isDedicatedCustomerThread } = require('./customerThreadScope');
 const supportThreadLanguage = require('./supportThreadLanguage');
 const { appReviewButtons } = require('./appReviews');
 const githubFlow = require('./githubFlow').createGithubFlow();
@@ -550,9 +551,8 @@ async function notifyLinkedThreads(client, event, options = {}) {
         if (String(original.id || '') !== record.sourceMessageId || String(original.author?.id) !== record.customerId || typeof original.reply !== 'function') continue;
         await original.reply(payload);
       } else {
-        const dedicated = ch.isThread?.() && (value.handoffThreadId === target ||
-          (value.customerThreadId === target && String(ch.ownerId || '') === record.customerId));
-        if (!dedicated || typeof ch.send !== 'function') continue;
+        if (typeof ch.send !== 'function' ||
+            !(await isDedicatedCustomerThread(ch, value, {cases}))) continue;
         await ch.send(payload);
       }
       seen.add(key);

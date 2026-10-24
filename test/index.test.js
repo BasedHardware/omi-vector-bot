@@ -2437,6 +2437,28 @@ test('a private issue review proposal never automatically publishes or copies th
   assert.doesNotMatch(JSON.stringify(approval.draft), /jane\.doe@example\.com|keeps turning itself off|What they wrote/);
 });
 
+test('automatic follow-up staging refuses a forum shared by multiple customer cases', async t => {
+  const staff = enableStaffDelivery(t);
+  const approvals = require('../supportApprovals');
+  const issueLinks = require('../supportIssueLinks');
+  const previousKey = process.env.DATA_ENCRYPTION_KEY;
+  process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32,15).toString('base64');
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  approvals.setStoreForTests(approvals.createMemoryStore());
+  issueLinks.setStoreForTests(issueLinks.createMemoryStore());
+  t.after(()=>{process.env.DATA_ENCRYPTION_KEY=previousKey;approvals.setStoreForTests(null);issueLinks.setStoreForTests(null);});
+  const post = makeChannel({thread:true,parentId:HELP_FORUM,name:'App technical problem'});
+  const customer = nextId();
+  post.ownerId = customer;
+  const value = await supportCases.getOrCreateCase({channelId:post.id,customerId:customer,customerThreadId:post.id,context:{area:'app',lane:'app'}});
+  await supportCases.getOrCreateCase({channelId:post.id,customerId:nextId(),customerThreadId:post.id,context:{area:'app',lane:'app'}});
+  assert.equal(await supportCases.getCaseByThread(post.id),null);
+  await issueLinks.link({repo:github.repo(),issueNumber:42,caseId:value.id,customerId:customer,channelId:post.id,threadId:post.id,sourceMessageId:'original-source',approvedBy:'staff-user'});
+  await noteCustomerLead(post,makeMessage('New synthetic debugging detail for review.',{channel:post,authorId:customer}));
+  assert.equal(staff.length,0);
+  assert.equal(githubCalls.filter(call=>call.method==='POST').length,0);
+});
+
 test('later evidence from the linked customer becomes one private review, never an automatic GitHub comment', async (t) => {
   const staff = enableStaffDelivery(t);
   const approvals = require('../supportApprovals'); const issueLinks = require('../supportIssueLinks');
@@ -2452,6 +2474,7 @@ test('later evidence from the linked customer becomes one private review, never 
     customerThreadId: post.id, context: { area: 'app', lane: 'app' } });
   await issueLinks.link({ repo: github.repo(), issueNumber: 18537, caseId: value.id, customerId: customer,
     channelId: post.id, threadId: post.id, sourceMessageId: 'original-source', approvedBy: 'staff-user' });
+  post.ownerId = customer;
   const update = makeMessage('I checked again and the conversation still disappears. My email is private@example.test.', { channel: post, authorId: customer });
   await noteCustomerLead(post, update);
   await noteCustomerLead(post, update);

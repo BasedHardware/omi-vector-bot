@@ -58,6 +58,7 @@ const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const { reviewRejectionReply } = require('./supportReplyCopy');
 const triage = require('./triage');
 const supportCases = require('./supportCases');
+const { isDedicatedCustomerThread } = require('./customerThreadScope');
 const supportIssueLinks = require('./supportIssueLinks');
 const githubFlow = require('./githubFlow').createGithubFlow();
 const supportThreadLanguage = require('./supportThreadLanguage');
@@ -504,6 +505,7 @@ async function noteCustomerLead(channel, message) {
   try {
     const value = await supportCases.getCaseByThread(channel.id, message.author.id);
     if (!value || value.customerId !== String(message.author.id)) return;
+    if (!(await isDedicatedCustomerThread(channel, value))) return;
     const rows = await supportIssueLinks.listForThread(value.id, github.repo(), channel.id);
     const linked = [...new Map(rows.filter((row) => row.customerId === String(message.author.id))
       .map((row) => [`${row.repo}:${row.issueNumber}`, row])).values()];

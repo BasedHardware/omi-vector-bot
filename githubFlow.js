@@ -4,6 +4,7 @@ const supportCases = require('./supportCases');
 const links = require('./supportIssueLinks');
 const { validateStaffDestination } = require('./discordPrivacy');
 const { staffMentionIds } = require('./handoff');
+const { isDedicatedCustomerThread } = require('./customerThreadScope');
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const sensitiveLanes = new Set(['shop', 'money', 'account', 'privacy']);
@@ -112,11 +113,8 @@ function createGithubFlow({ api = github, cases = supportCases, issueLinks = lin
         if (String(original.id || '') !== approval.sourceMessageId || String(original.author?.id || '') !== approval.customerId || typeof original.reply !== 'function') return false;
         await original.reply(payload);
       } else {
-        const handoff = Boolean(value.handoffThreadId && String(channel.id) === value.handoffThreadId);
-        const customerPost = Boolean(value.customerThreadId && String(channel.id) === value.customerThreadId && String(channel.ownerId || '') === approval.customerId);
-        if (!channel.isThread?.() || typeof channel.send !== 'function' || (!handoff && !customerPost)) return false;
-        // A forum post shared by several customer cases is not a fallback target.
-        if (!handoff && (await cases.getCaseByThread?.(String(channel.id)))?.id !== value.id) return false;
+        if (typeof channel.send !== 'function' ||
+            !(await isDedicatedCustomerThread(channel, value, {cases}))) return false;
         await channel.send(payload);
       }
       return true;

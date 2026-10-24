@@ -4,6 +4,8 @@
 
 - [x] Integrate deployed main `d550dc1` with both boot workflows, both exported recovery/publication seams and combined approval/reference-memory SQL checks preserved.
 - [x] Full1063/offline8/diff and disposable PGlite SQL pass. No customer database, Discord/provider call, GitHub publication or settings change.
+- [x] Independent review reproduced a shared-forum scope inconsistency in automatic staging and missing-source webhook notices. Both actual-owner regressions fail before repair. One shared `customerThreadScope` predicate now composes matching thread/binding/owner with an unfiltered unique case/customer lookup in all three paths; missing/ambiguous/unavailable proof refuses. Original-source replies remain usable in shared channels.
+- [x] Repaired tree passes1069/offline8/isolated SQL; scoped independent re-review passes362 affected checks with no remaining finding. Positive fixtures now supply real thread/lookup proof; no existing assertion weakened.
 - [ ] Exact-head hosted Node20/24/multi-connection PostgreSQL, independent privacy/authorization review and affected-flow integration before readiness. Keep draft; decision dueOctober27 does not waive safety.
 
 ## October24 production fix B — rejected-review language

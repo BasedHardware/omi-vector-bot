@@ -799,6 +799,22 @@ test('missing or wrong-author sources never produce shared-channel notices or by
   } finally { github.resetGithubMemory(); }
 });
 
+test('missing source cannot broadcast into a forum shared by two customer cases', async () => {
+  const {notifyLinkedThreads} = require('../commands');
+  const casesModule = require('../supportCases');
+  const cases = casesModule.createCaseService(casesModule.createMemoryStore());
+  const value = await cases.getOrCreateCase({channelId:'shared-forum',customerId:'alice',customerThreadId:'shared-forum'});
+  await cases.getOrCreateCase({channelId:'shared-forum',customerId:'bob',customerThreadId:'shared-forum'});
+  assert.equal(await cases.getCaseByThread('shared-forum'),null);
+  let broadcasts = 0;
+  const record = {repo:'basedhardware/omi',issueNumber:42,caseId:value.id,customerId:'alice',channelId:'shared-forum',threadId:'shared-forum',sourceMessageId:'missing'};
+  const client = {channels:{fetch:async()=>({id:'shared-forum',ownerId:'alice',isThread:()=>true,isTextBased:()=>true,
+    messages:{fetch:async()=>null},send:async()=>{broadcasts++;}})}};
+  const count = await notifyLinkedThreads(client,{number:42,line:'Synthetic engineering status.'},{cases,issueLinks:{listForIssue:async()=>[record]}});
+  assert.equal(count,0);
+  assert.equal(broadcasts,0);
+});
+
 test('missing source fallback requires a case-bound dedicated customer or handoff thread', async () => {
   const { notifyLinkedThreads } = require('../commands');
   const record = { repo: 'basedhardware/omi', issueNumber: 42, caseId: 'case-alice', customerId: 'alice', channelId: 'general', threadId: 'dedicated', sourceMessageId: 'missing' };
@@ -807,7 +823,10 @@ test('missing source fallback requires a case-bound dedicated customer or handof
     messages: { fetch: async () => null }, send: async () => sends++,
   }) } };
   const count = await notifyLinkedThreads(client, { number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [record] },
-    cases: { getCaseById: async () => ({ channelId: 'general', customerId: 'alice', customerThreadId: 'dedicated' }) },
+    cases: {
+      getCaseById: async () => ({ id:'case-alice',channelId:'general',customerId:'alice',customerThreadId:'dedicated' }),
+      getCaseByThread: async () => ({ id:'case-alice',customerId:'alice' }),
+    },
   });
   assert.equal(count, 1); assert.equal(sends, 1);
 });
