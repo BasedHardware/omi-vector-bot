@@ -1,5 +1,15 @@
 # Omi Support Bot Implementation Checklist
 
+## October24 reviewer follow-up — deterministic production fixes first
+
+- [x] Record #71 NOT APPROVED in the PR; retain conditional latency waiver and all outputs without unchanged paid rerun.
+- [x] A: reproduce orphaned redirect clauses/following sentences on main with original synthetic red-before tests; implement shared reference cleanup preserving sources, warnings, noun-led context and prior attempts.
+- [ ] A: full/offline checks, exact-head CI, independent review, then merge commit.
+- [ ] B: separate draft for shared de/fr/es/unknown-safe review-rejection copy and real handler/eval parity; same offline/CI/review gates, then merge commit.
+- [ ] After both merge: exact GitHub deployment, verified current rollback, optional features off; Aryan sends German handoff and redirect-cleanup smoke. Roll back on failure.
+- [ ] C after A/B merges: general excerpt/absence/customer-data-claim fix; review before provider run, then one simultaneous three-arm comparison with result-only flagged-answer package.
+- [ ] Preserve #28 October27 decision and separate memory-pilot gates. Cap exceptions are the explicitly authorised production fixes, not a general queue waiver.
+
 ## Current October23 — release smoke accepted
 
 - [x] English sourced ordinary answer, private refund delivery and controlled same-commit Redeploy pass. One reply after SIGTERM, clean drain, old instance observed gone after69.197s, stable30s; live6a815fbf/GitHub6b6d97d, optional features off.

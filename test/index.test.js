@@ -1635,6 +1635,20 @@ for (const [language, guidance, contact, next] of [
   });
 }
 
+test('unsupported-locale delivered cleanup receives the actual reply language', async t => {
+  const staff = enableStaffDelivery(t);
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = previousKey; });
+  plannerReplyLanguage = 'hi';
+  modelReply = { final_answer:'The appearance setting needs review. Email help@omi.me; वे अगला चरण समझाएँगे।', escalate:true };
+  const channel = makeChannel({thread:true,parentId:HELP_FORUM,name:'Synthetic appearance options'});
+  const result = await ask('How do I change the display colour?', {channel});
+  assert.equal(staff.length, 1);
+  assert.doesNotMatch(result.reply, /वे अगला|help@omi\.me/);
+  assert.match(result.reply, /appearance setting needs review/);
+});
+
 test('a delivered Handoff keeps details without directing the customer to another channel', async (t) => {
   const staff = enableStaffDelivery(t);
   modelReply = {

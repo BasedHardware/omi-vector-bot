@@ -1,6 +1,8 @@
 # Omi Support Bot: master product plan
 
-Updated October 23, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+Updated October 24, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
+
+**Latest October24 reviewer grade/order:** #71 is NOT approved: more aggregate help but harmful source-absence/compatibility and customer-data assurances, plus citation/language losses. Main shares the false-absence family; causation by #71 is unproven. The conditional latency waiver does not clear accuracy. #77 is closed without merge, branch/work preserved; #62 stays open. Authorised production exceptions to the PR cap: A orphaned redirect references, B shared localised review-rejection copy, each offline-tested/CI/independently reviewed, then approved GitHub deploy and Aryan's two short smokes. C general excerpt/absence/data-claim contract follows A/B merges and review before one simultaneous three-arm run. See [repair checklist](DETERMINISTIC_REPLY_FIXES.md). Optional controls remain off; no new provider run in preparation. Four pre-existing drafts (#28/#59/#71/#75); report counts as A/B/C open or merge. Score47/100 unchanged. Earlier checkpoints below are historical.
 
 ## Progress: 47 / 100 delivery milestones
 
