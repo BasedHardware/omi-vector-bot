@@ -7,7 +7,9 @@
 - [ ] Aryan's German handoff and redirect-cleanup smoke; first deferred. Do not post on his behalf or call pending checks passed. Roll back on failure.
 - [x] C red-before tests: excerpt marker, shared actual prompt contract, claim-check rejection/rewrites, explicit negative evidence, missing schema and metadata privacy. No held-out content/provider call.
 - [x] C full986/offline8 and independent pre-provider code review pass, including red-before normal/compact JSON-schema consistency and root-specific evaluation-policy parity. Test mocks prove wiring, not real model accuracy; missing checks fail closed.
-- [ ] Publish C as draft and pass exact-head hosted CI; neither publication nor CI clears the pending smoke/comparison/accuracy gates.
+- [x] Publish C as draft #82 at85cf9d9 and pass exact-head Node20/24/Postgres CI40088061535; neither publication nor CI clears the pending smoke/comparison/accuracy gates.
+- [x] Prepare local comparison-only C+#71 merge7c03601:1004/offline8, current claim/reply/runtime safeguards preserved. No new PR, push, provider call or protected-input read.
+- [ ] Repair #75's two remaining provenance/history findings before any readiness claim; the direct-object P1 repair is only partial. #59 comparison and #28 authorization/flow review remain separate.
 - [ ] After C review and release-smoke acceptance: freeze root-specific adapter parity, then one simultaneous81×2×3 comparison and complete result-only accuracy package. No automatic unchanged rerun.
 - [x] Post all ten original issue-status comment blocks verbatim after receiving the file; read-back matches and issue states/labels remain unchanged.
 - [ ] #71 accuracy approval, #28 October27 decision and memory-pilot gates remain separate.
