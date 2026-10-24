@@ -381,6 +381,15 @@ function looksLikeSupportNudge(text) {
   return any(text, SUPPORT_NUDGE);
 }
 
+function isFailedSupportFollowup(text) {
+  const value = String(text || '');
+  const feedback = /\b(?:still|again|after\s+(?:those|the|these)\s+steps|(?:that|those steps|the steps)\s+(?:did\s+not|didn['’]t|do\s+not|don['’]t))\b|\b(?:sigue|siguen|todav[ií]a|a[uú]n|los\s+pasos)\b/i;
+  const observed = /\b(?:not\s+working|doesn['’]t\s+work|didn['’]t\s+work|did\s+not\s+work|no\s+funcionan?|sin\s+funcionar|still\s+(?:fails?|broken|stuck))\b/i;
+  const reported = value.replace(/\b(?:did|does|do)\s+not\s+work\b/gi, 'not working')
+    .replace(/\bsin\s+funcionar\b/gi, 'no funciona');
+  return feedback.test(value) && observed.test(value) && looksLikeReportedFailure(reported);
+}
+
 function looksLikePlan(text) {
   return /\b(subscription|redemption code|unlimited yearly|plus plan|no active plan|stuck on free|downgraded to free|billing bug)\b/i.test(
     String(text || '')
@@ -763,6 +772,7 @@ module.exports = {
   looksLikeTax,
   looksLikeShippingQuote,
   looksLikeSupportNudge,
+  isFailedSupportFollowup,
   looksLikePlan,
   looksLikeDocs,
   looksLikeRecordingHow,

@@ -1,6 +1,6 @@
 # Customer intent must come from the customer
 
-Draft, October 23, 2026. Based on main `5bafe93`; **not merged, deployed or ready**.
+Draft, updated October24, 2026. Current deployed main `d550dc1` is integrated without rebasing; **not merged, deployed or ready**. The earlier base was `5bafe93`.
 
 ## Failure and integrated repair
 
@@ -17,6 +17,7 @@ The shared planner policy rejects a contradicted personal-action kind and clears
 - Eleven new synthetic tests: six customer-intent/policy groups and five full-handler groups. Frozen-main loader: seven fail (six behavioral assertions plus the absent new normalization seam), four protective controls pass. All eleven pass after repair.
 - A separate intermediate test caught and prevented cancellation of a genuine financial case by a version-only follow-up. Its final baseline and candidate controls pass.
 - Full local suite: **850/850**. Offline scenarios: **8/8**. Guarded isolated PGlite SQL verification passes. No database schema changes.
+- October24 current-main integration: full **985/985**, offline **8/8**, diff check pass. The handler conflict keeps both customer-correction constraints and deployed reply-language selection/localized rejection behavior. The initial test attempt lacked installed dependencies; after verifying an identical lockfile and reusing the existing dependency runtime, the complete suite passes. No failing behavioral assertion was waived.
 - Handler tests use synthetic Discord, provider and delivery adapters. They do not prove live generated-answer quality or actual Discord acceptance/delivery.
 - Still required: exact-head hosted checks, independent review, evaluation-adapter parity, an authorized fresh comparison and appropriate running-environment multi-turn verification. Keep the PR draft until these gates pass. Never reuse another change's grade or tune against sealed inputs.
 

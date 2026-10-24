@@ -5,6 +5,7 @@ const { relevantFeedback } = require('../feedback');
 const { buildToolFacts, OFFICIAL } = require('../prompt');
 const { planSearch, queryAgent, reviewAnswer } = require('../commandcode');
 const { approvedReview, reviewWithSecondLook } = require('../reviewDecision');
+const { reviewRejectionReply } = require('../supportReplyCopy');
 const triage = require('../triage');
 const { prepareDraftForReview, presentReviewedAnswer } = require('../answerPipeline');
 const github = require('../github');
@@ -235,7 +236,7 @@ async function replyFor(scene, route) {
     const approved = approvedReview(checked);
     agent.final_answer = approved || checked.safeHandoff
       ? checked.final_answer
-      : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
+      : reviewRejectionReply(searchPlan.replyLanguage, scene.ask);
     agent.escalate = Boolean(agent.escalate || checked.escalate || !approved);
     agent.confidence = Math.min(Number(agent.confidence) || 0.4, Number(checked.confidence) || 0.4);
     return { answer: presentReviewedAnswer(agent.final_answer), agent, from: 'model+review' };

@@ -64,6 +64,7 @@ function rowCase(row) {
   if (!row) return null;
   return {
     id: row.id, channelId: row.channel_id, customerId: row.customer_id,
+    guildId: row.guild_id || null, forumId: row.forum_id || null,
     customerThreadId: row.customer_thread_id, handoffThreadId: row.handoff_thread_id,
     escalationId: row.escalation_id, status: row.status, context: row.context || {}, sources: row.sources || [],
     deliveryId: row.delivery_id, deliveryDestination: row.delivery_destination,
@@ -97,6 +98,8 @@ async function initSchema(client) {
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS accepted_by TEXT;
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS source_message_id TEXT;
+    ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS guild_id TEXT;
+    ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS forum_id TEXT;
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS work_status TEXT CHECK (work_status IN ('in_progress', 'waiting_customer'));
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS acceptance_notice_started BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS acceptance_notice_id TEXT;
@@ -112,14 +115,16 @@ function createPostgresStore(client) {
   return {
     async getOrCreate(input) {
       const { rows } = await client.query(`
-        INSERT INTO support_cases (id, channel_id, customer_id, customer_thread_id, status, context, sources, source_message_id)
-        VALUES ($1, $2, $3, $4, 'queued', $5::jsonb, $6::jsonb, $7)
+        INSERT INTO support_cases (id, channel_id, customer_id, customer_thread_id, status, context, sources, source_message_id, guild_id, forum_id)
+        VALUES ($1, $2, $3, $4, 'queued', $5::jsonb, $6::jsonb, $7, $8, $9)
         ON CONFLICT (channel_id, customer_id) WHERE status IN ('queued', 'delivered', 'accepted')
         DO UPDATE SET context = support_cases.context || EXCLUDED.context,
           sources = CASE WHEN jsonb_array_length(EXCLUDED.sources) > 0 THEN EXCLUDED.sources ELSE support_cases.sources END,
           customer_thread_id = COALESCE(EXCLUDED.customer_thread_id, support_cases.customer_thread_id),
-          source_message_id = COALESCE(support_cases.source_message_id, EXCLUDED.source_message_id), updated_at = NOW()
-        RETURNING *`, [input.id, input.channelId, input.customerId, input.customerThreadId, JSON.stringify(input.context), JSON.stringify(input.sources), input.sourceMessageId]);
+          source_message_id = COALESCE(support_cases.source_message_id, EXCLUDED.source_message_id),
+          guild_id = COALESCE(support_cases.guild_id, EXCLUDED.guild_id),
+          forum_id = COALESCE(support_cases.forum_id, EXCLUDED.forum_id), updated_at = NOW()
+        RETURNING *`, [input.id, input.channelId, input.customerId, input.customerThreadId, JSON.stringify(input.context), JSON.stringify(input.sources), input.sourceMessageId, input.guildId, input.forumId]);
       return rowCase(rows[0]);
     },
     async getActive(channelId, customerId) {
@@ -205,6 +210,8 @@ function createMemoryStore(state = { cases: new Map() }) {
         if (input.sources.length) existing.sources = input.sources;
         if (input.customerThreadId) existing.customerThreadId = input.customerThreadId;
         existing.sourceMessageId ||= input.sourceMessageId;
+        existing.guildId ||= input.guildId;
+        existing.forumId ||= input.forumId;
         return clone(existing);
       }
       const value = { ...input, handoffThreadId: null, escalationId: null, status: 'queued', deliveryId: null, deliveryDestination: null, acceptedBy: null, acceptedAt: null, acceptanceGeneration: null, workStatus: null, acceptanceNoticeStarted: false, acceptanceNoticeId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
@@ -278,7 +285,9 @@ function createMemoryStore(state = { cases: new Map() }) {
 function createCaseService(store) {
   return {
     async getOrCreateCase(input) {
-      return store.getOrCreate({ id: randomUUID(), channelId: identifier(input.channelId, true), customerId: identifier(input.customerId, true), customerThreadId: identifier(input.customerThreadId), sourceMessageId: identifier(input.sourceMessageId), context: safeContext(input.context), sources: safeSources(input.sources) });
+      const guildId = identifier(input.guildId), forumId = identifier(input.forumId);
+      if (Boolean(guildId) !== Boolean(forumId)) throw Error('Incomplete support case privacy scope');
+      return store.getOrCreate({ id: randomUUID(), guildId, forumId, channelId: identifier(input.channelId, true), customerId: identifier(input.customerId, true), customerThreadId: identifier(input.customerThreadId), sourceMessageId: identifier(input.sourceMessageId), context: safeContext(input.context), sources: safeSources(input.sources) });
     },
     getActiveCase: (channelId, customerId) => store.getActive(identifier(channelId, true), identifier(customerId, true)),
     getCaseById: (caseId) => store.getById(identifier(caseId, true)),
