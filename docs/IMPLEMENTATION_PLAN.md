@@ -1,5 +1,14 @@
 # Omi Support Bot Implementation Checklist
 
+## October24 production fix B — rejected-review language
+
+- [x] Reproduce de/fr/es English-body/localized-footer failure with original real-handler and evaluation-wrapper tests; unknown language retains English by design.
+- [x] One shared copy table/helper; use the existing replyLanguage in the handler and same planner language/script in the evaluation mirror. No provider/network/protected inputs in regressions.
+- [ ] Full suite, no-model evaluation, exact-head Node20/24/Postgres CI and independent review before readiness/merge.
+- [ ] Integrate the separately reviewed production fix A with a merge commit; rerun affected/current gates, preserving both scopes and documents.
+- [ ] Only after A/B merge: verified-current rollback, exact GitHub deploy, optional features off; Aryan's German-handoff and redirect-cleanup smokes. Failure means rollback.
+- [ ] C accuracy/excerpt guard remains separate: review before the single simultaneous three-arm comparison; #71 is not approved. #28 and memory-pilot gates remain separate.
+
 ## Current October23 — release smoke accepted
 
 - [x] English sourced ordinary answer, private refund delivery and controlled same-commit Redeploy pass. One reply after SIGTERM, clean drain, old instance observed gone after69.197s, stable30s; live6a815fbf/GitHub6b6d97d, optional features off.
