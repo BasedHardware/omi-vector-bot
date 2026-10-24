@@ -12,7 +12,7 @@ Ten original synthetic helper groups and one real-handler test exercise semicolo
 
 ## B — localised review-rejection fallback
 
-Pending in a separate draft: one shared language-table helper for the rejected-review answer, used by the real handler and evaluation mirror. Preserve the exact meaning and English default; no receipt, resolution or deadline promise. Test de/fr/es, unknown language and the handler path, without provider calls.
+Prepared as separate draft #81: one shared language-table helper for the rejected-review answer, used by the real handler and evaluation mirror. Preserve the exact meaning and English default; no receipt, resolution or deadline promise. Original de/fr/es tests fail before the fix in both paths; after it, all963 pre-integration tests/offline8 and initial-head Node20/24/Postgres CI40085900133 pass. A/#80 is merged `16ee8ca`; this integration needs fresh full/CI and independent review. See [copy boundary](REVIEW_REJECTION_COPY.md). No provider call or deployment.
 
 ## After A/B
 
