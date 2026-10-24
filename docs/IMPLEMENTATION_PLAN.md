@@ -9,7 +9,8 @@
 - [x] Keep partial narration removal within a closed grammar: one of four protective warnings or a bounded simple-past attempt, followed by one complete standalone narration clause. General symptoms, other languages, unknown/action-bearing/guarded/reversed/interleaved shapes fail closed. Preserve main redirect/footer behavior and localized source fingerprints; no customer text in stage evidence.
 - [x] Independent scoped code re-review passes after five red-before regression tests and the narrowed contract:31 focused tests,14 presentation-parity inputs, metadata privacy/source-only checks and exact main redirect/in-thread/footer parity. This is code review, not answer-quality comparison or release approval.
 - [x] Local full965/offline8 pass on the repaired source; rerun before pushing. No provider or protected-file access was needed.
-- [ ] Complete exact-head hosted Node20/24/Postgres checks; keep #77 draft for Aryan's review and its remaining comparison gate.
+- [x] Repaired source `3e307bc5e9c737ce0c2f8fba1668e55b6f6a308e` passes exact-head hosted Node20/24/Postgres run `40060077727`, full965/offline8 and independent scoped code review. Later status-only commits do not change that runtime evidence.
+- [ ] Keep #77 draft for Aryan's review, its remaining behavioral comparison and release gate. Code/CI success is not merge/deploy approval.
 - [x] Reuse #71's completed simultaneous 162/162 comparison on main `1235379`/candidate `55799ad`; its current `c3b4b2b` adds docs only. Accuracy HOLD remains; speed alone is not a rejection. No unchanged paid rerun or readiness inferred.
 - [ ] Finish remaining #28/#59/#71/#75/#77 review decisions without new feature PRs, rushed closures or unverified merges. #28 deadline remains October27; optional memory/pilot requirements remain separate.
 
