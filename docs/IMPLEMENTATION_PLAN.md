@@ -5,9 +5,19 @@
 - [x] Reproduce de/fr/es English-body/localized-footer failure with original real-handler and evaluation-wrapper tests; unknown language retains English by design.
 - [x] One shared copy table/helper; use the existing replyLanguage in the handler and same planner language/script in the evaluation mirror. No provider/network/protected inputs in regressions.
 - [ ] Full suite, no-model evaluation, exact-head Node20/24/Postgres CI and independent review before readiness/merge.
-- [ ] Integrate the separately reviewed production fix A with a merge commit; rerun affected/current gates, preserving both scopes and documents.
+- [x] Integrate the separately reviewed production fix A/main `16ee8ca` with a merge commit; both document scopes preserved. Rerun affected/current gates before publishing.
 - [ ] Only after A/B merge: verified-current rollback, exact GitHub deploy, optional features off; Aryan's German-handoff and redirect-cleanup smokes. Failure means rollback.
 - [ ] C accuracy/excerpt guard remains separate: review before the single simultaneous three-arm comparison; #71 is not approved. #28 and memory-pilot gates remain separate.
+
+## October24 reviewer follow-up — deterministic production fixes first
+
+- [x] Record #71 NOT APPROVED in the PR; retain conditional latency waiver and all outputs without unchanged paid rerun.
+- [x] A: reproduce orphaned redirect clauses/following sentences on main with original synthetic red-before tests; implement shared reference cleanup preserving sources, warnings, noun-led context and prior attempts.
+- [x] A/#80: full965/offline8, exact-head Node20/24/Postgres CI40085949902 and independent review198 focused/23 adversarial assertions pass; merged `16ee8ca`, not deployed.
+- [ ] B: separate draft for shared de/fr/es/unknown-safe review-rejection copy and real handler/eval parity; same offline/CI/review gates, then merge commit.
+- [ ] After both merge: exact GitHub deployment, verified current rollback, optional features off; Aryan sends German handoff and redirect-cleanup smoke. Roll back on failure.
+- [ ] C after A/B merges: general excerpt/absence/customer-data-claim fix; review before provider run, then one simultaneous three-arm comparison with result-only flagged-answer package.
+- [ ] Preserve #28 October27 decision and separate memory-pilot gates. Cap exceptions are the explicitly authorised production fixes, not a general queue waiver.
 
 ## Current October23 — release smoke accepted
 

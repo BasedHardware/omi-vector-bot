@@ -1141,7 +1141,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           try {
             await assertCurrentOwnership();
             await existing.send({
-              content: rewriteUserMentions(escalateReply(cleanAnswer, { pinged: true, conversation: true, footers: localizedFooters }), message),
+              content: rewriteUserMentions(escalateReply(cleanAnswer, { pinged: true, conversation: true, footers: localizedFooters, language: replyLanguage }), message),
               allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
             });
             reused = true;
@@ -1243,6 +1243,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         deliveryFailed,
         replyInThread: pinged && Boolean(channel.isThread?.() || handoffThread?.id),
         footers: localizedFooters,
+        language: replyLanguage,
       });
       if (movedToThread) {
         const threadLink = `<#${handoffThread.id}>`;

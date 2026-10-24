@@ -1,7 +1,7 @@
 const { stripStaffLies, stripInventedLookup } = require('./honesty');
 const { createHash } = require('node:crypto');
 const { isPreviousPost } = require('./supportContextFormat');
-const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
+const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR, hasTroubleshootingStep, hasSafetyWarning } = require('./supportSteps');
 const SOURCE_HEADING = new RegExp(`^\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}`, 'iu');
 
 const ESCALATION_PATTERNS = [
@@ -148,7 +148,20 @@ function sanitizeReply(text) {
   return stripInventedLookup(stripStaffLies(cleaned));
 }
 
-function stripSupportRedirect(text) {
+// Anaphoric subjects cannot stand in for a support route we just removed.
+// This is reference cleanup, not a general semantic-independence parser.
+const REDIRECT_REFERENCE = /^(?:[-*•]\s*|\d+[.)]\s*)?["'“‘]?(?:(?:they|them|it|that|this|those|these|there|which|ils|elles|cela|ça|ce|ces|ceci|eux|das|dies(?:e[rmns]?)?|sie|dort|diese|ellos|ellas|eso|esto|esos|estos|all[ií]|eles|elas|isso|isto|esses|estes|loro|quest[oaie]|quell[oaie]|onlar|bu|şu|o|mereka|itu|ini|они|это|там|которые)(?=[\s,;:'’]|$)|それ|これ|あれ|そこ|他们|她们|它们|这|那|그것|이것|그들)/iu;
+const REDIRECT_LANGUAGES = new Set(['en','fr','de','es','pt','it','tr','id','ja','zh','ko','ru']);
+function startsRedirectReference(text) {
+  // Match the displayed subject, not Markdown's emphasis/code/quote markers.
+  return REDIRECT_REFERENCE.test(String(text).replace(/[*_~`]/g, '').replace(/^\s*>\s*/, '').trim());
+}
+function hasIndependentDirective(text) {
+  const shown = String(text).replace(/[*_~`]/g, '');
+  return hasSafetyWarning(shown) || hasTroubleshootingStep(shown) || /https?:\/\//iu.test(shown);
+}
+
+function stripSupportRedirect(text, {language = 'en'} = {}) {
   const isRedirect = (sentence) => {
     // A warning not to send secrets is not an instruction to leave this thread.
     if (/\b(?:never|do not|don['’]t)\s+(?:e-?mail|send|share)|\bno\s+(?:env[ií]es|compartas)|不要(?:发送|分享)/i.test(sentence)) return false;
@@ -161,25 +174,38 @@ function stripSupportRedirect(text) {
     const contactControl = /\b(?:use|select|choose|click|tap)\s+(?:the\s+)?(?:contact\s+(?:omi\s+)?support|contact\s+(?:form|option|page)|support\s+(?:form|page|ticket))\b/i;
     return directContact.test(sentence) || supportForm.test(sentence) || supportChannel.test(sentence) || contactControl.test(sentence);
   };
+  let removedReference = false;
+  const supported = REDIRECT_LANGUAGES.has(String(language).toLowerCase().split('-')[0]);
   return String(text || '')
     .split('\n')
     .map((line) => {
+      if (!line.trim()) { removedReference = false; return line; }
       if (SOURCE_HEADING.test(line)) return line;
-      // Remove the contact clause, not independent symptoms, attempts or warnings.
-      const clauses = line.split(/(?<=[.!?])\s+|[;；]\s*|(?<=[。！？])\s*|\s+(?:and|y)\s+(?=(?:do\s+not|don't|never|no)\b)/iu);
       const privateOrderIntake = sentence => /^\s*include (?:the )?order (?:number|#)/i.test(sentence);
-      if (!clauses.some(sentence => isRedirect(sentence) || privateOrderIntake(sentence))) return line;
-      return clauses
-        .flatMap((sentence) => {
-          if (SOURCE_HEADING.test(sentence)) return [sentence];
-          // Private /order self-service and its verification steps are not support redirects.
-          if (privateOrderIntake(sentence)) return [];
-          if (!isRedirect(sentence)) return [sentence];
-          const details = sentence.match(/\b(?:please\s+)?include\b.+$/i);
+      const originalClauses = line.split(/(?<=[.!?])\s+|[;；]\s*|(?<=[。！？])\s*|\s+(?:and|y)\s+(?=(?:do\s+not|don't|never|no)\b)/iu);
+      if (!removedReference && !originalClauses.some(s => isRedirect(s) || privateOrderIntake(s))) return line;
+      return line.split(/(?<=[.!?])\s+|(?<=[。！？])\s*/u).filter(Boolean).flatMap(sentence => {
+        const clauses = sentence.split(/[;；]\s*|\s+(?:and|y)\s+(?=(?:do\s+not|don't|never|no)\b)/iu).map(s=>s.trim()).filter(Boolean);
+        const removed = clauses.some(s => isRedirect(s) || privateOrderIntake(s));
+        if (!removed) {
+          if (removedReference && (!supported || startsRedirectReference(sentence)) && !hasIndependentDirective(sentence)) return [];
+          removedReference = false;
+          return [sentence];
+        }
+        removedReference = true;
+        return clauses.flatMap(clause => {
+          if (SOURCE_HEADING.test(clause)) return [clause];
+          if (privateOrderIntake(clause)) return [];
+          if (!isRedirect(clause)) {
+            // An unknown language is not a license to guess that a split
+            // clause stands alone. Protective warnings are never discarded.
+            if (!supported && !hasIndependentDirective(clause)) return [];
+            return startsRedirectReference(clause) && !hasIndependentDirective(clause) ? [] : [clause];
+          }
+          const details = clause.match(/\b(?:please\s+)?include\b.+$/i);
           return details && !isRedirect(details[0]) ? [`Please ${details[0].replace(/^please\s+/i, '')}`] : [];
-        })
-        .join(' ')
-        .trim();
+        });
+      }).join(' ').trim();
     })
     .filter(Boolean)
     .join('\n')
@@ -204,7 +230,7 @@ const IN_THREAD_NEXT = {
 
 function inThreadReply(answer, { language = 'en' } = {}) {
   const original = String(answer || '').trim();
-  const cleaned = stripSupportRedirect(original);
+  const cleaned = stripSupportRedirect(original, {language});
   const normalized = text => text.replace(/\s+/g, ' ').trim();
   if (normalized(cleaned) === normalized(original)) return { text: original, empty: false };
   const isSource = line => SOURCE_HEADING.test(line);
@@ -494,7 +520,7 @@ function escalateReply(answer, opts = {}) {
   const footers = opts.footers;
   let body = dropPingNarration(String(answer || '').trim());
 
-  if (pinged || opts.deliveryFailed) body = stripSupportRedirect(body);
+  if (pinged || opts.deliveryFailed) body = stripSupportRedirect(body, {language:opts.language || 'en'});
 
   if (opts.deliveryFailed) {
     return [body, footers?.failed || FAILED_HANDOFF_FOOTER].filter(Boolean).join('\n\n');
