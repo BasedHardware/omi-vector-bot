@@ -1,5 +1,12 @@
 # Omi Support Bot Roadmap
 
+## October24 — current-main customer-intent integration, still draft
+
+#75 integrates deployed main `d550dc1`, preserving #80/#81's redirect/language behavior and all current runtime/privacy fences. Full985/offline8 pass. Exact integrated-head CI, independent review, comparison and multi-turn verification remain required; no merge/deployment is approved by this integration. C/#82 is separate; #71 remains on accuracy hold. Aryan's two deployed reply-repair smokes remain pending. Optional features remain off.
+
+## October 23: isolate current customer intent from old action guesses
+
+Separate main-based draft repairs one failure path: only current-customer messages establish routing history, and bounded English/Spanish action corrections constrain both route and planner-generated retrieval requirements. Other participants/bot guesses remain context, not request provenance. Genuine mixed financial/privacy/replacement requests and version-only continuations retain protected handling. Eleven new synthetic checks yield seven frozen-main failures (six behavioral assertions plus one new seam) and all pass afterward; full 850/offline8/isolated SQL pass. See `docs/CUSTOMER_INTENT_ROUTING.md`. Generated-answer/E2E verification, comparison-adapter parity, authorized quality comparison, hosted checks and independent review remain; draft only, no merge/deploy or enabled memory. Other audit themes and all prior work remain open.
 ## Current October23 — smoke passed, approved merges resume
 
 All three reliability checks pass: sourced English answer without handoff; one private refund card; same-commit Redeploy with clean drain, one post-SIGTERM reply and old instance observed removed after69.197s, stable30s. Live6a815fbf records unchanged6b6d97d; rollback458d4a6f, optional features off. #67 merged94e4f57 after the auto-deploy-off guard. #74 integration7860417 preserves reviewed privacy/#67 code;952/offline8/SQL and independent298-check review pass. Final hosted CI precedes its approved merge; no new-code deploy or memory enablement. #71's guard/shared-page repair and fair concurrent-arm comparison remain. The named timing test is reproduced by withholding loopback progress; its separate test-only fix stays queued. Score47/100.

@@ -1,8 +1,11 @@
 
+const { requestCorrection } = require('./requestCorrections');
+
 // Refunds and charges always beat a product bug. "billing reasons" in a
 // desktop 402 report is not a Shopify refund.
 const STRONG_MONEY = [
   /\brefunds?\b/i,
+  /\breembolsos?\b/i,
   /\bcharged\b/i,
   /\binvoice\b/i,
   /\btax(es)?\b/i,
@@ -27,7 +30,8 @@ const WEAK_MONEY = [
   /\bpayment\b/i,
 ];
 
-const PRIVACY = [/\bprivacy\b/i, /\bgdpr\b/i, /\bdelete my (account|data)\b/i];
+const PRIVACY = [/\bprivacy\b/i, /\bgdpr\b/i, /\bdelete my (account|data)\b/i,
+  /\b(?:borrar|eliminar)\s+(?:mi|mis|nuestra|nuestros)\s+(?:cuenta|datos)\b/i];
 
 // Where-is-it, status, tracking, shipping, and customs stay above firmware.
 // A bare order number stays below firmware, desktop, and app.
@@ -250,7 +254,7 @@ function looksLikeOtherLanguage(text) {
 }
 
 function classifyRoute(text) {
-  const s = String(text || '');
+  const s = requestCorrection(text).text;
   const wantHuman = wantsHumanSupport(s);
 
   if (/\bin order to\b/i.test(s) && !any(s, SHOP) && !any(s, STRONG_MONEY) && !any(s, WEAK_MONEY)) {

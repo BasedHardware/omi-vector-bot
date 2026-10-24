@@ -1,5 +1,18 @@
 # Omi Support Bot Implementation Checklist
 
+## October24 — existing #75 integration
+
+- [x] Integrate deployed main `d550dc1` without rebasing or removing current language/redirect/runtime safeguards; full985/offline8 and diff check pass.
+- [x] Repair the reviewer's P1 with direct-object-only action denial recognition; four original English/Spanish positive-request variants fail before repair and pass after; full986/offline8 pass.
+- [ ] Review HOLD remains for chronological withdrawals and title/planner provenance. One shared owner-intent projection and actual-handler paired controls are needed; green CI is not approval of these known gaps.
+- [ ] Exact-head CI and independent code review, then the separately gated comparison and actual multi-turn verification. Keep draft; no provider run, merge, deploy or optional enablement.
+
+## October 23: current-customer intent draft
+
+- [x] Reproduce old bot/participant action labels hijacking technical follow-ups with synthetic handler tests.
+- [x] Separate routing provenance from answer context; constrain explicit rejected actions through routing and planner retrieval requirements.
+- [x] Preserve real independent personal actions and version-only continuations. Eleven new checks, 850 full/offline8/isolated SQL pass; frozen-main evidence is documented in `CUSTOMER_INTENT_ROUTING.md`.
+- [ ] Exact-head hosted checks, independent review, evaluation-adapter parity, authorized quality comparison and appropriate actual multi-turn verification. Stay draft; not merged/deployed/live. All other answer audit themes remain open in the canonical master plan.
 ## October24 production fix B — rejected-review language
 
 - [x] Reproduce de/fr/es English-body/localized-footer failure with original real-handler and evaluation-wrapper tests; unknown language retains English by design.
