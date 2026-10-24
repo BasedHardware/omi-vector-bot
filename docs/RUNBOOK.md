@@ -1,5 +1,9 @@
 # Omi Support Bot Operations Runbook
 
+## October24 — deterministic A+B deployment, smoke pending
+
+#80/#81 are merged. Exact GitHub `d550dc1e0d1255b078292b2dd20b34292749f413` passed final974/offline8 and Node20/24/Postgres CI40086285541; deployment `1bce9049-6128-4db8-b0a2-d6c57ed27656` records that hash, SUCCESS/latest, one running ready instance and health OK, optional features off. Rollback is `0262f351-aae7-41e1-84cd-64154925a31e` / `1235379`, verified eligible before the one dispatch. Auto triggers were off; no settings change. Shutdown/recovery is unchanged, so no new drain smoke. Aryan deferred the German-handoff input: leave both German-handoff and redirect-cleanup checks pending, never send for him. Failure means the approved rollback; verify actual state before acting. Current private metadata is `release6-live-smoke-20261024.json`; do not reuse the old release5 baseline guard to dispatch. Draft C and #71 are not deployed/approved; no comparison before C review and the pending release smoke gate. Earlier snapshots below are historical.
+
 ## Current operating rule — October 23
 
 **Current acceptance:** all three reliability smokes pass; Aryan submitted every input. Live6a815fbf records GitHub6b6d97d, same image as61e8ce70. Controlled Redeploy: processing21:43:07.103IST; dispatch21:43:21.813; replacement login21:43:31.874; SIGTERM21:43:37.361; one reply21:43:44.626; clean drain21:43:46.120; old instance observed gone21:44:46.557 (69.197s after SIGTERM), stable30s. Rollback458d4a6f; optional features off. #67 merged94e4f57, not deployed. Complete #74's current-head checks before its approved merge. No additional code deploy/settings change or memory enablement follows from a merge.

@@ -455,7 +455,7 @@ function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2, onSources } = 
     const section = row.section ? ` — ${row.section}` : '';
     const body = cleanDocument(row.body, 1_700);
     if (!body) continue;
-    const block = `[${id} | ${sourceLabel(kind)} | ${trust}]\n${row.title || 'Untitled'}${section}\n${url}\n${body}`;
+    const block = `[${id} | ${sourceLabel(kind)} | ${trust} | excerpt; complete page coverage not established]\n${row.title || 'Untitled'}${section}\n${url}\n${body}`;
     const separatorChars = blocks.length ? 2 : 0;
     if (used + separatorChars + block.length > maxChars && blocks.length) break;
     blocks.push(block);

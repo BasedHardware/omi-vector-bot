@@ -1,5 +1,17 @@
 # Omi Support Bot Implementation Checklist
 
+## October24 — A+B deployed; C remains draft
+
+- [x] A/#80 and B/#81 independently reviewed, exact-head CI green, merged with merge commits; final main `d550dc1` passes974/offline8 and Node20/24/Postgres CI40086285541.
+- [x] Deploy exact GitHub SHA as `1bce9049`, verify recorded hash, one ready healthy instance and optional controls off; rollback `0262f351`/`1235379` verified before dispatch. No settings change.
+- [ ] Aryan's German handoff and redirect-cleanup smoke; first deferred. Do not post on his behalf or call pending checks passed. Roll back on failure.
+- [x] C red-before tests: excerpt marker, shared actual prompt contract, claim-check rejection/rewrites, explicit negative evidence, missing schema and metadata privacy. No held-out content/provider call.
+- [x] C full986/offline8 and independent pre-provider code review pass, including red-before normal/compact JSON-schema consistency and root-specific evaluation-policy parity. Test mocks prove wiring, not real model accuracy; missing checks fail closed.
+- [ ] Publish C as draft and pass exact-head hosted CI; neither publication nor CI clears the pending smoke/comparison/accuracy gates.
+- [ ] After C review and release-smoke acceptance: freeze root-specific adapter parity, then one simultaneous81×2×3 comparison and complete result-only accuracy package. No automatic unchanged rerun.
+- [x] Post all ten original issue-status comment blocks verbatim after receiving the file; read-back matches and issue states/labels remain unchanged.
+- [ ] #71 accuracy approval, #28 October27 decision and memory-pilot gates remain separate.
+
 ## October24 production fix B — rejected-review language
 
 - [x] Reproduce de/fr/es English-body/localized-footer failure with original real-handler and evaluation-wrapper tests; unknown language retains English by design.

@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## Current October24 — accuracy draft reviewed, release smokes pending
+
+#80/#81 are merged and deployed from exact GitHub main `d550dc1` as `1bce9049`; health/startup and one running instance are verified, optional features remain off. German handoff and redirect-cleanup smokes still require Aryan's inputs; no provider comparison before they pass. C's general excerpt/absence/customer-data claim boundary has independent pre-provider code-review approval, 986 passing tests and eight offline checks. It remains undeployed and subject to current-head CI, one simultaneous main | main+C | main+C+#71 comparison and independent accuracy grading. This is not approval to merge #71. The adapter now preserves each evaluated root's multipart policy. #28/#59/#71/#75 remain draft; #28's October27 decision and memory pilot keep their separate gates. Ten requested issue comments were posted verbatim with issue states/labels unchanged. This checkpoint supersedes older operational snapshots below; delivery score47/100 is unchanged.
+
 ## Current October23 — smoke passed, approved merges resume
 
 All three reliability checks pass: sourced English answer without handoff; one private refund card; same-commit Redeploy with clean drain, one post-SIGTERM reply and old instance observed removed after69.197s, stable30s. Live6a815fbf records unchanged6b6d97d; rollback458d4a6f, optional features off. #67 merged94e4f57 after the auto-deploy-off guard. #74 integration7860417 preserves reviewed privacy/#67 code;952/offline8/SQL and independent298-check review pass. Final hosted CI precedes its approved merge; no new-code deploy or memory enablement. #71's guard/shared-page repair and fair concurrent-arm comparison remain. The named timing test is reproduced by withholding loopback progress; its separate test-only fix stays queued. Score47/100.
