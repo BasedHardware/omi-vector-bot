@@ -2,6 +2,11 @@
 
 ## October25 — A+B smokes accepted; C remains draft
 
+- [x] Preserve all486 saved result rows and stopped original supervisor provenance. Reconcile the exact historical power window through a separate independent streamed log audit: coverage before/after, zero sleep/wake events, exit0, no truncation. Post-hoc frozen-source/harness/row/date/hash/secret checks pass; original five files unchanged, zero provider calls for reconciliation.
+- [x] Independent answer-accuracy grading completed before any merge: all486 final outputs plus six earlier-turn replies read, official-source checks and limits recorded. **HOLD for both C and C+#71** on factual/completeness/citation/source-conflict failures, not latency. Missing baseline checks remain unavailable. No paid rerun without asking Aryan first.
+- [x] #75 initial context-loss repair `abcd59c` passes four red-before tests/1002/offline8/isolated SQL/current CI. Three further independent-action regressions fail before the scope-specific follow-up and pass at `e444cc7`/full1005/offline8. Final-head CI/re-review and that PR's own quality/affected-flow gates remain; this C/#71 run cannot approve it.
+- [ ] Resolve general quality findings with original synthetic evidence; do not tailor code to sealed results or automatically rerun models. C/#71 stay draft.
+
 - [x] A/#80 and B/#81 independently reviewed, exact-head CI green, merged with merge commits; final main `d550dc1` passes974/offline8 and Node20/24/Postgres CI40086285541.
 - [x] Deploy exact GitHub SHA as `1bce9049`, verify recorded hash, one ready healthy instance and optional controls off; rollback `0262f351`/`1235379` verified before dispatch. No settings change.
 - [x] Aryan's October25 German handoff and redirect-cleanup screenshots pass the two approved limited release checks; cited sources verified. German card awaits acceptance; no exhaustive fallback/channel or customer-resolution claim.
@@ -11,7 +16,7 @@
 - [x] Prepare local comparison-only C+#71 merge7c03601:1004/offline8, current claim/reply/runtime safeguards preserved. No new PR, push, provider call or protected-input read.
 - [ ] Repair #75's two remaining provenance/history findings before any readiness claim; the direct-object P1 repair is only partial. #59 comparison and #28 authorization/flow review remain separate.
 - [x] Freeze clean main d550dc1, C fac7d17 (docs-only difference from tested runtime85cf9d9), and comparison-only C+#71 7c03601; same dependencies and shared root-aware harness. Supervisor self-tests/offline preflight and20 affected adapter/claim tests pass, no provider or protected-content read.
-- [ ] Independently review the three-arm supervisor/launch guards, then one simultaneous81×2×3 comparison and complete result-only accuracy package. No automatic unchanged rerun; unavailable baseline claim checks never count as passed.
+- [x] Independently review the three-arm supervisor/launch guards, then dispatch the one simultaneous81×2×3 comparison. Retain the original finalization failure and reconcile it from historical power/saved results without a provider rerun; result-only package complete. Unavailable baseline claim checks never count as passed.
 - [x] Post all ten original issue-status comment blocks verbatim after receiving the file; read-back matches and issue states/labels remain unchanged.
 - [ ] #71 accuracy approval, #28 October27 decision and memory-pilot gates remain separate.
 
