@@ -1,5 +1,13 @@
 # Omi Support Bot Implementation Checklist
 
+## #62 evidence-only candidate — not merged
+
+- [x] Observe a failing actual draft/presentation instrumentation assertion before wiring; preserve the existing filter/presentation behavior.
+- [x] Add explicit per-turn evaluation collection, fixed text-free records, ephemeral keyed hashes, bounded overflow and closed late-work handling; no production logger/store or default activation.
+- [x] Wire actual generation/review/safety/presentation/clipping/handoff/send projection, plus opt-in harness collection and missing-baseline compatibility. No duplicate formatter or judge/prompt/source change.
+- [x] Focused synthetic real-function/reviewer/handler/handoff/harness, byte-parity, concurrency, bounds and failure checks pass without paid calls or Discord.
+- [ ] Full/no-model/exact-head CI and independent final review before readiness. Keep #62 open until its full scope is satisfied on main; no merge/deploy/paid rerun or customer-data use by this candidate.
+
 ## Current October25 finish status
 
 - [x] Step1 decided: #59 merged38337e7 and subsequently operator-deployed7b41e119; #75 closed unmerged, evidence/branch retained. No further paid run.

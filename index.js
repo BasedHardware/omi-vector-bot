@@ -58,6 +58,7 @@ const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAn
 const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
 const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const { reviewRejectionReply } = require('./supportReplyCopy');
+const { recordStage } = require('./answerStageEvidence');
 const triage = require('./triage');
 const supportCases = require('./supportCases');
 const { isDedicatedCustomerThread } = require('./customerThreadScope');
@@ -208,9 +209,11 @@ function keepTyping(message, channel, intervalMs = TYPING_REFRESH_MS) {
 async function replySafe(message, content, { pingAuthor = false, privacy = {} } = {}) {
   typingStops.get(message)?.();
   await assertCurrentOwnership();
+  recordStage('send_input', content);
   const guarded = publicReplyPrivacy(content, { question: message.content, orderAvailable: orderFlow.isLive(), ...privacy });
   let text = ensureNonEmptyAnswer(rewriteUserMentions(ensureNonEmptyAnswer(fitPublicReply(guarded)), message));
   if (pingAuthor) text = attachAuthorMention(text, message);
+  recordStage('send_payload', text);
   const payload = {
     content: text,
     allowedMentions: replyMentions(message, { pingAuthor, repliedUser: false }),
@@ -912,6 +915,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         } finally {
           stageMs.answer += Math.round(performance.now() - answerStart);
         }
+        recordStage('generated', aiResponse?.final_answer);
         if (aiResponse?.final_answer) {
           const draftLane = triage.merge(route, aiResponse, question).lane;
           const prepared = prepareDraftForReviewWithAudit(
@@ -957,6 +961,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               : checked.safeHandoff
                 ? checked.final_answer
                 : reviewRejectionReply(replyLanguage);
+            recordStage('review_selected', aiResponse.final_answer);
             aiResponse.confidence = Math.min(
               Number(aiResponse.confidence) || 0.4,
               Number(checked.confidence) || 0.4
