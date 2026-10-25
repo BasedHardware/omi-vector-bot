@@ -69,7 +69,7 @@ Total: **14 built + 14 tested + 14 reviewed + 7 live = 49/100**. October25 adds 
 | Status | What it means now |
 | --- | --- |
 | **Done** | #59 independently approved, merged38337e7 and subsequently operator-deployed as7b41e119; live acceptance pending. #75 closed unmerged after its final comparison; evidence/branch and unfinished scope retained. #71/#82 remain closed, not reopened. |
-| **In progress** | #84's deterministic public-intake/echo boundary, final-length preservation and private-path gates. Final local full1164/offline8/isolated SQL pass; exact-head hosted CI and independent final re-review remain. |
+| **In progress** | #84's deterministic public-intake/echo boundary, final-length preservation and private-path gates. Final local full1165/offline8/isolated SQL and independent scoped review pass; exact-head hosted CI and identity gate remain. |
 | **Next** | Finish #84 verification/review, then one exact-SHA combined release and Aryan's prescribed smokes. No paid comparison. #28 is already merged0986b75, not deployed. |
 | **Waiting** | Aryan's prescribed combined-release smokes follow the remaining gates; no Discord input now. Memory needs notice approval and explicit enablement. Current production7b41e119 runs38337e7, optional features off. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |

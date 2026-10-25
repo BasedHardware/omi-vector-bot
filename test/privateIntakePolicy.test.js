@@ -266,3 +266,11 @@ test('verifying a protective masking state is not collecting the private value',
   }
   assert.doesNotMatch(presentReviewedAnswer('Please verify your account email here.'), /verify your account email/i);
 });
+
+test('verifying masking does not authorize a following unsafe disclosure action', () => {
+  for (const request of ['Confirm your email address is hidden before posting your order number here.',
+    'Verify that your email address is hidden before sharing your password.',
+    'Confirm your email address is hidden before uploading a screenshot with your password readable.']) {
+    assert.ok(!presentReviewedAnswer(request).includes(request));
+  }
+});

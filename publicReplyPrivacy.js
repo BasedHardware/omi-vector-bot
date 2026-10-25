@@ -99,8 +99,10 @@ function unsafeRequest(text) {
     const after = text.slice(verb.index + verb[0].length, verbs[index + 1]?.index);
     const objectBefore = /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Devanagari}/u.test(text) || /paylaş|gönder|bhej|bata/iu.test(verb[0]);
     if (!hasSensitive(after) && !(objectBefore && hasSensitive(before))) continue;
-    const maskingState = /^(?:confirm|verify)$/iu.test(verb[0]) && after.match(/^\s+(?:that\s+)?(.+?)\s+(?:is|are)\s+(?:hidden|redacted|removed|masked|covered|blurred)(?:\s+before(?:\s+(?:uploading|sharing|posting)\b[^.!?]*)?)?[,.!\s]*$/iu);
-    if (maskingState && onlySensitiveObjects(maskingState[1])) continue;
+    const maskingState = /^(?:confirm|verify)$/iu.test(verb[0]) && after.match(/^\s+(?:that\s+)?(.+?)\s+(?:is|are)\s+(?:hidden|redacted|removed|masked|covered|blurred)(?:\s+before(?:\s+((?:uploading|sharing|posting)\b[^.!?]*))?)?[,.!\s]*$/iu);
+    const safeEvidenceSuffix = maskingState && (!maskingState[2] ||
+      (/^(?:uploading|sharing|posting)\s+(?:(?:a|an|the|your)\s+)?(?:screenshot|photo|image|logs?)\b/iu.test(maskingState[2]) && !hasSensitive(maskingState[2])));
+    if (maskingState && onlySensitiveObjects(maskingState[1]) && safeEvidenceSuffix) continue;
     // A masked screenshot request is safe only when the collection object is
     // evidence, not a separate order identifier or secret followed by evidence.
     const maskedEvidence = after.match(/^\s+(?:(?:a|an|the|your)\s+)?(?:screenshot|photo|image|logs?)\b(.*?)\bwith\b([^.!?\n]*)\b(?:hidden|redacted|removed|masked|covered|blurred)[.!?\s]*$/iu);
