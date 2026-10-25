@@ -37,6 +37,30 @@ test('withdrawn routing signals do not erase technical facts or a separate activ
   assert.equal(independent.withdrawn.has('privacy'), true);
 });
 
+test('withdrawing a refund cannot withdraw another financial action in the same category', () => {
+  for (const action of ['Please cancel my order', 'I was charged twice']) {
+    const p = project([
+      { id: 'owner-1', role: 'owner', content: `${action}; I also want a refund.` },
+      { id: 'owner-2', role: 'owner', content: 'I do not want a refund.' },
+    ], 'My app build is 8.4.3.');
+    assert.equal(p.route.lane, 'money', action);
+    assert.equal(p.active.has('money'), true, action);
+    assert.ok(p.fallbackQuestion.includes(action), action);
+    assert.doesNotMatch(p.fallbackQuestion, /refund/i);
+  }
+});
+
+test('withdrawing account deletion cannot withdraw a separate data-deletion request', () => {
+  const p = project([
+    { id: 'owner-1', role: 'owner', content: 'Please delete my account and delete my data.' },
+    { id: 'owner-2', role: 'owner', content: 'I do not want to delete my account.' },
+  ], 'My app build is 8.4.3.');
+  assert.equal(p.route.lane, 'privacy');
+  assert.equal(p.active.has('privacy'), true);
+  assert.match(p.fallbackQuestion, /delete my data/i);
+  assert.doesNotMatch(p.fallbackQuestion, /delete my account/i);
+});
+
 test('withdrawals are folded before the bounded planning view clips middle turns', () => {
   const turns = [
     { id: 'owner-1', role: 'owner', content: 'I want a refund.' },

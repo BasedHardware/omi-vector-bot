@@ -4,6 +4,7 @@
 
 - [x] Reproduce the independent follow-up findings on `936b718`: valid planner echo drops prior symptom/attachment diagnostics, and mixed-turn withdrawal drops unrelated technical detail. Four added tests fail before repair.
 - [x] Preserve the sanitized projection alongside the standalone retrieval question, and mask only existing withdrawn routing signals in historical owner turns. Preserve full answer history and independent active/reopened actions. Full1002/offline8/isolated PGlite SQL pass; no provider call or protected-input read.
+- [x] Reproduce three further action-isolation regressions on `abcd59c`: withdrawing a refund loses a separate cancellation/charge; withdrawing account deletion loses separate data deletion; actual handler misses the independent financial handoff. Reuse the correction recognizer's scoped direct objects instead of whole-lane masking; all three now pass, full1005/offline8. SQL evidence remains valid; no SQL/adapters changed.
 - [ ] Independent follow-up review and final-head hosted CI. Earlier `936b718` green CI does not certify the repair; the PR stays draft pending its separate final-code quality/affected-flow gates. No paid rerun without Aryan's approval.
 
 - [x] Reproduce three actual-handler failures on the previous head: withdrawn action revives after identifiers, generated financial title overrides technical owner context, other participant action enters planner output.

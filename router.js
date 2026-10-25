@@ -252,21 +252,6 @@ function deviceActionRequest(text) {
   return DEVICE_ACTION.test(String(text || ''));
 }
 
-// A withdrawn action must not keep routing or retrieval in that lane. Remove
-// only the existing router's action signals, not the whole mixed-content turn.
-// Full answer history stays intact; this is not semantic intent recognition.
-function withoutPersonalActionSignals(text, lanes) {
-  const patterns = { money: [...STRONG_MONEY, ...WEAK_MONEY], privacy: PRIVACY,
-    shop: SHOP, account: ACCOUNT, exception: [DEVICE_ACTION] };
-  let result = requestCorrection(text).text;
-  for (const lane of lanes) {
-    for (const pattern of patterns[lane] || []) {
-      result = result.replace(new RegExp(pattern.source, pattern.flags + 'g'), ' ');
-    }
-  }
-  return result;
-}
-
 function personalActionLanes(text) {
   const s = requestCorrection(text).text;
   const route = classify(s);
@@ -796,7 +781,6 @@ module.exports = {
   ORDER_STATUS_OPENING,
   classify,
   personalActionLanes,
-  withoutPersonalActionSignals,
   looksLikePii,
   isPublicForumSafe,
   isTechLane,

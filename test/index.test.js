@@ -825,6 +825,24 @@ test('retrieval retains mixed-turn technical details after the owner withdraws o
   assert.equal(modelCalls[0].threadHistory.length, 2, 'full answer history is preserved');
 });
 
+test('a withdrawn refund does not lose an independent historical financial request at the handler boundary', async t => {
+  const delivered = enableStaffDelivery(t);
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL });
+  const follow = makeMessage('My app build is 8.4.3.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['withdrawal', { id: 'withdrawal', author: { id: owner, bot: false }, content: 'I do not want a refund.' }],
+    ['opening', { id: 'opening', author: { id: owner, bot: false }, content: 'Please cancel my order; I also want a refund.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(delivered.length, 1);
+  assert.equal(modelCalls.length, 0);
+  const supportCase = await supportCases.getCaseByThread(channel.id, owner);
+  assert.equal(supportCase.context.area, 'shop');
+  assert.equal(supportCase.context.needsPerson, true);
+});
+
 test('a generated financial thread title is context, not owner action authority', async t => {
   process.env.CMD_API_KEY = 'synthetic-provider-key';
   t.after(() => { process.env.CMD_API_KEY = ''; });
