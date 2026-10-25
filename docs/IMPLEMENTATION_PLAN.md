@@ -1,5 +1,11 @@
 # Omi Support Bot Implementation Checklist
 
+## October24 — existing #59 current-main integration
+
+- [x] Integrate deployed main `d550dc1`, retaining the existing shared persona diff and current source, language, redirect and runtime safeguards.
+- [x] Full979/offline8 and diff check pass on the integrated tree; source/language/redirect/runtime safeguards remain unchanged by the persona.
+- [ ] Exact-head hosted CI and independent code review, then its own representative generated-answer comparison/functional checks. Keep draft; no evidence or release gate waived.
+
 ## October24 production fix B — rejected-review language
 
 - [x] Reproduce de/fr/es English-body/localized-footer failure with original real-handler and evaluation-wrapper tests; unknown language retains English by design.
@@ -303,6 +309,14 @@ The dated implementation evidence below does not authorize a new deployment or e
 - [ ] Next: #48 fresh same-day deployed-main comparison, then #59 calm/warm/practical wording; personality comparison waits for ranking grade. #28/#29/#49 remain held.
 
 Aryan waived the 24-hour timer, not the other gates. The counts-only read-only 24-hour health comparison is scheduled October 19 at 15:55 IST. Future deployments use the GitHub commit for recorded provenance, not a local upload. The detailed older unchecked Release 1 checkpoints below are historical, superseded by its accepted rollout above.
+
+### Mira's identity and personality — requested October 18
+
+- [x] Apply the specifically authorized short account/server name and fictional portrait, preserving explicit AI disclosure in the profile; verify by fresh REST reads. No runtime deployment or data-use change.
+- [x] Revise the shared persona to **calm, warm and practical**, retaining visible **Mira · Omi AI support** and all safety, evidence, language, serious-case and truthful-capability limits. Six observed red assertions before this correction; eight focused, 760 full tests and offline 8/8 pass afterward. This supersedes the earlier short-name/elegant-persona preparation.
+- [x] Record primary conversation-design research, fictional-image prompt/provenance and the limitations of prompt-presence tests.
+- [x] Push correction runtime `698609f` after full `npm test`; hosted Node 20/24/Postgres run `39125817220` passes.
+- [ ] Independent review, required quality checks and controlled release before claiming the changed voice is live. Release 1's accepted restart already restored the full AI-labelled nickname. Hold #59's comparison until #48 is graded; the waived 24-hour delay removes no other gate.
 
 ### Combined Release 1 (updated October 17 brief)
 
