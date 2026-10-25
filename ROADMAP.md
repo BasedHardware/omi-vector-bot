@@ -2,7 +2,7 @@
 
 ## Current October25 — Step2 merged, deterministic privacy repair next
 
-#84 now implements its one authorized deterministic output rework locally: shared request/echo filtering, application-owned localized private path gated by actual availability/delivery, question-aware handoff naming and final source/next-step length reservation. Initial32 output regressions were observed red; additional independent findings are repaired with output tests, not prompt self-certification. No paid run. Full/current CI and independent final re-review remain; keep draft and production unchanged.
+#84 implements its one authorized deterministic output rework: shared request/echo filtering, application-owned localized private path gated by actual availability/delivery, question-aware handoff naming and final source/next-step/safety-warning length reservation. Initial32 output regressions were observed red; additional independent findings are repaired with output tests, not prompt self-certification. Full1165/offline8/isolated SQL and independent final scoped review pass. Exact final-head hosted CI/identity remain before readiness; keep draft and production unchanged. No paid run.
 
 #28 merged0986b75 after1086/offline8/SQL, exact-head Node20/24/real PostgreSQL CI and independent final review. One open draft remains, #84. Production stays Aryan's7b41e119/38337e7; no agent deploy/settings change. Rework #84 once outside the model, then gated combined release/Aryan's smokes and memory preparation only. Earlier snapshots below are historical, not renewed holds or active instructions.
 
