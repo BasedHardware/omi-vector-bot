@@ -26,15 +26,14 @@ function projectCustomerIntent({ turns = [], question = '', topic = '', contextu
       active.set(lane, turn.id); withdrawn.delete(lane);
     }
   }
-  const safeHistory = owner.filter(turn => !router.personalActionLanes(turn.content).some(lane => withdrawn.has(lane)))
-    .map(turn => ({ author: 'customer', content: requestCorrection(turn.content).text }));
+  const ownerContext = turn => router.withoutPersonalActionSignals(turn.content, withdrawn);
+  const safeHistory = owner.map(turn => ({ author: 'customer', content: ownerContext(turn) }));
   const text = [...safeHistory.map(turn => turn.content), requestCorrection(question).text].join('\n');
   // Other speakers' technical context can explain "same problem" without
   // becoming authority for an owner action. Do not throw that context away.
-  const retrievalHistory = turns.filter(turn => {
-    const lanes = router.personalActionLanes(turn.content);
-    return turn.role === 'owner' ? !lanes.some(lane => withdrawn.has(lane)) : lanes.length === 0;
-  }).map(turn => ({ author: turn.role === 'bot' ? 'bot' : 'customer', content: requestCorrection(turn.content).text }));
+  const retrievalHistory = turns.filter(turn => turn.role === 'owner' || router.personalActionLanes(turn.content).length === 0)
+    .map(turn => ({ author: turn.role === 'bot' ? 'bot' : 'customer',
+      content: turn.role === 'owner' ? ownerContext(turn) : requestCorrection(turn.content).text }));
   const safeTopic = router.personalActionLanes(topic).length ? '' : topic;
   if (safeTopic) retrievalHistory.unshift({ author: 'topic', content: safeTopic });
   const fallbackQuestion = requestCorrection(question).denied.size

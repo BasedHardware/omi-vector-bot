@@ -2,6 +2,10 @@
 
 ## October25 — owner-intent P2 repair, still draft #75
 
+- [x] Reproduce the independent follow-up findings on `936b718`: valid planner echo drops prior symptom/attachment diagnostics, and mixed-turn withdrawal drops unrelated technical detail. Four added tests fail before repair.
+- [x] Preserve the sanitized projection alongside the standalone retrieval question, and mask only existing withdrawn routing signals in historical owner turns. Preserve full answer history and independent active/reopened actions. Full1002/offline8/isolated PGlite SQL pass; no provider call or protected-input read.
+- [ ] Independent follow-up review and final-head hosted CI. Earlier `936b718` green CI does not certify the repair; the PR stays draft pending its separate final-code quality/affected-flow gates. No paid rerun without Aryan's approval.
+
 - [x] Reproduce three actual-handler failures on the previous head: withdrawn action revives after identifiers, generated financial title overrides technical owner context, other participant action enters planner output.
 - [x] Fold one owner-only chronological projection before planning clipping; use application-assigned roles/turn IDs, persistent withdrawals, independent reopening and shared route/planner constraints. Do not erase full answer/reviewer history or unrelated technical retrieval context.
 - [x] Add source-ID validation and conservative generic handoff for unconfirmed personal interpretations, with paired multilingual/ambiguous/positive controls. Do not claim provenance proves semantics or a bounded grammar covers every language.

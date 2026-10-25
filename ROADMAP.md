@@ -2,6 +2,8 @@
 
 ## October25 — persistent owner intent repaired locally, verification remains
 
+#75 follow-up: independent review at `936b718` found that valid planner echoes and whole-turn withdrawal filtering could still lose technical context. Four new tests reproduce those paths before repair. The sanitized case projection now accompanies retrieval; withdrawn historical action signals are masked with the existing router policy while separate technical facts remain. Full1002/offline8/isolated SQL pass; final-head CI, re-review and this PR's own generated-answer/affected-flow gate remain. No paid rerun without asking Aryan first; no merge/deploy or new Discord request.
+
 #75 addresses the two remaining history/provenance findings through the same owner-only chronological projection across routing/planning and downstream prompt context. Three actual-handler red-before regressions now pass, alongside preservation/reopening/multilingual controls. Full answer context, useful technical retrieval context, private-data safeguards and memory-off fixtures remain. No source-ID scheme is semantic proof; final checks, independent re-review and this PR's own generated-answer gate remain. The separate frozen C/#71 comparison does not certify these changes. No new PR, merge, deployment, optional feature or recording/customer-data operation. Overall product goal and score47/100 are unchanged.
 
 ## October24 — current-main customer-intent integration, still draft

@@ -764,6 +764,67 @@ test('an owner withdrawal stays withdrawn on a later version-only turn', async t
   assert.doesNotMatch(replyText(follow), /payment or charge|asking for a refund/i);
 });
 
+test('retrieval keeps the prior symptom when a valid planner echoes an identifier-only turn', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; docsObserver = null; });
+  plannerSupportKind = 'technical_problem';
+  plannerMessageKind = 'identifier_only';
+  const retrieval = [];
+  docsObserver = async (question, options) => { retrieval.push({ question, options }); return ''; };
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL });
+  const follow = makeMessage('My phone uses Android 17.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['opening', { id: 'opening', author: { id: owner, bot: false }, content: 'My recorder will not charge and the charging light stays off.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(retrieval.length, 1);
+  assert.match(retrieval[0].question, /charging light stays off/);
+  assert.match(retrieval[0].question, /Android 17/);
+});
+
+test('retrieval keeps already-read diagnostics when a valid planner echoes the attachment caption', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; docsObserver = null; });
+  plannerSupportKind = 'technical_problem';
+  const retrieval = [];
+  docsObserver = async (question, options) => { retrieval.push({ question, options }); return ''; };
+  const url = 'https://cdn.example.test/original-synthetic.log';
+  files.set(url, 'Android recorder sync failed with diagnostic E-SYNTHETIC-STAGE.');
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL });
+  const follow = makeMessage('Please check the attached diagnostic log.', {
+    channel, attachments: [{ name: 'original-synthetic.log', url }],
+  });
+  await handleMessage(follow);
+  assert.equal(retrieval.length, 1);
+  assert.match(retrieval[0].question, /E-SYNTHETIC-STAGE/);
+  assert.equal(modelCalls[0].threadHistory.length, 0, 'attachment is not fabricated as a previous owner turn');
+});
+
+test('retrieval retains mixed-turn technical details after the owner withdraws only the financial action', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; docsObserver = null; });
+  plannerSupportKind = 'technical_problem';
+  plannerMessageKind = 'identifier_only';
+  const retrieval = [];
+  docsObserver = async (question, options) => { retrieval.push({ question, options }); return ''; };
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL });
+  const follow = makeMessage('My app build is 8.4.3.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['withdrawal', { id: 'withdrawal', author: { id: owner, bot: false }, content: 'I do not want a refund.' }],
+    ['opening', { id: 'opening', author: { id: owner, bot: false }, content: 'I want a refund; my Mac app cannot detect the microphone after I change inputs.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(retrieval.length, 1);
+  assert.match(retrieval[0].question, /cannot detect the microphone after I change inputs/);
+  assert.doesNotMatch(retrieval[0].question, /refund/i);
+  assert.equal(modelCalls[0].route.area, 'desktop');
+  assert.equal(modelCalls[0].threadHistory.length, 2, 'full answer history is preserved');
+});
+
 test('a generated financial thread title is context, not owner action authority', async t => {
   process.env.CMD_API_KEY = 'synthetic-provider-key';
   t.after(() => { process.env.CMD_API_KEY = ''; });

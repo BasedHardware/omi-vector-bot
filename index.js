@@ -843,7 +843,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       // Chat replies are not ephemeral. Even a verified customer's order facts
       // belong in /order or the private staff card, never a public model prompt.
       const shopifyText = '';
-      const sourceQuestion = searchPlan.standaloneQuestion || caseQuestion;
+      // A valid planner can echo only a version/caption. Carry the already
+      // sanitized retrieval projection too, never the unfiltered chat history.
+      const sourceQuestion = contextualQuestion(searchPlan.standaloneQuestion || caseQuestion,
+        [{ author: 'customer', content: caseQuestion }]);
       const retrievalStart = performance.now();
       const sourceUrls = [];
       const onSources = urls => sourceUrls.push(...urls);

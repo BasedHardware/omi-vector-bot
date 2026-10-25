@@ -7,6 +7,36 @@ const { contextualQuestion } = require('../commandcode');
 
 const project = (turns, question) => projectCustomerIntent({ turns, question, contextualize: contextualQuestion });
 
+test('withdrawing one action preserves unrelated technical facts from the same earlier turn', () => {
+  const p = project([
+    { id: 'owner-1', role: 'owner', content: 'I want a refund; my Mac app cannot detect the microphone after I change inputs.' },
+    { id: 'owner-2', role: 'owner', content: 'I do not want a refund.' },
+  ], 'My app build is 8.4.3.');
+  assert.equal(p.active.has('money'), false);
+  assert.equal(p.withdrawn.has('money'), true);
+  assert.equal(p.route.lane, 'tech');
+  assert.equal(p.route.area, 'desktop');
+  assert.match(p.fallbackQuestion, /cannot detect the microphone after I change inputs/);
+  assert.doesNotMatch(p.fallbackQuestion, /refund/i);
+});
+
+test('withdrawn routing signals do not erase technical facts or a separate active action', () => {
+  const turns = [
+    { id: 'owner-1', role: 'owner', content: 'Please delete my data; the desktop app crashes when I select a microphone.' },
+    { id: 'owner-2', role: 'owner', content: 'I do not want to delete my data.' },
+  ];
+  const p = project(turns, 'The app build is 8.4.3.');
+  assert.match(p.fallbackQuestion, /crashes when I select a microphone/);
+  assert.doesNotMatch(p.fallbackQuestion, /delete my data/i);
+  assert.equal(p.route.area, 'desktop');
+  const reopened = project(turns, 'Please delete my data now.');
+  assert.equal(reopened.route.lane, 'privacy');
+  assert.equal(reopened.active.has('privacy'), true);
+  const independent = project(turns, 'I want a refund.');
+  assert.equal(independent.route.lane, 'money');
+  assert.equal(independent.withdrawn.has('privacy'), true);
+});
+
 test('withdrawals are folded before the bounded planning view clips middle turns', () => {
   const turns = [
     { id: 'owner-1', role: 'owner', content: 'I want a refund.' },
