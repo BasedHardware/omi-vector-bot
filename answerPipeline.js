@@ -7,6 +7,7 @@ const {
 } = require('./utils');
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
 const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
+const { publicReplyPrivacy } = require('./publicReplyPrivacy');
 
 const EMPTY_ANSWER_FALLBACK = 'I could not verify a safe answer here. A person needs to check this.';
 const UNSYNCED_DATA_WARNING = 'Recordings may still be unsynced. Do not reinstall the app, log out, or clear Pending/All storage until a person checks; those actions could erase local recordings.';
@@ -113,10 +114,32 @@ function clipKeepingSource(answer, max = DISCORD_REPLY_MAX) {
   return body ? `${body}${gap}${sourceLine}` : sourceLine;
 }
 
-function presentReviewedAnswer(answer) {
-  // The reviewer has already checked the claims. Only enforce the hard
-  // no-false-ping rule and Discord's format/length constraints here.
-  return ensureNonEmptyAnswer(clipKeepingSource(formatDiscordReply(stripPingNarration(answer))));
+function presentReviewedAnswer(answer, opts = {}) {
+  const privacy = publicReplyPrivacy(stripPingNarration(answer), opts);
+  opts.onPrivacy?.(privacy);
+  return ensureNonEmptyAnswer(fitPublicReply({ ...privacy, text: formatDiscordReply(privacy.text) }));
+}
+
+// Late delivery/privacy copy must fit too. Reserve the complete custody warning,
+// application-owned next steps and scoped links before optional prose.
+function fitPublicReply(privacy, max = DISCORD_REPLY_MAX) {
+  const text = String(privacy.text || '').trim();
+  if (text.length <= max) return text;
+  const tail = [text.includes(UNSYNCED_DATA_WARNING) ? UNSYNCED_DATA_WARNING : '',
+    privacy.privateNextStep, ...new Set(privacy.channelLinks || [])].filter(Boolean);
+  if (!tail.length) return clipKeepingSource(text, max);
+  let body = text;
+  for (const item of tail) body = body.split(item).join('');
+  const sources = [];
+  const sourceHeading = new RegExp(`^\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}\\s*https:\\/\\/`, 'iu');
+  body = body.split('\n').filter(line => {
+    if (!sourceHeading.test(line)) return true;
+    sources.push(line.trim()); return false;
+  }).join('\n').trim();
+  body = [body, ...sources].filter(Boolean).join('\n\n');
+  const ending = tail.join('\n\n');
+  const budget = Math.max(0, max - ending.length - (ending ? 2 : 0));
+  return [clipKeepingSource(body, budget), ending].filter(Boolean).join('\n\n');
 }
 
 function stripUnverifiedOrderClaims(answer, { verifiedLookup = false } = {}) {
@@ -169,6 +192,7 @@ module.exports = {
   prepareDraftForReview,
   prepareDraftForReviewWithAudit,
   presentReviewedAnswer,
+  fitPublicReply,
   stripUnverifiedOrderClaims,
   addUnsyncedDataWarning,
   hasUnsyncedDataRisk,

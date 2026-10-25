@@ -77,6 +77,8 @@ const SUPPORT_POLICY = [
   'Never claim you pinged, filed, or emailed anyone.',
 ].join(' ');
 
+const PUBLIC_REPLY_PRIVACY_POLICY = 'Do not request or repeat private customer details publicly; application code supplies any available private verification or delivered-staff next step.';
+
 const SUPPORT_COMMUNICATION_POLICY = [
   'Support communication:',
   'Open with the customer’s specific goal or current problem, then the useful verified action or fact. Acknowledge the disruption naturally without canned sympathy or an access-disclaimer opening.',
@@ -140,6 +142,8 @@ function buildSystemPrompt(route) {
 ${SUPPORT_POLICY}
 
 ${SUPPORT_COMMUNICATION_POLICY}
+
+${PUBLIC_REPLY_PRIVACY_POLICY}
 
 The person asking is a customer. They may paste a rant, a screenshot dump, numbered questions, or one messy paragraph. Read it like a person would. Figure out the actual problem.
 
@@ -258,4 +262,5 @@ module.exports = {
   buildUserPrompt,
   SUPPORT_POLICY,
   SUPPORT_COMMUNICATION_POLICY,
+  PUBLIC_REPLY_PRIVACY_POLICY,
 };

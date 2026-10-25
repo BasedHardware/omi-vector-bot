@@ -2,6 +2,7 @@ const telegram = require('./telegram');
 const { ChannelType } = require('discord.js');
 const { clipForDiscord, stripPingNarration } = require('./utils');
 const { redactSensitive } = require('./privacy');
+const { publicReplyPrivacy } = require('./publicReplyPrivacy');
 const { validateStaffDestination } = require('./discordPrivacy');
 const {
   classify,
@@ -411,11 +412,12 @@ function ticketLabels({ area, lane, question } = {}) {
 
 function staffDetailsRequest(route, question) {
   const text = String(question || '');
+  const privatePath = 'Do not ask for account or order details in the thread; the application provides the private path.';
   if (route.area === 'privacy' || route.lane === 'privacy') {
-    return 'If they did not provide the account email, ask for it privately.';
+    return `Account email is identifying information for private review. ${privatePath}`;
   }
   if (route.lane === 'account') {
-    return 'If they did not provide the purchase email, ask for it privately.';
+    return `Purchase email is identifying information for private review. ${privatePath}`;
   }
   const physicalItem = '(?:omi|devices?|units?|hardware|casing|housing|necklaces?|glasses|chargers?|wearables?|items?)';
   const itemWords = '(?:(?:my|our|your|the|this|a|an|new|omi|damaged|defective|broken)\\s+){0,3}';
@@ -424,7 +426,7 @@ function staffDetailsRequest(route, question) {
   const replacingItem = new RegExp(`\\b(?:replac(?:e|ing)\\s+${itemWords}${physicalItem}|replacement\\s+(?:(?:for|of)\\s+)?${itemWords}${physicalItem}|${physicalItem}\\s+(?:needs?|requires?)\\s+(?:a\\s+)?replacement)\\b`, 'i').test(text);
   if ((route.area === 'shop' || ['shop', 'money'].includes(route.lane)) &&
       (damagedItem || replacingItem)) {
-    return 'If they did not provide photos or a video of the damage, the order email and the delivery date, ask for them. Ask for the order email privately.';
+    return `Ask only for missing photos or a video of the damage, with identifying details hidden. Order email and delivery date may be needed for private review. ${privatePath}`;
   }
   if (/\b(?:bulk|wholesale|sales|business|enterprise|company|corporate|\d+\s+(?:units|devices|omis))\b/i.test(text) &&
       (route.area === 'shop' || route.lane === 'shop')) {
@@ -432,11 +434,11 @@ function staffDetailsRequest(route, question) {
   }
   if (route.lane === 'money' ||
       /\b(?:refund|charg(?:e|ed)|bill(?:ing)?|payment|purchase|subscription|invoice)\b/i.test(text)) {
-    return 'If they did not provide the purchase email, ask for it privately.';
+    return `Purchase email is identifying information for private review. ${privatePath}`;
   }
   if (route.area === 'shop' || route.lane === 'shop') {
     if (looksLikeShippingQuote(text)) return 'Ask for the checkout destination and quoted shipping cost, not private address details.';
-    return 'If they did not provide the order number and the delivery date tracking shows, ask for both.';
+    return `Order number and the delivery date tracking shows may be needed for private review. ${privatePath}`;
   }
   if (['app', 'desktop', 'firmware'].includes(route.area) || route.lane === 'tech') {
     return 'If they did not name the device and the app version, ask for both.';
@@ -522,7 +524,8 @@ function handoffThreadName({ question, area, lane, topic, labels } = {}) {
   if (!tag.length) tag.push('needs-human');
   const subject = String(topic || '').trim() || threadTopic(question, resolved);
   const parts = tag.includes(subject.toLowerCase()) ? tag : [...tag, subject];
-  return clipForDiscord(redactSensitive(`Handoff · ${parts.join(' · ')}`, { issue: true }), 100);
+  const safe = publicReplyPrivacy(`Handoff · ${parts.join(' · ')}`, { question, appendNextStep: false }).text;
+  return clipForDiscord(safe || 'Handoff', 100);
 }
 
 async function applyThreadName(thread, meta = {}) {

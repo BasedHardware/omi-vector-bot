@@ -1,5 +1,40 @@
 # Omi Support Bot Implementation Checklist
 
+## Current October25 finish status
+
+- [x] Step1 decided: #59 merged38337e7 and subsequently operator-deployed7b41e119; #75 closed unmerged, evidence/branch retained. No further paid run.
+- [x] Step2: #28 merged0986b75 with both repairs,1086/offline8/SQL, exact-head Node20/24/real PostgreSQL CI and independent final review. Retention issue85 opened; App configuration names verified, not publication authority.
+- [x] Step3 local implementation: shared deterministic presentation/escalation/final-send privacy boundary, localized availability/confirmed-delivery private next step, actual-output regressions and question-aware handoff names. Initial32 tests fail before implementation; additional independently found echo/URL/intake/preservation cases are observed red then repaired. Planner injection removed, one short answer/review rule retained; staff guidance delegates private intake to the application. No paid comparison.
+- [x] Step3 local verification: final frozen runtime passes1165/1165 full tests, offline8/8, disposable SQL integration and diff checks. All concrete independent findings have observed-red output regressions and repairs, including preserving custody/masking warnings. No provider run or customer-data access.
+- [x] Step3 independent final review:134 focused checks plus7 actual-handler checks pass, no skipped checks or remaining actionable finding in scope. Reviewed11-file manifest SHA256 `0aa820a48b9079c3d1ba5286c26ec54a8201f9d050b87e21ef9171ad64a1ab82`. This is bounded-pattern enforcement, not universal private-data recognition or live acceptance.
+- [ ] Step3 readiness: exact-head Node20/24/PostgreSQL CI and final identity check before merge. Re-run required checks before pushing; no failure is waived as a rerun. No release/optional enablement yet.
+- [ ] Step4/5: gated combined exact-GitHub release and Aryan's prescribed inputs; then notice/checklist preparation, no memory flag until notice approval plus explicit enablement.
+
+## Earlier October25 finish contract and verification snapshots
+
+- [ ] Step1: exact frozen main d550dc1 plus current-main #59/#75; fresh full/offline/current CI, reviewed safe launch, ONE simultaneous81×2×3 run, full independent reading, strict per-arm gates, then merge-or-close. No rerun/rework or paid preflight.
+- [ ] Step2: #28 pending-comment/card dedup and GitHub App+encryption readiness; red-before/SQL/CI/independent gates, retention issue, names-only auth report, unknown-publication manual-link runbook, then merge. Review-comment file only if supplied.
+- [ ] Step3: #84 shared deterministic public-output filter/echo protection and localized availability/delivery-gated private path; output regressions replace prompt-only gates, remove planner injection, no paid comparison; verify/review then merge.
+- [ ] Step4: one exact GitHub combined release with verified current rollback, optional controls off/no settings changes; Aryan's how-to/damage/order/private-preview-stop/correction smokes; rollback on failure.
+- [ ] Step5: implementation-accurate customer notice and test-forum pilot checklist, approval required; no flags or implicit enablement.
+- [ ] Only at≤3 open PRs: queued #62 evidence-only presentation fingerprints and #83 deterministic conflict handling. #65 remains open. See [full accepted scope](FINISH_QUEUE_BRIEF.md); preserve all other product requirements.
+
+## October25 accepted review and private-intake draft
+
+- [x] Verify exact GitHub d550dc1 / deployment1bce9049 is already live, healthy and optional features off; reuse accepted German-handoff/redirect-cleanup smokes. No duplicate deploy/input.
+- [x] Close #82 without merge; preserve branch/tests/results. Its73→68 pass-both and11→21 unwanted-handoff failures plus missed factual defects do not justify model self-certification.
+- [x] Integrate main into #71 using merge commit137cd47;992/offline8/current Node20/24/Postgres CI pass. Independent launch review and128 affected checks pass for one final simultaneous two-arm81×2 comparison, with no paid preflight or retry.
+- [x] Finish the one authorised attempt; preserve324 rows and independent reading of324 final plus4 earlier-turn outputs. All81 second-run rows per arm have no recorded model usage/<100ms, with71 explicit unavailable fallbacks per arm; the generated-answer gate is not accepted despite recorded invalid=0. The supervisor stops before final validation; exact error causes are not retained. Saved-only source/hash/input/full-window power checks pass with zero sleep events/known-secret matches, without changing originals.
+- [x] Close #71 WITHOUT MERGE under Aryan's final-attempt rule; remote branch137cd47/tests/evidence retained and #65 verified open. No further rework/rerun or automatic deploy. Do not present this execution failure as proof the patch caused a regression.
+- [x] Open #83 for deterministic newer-applicable same-topic source preference, synthetic tests/no URL-specific exceptions; issue only.
+- [x] Audit main's public intake without provider calls: missing global private-only model rule and ambiguous staff order/damage requests confirmed. Five original synthetic transport/card regressions fail before, pass after the small shared-policy repair. Full979/offline8 pass; no model calls/customer data.
+- [x] Privacy draft scoped independent review passes117 affected offline checks and independently confirms5/5 intended red-before failures against main; no provider calls.
+- [x] Publish authorised privacy draft #84 at4ca5e53; hosted Node20/24/real Postgres CI40173415114 passes. Later status-only heads need current checks; runtime/tests unchanged from reviewed4ca5e53.
+- [ ] #84 still needs separately authorized affected generated-answer verification before readiness. Instruction presence does not prove model compliance; no paid run/merge/deploy follows from these tests.
+- [ ] Preserve execution-validity repair in #56/E2: synthetic tests must distinguish provider/planner/answer failures from valid deterministic/suppressed paths, and save bounded metadata reason codes for supervisor failures. Counts/fast failure fallbacks must not become a passing accuracy score. No new code/PR or provider rerun is authorised here.
+- [ ] #28 remains draft b48e401: current CI/1069/offline8/SQL/scoped362-check review pass; affected private approval/publication flow evidence still required. Decision by October27, no deadline waiver. #59/#75 retain their own comparison/release gates; memory stays off.
+
+Earlier dated checkpoints below are history; these decisions supersede their pending C/A/B instructions, not unfinished product requirements.
 ## October25 — approved queue, Step1 complete
 
 - [x] Reconcile Aryan's subsequent main38337e7 deployment7b41e119: SUCCESS/latest/one healthy instance, optional controls off, automatic deployment off. #59 now deployed by the operator, not newly smoke-accepted; fresh rollback verification still precedes the combined release.

@@ -515,6 +515,14 @@ function stripFalseCertainty(text) {
 const ISSUE_FOOTER = 'The problem is written in this thread. Keep talking here — you do not need to ping anyone.';
 
 function escalateReply(answer, opts = {}) {
+  const shown = composeEscalation(answer, opts);
+  return require('./publicReplyPrivacy').publicReplyPrivacy(shown, {
+    ...opts, orderAvailable: opts.orderAvailable ?? require('./orderFlow').isLive(),
+    staffDelivered: opts.pinged === true && !opts.deliveryFailed,
+  }).text;
+}
+
+function composeEscalation(answer, opts = {}) {
   const pinged = Boolean(opts.pinged);
   const duplicate = Boolean(opts.duplicate);
   const footers = opts.footers;

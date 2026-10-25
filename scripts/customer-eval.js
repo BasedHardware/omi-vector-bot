@@ -239,7 +239,8 @@ async function replyFor(scene, route) {
       : reviewRejectionReply(searchPlan.replyLanguage, scene.ask);
     agent.escalate = Boolean(agent.escalate || checked.escalate || !approved);
     agent.confidence = Math.min(Number(agent.confidence) || 0.4, Number(checked.confidence) || 0.4);
-    return { answer: presentReviewedAnswer(agent.final_answer), agent, from: 'model+review' };
+    return { answer: presentReviewedAnswer(agent.final_answer, { question: scene.ask,
+      language: searchPlan.replyLanguage, orderAvailable: false }), agent, from: 'model+review' };
   } catch (err) {
     if (/429|usage limit|wallet/i.test(err.message)) modelBlocked = true;
     const down = router.whenModelDown(route, scene.ask);

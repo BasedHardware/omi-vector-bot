@@ -1,5 +1,14 @@
 # Omi Support Bot Roadmap
 
+## Current October25 — Step2 merged, deterministic privacy repair next
+
+#84 implements its one authorized deterministic output rework: shared request/echo filtering, application-owned localized private path gated by actual availability/delivery, question-aware handoff naming and final source/next-step/safety-warning length reservation. Initial32 output regressions were observed red; additional independent findings are repaired with output tests, not prompt self-certification. Full1165/offline8/isolated SQL and independent final scoped review pass. Exact final-head hosted CI/identity remain before readiness; keep draft and production unchanged. No paid run.
+
+#28 merged0986b75 after1086/offline8/SQL, exact-head Node20/24/real PostgreSQL CI and independent final review. One open draft remains, #84. Production stays Aryan's7b41e119/38337e7; no agent deploy/settings change. Rework #84 once outside the model, then gated combined release/Aryan's smokes and memory preparation only. Earlier snapshots below are historical, not renewed holds or active instructions.
+
+## Earlier October25 — final multipart decision and private intake
+
+#80/#81 are deployed as exact GitHub d550dc1/1bce9049, both limited smokes accepted and optional features off. #82 and #71 are closed unmerged with branches/tests/results kept; #65 stays open. The final standalone #71 attempt saved324 outputs, all independently read plus4 earlier-turn replies, but systematic second-run unavailability/no recorded usage and stopped final validation prevent accuracy approval. Source/hash/input/full-window power checks pass; they do not rescue failed generation or prove patch causation. No further #71 rework/rerun or automatic deploy. #83 tracks source-date conflicts as issue-only work. Private-intake draft #84 passes five red-before/979 full/offline8 checks, independent117 and hosted CI at4ca5e53, without provider calls. Instructions are not proof of generated-answer compliance; that separate gate remains. Current four drafts28/59/75/84; #28's October27 decision and other comparison/memory gates remain. Execution-validity diagnostics stay in #56/E2. Score47/100 unchanged; dated checkpoints below are history.
 ## October25 — final comparison decided; staff-approval repairs next
 
 Later operator update: Aryan confirms deploying main38337e7 as7b41e119 at17:09IST. Fresh checks show one healthy running instance, optional controls off and auto-deploy off. This supersedes the earlier production snapshot below; no agent deployment and no new live-acceptance point.

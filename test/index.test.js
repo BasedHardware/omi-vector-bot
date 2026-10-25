@@ -655,6 +655,74 @@ function enableStaffDelivery(t) {
 }
 
 let approvalSigningKey;
+test('public privacy handler turns removed-only intake into a real handoff, not a solved reply', async t => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'Please post your full address here.', confidence: 0.95, escalate: false };
+  const result = await ask('How do I use the app search?');
+  assert.doesNotMatch(result.reply, /post your full address/i);
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /team member will ask privately/);
+});
+
+test('public privacy handler retains the private-intake signal through confirmed delivery', async t => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'Which OS version is installed? Please post your account email here.', escalate: true };
+  const result = await ask('My desktop app freezes whenever its settings window opens.');
+  assert.doesNotMatch(result.reply, /post your account email/i);
+  assert.match(result.reply, /Which OS version/);
+  assert.match(result.reply, /team member will ask privately/);
+  assert.equal(staff.length, 1);
+});
+
+test('public privacy handler reserves final space for private guidance and a complete source', async t => {
+  enableStaffDelivery(t);
+  const source = 'https://help.omi.me/en/articles/synthetic-diagnostic-reference';
+  modelReply = { final_answer: `${'The operating system version helps identify the affected app environment. '.repeat(70)}Please post your account email here.\nSource: ${source}`, escalate: true };
+  const result = await ask('My desktop app freezes whenever its settings window opens.');
+  assert.ok(result.reply.length <= 1900);
+  assert.ok(result.reply.includes(source));
+  assert.equal((result.reply.match(/team member will ask privately/g) || []).length, 1);
+  assert.doesNotMatch(result.reply, /post your account email/i);
+});
+
+test('public privacy handler advertises one private order command only when its flow is available', async t => {
+  enableStaffDelivery(t);
+  t.mock.method(require('../orderFlow'), 'isLive', () => true);
+  modelReply = { final_answer: 'Which OS version is installed? Please post your purchase email.', escalate: true };
+  const result = await ask('My desktop app freezes whenever its settings window opens.');
+  assert.equal((result.reply.match(/\/order\b/g) || []).length, 1);
+  assert.doesNotMatch(result.reply, /post your purchase email|team member will ask privately/i);
+});
+
+test('public privacy handler does not promise private staff follow-up after failed delivery', async () => {
+  modelReply = { final_answer: 'Which OS version is installed? Please post your account email.', escalate: true };
+  const result = await ask('My desktop app freezes whenever its settings window opens.');
+  assert.match(result.reply, /could not deliver|could not reach|couldn.t reach/i);
+  assert.doesNotMatch(result.reply, /post your account email|team member will ask privately|\/order\b/i);
+});
+
+test('public privacy handler redacts a compound secret from both reply and generated thread name', async () => {
+  modelReply = { final_answer: 'I saw inventedWillow53. Which OS version is installed?',
+    topic: 'Desktop settings inventedWillow53', escalate: true };
+  const result = await ask('My desktop settings window freezes. My password is inventedWillow53, but the app version is 8.2.1.');
+  assert.ok(result.thread);
+  assert.doesNotMatch(result.reply + result.thread.name, /inventedWillow53/);
+  assert.match(result.reply, /Which OS version/);
+});
+
+test('public privacy handler preserves the full custody warning beside private guidance', async t => {
+  enableStaffDelivery(t);
+  const { UNSYNCED_DATA_WARNING } = require('../answerPipeline');
+  const source = 'https://help.omi.me/en/articles/synthetic-diagnostic-reference';
+  modelReply = { final_answer: `${'Ask staff. '.repeat(250)}Please post your account email.\nSource: ${source}`, escalate: true };
+  const result = await ask('My recording is missing after the app stopped syncing.');
+  assert.ok(result.reply.length <= 1900);
+  assert.ok(result.reply.includes(UNSYNCED_DATA_WARNING));
+  assert.ok(result.reply.includes(source));
+  assert.equal((result.reply.match(/team member will ask privately/g) || []).length, 1);
+  assert.doesNotMatch(result.reply, /post your account email/i);
+});
+
 function enableApprovalApp(t) {
   approvalSigningKey ||= generateKeyPairSync('rsa', { modulusLength: 1024 }).privateKey.export({ type: 'pkcs8', format: 'pem' });
   const values = { GITHUB_APP_ID: '31', GITHUB_APP_INSTALLATION_ID: '41', GITHUB_APP_PRIVATE_KEY: approvalSigningKey };
