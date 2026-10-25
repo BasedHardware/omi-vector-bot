@@ -4,7 +4,7 @@ Updated October 25, 2026 (IST). Codex keeps this plan current; Aryan sets priori
 
 **Later operator deployment, October25 17:09 IST:** Aryan confirms triggering `7b41e119` of main38337e7. Fresh read-only checks confirm SUCCESS/latest, one running instance, healthy staff readiness, optional controls off,100-second teardown and automatic deployment off. This supersedes the earlier a0b0e0fd/d550dc1 production snapshot below. #59 is deployed by the operator but has not earned new live acceptance evidence. Reverify the then-current deployment before any combined release/rollback choice; no agent deployment or setting change occurred.
 
-**Current approved finish queue — October25:** Step1 is complete. One simultaneous three-arm 81×2 comparison and independent reading of all492 final/earlier replies approve #59: main70 pass-both/p9549.051s, #59 74/50.840s, no new material finding. #59 merged38337e7, not deployed. #75 has72/51.122s but four candidate-only material findings and is closed unmerged, branch/evidence and unfinished intent-correction scope retained. No rework or further paid run. The original internal1000ms process-launch gate remains failed at1507ms; independently audited actual first-case starts differ by3ms with1721.467s common overlap, unchanged evidence and full historical power coverage. Production remains Aryan's confirmed same-commit a0b0e0fd/d550dc1, optional features off. Two draft PRs remain: #28 and #84.
+**Current approved finish queue — October25:** Step1 is complete. One simultaneous three-arm 81×2 comparison and independent reading of all492 final/earlier replies approve #59: main70 pass-both/p9549.051s, #59 74/50.840s, no new material finding. #59 merged38337e7 and was subsequently deployed by Aryan as7b41e119; new live acceptance is pending. #75 has72/51.122s but four candidate-only material findings and is closed unmerged, branch/evidence and unfinished intent-correction scope retained. No rework or further paid run. The original internal1000ms process-launch gate remains failed at1507ms; independently audited actual first-case starts differ by3ms with1721.467s common overlap, unchanged evidence and full historical power coverage. Production is7b41e119/38337e7, optional features off. Two draft PRs remain: #28 and #84.
 
 **Active Step2:** #28 integrates main38337e7. Atomic unpublished-comment deduplication and App/encryption readiness repairs pass1086 local tests and disposable SQL; hosted PostgreSQL/current-head CI and independent final review remain. Update the unknown-result runbook and track case-linked metadata retention separately. Then rework #84 once with deterministic shared output privacy enforcement, output regressions and no paid comparison. One gated exact-SHA combined release follows both decisions; Aryan sends all prescribed Discord inputs. Memory preparation only: approve the notice and explicitly say enable before any flag change. #62 evidence-only and #83 source-conflict work stay queued; #65 stays open. Older operational checkpoints below are historical.
 
@@ -29,7 +29,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 2 | How-to versus failure routing — Release 1 / A2 | yes | yes | yes | — |
 | 3 | Multipart sources, whole-item clipping and damage intake — Release 1 / A2 | yes | yes | yes | — |
 | 4 | Source-ranking/confidence follow-up — #48 / A2; reviewed release verified live, broader A2 remains open | yes | yes | yes | yes |
-| 5 | Consistent calm, warm and practical Mira character — #59 / A1; independently approved October25, not deployed | yes | yes | yes | — |
+| 5 | Consistent calm, warm and practical Mira character — #59 / A1; approved and operator-deployed October25, new live acceptance pending | yes | yes | yes | — |
 | 6 | Typing and cosmetic-error isolation — #46 / A4 | yes | yes | yes | yes |
 | 7 | Production-configured read-only staff audience check — B1 | yes | yes | yes | yes |
 | 8 | Durable staff-card lifecycle and restart refresh — #41 / B2 | yes | yes | yes | yes |
@@ -61,13 +61,13 @@ Total: **14 built + 14 tested + 13 reviewed + 7 live = 48/100**. The October25 p
 
 | Status | What it means now |
 | --- | --- |
-| **Done** | #59 independently approved and merged38337e7, not deployed. #75 closed unmerged after its final comparison; evidence/branch and unfinished scope retained. #71/#82 remain closed, not reopened. |
+| **Done** | #59 independently approved, merged38337e7 and subsequently operator-deployed as7b41e119; live acceptance pending. #75 closed unmerged after its final comparison; evidence/branch and unfinished scope retained. #71/#82 remain closed, not reopened. |
 | **In progress** | #28's atomic unpublished-comment and App/encryption readiness repairs; local1086 and disposable SQL pass. Current-head CI, real PostgreSQL and independent final review remain. |
 | **Next** | Finish #28, then rework #84 once with deterministic output privacy enforcement and no paid comparison. One exact-SHA combined release follows all gates. |
-| **Waiting** | Aryan's prescribed release smokes follow deployment; no Discord input now. Memory needs notice approval and explicit enablement. Productiona0b0e0fd remains d550dc1, optional features off. |
+| **Waiting** | Aryan's prescribed combined-release smokes follow the remaining gates; no Discord input now. Memory needs notice approval and explicit enablement. Current production7b41e119 runs38337e7, optional features off. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
 
-**New request, prepared—not trained:** [Mira's data plan](MIRA_DATA_STRATEGY.md) screens eight public datasets and adds 12 original support scenarios. It targets understanding frustration, clear help and truthful follow-through, not psychological profiling. No data imported, model trained, prompt changed or new feature PR opened. Implement through A1/A2/E2 after the current finish queue; score remains **47/100**.
+**New request, prepared—not trained:** [Mira's data plan](MIRA_DATA_STRATEGY.md) screens eight public datasets and adds 12 original support scenarios. It targets understanding frustration, clear help and truthful follow-through, not psychological profiling. No data imported, model trained, prompt changed or new feature PR opened by this preparation. Implement through A1/A2/E2 after the finish queue; this adds no points to the current **48/100**.
 
 ### Finish queue — one active completion step
 
