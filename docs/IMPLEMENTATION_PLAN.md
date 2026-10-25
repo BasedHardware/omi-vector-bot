@@ -1,5 +1,14 @@
 # Omi Support Bot Implementation Checklist
 
+## October25 — approved queue, Step1 complete
+
+- [x] One simultaneous main/#59/#75 comparison,81×2 each/concurrency3 per arm; all486 final and6 earlier replies independently read. Original artifacts retained; no invalid rows or paid rerun. Actual first case starts differ by3ms; the original internal1000ms process-launch failure at1507ms remains documented, with independent concurrent-window qualification and full historical-power/source audit.
+- [x] Merge reviewed #59 as `38337e7`; close #75 unmerged for four new material findings despite numerical passes. Preserve its branch/tests/evidence and unfinished owner-intent scope. Production unchanged at `d550dc1`.
+- [ ] #28: one atomic unpublished comment proposal/card per canonical repository/case/target issue; preserve immutable encrypted scope and filing/unknown fences; three distinct follow-ups and real multi-connection race regressions.
+- [ ] #28: require validated GitHub App identity plus encryption for approval readiness, fixed value-free boot diagnostic, token-only/incomplete-config tests; ordinary handoff remains usable.
+- [ ] Update the unknown-result manual-reconciliation runbook; open the authorised metadata-retention issue; full/offline/SQL/current-head CI and independent final review before merge.
+- [ ] Then rework #84 once with shared deterministic public-output privacy enforcement, output regressions and no paid comparison; one combined exact-SHA release and Aryan's prescribed smokes follow both decisions. Memory notice/checklist preparation only; no flag until notice approval plus explicit enablement.
+
 ## October24 — existing #28 current-main integration
 
 - [x] Integrate deployed main `d550dc1` with both boot workflows, both exported recovery/publication seams and combined approval/reference-memory SQL checks preserved.
@@ -7,6 +16,12 @@
 - [x] Independent review reproduced a shared-forum scope inconsistency in automatic staging and missing-source webhook notices. Both actual-owner regressions fail before repair. One shared `customerThreadScope` predicate now composes matching thread/binding/owner with an unfiltered unique case/customer lookup in all three paths; missing/ambiguous/unavailable proof refuses. Original-source replies remain usable in shared channels.
 - [x] Repaired tree passes1069/offline8/isolated SQL; scoped independent re-review passes362 affected checks with no remaining finding. Positive fixtures now supply real thread/lookup proof; no existing assertion weakened.
 - [ ] Exact-head hosted Node20/24/multi-connection PostgreSQL, independent privacy/authorization review and affected-flow integration before readiness. Keep draft; decision dueOctober27 does not waive safety.
+
+## October24 — existing #59 current-main integration
+
+- [x] Integrate deployed main `d550dc1`, retaining the existing shared persona diff and current source, language, redirect and runtime safeguards.
+- [x] Full979/offline8 and diff check pass on the integrated tree; source/language/redirect/runtime safeguards remain unchanged by the persona.
+- [ ] Exact-head hosted CI and independent code review, then its own representative generated-answer comparison/functional checks. Keep draft; no evidence or release gate waived.
 
 ## October24 production fix B — rejected-review language
 
@@ -315,6 +330,14 @@ The dated implementation evidence below does not authorize a new deployment or e
 - [ ] Next: #48 fresh same-day deployed-main comparison, then #59 calm/warm/practical wording; personality comparison waits for ranking grade. #28/#29/#49 remain held.
 
 Aryan waived the 24-hour timer, not the other gates. The counts-only read-only 24-hour health comparison is scheduled October 19 at 15:55 IST. Future deployments use the GitHub commit for recorded provenance, not a local upload. The detailed older unchecked Release 1 checkpoints below are historical, superseded by its accepted rollout above.
+
+### Mira's identity and personality — requested October 18
+
+- [x] Apply the specifically authorized short account/server name and fictional portrait, preserving explicit AI disclosure in the profile; verify by fresh REST reads. No runtime deployment or data-use change.
+- [x] Revise the shared persona to **calm, warm and practical**, retaining visible **Mira · Omi AI support** and all safety, evidence, language, serious-case and truthful-capability limits. Six observed red assertions before this correction; eight focused, 760 full tests and offline 8/8 pass afterward. This supersedes the earlier short-name/elegant-persona preparation.
+- [x] Record primary conversation-design research, fictional-image prompt/provenance and the limitations of prompt-presence tests.
+- [x] Push correction runtime `698609f` after full `npm test`; hosted Node 20/24/Postgres run `39125817220` passes.
+- [ ] Independent review, required quality checks and controlled release before claiming the changed voice is live. Release 1's accepted restart already restored the full AI-labelled nickname. Hold #59's comparison until #48 is graded; the waived 24-hour delay removes no other gate.
 
 ### Combined Release 1 (updated October 17 brief)
 
