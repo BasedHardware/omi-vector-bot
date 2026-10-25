@@ -126,7 +126,11 @@ An authenticated Telegram escalation reply may also include `KB: short support n
 
 ## GitHub workflow
 
-Technical handoffs can show a minimal proposed issue card. The bot searches existing issues and pull requests first, but it does not open a public issue by itself. Staff must press **File**. Filing redacts contacts, addresses, order numbers, Discord identities, and secrets from the public issue; attachments are represented only by a count and the Discord thread link. Only threads linked by the bot receive signed GitHub webhook updates, and later customer messages are redacted before any GitHub comment.
+Technical handoffs can show **Review technical summary** in the verified private staff channel. Staff write a technical summary, inspect the exact sanitized public issue/comment preview and explicitly publish that revision. Customer text, attachments and Discord links are not forwarded automatically. The related-work search uses the staff summary, and a matching pull request is not proof that the customer issue is fixed.
+
+Drafts, staff edits, approvals and receipts are encrypted/minimized in Postgres using the existing `DATA_ENCRYPTION_KEY`. They are bound to the customer case, source message, repository and fixed target; parallel clicks or restarts cannot turn an uncertain publication into an automatic retry. Missing encryption configuration disables GitHub publication, not support handoffs. Pending proposals expire after seven days; automatic ciphertext cleanup is still roadmap work.
+
+Important later evidence from the owning customer in a dedicated thread can create a new private comment proposal when one issue is unambiguously linked. Staff must author and approve it again. Shared-channel or multi-issue follow-ups remain manual. **Check GitHub result** reconciles uncertain writes read-only; it does not send a second post. Verified private links route webhook updates; public thread markers do not establish customer ownership. See the [runbook](docs/RUNBOOK.md) for permissions and recovery.
 
 Repository contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). PR CI runs the
 rules suite, offline customer checks and an isolated Postgres integration check

@@ -1,8 +1,27 @@
 # Omi Support Bot Roadmap
 
-## Current October25 — final multipart decision and private intake
+## Current October25 — Step2 merged, deterministic privacy repair next
+
+#28 merged0986b75 after1086/offline8/SQL, exact-head Node20/24/real PostgreSQL CI and independent final review. One open draft remains, #84. Production stays Aryan's7b41e119/38337e7; no agent deploy/settings change. Rework #84 once outside the model, then gated combined release/Aryan's smokes and memory preparation only. Earlier snapshots below are historical, not renewed holds or active instructions.
+
+## Earlier October25 — final multipart decision and private intake
 
 #80/#81 are deployed as exact GitHub d550dc1/1bce9049, both limited smokes accepted and optional features off. #82 and #71 are closed unmerged with branches/tests/results kept; #65 stays open. The final standalone #71 attempt saved324 outputs, all independently read plus4 earlier-turn replies, but systematic second-run unavailability/no recorded usage and stopped final validation prevent accuracy approval. Source/hash/input/full-window power checks pass; they do not rescue failed generation or prove patch causation. No further #71 rework/rerun or automatic deploy. #83 tracks source-date conflicts as issue-only work. Private-intake draft #84 passes five red-before/979 full/offline8 checks, independent117 and hosted CI at4ca5e53, without provider calls. Instructions are not proof of generated-answer compliance; that separate gate remains. Current four drafts28/59/75/84; #28's October27 decision and other comparison/memory gates remain. Execution-validity diagnostics stay in #56/E2. Score47/100 unchanged; dated checkpoints below are history.
+## October25 — final comparison decided; staff-approval repairs next
+
+Later operator update: Aryan confirms deploying main38337e7 as7b41e119 at17:09IST. Fresh checks show one healthy running instance, optional controls off and auto-deploy off. This supersedes the earlier production snapshot below; no agent deployment and no new live-acceptance point.
+
+Local #28 repairs now pass1086 tests and disposable SQL: canonical repository/case/target unpublished proposal deduplication, creator-only card attempt and GitHub App/encryption readiness. Original encrypted evidence/revision and unknown-publication fences remain. Token-only approval controls stay off without breaking private handoff. Hosted multi-connection PostgreSQL and independent final review remain. [#85](https://github.com/BasedHardware/omi-vector-bot/issues/85) tracks operational metadata retention/erasure separately; no code or deletion is authorized by that issue.
+
+Step1 history: #59 merged as `38337e7` after one simultaneous three-arm 81×2 comparison and independent reading of all492 replies. Main70/pass-both,p9549.051s; #59 74/50.840s with no new material finding; #75 72/51.122s but four candidate-only material findings, so it closed unmerged with branch/evidence and unfinished intent-correction scope retained. No rework or further paid run. At that cutoff production wasa0b0e0fd/d550dc1; the later operator deployment above supersedes it. #28 has since integrated main and repaired the two boundaries locally; current CI/final review remain. The older checkpoints below are historical, not renewed approvals.
+
+## October24 — existing staff-publication draft updated, not approved
+
+#28 integrates deployed main `d550dc1` without rebasing. Full1063/offline8 and isolated SQL pass, including current heartbeat/delivery fences, references-only privacy cleanup, thread-language expiry and this draft's encrypted publication/uncertain-write checks. PGlite serializes connections; hosted multi-connection PostgreSQL and independent privacy/authorization review remain required, as does affected-flow integration. No deployment, real publication, new private data flow, permission change or optional enablement. Decision remains dueOctober27; do not merge merely to meet it. A+B release smokes, C/#82 and #71 accuracy work remain separate.
+
+## October24 — existing persona draft updated, not released
+
+#59 integrates deployed main `d550dc1` without rebasing. Its narrow change remains the shared calm, warm and practical character; current main owns source policy, language, redirect cleanup, delivery and recovery. The master product plan remains canonical, with no duplicated milestone rows or readiness claim. Independent review, exact-head checks and its own representative serious-problem/language/identity/generated-answer comparison remain required. C/#82 and #71 accuracy work are separate; no paid comparison, merge, deploy or optional enablement occurs here.
 
 ## Current October23 — smoke passed, approved merges resume
 
@@ -173,7 +192,32 @@ Observed red before green: Spanish and Chinese no-case closing plus the read-err
 
 **Test-only gate repair, #63:** the unchanged typing refresh test failed twice on Node 20 in hosted run `39140111396`, observing only two callbacks in its real 30 ms window. The memory-off parity test passed; Node 24 and Postgres passed. Real interval timing cannot guarantee three callbacks while an event loop is busy. Replace only that test with controlled interval callbacks: assert the 8-second production interval, initial send, three refreshes, clearing/unref and a harmless late callback, with cleanup on failure. Runtime code and all support behavior stay unchanged. This branch is a separate reviewable test repair, not a memory/prompt change, release approval or permission to skip CI. The canonical current product/release record remains in the master plan; no deployment or production setting changes.
 
+**Latest #59 correction:** Release 1 is already live and reviewer-accepted, #60 is a built/tested draft awaiting review, and #48's full comparison is complete but ungraded. This branch now narrows Mira's shared voice to **calm, warm and practical** and retains **Mira · Omi AI support** in the visible display name. The existing portrait/profile and every safety, language, word-budget, source and truthful-handoff rule are unchanged. Six assertions failed before the two-line runtime correction; eight focused tests, all 760 local tests and offline 8/8 pass afterward. Hosted checks/review remain required, and #59's separate comparison must wait for #48's grade. No protected input, provider evaluation, live profile mutation, deployment or optional flag change. Aryan waived the fixed deployment wait, not these gates. The original persona request below is implementation history, not the current voice instruction.
+
+Subsequent CI checkpoint: correction runtime `698609f` is pushed; hosted Node 20/24/Postgres run `39125817220` passes. Draft/review/comparison/deployment holds above remain; no extra delivery points or production changes.
+
+Original persona request: Aryan asked for Mira's short name, an attractive/modest fictional adult portrait, and a consistent elegant/charming personality. The account/server name and selected portrait were explicitly authorized, applied and verified by fresh REST reads; the profile identifies Mira as Omi's AI support assistant. No bot permissions, runtime deployment, capture, context or fact-publication setting changed. Private before-state metadata and operation outcome stay outside Git; no secrets/customer text are in this asset or report.
+
+The separate `feat/mira-personality` draft branches from deployed main `7fe0e0a`, not #48/#49. It preserves product/technical identifiers and adds a shared persona to the existing answer/reviewer voice, not a second prompt or training pipeline. Name persistence after restart is implemented in source but not deployed. Two name/disclosure checks and three personality checks had observed failures before their changes; six focused checks, full 758 and offline 8/8 pass. Research uses primary Google conversation-design guidance, Microsoft's HAX guidelines and author-published customer-service findings; the guide distinguishes original design choices from proven product outcomes. See `docs/MIRA_PERSONALITY.md` and `assets/MIRA_AVATAR.md`. Independent review/quality/release gates still apply; live Release 1 checks and #48 remain priorities rather than being replaced by this request.
+
 [SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Aryan clarified that reviews are evidence for improving the product, not a replacement goal. Map each finding to an item, keep unfinished work visible, and return to the next product item after corrections. Built/tested/live remain separate; no invented completion percentage.
+
+[SUPPORT_MASTER_PLAN.md](docs/SUPPORT_MASTER_PLAN.md) is the controlling end-to-end acceptance checklist. Review findings improve that goal; they do not replace it. Preserve built/tested/reviewed/live distinctions and update the evidence-based milestone score, not a guessed accuracy percentage.
+
+### October 18: #28 current-main integration
+
+Release 1 main `7fe0e0a` is deployed; its live smoke remains pending. Main is integrated into #28 with merge commit `758808a`, preserving current voice, typing, localized closing cards, disabled memory cleanup and health readiness. Combined verification passes 844/844 tests, offline 8/8 and isolated SQL (both approval/private-link and memory/edit-delete checks); hosted Node 20/24/Postgres run `39108526377` passes. A fresh production-configured read-only preflight returns `private_staff_destination`, superseding the October 12 rejection below. Earlier behavior changes retain their red-before evidence: nine member/boot failures, two read-only-script failures and two SDK-hydration failures. Independent re-review is pending; no new protected evaluation, customer/GitHub issue write, deployment, permission change or feature enablement accompanies this integration.
+
+### October 12 Phase 5 release stop — historical, superseded by October 18
+
+Reports 2 and 3 passed; current production is #41 at main `b9eeb16`, deployment `4a8e93d5`, rollback `6ddd1673`. #28 is not deployed. Remaining order is gated/reviewed #42 → reviewed closing-card fix #43 → reviewed #28 → #29 → #30, with one deployment at a time and 24 clean hours unless explicitly waived. Earlier entries below are historical.
+
+- Main merged into this branch with merge commit `42c6d42`. Merge verification passed 736 tests, preserving `/health`'s Discord/coordination/non-stopping readiness and both live-card receipts and GitHub approval-card binding. Combined SQL checks preserve old-schema upgrade/live-card/acceptance coverage alongside encrypted approvals and private issue links.
+- Scoped privacy corrections are retained locally, not pushed/released: direct member grants use one forced, uncached REST member read rather than cached authority; no bulk fetch or privileged member intent. Boot checks the configured destination and reports rejection through a bounded, metadata-only Telegram operational alert. Actual sends and GitHub actions retain their own fresh destination checks. A read-only preflight refuses all write methods and never logs API payloads.
+- Regression proof: nine focused failures before the member/boot correction, two before the read-only script and two SDK hydration regressions before the approved helper correction. Afterward 750/750 unit tests and the isolated SQL check pass. These are not production delivery or privacy proof.
+- **STOPPED at the live gate:** the first actual read returned `guild_acl_unavailable` because a bare REST SDK Guild lacks gateway channel state. Aryan explicitly approved a tested metadata-only helper repair and one additional read-only check. The repair hydrates native SDK objects from verified guild/role/bot/target-channel metadata without assigning an availability flag or weakening the validator. The approved 02:57:16–02:57:20 UTC rerun returned **`untrusted_role_can_view`**, not `private_staff_destination`: the actual staff channel has a View Channel grant outside the configured staff/moderator/bot authority set. Each check made six GETs and one single-member read; no gateway login, privileged intent, write or permission change. Both results are retained outside Git in `phase5-private-destination-preflight-oct12.json` and `phase5-private-destination-preflight-oct12-approved-rerun.json`. Stop release work, reconcile the audience with an administrator and obtain direction before another check or merge/deploy. Never add unverified roles to force the gate to pass.
+
+The latest staged-release brief governs release order. #28 receives only its separately authorized corrections; #29–#30 remain untouched. Aryan's live staff-card status and acceptance feature shipped in #41 and Report 3 passed. No diagnostics or new backend access accompanies it.
 
 ### Current #48 ranking correction — local tests pass, review/release pending
 
@@ -371,12 +415,16 @@ Phase 3 correction: Phase 2 main merged into #41 with a merge commit. An unconfi
 ## Milestone 2 Complete case handling and delivery recovery
 
 Retained, not discarded. The current staged order puts #28 after #41 and the routing comparison, with its own live private-destination preflight/review/smoke. #29 preparation follows #28's merge; #30 preparation follows #29 approval. They remain unmerged and receive no unrelated feature additions. Their uncertain-send protection can hold a reply rather than retry it; the authorized phase corrections require same-nonce retries, outage fallback and staff-visible held-reply alerts before review. Existing branch code is not production deployment. Other open delivery-plumbing items remain deferred.
-
-- [ ] **Deferred:** complete delivery outbox, remaining adapters, bounded retries and uncertain-outcome reconciliation. Never blindly replay a request that may already have replied.
-- [ ] **Deferred:** encrypted/minimized cumulative case summaries and attempted steps, pending an approved retention/deletion policy. Current durable context is operational categories and sources, not raw conversation content.
-- [ ] **Deferred:** staff queue views, committed response targets, reminders and additional operational inspection.
-- [ ] **Deferred:** cross-identity verification abuse controls and remaining destination verification. Discord audience checks are already in #28; Telegram verification remains unfinished.
-- [ ] **Deferred:** additional capability checks/monitoring for stale knowledge, outages, failed lookups, backlog and missed staff delivery.
+- [x] Persist encrypted, minimized GitHub issue/comment drafts, their exact case/customer/source/repository scope, staff edits, preview revisions, approval claims and external receipts across restarts.
+- [x] Require a staff-authored technical summary and an exact private preview before a public GitHub write. Never forward customer text, attachments or Discord links automatically; public customer cards have no publication controls.
+- [x] Stage important follow-ups from the owning customer's dedicated thread for a separate staff-approved comment when exactly one engineering target is linked. Shared-channel or ambiguous follow-ups remain manual, not guessed.
+- [x] Hold uncertain GitHub writes without retrying the POST. A staff check uses bounded read-only reconciliation with application provenance and exact payload verification; confirmed receipts can repair private case links without reposting.
+- [x] Draft #28: validate Discord staff destination privacy and bot permissions before sending a full card or handling publication. Unknown audience permissions fail closed; the scoped correction fetches only the specific direct grantee uncached, never all guild members or a broader intent. Live preflight is blocked as recorded above.
+- [ ] Add a delivery outbox with accepted-send identifiers, retries for known failures and reconciliation of unknown outcomes. Do not blindly replay a request that may already have replied.
+- [ ] Preserve an encrypted/minimized case summary of attempted steps and missing details, with an approved retention/deletion policy. Current durable case context is categories and sources, not raw conversation content.
+- [ ] Provide staff queue views, committed response targets, reminders and operational inspection of expired started claims.
+- [ ] Enforce cross-identity verification abuse limits. Discord destination validation is implemented above; Telegram destination verification remains a separate follow-up.
+- [ ] Add capability checks and monitoring for stale knowledge, provider outages, lookup failures, backlog and missed staff delivery.
 
 ## Milestone 3 Verified recording diagnostics
 
@@ -428,6 +476,8 @@ Never print or paste replacement values into chat, logs or GitHub. Record comple
 ## Validation and operating rules
 
 Validation recorded on October 9, 2026: 593 unit/regression tests pass, the offline customer check is 8/8, and the isolated SQL check passes. Hosted CI passes on runtime head `3960f24`. The communication probe used snapshot `4d643e3`: 23/24 replies passed, with the voice-question/no-answer case missing part of the requested explanation on one run; later interaction-deadline and public-order privacy changes have separate regressions and CI coverage. Do not hide that remaining answer-quality inconsistency or call this a full held-out approval.
+
+Historical next-milestone validation: PR #28 independently passes 668 tests; PR #27 independently passes 599. Their combined working tree passes 674 tests and the offline check is 8/8. Isolated SQL passes encrypted drafts, canonical repository identity, single dispatch, preserved legacy ciphertext, private links and migration refusal without deleting conflicting records. A focused three-run live check passes 12/12 replies across deletion how-to, developer-key how-to, Spanish refund and pure thanks. Its staff delivery is stubbed; this is neither a real delivery/ACL smoke test nor a held-out gate. Hosted CI is a separate required check on each PR.
 
 The #24 smoke test is now posted and reported. #25 is merged as `4f7d7a1` and live: initial deployment `73760501-ddd2-4b49-a21d-7e383840b5d8`, then health-gated deployment `75e41379-2bad-46a4-b130-04bd52382504`, both SUCCESS. `/health` returns HTTP 200, status `ok` and staff handoff `configured`. Only Healthcheck Path `/health` changed; timeout remains default, overlap/draining variables remain unset, and no credential variables changed.
 
