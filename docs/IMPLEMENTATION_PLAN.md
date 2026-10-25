@@ -1,5 +1,14 @@
 # Omi Support Bot Implementation Checklist
 
+## Latest October25 finish contract
+
+- [ ] Step1: exact frozen main d550dc1 plus current-main #59/#75; fresh full/offline/current CI, reviewed safe launch, ONE simultaneous81×2×3 run, full independent reading, strict per-arm gates, then merge-or-close. No rerun/rework or paid preflight.
+- [ ] Step2: #28 pending-comment/card dedup and GitHub App+encryption readiness; red-before/SQL/CI/independent gates, retention issue, names-only auth report, unknown-publication manual-link runbook, then merge. Review-comment file only if supplied.
+- [ ] Step3: #84 shared deterministic public-output filter/echo protection and localized availability/delivery-gated private path; output regressions replace prompt-only gates, remove planner injection, no paid comparison; verify/review then merge.
+- [ ] Step4: one exact GitHub combined release with verified current rollback, optional controls off/no settings changes; Aryan's how-to/damage/order/private-preview-stop/correction smokes; rollback on failure.
+- [ ] Step5: implementation-accurate customer notice and test-forum pilot checklist, approval required; no flags or implicit enablement.
+- [ ] Only at≤3 open PRs: queued #62 evidence-only presentation fingerprints and #83 deterministic conflict handling. #65 remains open. See [full accepted scope](FINISH_QUEUE_BRIEF.md); preserve all other product requirements.
+
 ## October25 accepted review and private-intake draft
 
 - [x] Verify exact GitHub d550dc1 / deployment1bce9049 is already live, healthy and optional features off; reuse accepted German-handoff/redirect-cleanup smokes. No duplicate deploy/input.
