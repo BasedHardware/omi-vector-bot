@@ -54,6 +54,7 @@ const { matchingRelease } = require('./releases');
 const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk, stripUnverifiedOrderClaims } = require('./answerPipeline');
 const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
 const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
+const { reviewRejectionReply } = require('./supportReplyCopy');
 const triage = require('./triage');
 const supportCases = require('./supportCases');
 const supportThreadLanguage = require('./supportThreadLanguage');
@@ -747,6 +748,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
     if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
     if (plannerPolicy.suppressOffTopic(searchPlan, currentRoute)) return;
+    const replyLanguage = searchPlan.replyLanguage === 'hi'
+      ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en';
     const plannedPersonKind = cannedEnglish ? '' : plannerPolicy.personKind(searchPlan);
     route = cannedEnglish
       ? currentRoute
@@ -924,7 +927,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               ? github.reviewedPullMention(checked.final_answer, relatedPull)
               : checked.safeHandoff
                 ? checked.final_answer
-                : "I couldn't verify a direct answer to what you asked from the official Omi information. I won't substitute a different or guessed answer; a person needs to check this.";
+                : reviewRejectionReply(replyLanguage);
             aiResponse.confidence = Math.min(
               Number(aiResponse.confidence) || 0.4,
               Number(checked.confidence) || 0.4
@@ -1062,8 +1065,6 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     const handoffFollowup = continuingPost && supportFollowup;
     const pingAuthor = wantsAuthorPing(caption);
     const localizedFooters = plannerPolicy.handoffFooters(searchPlan, asked || question);
-    const replyLanguage = searchPlan.replyLanguage === 'hi'
-      ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en';
     let { escalate, signals: escalationSignals } = decideEscalation({
       route,
       question: asked || question,
@@ -1140,7 +1141,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           try {
             await assertCurrentOwnership();
             await existing.send({
-              content: rewriteUserMentions(escalateReply(cleanAnswer, { pinged: true, conversation: true, footers: localizedFooters }), message),
+              content: rewriteUserMentions(escalateReply(cleanAnswer, { pinged: true, conversation: true, footers: localizedFooters, language: replyLanguage }), message),
               allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
             });
             reused = true;
@@ -1242,6 +1243,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         deliveryFailed,
         replyInThread: pinged && Boolean(channel.isThread?.() || handoffThread?.id),
         footers: localizedFooters,
+        language: replyLanguage,
       });
       if (movedToThread) {
         const threadLink = `<#${handoffThread.id}>`;

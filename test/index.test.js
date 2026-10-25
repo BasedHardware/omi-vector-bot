@@ -872,6 +872,25 @@ test('two rejected reviews use the existing direct-answer fallback', async (t) =
   assert.equal(staff.length, 1);
 });
 
+for (const [language, phrase] of [
+  ['de', /konnte.*direkte Antwort.*bestätigen/u],
+  ['fr', /pas pu vérifier.*réponse directe/u],
+  ['es', /pude verificar.*respuesta directa/u],
+  ['xx', /couldn't verify a direct answer/u],
+]) test(`rejected review uses ${language} body copy with the actual handoff`, async t => {
+  const staff = enableStaffDelivery(t);
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = previousKey; });
+  plannerReplyLanguage = language;
+  reviewerResponse = () => ({final_answer:'An unrelated draft.',grounded:false,relevant:false,confidence:0.1,escalate:true});
+  const response = await ask('How do I adjust the text size in the app?');
+  assert.equal(reviewCalls.length, 2);
+  assert.equal(staff.length, 1);
+  assert.match(response.reply, phrase);
+  if (language !== 'xx') assert.doesNotMatch(response.reply, /couldn't verify|won't substitute|a person needs to check/u);
+});
+
 test('official docs retrieval waits for the planner and runs once with its queries', async () => {
   const previousKey = process.env.CMD_API_KEY;
   const previousQueries = searchPlanQueries;
@@ -1634,6 +1653,20 @@ for (const [language, guidance, contact, next] of [
     assert.equal(result.message.replies.length, 1);
   });
 }
+
+test('unsupported-locale delivered cleanup receives the actual reply language', async t => {
+  const staff = enableStaffDelivery(t);
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = previousKey; });
+  plannerReplyLanguage = 'hi';
+  modelReply = { final_answer:'The appearance setting needs review. Email help@omi.me; वे अगला चरण समझाएँगे।', escalate:true };
+  const channel = makeChannel({thread:true,parentId:HELP_FORUM,name:'Synthetic appearance options'});
+  const result = await ask('How do I change the display colour?', {channel});
+  assert.equal(staff.length, 1);
+  assert.doesNotMatch(result.reply, /वे अगला|help@omi\.me/);
+  assert.match(result.reply, /appearance setting needs review/);
+});
 
 test('a delivered Handoff keeps details without directing the customer to another channel', async (t) => {
   const staff = enableStaffDelivery(t);

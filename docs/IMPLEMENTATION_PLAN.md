@@ -1,5 +1,15 @@
 # Omi Support Bot Implementation Checklist
 
+## October25 final #71 decision — one standalone comparison
+
+- [x] Record explicit user authority for one final simultaneous main d550dc1 versus #71-alone comparison; no further rework or rerun afterward. Close #82 without merge, preserving branch/evidence.
+- [x] Verify d550dc1/#80/#81 already live as1bce9049, healthy one instance/optional off; no redundant deploy or smoke.
+- [x] Merge main into #71 with a merge commit; runtime auto-merges and only two documentation conflicts preserve both histories.
+- [ ] Fresh local/offline/current-head CI, frozen clean roots, shared root-aware harness and independently reviewed no-retry/streaming-power supervisor before provider use. No paid preflight or extra selective cases.
+- [ ] One81×2×2 run, all outputs retained, then full independent output/source review. Merge only if approved with no material candidate problem absent from main; otherwise close preserving branch/tests/#65. No numerical-only approval or deploy.
+
+Earlier dated checkpoints retain history:
+
 ## Latest October23 acceptance priority
 
 - [x] Record Aryan's explicit accuracy/reliability-over-time decision: latency increase alone no longer blocks; no waiver of grounding, protected handoffs, privacy, safe delivery/recovery or independent review.
@@ -38,6 +48,25 @@ The original 848-test publication was hosted-green; the additional overlap repai
 - [ ] Independent review before any merge/deploy. Keep #70, #67/#68, the memory pilot and full A–E checklist separately gated.
 
 Current retry `6e0fa65d`/`5bafe93` is healthy with optional controls off, but Spanish/refund/teardown checks are pending. Rollback `adcfb8b4`. Aryan sends every Discord message and command; Codex has not armed/dispatched the corrected redeploy test. Progress stays 45/100, acceptance 2/21. Older integration checkpoints below are historical.
+## October24 production fix B — rejected-review language
+
+- [x] Reproduce de/fr/es English-body/localized-footer failure with original real-handler and evaluation-wrapper tests; unknown language retains English by design.
+- [x] One shared copy table/helper; use the existing replyLanguage in the handler and same planner language/script in the evaluation mirror. No provider/network/protected inputs in regressions.
+- [ ] Full suite, no-model evaluation, exact-head Node20/24/Postgres CI and independent review before readiness/merge.
+- [x] Integrate the separately reviewed production fix A/main `16ee8ca` with a merge commit; both document scopes preserved. Rerun affected/current gates before publishing.
+- [ ] Only after A/B merge: verified-current rollback, exact GitHub deploy, optional features off; Aryan's German-handoff and redirect-cleanup smokes. Failure means rollback.
+- [ ] C accuracy/excerpt guard remains separate: review before the single simultaneous three-arm comparison; #71 is not approved. #28 and memory-pilot gates remain separate.
+
+## October24 reviewer follow-up — deterministic production fixes first
+
+- [x] Record #71 NOT APPROVED in the PR; retain conditional latency waiver and all outputs without unchanged paid rerun.
+- [x] A: reproduce orphaned redirect clauses/following sentences on main with original synthetic red-before tests; implement shared reference cleanup preserving sources, warnings, noun-led context and prior attempts.
+- [x] A/#80: full965/offline8, exact-head Node20/24/Postgres CI40085949902 and independent review198 focused/23 adversarial assertions pass; merged `16ee8ca`, not deployed.
+- [ ] B: separate draft for shared de/fr/es/unknown-safe review-rejection copy and real handler/eval parity; same offline/CI/review gates, then merge commit.
+- [ ] After both merge: exact GitHub deployment, verified current rollback, optional features off; Aryan sends German handoff and redirect-cleanup smoke. Roll back on failure.
+- [ ] C after A/B merges: general excerpt/absence/customer-data-claim fix; review before provider run, then one simultaneous three-arm comparison with result-only flagged-answer package.
+- [ ] Preserve #28 October27 decision and separate memory-pilot gates. Cap exceptions are the explicitly authorised production fixes, not a general queue waiver.
+
 ## Current October23 — release smoke accepted
 
 - [x] English sourced ordinary answer, private refund delivery and controlled same-commit Redeploy pass. One reply after SIGTERM, clean drain, old instance observed gone after69.197s, stable30s; live6a815fbf/GitHub6b6d97d, optional features off.
