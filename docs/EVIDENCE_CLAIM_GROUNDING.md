@@ -1,6 +1,6 @@
 # Evidence scope and customer-data claims — draft C
 
-October24 reviewer order: A/#80 and B/#81 merged; exact GitHub main `d550dc1` is deployed as `1bce9049-6128-4db8-b0a2-d6c57ed27656`, one healthy instance, optional features off. Rollback is `0262f351`/`1235379`. Aryan deferred the German handoff smoke; both short release checks remain pending, not waived. C is undeployed and #71 remains unapproved.
+October25 checkpoint: A/#80 and B/#81 merged; exact GitHub main `d550dc1` remains deployed as `1bce9049-6128-4db8-b0a2-d6c57ed27656`, one healthy instance, optional features off. Rollback is `0262f351`/`1235379`. Aryan's German handoff and redirect-cleanup smokes now pass their limited visible language/delivery/cleanup boundaries, not every fallback branch or customer resolution. C is undeployed and #71 remains unapproved. Clean comparison refs and a private three-arm supervisor are prepared; independent launch review still precedes provider use.
 
 ## General accuracy boundary
 
@@ -25,7 +25,7 @@ The shared live-eval adapter now delegates multipart selection to the evaluated 
 ## Remaining gates
 
 - Full986/offline8 and independent pre-provider code review pass, including the normal/compact JSON example and evaluated-root adapter. These do not establish semantic accuracy. Exact-head hosted CI remains required; keep draft.
-- No provider run before review, and no release acceptance while Aryan's A+B smokes are deferred.
+- C pre-provider code review/current-head CI and Aryan's A+B smokes pass; independent supervisor/source/host launch review still precedes provider use.
 - Prepare one simultaneous three-arm comparison: current deployed main | main+C | main+C+#71, same machine and per-arm concurrency,81×2 each. Confirm the adapter follows each root's evidence policy rather than masking #71. Freeze and verify SHAs, dependency/source/harness provenance, date/power/interruption guards and all outputs; do not read protected case contents.
 - Report pass-both, unwanted/missing handoffs and p50/p95. Build result-only flagged-answer artifacts across all arms for source-absence, customer-data and citation signals, retaining every row and distinguishing model flags from independent grading. Flags do not prove causation. No unchanged automatic rerun or merge from aggregate scores alone.
 
