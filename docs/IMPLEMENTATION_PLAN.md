@@ -1,5 +1,17 @@
 # Omi Support Bot Implementation Checklist
 
+## Current audited execution — October 25, 2026
+
+- [x] Reconcile main `c6f482d` and completed #59/#28/#84 decisions with the retained comparison/CI/review/release receipts. Four bounded combined-release scenarios are verified, not universal accuracy.
+- [x] Audit fixed25×4 progress:16 main +16 tested +16 reviewed +8 verified operations =56/100;44 left. Main milestone implementation coverage64/100; full A–E2/21. [Ledger](SUPPORT_PROGRESS.json) and four automatic consistency checks preserve definitions.
+- [x] Audit12 open issues; close only speculative stored summaries #52 not planned. Preserve11 unresolved issues, existing assignments and closed-branch evidence. [Disposition](SUPPORT_ISSUE_AUDIT_2026-10-25.md).
+- [ ] #86 replay fence: scoped code review,1180/offline8/signed HTTP/SQL/hosted real PostgreSQL pass; new receipt retention/erasure remains unapproved. Keep draft, not merged/deployed.
+- [ ] Continue #62 real-path, evaluation-only text-free stage evidence without changing filters, prompts or reply bytes. Synthetic red-before handler/harness/parallel/disabled tests and independent review; no paid call.
+- [ ] Prepare Step5 accurate notice/test-forum configuration and switch-timing/pilot/rollback checklist. No memory flag until notice approval plus explicit enablement and applicable privacy/processor/backup/release gates.
+- [ ] Then #83 general source conflicts and #65 accuracy; remaining C/D/E and #51/#53/#56 operational reliability stay required. No automatic paid evaluation, customer data use, issue assignment, merge or deployment.
+
+Older dated checklists below are retained implementation history, not current pending work or renewed authorization. The [master plan](SUPPORT_MASTER_PLAN.md) controls the current queue.
+
 ## Current October25 finish status
 
 - [x] Step1 decided: #59 merged38337e7 and subsequently operator-deployed7b41e119; #75 closed unmerged, evidence/branch retained. No further paid run.

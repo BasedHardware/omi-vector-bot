@@ -1,5 +1,11 @@
 # Omi Support Bot Roadmap
 
+## Current audited dashboard — October 25, 2026
+
+The [master plan](docs/SUPPORT_MASTER_PLAN.md) is authoritative: audited main `c6f482d`, 16/25 implemented/tested/reviewed milestone foundations (64/100 main implementation coverage), eight verified operations, **56/100 delivery completion and 44 left**, not accuracy. Full A–E acceptance remains2/21. #59/#28/#84 are merged and the bounded combined-release smokes passed; duplicate GitHub status notices exposed a separate replay weakness. Draft #86 passes code review/CI but stays held for its new metadata lifecycle. Memory/context/fix-inbox remain off. The [issue audit](docs/SUPPORT_ISSUE_AUDIT_2026-10-25.md) closes speculative stored summaries #52 as not planned and preserves11 unresolved issues. No assignments, settings, paid runs or deployment by this audit.
+
+Next safe work: real-path evaluation-only #62 stage evidence; Step5 implementation-accurate memory notice/pilot preparation; then #83/#65 accuracy and the remaining C/D/E pipeline. Do not recreate closed PRs or treat their unfinished scope as completed. Every older checkpoint below is historical and superseded where it conflicts with this dashboard.
+
 ## Current October25 — Step2 merged, deterministic privacy repair next
 
 #84 implements its one authorized deterministic output rework: shared request/echo filtering, application-owned localized private path gated by actual availability/delivery, question-aware handoff naming and final source/next-step/safety-warning length reservation. Initial32 output regressions were observed red; additional independent findings are repaired with output tests, not prompt self-certification. Full1165/offline8/isolated SQL and independent final scoped review pass. Exact final-head hosted CI/identity remain before readiness; keep draft and production unchanged. No paid run.
