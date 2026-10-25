@@ -511,7 +511,7 @@ async function noteCustomerLead(channel, message) {
       .map((row) => [`${row.repo}:${row.issueNumber}`, row])).values()];
     if (linked.length !== 1) return;
     const approval = await githubFlow.prepare({ message, client, supportCase: value, kind: 'comment', issueNumber: linked[0].issueNumber });
-    if (!approval || approval.cardMessageId || approval.status !== 'pending') return;
+    if (!approval || approval.created !== true || approval.cardMessageId || approval.status !== 'pending') return;
     const payload = githubFlow.approvalCard(approval, message.url);
     await sendToStaffChannel(client, payload, channel.id, null, { onSent: async (sent) => { await githubFlow.bindCard(approval, sent); } });
   } catch (err) {
@@ -1430,6 +1430,9 @@ client.once(Events.ClientReady, async () => {
   console.log(
     `[Bot] Handoff staff-channel=${Boolean(process.env.STAFF_ALERT_CHANNEL_ID)} telegram=${telegramReady} threads=${process.env.HANDOFF_THREADS !== '0'} shopify=${shopify.isConfigured()} github=${github.isConfigured()}`
   );
+  console.log(github.isApprovalReady()
+    ? '[GitHubFlow] approval configuration ready; publication still requires staff review'
+    : '[GitHubFlow] approvals off: GitHub App identity and encryption required; ordinary handoff unchanged');
   try {
     const n = await knowledge.hydrateFromDiscord(client, staffMentionIds().users);
     console.log(`[Knowledge] hydrated ${n} named-staff faq line(s) from Handoff threads`);

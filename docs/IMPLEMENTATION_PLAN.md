@@ -2,11 +2,14 @@
 
 ## October25 — approved queue, Step1 complete
 
+- [x] Reconcile Aryan's subsequent main38337e7 deployment7b41e119: SUCCESS/latest/one healthy instance, optional controls off, automatic deployment off. #59 now deployed by the operator, not newly smoke-accepted; fresh rollback verification still precedes the combined release.
 - [x] One simultaneous main/#59/#75 comparison,81×2 each/concurrency3 per arm; all486 final and6 earlier replies independently read. Original artifacts retained; no invalid rows or paid rerun. Actual first case starts differ by3ms; the original internal1000ms process-launch failure at1507ms remains documented, with independent concurrent-window qualification and full historical-power/source audit.
 - [x] Merge reviewed #59 as `38337e7`; close #75 unmerged for four new material findings despite numerical passes. Preserve its branch/tests/evidence and unfinished owner-intent scope. Production unchanged at `d550dc1`.
-- [ ] #28: one atomic unpublished comment proposal/card per canonical repository/case/target issue; preserve immutable encrypted scope and filing/unknown fences; three distinct follow-ups and real multi-connection race regressions.
-- [ ] #28: require validated GitHub App identity plus encryption for approval readiness, fixed value-free boot diagnostic, token-only/incomplete-config tests; ordinary handoff remains usable.
-- [ ] Update the unknown-result manual-reconciliation runbook; open the authorised metadata-retention issue; full/offline/SQL/current-head CI and independent final review before merge.
+- [x] #28 local repair: atomic unpublished-comment creation and creator-only first-card attempt; immutable source/ciphertext/revision and filing/unknown fences preserved. Three distinct serial/concurrent follow-ups yield one card in the real handler. Red-before unit/handler/SQL evidence retained; full1086 and disposable SQL pass. Hosted multi-connection PostgreSQL remains required.
+- [x] #28 local repair: GitHub App identity plus encryption required for approval readiness, fixed value-free boot diagnostic, token-only/incomplete-config tests; ordinary handoff remains usable. Configuration readiness is not proof of provider permissions.
+- [x] Unknown-result manual-reconciliation runbook updated; metadata-retention issue [#85](https://github.com/BasedHardware/omi-vector-bot/issues/85) opened without implementation.
+- [x] Offline8/final diff and independent code review pass:103 approval/workflow tests,5 handler tests and8 transaction-failure probes. No runtime/security finding; configuration readiness is not live provider authorization and elected card creation is not guaranteed delivery.
+- [ ] Exact committed-head Node20/24/real PostgreSQL CI and final review identity before merge. No release/publication or optional enablement yet.
 - [ ] Then rework #84 once with shared deterministic public-output privacy enforcement, output regressions and no paid comparison; one combined exact-SHA release and Aryan's prescribed smokes follow both decisions. Memory notice/checklist preparation only; no flag until notice approval plus explicit enablement.
 
 ## October24 — existing #28 current-main integration

@@ -66,6 +66,14 @@ function sameScopeValue(key, left, right) {
   return key === 'repo' ? String(left).toLowerCase() === String(right).toLowerCase() : left === right;
 }
 function matches(value, input) { return value && SCOPE_KEYS.every((key) => sameScopeValue(key, value[key], input[key])); }
+function sameCommentTarget(value, input) {
+  return value && value.kind === 'comment' && input.kind === 'comment' &&
+    ['repo', 'caseId', 'targetIssueNumber'].every(key => sameScopeValue(key, value[key], input[key]));
+}
+function matchesUnpublishedComment(value, input) {
+  return sameCommentTarget(value, input) && value.status !== 'filed' &&
+    SCOPE_KEYS.filter(key => key !== 'sourceMessageId').every(key => sameScopeValue(key, value[key], input[key]));
+}
 function rowApproval(row) {
   if (!row) return null;
   return { id: row.id, ...Object.fromEntries(SCOPE_KEYS.map((key, index) => [key, row[SCOPE_COLUMNS[index]]])),
@@ -120,6 +128,15 @@ async function initSchema(client) {
   CREATE INDEX IF NOT EXISTS support_issue_approvals_uncertain_idx ON support_issue_approvals (status, lease_expires_at);`);
 }
 function createPostgresStore(client) {
+  async function insert(connection, input) {
+    const { rows } = await connection.query(`INSERT INTO support_issue_approvals
+      (id, ${SCOPE_COLUMNS.join(', ')}, payload_ciphertext, payload_iv, payload_tag, payload_hash, payload_revision, created_at, expires_at, writer_app_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17)
+      ON CONFLICT ((LOWER(repository)), case_id, kind, source_message_id, (COALESCE(target_issue_number, 0)))
+      DO UPDATE SET id = support_issue_approvals.id RETURNING *`,
+    [input.id, ...scopedArgs(input), input.ciphertext, input.iv, input.tag, input.payloadHash, input.createdAt, input.expiresAt, input.writerAppId]);
+    return rowApproval(rows[0]);
+  }
   async function mutate(id, input, now, set, conditions, extra) {
     const { rows } = await client.query(`UPDATE support_issue_approvals SET ${set}
       WHERE id = $1 AND ${SCOPE_WHERE} AND status IN ('pending','rejected') AND expires_at > $11 ${conditions} RETURNING *`,
@@ -128,13 +145,27 @@ function createPostgresStore(client) {
   }
   return {
     async create(input) {
-      const { rows } = await client.query(`INSERT INTO support_issue_approvals
-        (id, ${SCOPE_COLUMNS.join(', ')}, payload_ciphertext, payload_iv, payload_tag, payload_hash, payload_revision, created_at, expires_at, writer_app_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17)
-        ON CONFLICT ((LOWER(repository)), case_id, kind, source_message_id, (COALESCE(target_issue_number, 0)))
-        DO UPDATE SET id = support_issue_approvals.id RETURNING *`,
-      [input.id, ...scopedArgs(input), input.ciphertext, input.iv, input.tag, input.payloadHash, input.createdAt, input.expiresAt, input.writerAppId]);
-      return rowApproval(rows[0]);
+      if (input.kind !== 'comment') return insert(client, input);
+      // Serialize all application creators for this action, not each message.
+      // No schema rewrite/deletion is needed for historical encrypted scopes.
+      const borrowed = typeof client.connect === 'function' && typeof client.release !== 'function';
+      const connection = borrowed ? await client.connect() : client;
+      try {
+        await connection.query('BEGIN');
+        await connection.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',
+          ['support-approval-comment:' + JSON.stringify([input.repo.toLowerCase(), input.caseId, input.targetIssueNumber])]);
+        const { rows } = await connection.query(`SELECT * FROM support_issue_approvals
+          WHERE LOWER(repository)=$1 AND case_id=$2 AND kind='comment' AND target_issue_number=$3
+            AND status IN ('pending','rejected','filing','unknown') ORDER BY created_at,id`,
+        [input.repo.toLowerCase(), input.caseId, input.targetIssueNumber]);
+        if (rows.length > 1) throw new Error('Ambiguous unpublished support approval scope');
+        const value = rows.length ? rowApproval(rows[0]) : await insert(connection, input);
+        await connection.query('COMMIT');
+        return value;
+      } catch (error) {
+        try { await connection.query('ROLLBACK'); } catch { /* Preserve the original failure. */ }
+        throw error;
+      } finally { if (borrowed) connection.release(); }
     },
     async get(id, now) {
       await client.query("UPDATE support_issue_approvals SET status = 'unknown', outcome_code = 'lease_expired' WHERE id = $1 AND status = 'filing' AND lease_expires_at <= $2", [id, new Date(now)]);
@@ -178,6 +209,11 @@ function createMemoryStore(state = { approvals: new Map() }) {
   return {
     state,
     async create(input) {
+      if (input.kind === 'comment') {
+        const unpublished = [...state.approvals.values()].filter(value => sameCommentTarget(value, input) && value.status !== 'filed');
+        if (unpublished.length > 1) throw new Error('Ambiguous unpublished support approval scope');
+        if (unpublished.length) return clone(unpublished[0]);
+      }
       const existing = [...state.approvals.values()].find((value) =>
         ['repo', 'caseId', 'kind', 'sourceMessageId', 'targetIssueNumber'].every((key) => sameScopeValue(key, value[key], input[key])));
       if (existing) return clone(existing);
@@ -267,8 +303,10 @@ function createApprovalService(store, { key = configuredKey, now = () => Date.no
     async createDraft(draft, input) {
       const at = now(); const value = { id: randomUUID(), ...scope(input), writerAppId: writerAppId(input.writerAppId), revision: 1, createdAt: new Date(at).toISOString(), expiresAt: new Date(at + ttlMs).toISOString() };
       const created = await store.create({ ...value, ...encode(value, draft) });
-      if (!matches(created, value)) throw new Error('This support action already has a different immutable scope');
-      return decode(created);
+      if (!matches(created, value) && !matchesUnpublishedComment(created, value)) throw new Error('This support action already has a different immutable scope');
+      // The original event/ciphertext/revision stay immutable. Only the creator
+      // may send the first review card; followers must not race before binding.
+      return { ...decode(created), created: created.id === value.id };
     },
     getDraft: async (id) => decode(await getRaw(id)),
     async bindCard(id, input) {

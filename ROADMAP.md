@@ -2,6 +2,10 @@
 
 ## October25 — final comparison decided; staff-approval repairs next
 
+Later operator update: Aryan confirms deploying main38337e7 as7b41e119 at17:09IST. Fresh checks show one healthy running instance, optional controls off and auto-deploy off. This supersedes the earlier production snapshot below; no agent deployment and no new live-acceptance point.
+
+Local #28 repairs now pass1086 tests and disposable SQL: canonical repository/case/target unpublished proposal deduplication, creator-only card attempt and GitHub App/encryption readiness. Original encrypted evidence/revision and unknown-publication fences remain. Token-only approval controls stay off without breaking private handoff. Hosted multi-connection PostgreSQL and independent final review remain. [#85](https://github.com/BasedHardware/omi-vector-bot/issues/85) tracks operational metadata retention/erasure separately; no code or deletion is authorized by that issue.
+
 #59 merged as `38337e7` after one simultaneous three-arm 81×2 comparison and independent reading of all492 replies. Main70/pass-both, p9549.051s; #59 74/50.840s with no new material finding; #75 72/51.122s but four candidate-only material findings, so it is closed unmerged with branch/evidence and unfinished intent-correction scope retained. No rework or further paid run. Production remains Aryan's same-commit `a0b0e0fd`/`d550dc1`, optional features off; no agent deploy or settings change. Integrate this main into #28, then repair atomic pending-comment deduplication and GitHub App/encryption readiness before tests, SQL/CI and independent review. The older checkpoints below are historical, not renewed approvals.
 
 ## October24 — existing staff-publication draft updated, not approved

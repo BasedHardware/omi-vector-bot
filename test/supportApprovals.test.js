@@ -16,7 +16,12 @@ function fakeSql() {
   const client = { state, calls, failure: false, async query(sql, args = []) {
     const text = sql.replace(/\s+/g, ' ').trim(); calls.push({ text, args });
     if (client.failure) throw new Error('approval database unavailable');
+    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(text) || text.startsWith('SELECT pg_advisory_xact_lock')) return result();
     if (text.startsWith('CREATE TABLE')) return result();
+    if (text.startsWith('SELECT * FROM support_issue_approvals WHERE LOWER(repository)=')) {
+      return { rows: [...state.values()].filter(row => row.repository.toLowerCase() === args[0] && row.case_id === args[1] &&
+        row.kind === 'comment' && row.target_issue_number === args[2] && ['pending','rejected','filing','unknown'].includes(row.status)).map(row => structuredClone(row)) };
+    }
     if (text.startsWith('INSERT INTO support_issue_approvals')) {
       assert.match(text, /ON CONFLICT \(\(LOWER\(repository\)\)/);
       const existing = [...state.values()].find((row) =>

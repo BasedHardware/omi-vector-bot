@@ -44,6 +44,16 @@ function isConfigured() {
   return Boolean(String(process.env.GITHUB_TOKEN || '').trim()) || isAppConfigured();
 }
 
+function approvalAppIdentity() {
+  const appId = String(process.env.GITHUB_APP_ID || '').trim();
+  const installationId = String(process.env.GITHUB_APP_INSTALLATION_ID || '').trim();
+  return isAppConfigured() && /^[1-9]\d*$/.test(appId) && /^[1-9]\d*$/.test(installationId) ? appId : null;
+}
+
+function isApprovalReady() {
+  return Boolean(approvalAppIdentity() && supportApprovals.isReady());
+}
+
 function appJwt() {
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
@@ -272,8 +282,8 @@ function createCommentApproval(draft, input) {
   return createScopedApproval(draft, { ...input, kind: 'comment' });
 }
 function createScopedApproval(draft, input) {
-  const appId = String(process.env.GITHUB_APP_ID || '');
-  return supportApprovals.createDraft(draft, { ...input, repo: repo(), writerAppId: isAppConfigured() && /^[1-9]\d*$/.test(appId) ? appId : null });
+  if (!isApprovalReady()) return Promise.resolve(null);
+  return supportApprovals.createDraft(draft, { ...input, repo: repo(), writerAppId: approvalAppIdentity() });
 }
 function beginApprovalEdit(id, input) { return supportApprovals.beginEdit(id, { ...input, repo: repo() }); }
 function updateApprovalDraft(id, input) { return supportApprovals.updateDraft(id, { ...input, scope: { ...input.scope, repo: repo() } }); }
@@ -1195,7 +1205,7 @@ module.exports = {
   recordApprovalRejected: recordIssueApprovalRejected,
   recordApprovalUnknown: recordIssueApprovalUnknown,
   recordApprovalCommented,
-  isApprovalReady: supportApprovals.isReady,
+  isApprovalReady,
   getIssueApproval,
   bindIssueApprovalCard,
   claimIssueApproval,

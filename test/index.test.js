@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { generateKeyPairSync } = require('node:crypto');
 const { ChannelType, Events, MessageFlags, MessageMentions, User } = require('discord.js');
 
 const TEST_CHANNEL = '100000000000000100';
@@ -131,6 +132,9 @@ globalThis.fetch = async (url, opts = {}) => {
   }
   const method = opts.method || 'GET';
   githubCalls.push({ method, url: u, body: opts.body ? JSON.parse(opts.body) : null });
+  if (method === 'POST' && /\/app\/installations\/\d+\/access_tokens$/.test(u)) {
+    return { ok: true, status: 201, json: async () => ({ token: 'synthetic-installation-token', expires_at: new Date(Date.now() + 3600000).toISOString() }) };
+  }
   if (u.includes('/search/issues')) {
     return { ok: true, status: 200, json: async () => ({ items: u.includes('is%3Apr') ? pulls : issues }) };
   }
@@ -648,6 +652,17 @@ function enableStaffDelivery(t) {
     process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
   });
   return delivered;
+}
+
+let approvalSigningKey;
+function enableApprovalApp(t) {
+  approvalSigningKey ||= generateKeyPairSync('rsa', { modulusLength: 1024 }).privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const values = { GITHUB_APP_ID: '31', GITHUB_APP_INSTALLATION_ID: '41', GITHUB_APP_PRIVATE_KEY: approvalSigningKey };
+  const previous = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]));
+  Object.assign(process.env, values);
+  t.after(() => { for (const key of Object.keys(values)) {
+    if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
+  } });
 }
 
 test.beforeEach(() => {
@@ -2405,6 +2420,7 @@ test('a help-forum post with an email address gets a canned reply and a staff ca
 
 test('a private issue review proposal never automatically publishes or copies the customer quote', async (t) => {
   const staff = enableStaffDelivery(t);
+  enableApprovalApp(t);
   const key = process.env.DATA_ENCRYPTION_KEY;
   process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 11).toString('base64');
   t.after(() => { process.env.DATA_ENCRYPTION_KEY = key; });
@@ -2415,7 +2431,8 @@ test('a private issue review proposal never automatically publishes or copies th
   const r = await ask('My Omi keeps turning itself off after 5 seconds. Reach me at jane.doe@example.com', {
     channel: post,
   });
-  assert.equal(r.github.filter((c) => c.method === 'POST').length, 0);
+  assert.equal(r.github.filter((c) => c.method === 'POST' && /\/repos\//.test(c.url)).length, 0,
+    'App authentication for reads must not be confused with public issue/comment publication');
   const button = staff[0].components[0].components[0];
   assert.match(button.custom_id, /^file:/);
   const filed = posts().length;
@@ -2439,6 +2456,7 @@ test('a private issue review proposal never automatically publishes or copies th
 
 test('automatic follow-up staging refuses a forum shared by multiple customer cases', async t => {
   const staff = enableStaffDelivery(t);
+  enableApprovalApp(t);
   const approvals = require('../supportApprovals');
   const issueLinks = require('../supportIssueLinks');
   const previousKey = process.env.DATA_ENCRYPTION_KEY;
@@ -2459,8 +2477,9 @@ test('automatic follow-up staging refuses a forum shared by multiple customer ca
   assert.equal(githubCalls.filter(call=>call.method==='POST').length,0);
 });
 
-test('later evidence from the linked customer becomes one private review, never an automatic GitHub comment', async (t) => {
+for (const concurrent of [false, true]) test(`later evidence from the linked customer becomes one private review, never an automatic GitHub comment (${concurrent ? 'concurrent' : 'serial'})`, async (t) => {
   const staff = enableStaffDelivery(t);
+  enableApprovalApp(t);
   const approvals = require('../supportApprovals'); const issueLinks = require('../supportIssueLinks');
   const previousKey = process.env.DATA_ENCRYPTION_KEY;
   process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 15).toString('base64');
@@ -2476,7 +2495,11 @@ test('later evidence from the linked customer becomes one private review, never 
     channelId: post.id, threadId: post.id, sourceMessageId: 'original-source', approvedBy: 'staff-user' });
   post.ownerId = customer;
   const update = makeMessage('I checked again and the conversation still disappears. My email is private@example.test.', { channel: post, authorId: customer });
-  await noteCustomerLead(post, update);
+  const updates = [update,
+    makeMessage('The reproduction also persists after a different diagnostic attempt.', { channel: post, authorId: customer }),
+    makeMessage('A separate synthetic reproduction detail is ready for engineering review.', { channel: post, authorId: customer })];
+  if (concurrent) await Promise.all(updates.map(value => noteCustomerLead(post, value)));
+  else for (const value of updates) await noteCustomerLead(post, value);
   await noteCustomerLead(post, update);
   assert.equal(staff.length, 1);
   const button = staff[0].components[0].components[0];
@@ -2492,6 +2515,21 @@ test('later evidence from the linked customer becomes one private review, never 
     channelId: post.id, threadId: post.id, sourceMessageId: 'second-source', approvedBy: 'staff-user' });
   await noteCustomerLead(post, makeMessage('Another new debugging detail after a second issue was linked.', { channel: post, authorId: customer }));
   assert.equal(staff.length, 1, 'ambiguous issue destinations require manual staff selection');
+});
+
+test('token-only GitHub auth leaves the real staff handoff available without an engineering approval', async t => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.DATA_ENCRYPTION_KEY;
+  process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 16).toString('base64');
+  process.env.GITHUB_TOKEN = 'synthetic-read-token';
+  t.after(() => { if (previous === undefined) delete process.env.DATA_ENCRYPTION_KEY; else process.env.DATA_ENCRYPTION_KEY = previous; });
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Desktop window failure' });
+  const result = await ask('My desktop app repeatedly freezes when I open its settings view.', { channel: post });
+  assert.equal(result.message.replies.length, 1);
+  assert.equal(staff.length, 1);
+  assert.ok(!staff.flatMap(card => card.components || []).flatMap(row => row.components || [])
+    .some(button => /^file:/.test(button.custom_id || '')));
+  assert.equal(result.github.filter(call => call.method === 'POST').length, 0);
 });
 
 test('a new help-forum post puts its title and tags in front of the model question', async () => {

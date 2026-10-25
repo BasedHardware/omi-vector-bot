@@ -391,6 +391,28 @@ async function verify(pool) {
   const approvalStore = approvals.createPostgresStore(pool);
   const publication = approvals.createApprovalService(approvalStore, { key: Buffer.alloc(32, 19) });
   const publicationCopy = approvals.createApprovalService(approvalStore, { key: Buffer.alloc(32, 19) });
+  const commentScope = { caseId: first.id, customerId: aliceInput.customerId, sourceMessageId: `${prefix}-comment-first`,
+    channelId: `${prefix}-staff`, threadId: aliceInput.channelId, botUserId: `${prefix}-bot`, repo: 'Example/Support',
+    kind: 'comment', targetIssueNumber: 81 };
+  const comments = await Promise.all([0, 1, 2].map(index => (index % 2 ? publicationCopy : publication)
+    .createDraft({ body: `Synthetic technical proposal ${index}` }, { ...commentScope, sourceMessageId: `${prefix}-comment-${index}` })));
+  assert.equal(new Set(comments.map(value => value.id)).size, 1, 'independent SQL creators share one unpublished case/target approval');
+  assert.equal(comments.filter(value => value.created).length, 1, 'one creation winner may send a card');
+  const winner = comments.find(value => value.created);
+  assert.ok(comments.every(value => value.sourceMessageId === winner.sourceMessageId && value.payloadHash === winner.payloadHash));
+  assert.equal(Number((await pool.query("SELECT COUNT(*) AS count FROM support_issue_approvals WHERE case_id=$1 AND LOWER(repository)=$2 AND kind='comment' AND target_issue_number=$3",
+    [first.id, 'example/support', 81])).rows[0].count), 1);
+  for (const status of ['filing', 'unknown']) {
+    await pool.query('UPDATE support_issue_approvals SET status=$2 WHERE id=$1', [winner.id, status]);
+    const held = await publicationCopy.createDraft({ body: 'A later event must not bypass uncertainty.' }, { ...commentScope, sourceMessageId: `${prefix}-later-${status}` });
+    assert.equal(held.id, winner.id); assert.equal(held.created, false); assert.equal(held.payloadHash, winner.payloadHash);
+  }
+  await assert.rejects(() => publicationCopy.createDraft({ body: 'Another customer must not adopt this action.' },
+    { ...commentScope, customerId: `${prefix}-unrelated-owner`, sourceMessageId: `${prefix}-unrelated-event` }), /scope/i);
+  await pool.query("UPDATE support_issue_approvals SET status='filed' WHERE id=$1", [winner.id]);
+  const subsequent = await publicationCopy.createDraft({ body: 'A new technical update after verified publication.' },
+    { ...commentScope, sourceMessageId: `${prefix}-after-published` });
+  assert.notEqual(subsequent.id, winner.id); assert.equal(subsequent.created, true);
   const scoped = { caseId: first.id, customerId: aliceInput.customerId, sourceMessageId: `${prefix}-report`,
     channelId: `${prefix}-staff`, threadId: aliceInput.channelId, botUserId: `${prefix}-bot`, repo: 'BasedHardware/omi', kind: 'issue' };
   const draft = await publication.createDraft({ title: 'Technical support report', body: 'Staff technical details pending review', labels: [] }, scoped);
