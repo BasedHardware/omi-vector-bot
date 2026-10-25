@@ -2,6 +2,8 @@
 
 ## October25 — saved comparison reconciled, independent accuracy HOLD
 
+#75 runtimee0374a8 now passes1007/offline8, exact-head Node20/24/Postgres CI and independent scoped299-check code review; the stronger handler probe confirms one staff card and zero answer-model calls for the repaired independent adjustment request. Its own generated-answer/affected-flow gates and unresolved shared-object/unknown grammar remain. Later documentation-only publication does not change the reviewed runtime or clear readiness.
+
 All three frozen arms produced162 rows each with zero invalid rows. The original supervisor stopped during historical power collection; an independent streamed audit covers the full interval with zero sleep/wake events. Original five hashes are unchanged and post-hoc validation passes, with no provider rerun. Independent accuracy review reads all486 final outputs plus six earlier-turn outputs and returns **HOLD for both C and C+#71**, based on factual/completeness/citation/source-conflict failures, not latency or aggregate flags. General evidence/claim/source investigation remains; no sealed-case tailoring. #75's initial `abcd59c` repair passes four red-before checks/1002/offline8/SQL/CI; scope-specific follow-up `e444cc7` repairs three further independent-action regressions and passes1005/offline8. Final-head CI/re-review and its own quality/affected-flow gate remain. All five PRs stay draft. No paid rerun without Aryan's approval, no merge, new Discord request or production mutation. Master goal and score47/100 unchanged.
 
 ## Current October25 — release smokes accepted, accuracy comparison prepared
