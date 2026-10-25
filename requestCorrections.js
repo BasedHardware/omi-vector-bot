@@ -41,8 +41,8 @@ function withoutWithdrawnActions(value, scopes) {
   return text;
 }
 
-function withdrawalLanes(scopes) {
+function actionScopeLanes(scopes) {
   return new Set(ACTION_OBJECTS.filter(action => scopes.has(action.scope)).map(action => action.lane));
 }
 
-module.exports = { requestCorrection, actionScopes, withoutWithdrawnActions, withdrawalLanes };
+module.exports = { requestCorrection, actionScopes, withoutWithdrawnActions, actionScopeLanes };

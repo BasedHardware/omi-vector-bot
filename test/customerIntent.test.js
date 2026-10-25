@@ -61,6 +61,18 @@ test('withdrawing account deletion cannot withdraw a separate data-deletion requ
   assert.doesNotMatch(p.fallbackQuestion, /delete my account/i);
 });
 
+test('a surviving recognized adjustment scope still establishes protected financial intent', () => {
+  const p = project([
+    { id: 'owner-1', role: 'owner', content: 'I want a refund and a billing adjustment.' },
+    { id: 'owner-2', role: 'owner', content: 'I do not want a refund.' },
+  ], 'My app build is 9.2.6.');
+  assert.equal(p.route.lane, 'money');
+  assert.equal(p.route.escalate, true);
+  assert.equal(p.active.has('money'), true);
+  assert.match(p.fallbackQuestion, /billing adjustment/i);
+  assert.doesNotMatch(p.fallbackQuestion, /refund/i);
+});
+
 test('withdrawals are folded before the bounded planning view clips middle turns', () => {
   const turns = [
     { id: 'owner-1', role: 'owner', content: 'I want a refund.' },

@@ -1,5 +1,5 @@
 const router = require('./router');
-const { requestCorrection, actionScopes, withoutWithdrawnActions, withdrawalLanes } = require('./requestCorrections');
+const { requestCorrection, actionScopes, withoutWithdrawnActions, actionScopeLanes } = require('./requestCorrections');
 
 const PERSONAL = new Set(['money', 'privacy', 'shop', 'account']);
 const KINDS = new Set(['money', 'privacy', 'order_lookup', 'account_action', 'exception_request']);
@@ -21,13 +21,15 @@ function projectCustomerIntent({ turns = [], question = '', topic = '', contextu
     if (reopening(correction.text)) ambiguousReopening = true;
     for (const scope of actionScopes(correction.text)) withdrawnScopes.delete(scope);
   }
-  const withdrawn = withdrawalLanes(withdrawnScopes);
+  const withdrawn = actionScopeLanes(withdrawnScopes);
   if (withdrawn.has('privacy')) withdrawn.add('account');
   const ownerContext = turn => withoutWithdrawnActions(turn.content, withdrawnScopes);
   // Re-evaluate retained owner signals, rather than deleting an entire lane
   // when only one of its independent actions was explicitly withdrawn.
   for (const turn of sequence) {
-    for (const lane of router.personalActionLanes(ownerContext(turn))) active.set(lane, turn.id);
+    const retained = ownerContext(turn);
+    const lanes = new Set([...router.personalActionLanes(retained), ...actionScopeLanes(new Set(actionScopes(retained)))]);
+    for (const lane of lanes) active.set(lane, turn.id);
   }
   const safeHistory = owner.map(turn => ({ author: 'customer', content: ownerContext(turn) }));
   const text = [...safeHistory.map(turn => turn.content), requestCorrection(question).text].join('\n');

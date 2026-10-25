@@ -2,6 +2,9 @@
 
 ## October25 — owner-intent P2 repair, still draft #75
 
+- [x] Independently reproduce a recognized billing-adjustment scope being lost on `e444cc7`; two further pure/handler tests fail before repair. Retained scopes now use the shared scope-to-lane mapping alongside legacy router signals; full1007/offline8 pass, no SQL/schema/adapters changed.
+- [ ] Re-review final retained-scope repair and verify exact-head hosted checks. Shared-object/unknown grammar, own generated-answer quality and affected-flow gates remain; no paid run without approval.
+
 - [x] Reproduce the independent follow-up findings on `936b718`: valid planner echo drops prior symptom/attachment diagnostics, and mixed-turn withdrawal drops unrelated technical detail. Four added tests fail before repair.
 - [x] Preserve the sanitized projection alongside the standalone retrieval question, and mask only existing withdrawn routing signals in historical owner turns. Preserve full answer history and independent active/reopened actions. Full1002/offline8/isolated PGlite SQL pass; no provider call or protected-input read.
 - [x] Reproduce three further action-isolation regressions on `abcd59c`: withdrawing a refund loses a separate cancellation/charge; withdrawing account deletion loses separate data deletion; actual handler misses the independent financial handoff. Reuse the correction recognizer's scoped direct objects instead of whole-lane masking; all three now pass, full1005/offline8. SQL evidence remains valid; no SQL/adapters changed.
