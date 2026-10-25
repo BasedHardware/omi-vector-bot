@@ -172,6 +172,8 @@ Remaining staged order is gated #42 → localized closing-card fix → #28 → #
 
 ## Customer verification
 
+Public replies must not request identifying account/order details, passwords, payment details or verification codes. The application removes such requests/known echoes and supplies one private next step: `/order` only if the existing verification flow is live; otherwise private staff follow-up only after confirmed delivery; otherwise none. Do not invent a DM, form or private capability. Keep device/app/OS diagnostics and appropriately masked damage/error evidence in the thread. Staff guidance names the private-intake boundary; it is not permission to collect private details publicly. A delivered case is not staff acceptance or resolution. See [the output-boundary scope and limitations](PRIVATE_INTAKE_POLICY.md).
+
 Order links are customer-owned, encrypted in Postgres, and expire after 30 days. Codes expire after ten minutes by default, have five attempts, and are limited to three sends per hour per Discord-user/email pair. Those limits survive restart. `/unlink` revokes the binding and pending challenge, even if Shopify/email delivery is unavailable; it does not reset the anti-abuse limit.
 
 If verification fails, use the public command's private response; never ask for codes or payment/address details in a public thread. Inspect only outcome categories and the email provider's authorized delivery status. A changed encryption key can make existing links unreadable: rotate with a migration, not by overwriting the old key and assuming the data survives.

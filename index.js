@@ -42,6 +42,8 @@ const {
 const knowledge = require('./knowledge');
 const shopify = require('./shopify');
 const shopifyBind = require('./shopifyBind');
+const orderFlow = require('./orderFlow');
+const { publicReplyPrivacy } = require('./publicReplyPrivacy');
 const router = require('./router');
 const plannerPolicy = require('./plannerPolicy');
 const { decideEscalation } = require('./escalationPolicy');
@@ -52,7 +54,7 @@ const { relevantDocs, canonicalizeGithubDocsEvidence } = require('./docs');
 const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
-const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk, stripUnverifiedOrderClaims } = require('./answerPipeline');
+const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, fitPublicReply, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk, stripUnverifiedOrderClaims } = require('./answerPipeline');
 const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
 const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const { reviewRejectionReply } = require('./supportReplyCopy');
@@ -203,10 +205,11 @@ function keepTyping(message, channel, intervalMs = TYPING_REFRESH_MS) {
   return stop;
 }
 
-async function replySafe(message, content, { pingAuthor = false } = {}) {
+async function replySafe(message, content, { pingAuthor = false, privacy = {} } = {}) {
   typingStops.get(message)?.();
   await assertCurrentOwnership();
-  let text = ensureNonEmptyAnswer(rewriteUserMentions(ensureNonEmptyAnswer(content), message));
+  const guarded = publicReplyPrivacy(content, { question: message.content, orderAvailable: orderFlow.isLive(), ...privacy });
+  let text = ensureNonEmptyAnswer(rewriteUserMentions(ensureNonEmptyAnswer(fitPublicReply(guarded)), message));
   if (pingAuthor) text = attachAuthorMention(text, message);
   const payload = {
     content: text,
@@ -804,6 +807,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     let reviewedGrounded = false;
     let retrievedSourceUrls = [];
     let snippets = [];
+    let privateIntakeNeeded = false;
+    const publicPrivacy = { question: [question, caseQuestion, ...contextHistory.map(row => row.content)].filter(Boolean).join('\n'),
+      language: replyLanguage, orderAvailable: orderFlow.isLive() };
+    const onPrivacy = value => { privateIntakeNeeded ||= value.privateIntakeNeeded; };
 
     if (useShopify) {
       shopifyLookup = await shopify.lookupOrder(asked || question, { verifiedEmail });
@@ -1009,7 +1016,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
 
     const triaged = triage.merge(route, skipModel ? {} : aiResponse, question);
     if (!skipModel) {
-      cleanAnswer = presentReviewedAnswer(aiResponse.final_answer);
+      cleanAnswer = presentReviewedAnswer(aiResponse.final_answer, { ...publicPrivacy, appendNextStep: false, onPrivacy });
     } else {
       cleanAnswer = clipForDiscord(
         prepareDraftForReview(cleanAnswer || '', triaged.lane, caseQuestion)
@@ -1072,6 +1079,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         cleanAnswer = `${router.ORDER_STATUS_OPENING}\n\n${cleanAnswer}`;
       }
     }
+    const privacyResult = publicReplyPrivacy(cleanAnswer, { ...publicPrivacy, appendNextStep: false });
+    onPrivacy(privacyResult);
+    cleanAnswer = ensureNonEmptyAnswer(privacyResult.text);
     const staffQuestion = holdPublicCopy ? redactStaffQuestion(asked) : asked;
 
     const nameMeta = {
@@ -1100,6 +1110,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       retrievedUrls: retrievedSourceUrls,
       supportKind: searchPlan.supportKind,
     });
+    if (privacyResult.empty) {
+      escalate = true;
+      escalationSignals.push('empty_after_private_intake');
+    }
     if (!escalate && (isHelpThread(channel) || isTestChannel(channel))) {
       const prepared = inThreadReply(cleanAnswer, { language: replyLanguage });
       if (prepared.empty) {
@@ -1167,7 +1181,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           try {
             await assertCurrentOwnership();
             await existing.send({
-              content: rewriteUserMentions(escalateReply(cleanAnswer, { pinged: true, conversation: true, footers: localizedFooters, language: replyLanguage }), message),
+              content: rewriteUserMentions(fitPublicReply(publicReplyPrivacy(escalateReply(cleanAnswer, { ...publicPrivacy, privateIntakeNeeded,
+                pinged: true, conversation: true, footers: localizedFooters }), { ...publicPrivacy, privateIntakeNeeded, staffDelivered: true })), message),
               allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
             });
             reused = true;
@@ -1259,6 +1274,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       }
       const movedToThread = !inHandoff && Boolean(handoffThread?.id);
       let parentReply = escalateReply(cleanAnswer, {
+        ...publicPrivacy, privateIntakeNeeded,
         pinged: pinged || deliveredCase,
         duplicate,
         conversation: stayInPost && !handoffFollowup,
@@ -1278,11 +1294,13 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         const threadLink = `<#${handoffThread.id}>`;
         parentReply = `${clipForDiscord(parentReply, 1900 - threadLink.length - 2)}\n\n${threadLink}`;
       }
-      await replySafe(message, parentReply, { pingAuthor });
+      await replySafe(message, parentReply, { pingAuthor, privacy: { ...publicPrivacy, privateIntakeNeeded,
+        staffDelivered: (pinged || deliveredCase) && !deliveryFailed,
+        allowedChannelIds: handoffThread?.id ? [handoffThread.id] : [] } });
       didReply = true;
       answered = true;
     } else {
-      await replySafe(message, cleanAnswer, { pingAuthor });
+      await replySafe(message, cleanAnswer, { pingAuthor, privacy: { ...publicPrivacy, privateIntakeNeeded } });
       didReply = true;
       answered = true;
       if (isHelpThread(channel) || isTestChannel(channel)) {

@@ -1,5 +1,7 @@
 # Omi Support Bot Architecture
 
+**October25 deterministic public-intake rework — not released:** one `publicReplyPrivacy` implementation governs reviewed output, delivered/failed escalation composition, final customer sends and question-aware handoff naming. An in-process intake-needed flag survives later reply replacements; availability comes from the existing order-flow gate and staff wording from confirmed delivery, never model text. Known private values/links and unsafe intake are removed while safe diagnostics, warnings and official sources remain. `fitPublicReply` reserves application-owned private copy/scoped thread links before the existing whole-unit clipper. Staff-only guidance delegates private intake to the application; planner injection is removed and answer/review keep one short rule. No new retention, command, grant, provider call or optional enablement. See [scope and limits](PRIVATE_INTAKE_POLICY.md); full/current CI and independent final review remain before merge.
+
 **Current October25 integration:** main0986b75 includes independently reviewed staff approvals, atomic unpublished-update deduplication and App/encryption readiness. #84 now integrates this main before its authorized deterministic public-output privacy rework. Existing long prompt propagation is the prior draft, not the enforcement boundary or a generated-compliance claim. No deployment, provider run, private publication or optional enablement accompanies this merge; earlier verification snapshots below are historical.
 
 ## Earlier October25 draft and integration history

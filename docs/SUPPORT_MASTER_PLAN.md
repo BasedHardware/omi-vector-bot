@@ -2,7 +2,7 @@
 
 Updated October 25, 2026 (IST). Codex keeps this plan current; Aryan sets priorities and approves product decisions.
 
-**Current October25, Step2 complete:** #28 merged0986b75 with atomic unpublished-comment/card creation and GitHub App/encryption readiness after1086/offline8/SQL, exact-head Node20/24/real PostgreSQL CI and independent final review. Metadata retention is issue85, not erasure code. #59 merged38337e7 and Aryan deployed it as7b41e119; health/one instance/optional-off/auto-off checked, new live acceptance pending. #75 closed unmerged with evidence/branch kept. One open draft remains: #84, now integrating main before its one deterministic public-output privacy rework. No more paid runs. Next: review/merge #84, one gated combined release with Aryan's smokes, then memory notice/checklist preparation only. No flag until notice approval and explicit enablement. The [adopted scope](FINISH_QUEUE_BRIEF.md), every unfinished product requirement and closed-branch evidence remain; score48/100, not accuracy. Earlier snapshots below are historical, not current approvals/holds.
+**Current October25, Step2 complete:** #28 merged0986b75 with atomic unpublished-comment/card creation and GitHub App/encryption readiness after1086/offline8/SQL, exact-head Node20/24/real PostgreSQL CI and independent final review. Metadata retention is issue85, not erasure code. #59 merged38337e7 and Aryan deployed it as7b41e119; health/one instance/optional-off/auto-off checked, new live acceptance pending. #75 closed unmerged with evidence/branch kept. One open draft remains: #84, integrated with main and implementing its one deterministic public-output privacy rework. Independent preliminary findings have output regressions and repairs; final review/current CI remain. No more paid runs. Next: review/merge #84, one gated combined release with Aryan's smokes, then memory notice/checklist preparation only. No flag until notice approval and explicit enablement. The [adopted scope](FINISH_QUEUE_BRIEF.md), every unfinished product requirement and closed-branch evidence remain; score49/100 adds #28's independent review, not accuracy or live acceptance. Earlier snapshots below are historical, not current approvals/holds.
 
 ### Earlier October25 scope and execution history
 
@@ -17,9 +17,9 @@ Updated October 25, 2026 (IST). Codex keeps this plan current; Aryan sets priori
 
 **Latest October24 reviewer grade/order:** #71 is NOT approved: more aggregate help but harmful source-absence/compatibility and customer-data assurances, plus citation/language losses. Main shares the false-absence family; causation by #71 is unproven. The conditional latency waiver does not clear accuracy. #77 is closed without merge, branch/work preserved; #62 stays open. Authorised production exceptions to the PR cap: A orphaned redirect references, B shared localised review-rejection copy, each offline-tested/CI/independently reviewed, then approved GitHub deploy and Aryan's two short smokes. C general excerpt/absence/data-claim contract follows A/B merges and review before one simultaneous three-arm run. See [repair checklist](DETERMINISTIC_REPLY_FIXES.md). Optional controls remain off; no new provider run in preparation. Four pre-existing drafts (#28/#59/#71/#75); report counts as A/B/C open or merge. Score47/100 unchanged. Earlier checkpoints below are historical.
 
-## Progress: 48 / 100 delivery milestones
+## Progress: 49 / 100 delivery milestones
 
-**Built and tested: 14/25 · Reviewed: 13/25 · Verified live: 7/25.**
+**Built and tested: 14/25 · Reviewed: 14/25 · Verified live: 7/25.**
 
 This measures delivery work, **not answer accuracy or model speed**. The earlier 5/100 hid partial work; changing the count does not mean more work suddenly shipped.
 
@@ -41,7 +41,7 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 7 | Production-configured read-only staff audience check — B1 | yes | yes | yes | yes |
 | 8 | Durable staff-card lifecycle and restart refresh — #41 / B2 | yes | yes | yes | yes |
 | 9 | Localized, deduplicated pickup notices and visible notice failures — #41 / B2 | yes | yes | yes | yes |
-| 10 | Durable private engineering approvals and startup privacy checks — #28 / B2 | yes | yes | — | — |
+| 10 | Durable private engineering approvals and startup privacy checks — #28 / B2; reviewed/merged October25, live preview pending | yes | yes | yes | — |
 | 11 | Queued reply recovery — #29 / B3; not reverified for this score | — | — | — | — |
 | 12 | Close/reopen hardening — #30 / B3; not reverified for this score | — | — | — | — |
 | 13 | Operational queue, alert ownership and coverage — B4 | — | — | — | — |
@@ -58,27 +58,27 @@ Keep these milestones fixed unless the product scope actually changes. Recalcula
 | 24 | Existing automated regression/SQL checks and independently graded comparison tooling — E2 | yes | yes | yes | yes |
 | 25 | Full support → memory → reviewed fix → revocation demonstration — E3 | — | — | — | — |
 
-Total: **14 built + 14 tested + 13 reviewed + 7 live = 48/100**. The October25 point records independent approval of #59's character change after the one authorized comparison; it is not deployment or a general accuracy gain. The October23 point records review of #49's fact/revocation foundation, with no enablement. The prior live point records #48's approved retry, not proof that every confidence boundary was triggered. Memory stays off and earns no live point. Cosmetic-error isolation has automated regression evidence, not an injected production fault. Technical-failure routing, forced-overflow clipping and damage-intake groups gain no separate live points from limited smokes. Full A–E acceptance remains **2/21** (B1 and A3); all unfinished checkboxes stay open.
+Total: **14 built + 14 tested + 14 reviewed + 7 live = 49/100**. October25 adds independent approval of #59 and #28, not new live acceptance or general accuracy. October23 records review of #49's fact/revocation foundation, with no enablement. The prior live point records #48's approved retry, not every confidence boundary. Memory stays off and earns no live point. Cosmetic-error isolation has automated regression evidence, not an injected production fault. Technical-failure routing, forced-overflow clipping and damage-intake groups gain no separate live points from limited smokes. Full A–E acceptance remains **2/21** (B1 and A3); all unfinished checkboxes stay open.
 
 </details>
 
 ## Start here — what is done and what comes next
 
-**Progress: 48/100 delivery milestones. The new point is #59's independent review—not a deployment or an accuracy gain.**
+**Progress: 49/100 delivery milestones. The latest points are #59/#28 independent review—not live acceptance or an accuracy gain.**
 
 | Status | What it means now |
 | --- | --- |
 | **Done** | #59 independently approved, merged38337e7 and subsequently operator-deployed as7b41e119; live acceptance pending. #75 closed unmerged after its final comparison; evidence/branch and unfinished scope retained. #71/#82 remain closed, not reopened. |
-| **In progress** | #28's atomic unpublished-comment and App/encryption readiness repairs; local1086 and disposable SQL pass. Current-head CI, real PostgreSQL and independent final review remain. |
-| **Next** | Finish #28, then rework #84 once with deterministic output privacy enforcement and no paid comparison. One exact-SHA combined release follows all gates. |
+| **In progress** | #84's deterministic public-intake/echo boundary, final-length preservation and private-path gates. Final local full1164/offline8/isolated SQL pass; exact-head hosted CI and independent final re-review remain. |
+| **Next** | Finish #84 verification/review, then one exact-SHA combined release and Aryan's prescribed smokes. No paid comparison. #28 is already merged0986b75, not deployed. |
 | **Waiting** | Aryan's prescribed combined-release smokes follow the remaining gates; no Discord input now. Memory needs notice approval and explicit enablement. Current production7b41e119 runs38337e7, optional features off. |
 | **Not forgotten** | All nine audit themes are mapped in [the answer-quality checklist](ANSWER_QUALITY_CONTRACT.md). The full memory → reviewed fixes → reliable follow-through goal remains below. |
 
-**New request, prepared—not trained:** [Mira's data plan](MIRA_DATA_STRATEGY.md) screens eight public datasets and adds 12 original support scenarios. It targets understanding frustration, clear help and truthful follow-through, not psychological profiling. No data imported, model trained, prompt changed or new feature PR opened by this preparation. Implement through A1/A2/E2 after the finish queue; this adds no points to the current **48/100**.
+**New request, prepared—not trained:** [Mira's data plan](MIRA_DATA_STRATEGY.md) screens eight public datasets and adds 12 original support scenarios. It targets understanding frustration, clear help and truthful follow-through, not psychological profiling. No data imported, model trained, prompt changed or new feature PR opened by this preparation. Implement through A1/A2/E2 after the finish queue; this adds no points to the current **49/100**.
 
 ### Finish queue — one active completion step
 
-**Current count:2 open draft PRs, #28 and #84.** #59 merged; #75 closed unmerged under the final-attempt rule. Finish these boundary repairs before the combined release. Queued #62/#83 work may start within the cap but cannot bypass this order or authorize more paid runs. Preserve unfinished scope; no count-driven merge or closure.
+**Current count:1 open draft PR, #84.** #59/#28 merged; #75 closed unmerged under the final-attempt rule. Finish the privacy boundary before the combined release. Queued #62/#83 work may start within the cap but cannot bypass this order or authorize more paid runs. Preserve unfinished scope; no count-driven merge or closure.
 
 Aryan asked to bring every existing PR to a deliberate outcome: verify and merge useful work, or close genuinely obsolete/duplicated work with its reason and any unfinished scope preserved. Do not rush a merge or close a useful fix merely to lower the count. The same independent reviewer is authorized for the remaining PRs, one at a time; it does not merge, deploy or access customer data. Use the updated risk-based readiness policy, reusing valid evidence without inventing unrelated certification. Product and release gates remain; ready is not merged or deployed.
 

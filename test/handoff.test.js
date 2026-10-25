@@ -198,7 +198,7 @@ test('staff cards request details appropriate to the ticket and flag possible da
     [{ area: 'shop', lane: 'money', question: 'I was charged twice' }, /purchase email/i],
     [{ area: 'shop', lane: 'shop', question: 'Ordering 50 units for our company' }, /company and quantity/i],
     [{ area: 'app', lane: 'tech', question: 'My app crashes' }, /device and the app version/i],
-    [{ area: 'privacy', lane: 'privacy', question: 'Delete my data' }, /account email.*privately/i],
+    [{ area: 'privacy', lane: 'privacy', question: 'Delete my data' }, /account email.*private review/i],
     [{ area: 'unknown', lane: 'faq', question: 'Get me a person' }, /what they need help with/i],
   ];
   for (const [route, details] of cases) {
@@ -222,7 +222,7 @@ test('damaged-item and replacement intake asks for evidence and order email, not
     const card = formatStaffTicket({ ...base, lane, question }).discord.embeds[0];
     const intake = card.fields.find((field) => field.name === 'Staff').value;
     assert.match(intake, /photos? or (?:a )?video.*damage/i, question);
-    assert.match(intake, /order email.*privately/i, question);
+    assert.match(intake, /order email.*private review/i, question);
     assert.match(intake, /delivery date/i, question);
     assert.doesNotMatch(intake, /tracking/i, question);
     if (question.includes('38192')) assert.match(card.description, /38192/);
@@ -240,7 +240,7 @@ test('replacement intake stays specific to physical items and preserves account 
   ]) {
     const card = formatStaffTicket({ ...base, lane: 'account', question }).discord.embeds[0];
     const intake = card.fields.find((field) => field.name === 'Staff').value;
-    assert.match(intake, /purchase email.*privately/i, question);
+    assert.match(intake, /purchase email.*private review/i, question);
     assert.doesNotMatch(intake, /photo|video|damage|tracking/i, question);
   }
   const receipt = formatStaffTicket({ ...base, lane: 'money', question: 'Could you replace my purchase receipt for the Omi device?' }).discord.embeds[0];

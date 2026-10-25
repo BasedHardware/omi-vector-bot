@@ -475,7 +475,6 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
           role: 'system',
           content: 'Multipart search coverage: represent every distinct sub-question in sub_questions as {"question":"neutral requirement","query":"short English official-search wording"}, in the order asked. Produce one search query for each distinct sub-question, without adding an expected answer or diagnosis. Use at most eight distinct parts; group closely related requirements only when necessary. For more than three parts, one query per part takes priority over generic search variants; otherwise keep two to four short searches. Include these pairs alongside the existing JSON fields.',
         },
-        { role: 'system', content: PUBLIC_REPLY_PRIVACY_POLICY },
         {
           role: 'user',
           content: `Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,

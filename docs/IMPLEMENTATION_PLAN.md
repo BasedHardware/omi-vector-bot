@@ -4,7 +4,9 @@
 
 - [x] Step1 decided: #59 merged38337e7 and subsequently operator-deployed7b41e119; #75 closed unmerged, evidence/branch retained. No further paid run.
 - [x] Step2: #28 merged0986b75 with both repairs,1086/offline8/SQL, exact-head Node20/24/real PostgreSQL CI and independent final review. Retention issue85 opened; App configuration names verified, not publication authority.
-- [ ] Step3: shared deterministic public privacy boundary, localized availability/confirmed-delivery next step, actual-output red-before tests; no paid comparison; current CI and independent review before merge.
+- [x] Step3 local implementation: shared deterministic presentation/escalation/final-send privacy boundary, localized availability/confirmed-delivery private next step, actual-output regressions and question-aware handoff names. Initial32 tests fail before implementation; additional independently found echo/URL/intake/preservation cases are observed red then repaired. Planner injection removed, one short answer/review rule retained; staff guidance delegates private intake to the application. No paid comparison.
+- [x] Step3 local verification: final frozen runtime passes1164/1164 full tests, offline8/8, disposable SQL integration and diff checks. All concrete independent findings have observed-red output regressions and repairs, including preserving custody/masking warnings. No provider run or customer-data access.
+- [ ] Step3 readiness: exact-head Node20/24/PostgreSQL CI, final diff and independent re-review before merge. Re-run required checks before pushing; no failure is waived as a rerun. No release/optional enablement yet.
 - [ ] Step4/5: gated combined exact-GitHub release and Aryan's prescribed inputs; then notice/checklist preparation, no memory flag until notice approval plus explicit enablement.
 
 ## Earlier October25 finish contract and verification snapshots
