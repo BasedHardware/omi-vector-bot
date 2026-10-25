@@ -471,6 +471,38 @@ test('search planning rewrites a follow-up into several source searches', async 
   }
 });
 
+test('owner intent provenance reaches actual planning, answer and review prompts without a provider call', async () => {
+  const previous = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-owner-provenance-key';
+  const customerIntent = { currentTurnId: 'owner-current', activeActions: [], withdrawnActions: ['money'],
+    ownerTurns: [{ id: 'owner-current', content: 'Android sync still fails.' }] };
+  try {
+    const planned = await planSearch({ question: 'Android sync still fails.', customerIntent,
+      threadHistory: [{ author: 'participant (turn-1)', content: 'Please refund my purchase.' }],
+      post: async (_url, body) => {
+        const text = body.messages.map(message => message.content).join('\n');
+        assert.match(text, /Application-owned current-owner intent projection/);
+        assert.match(text, /intent_sources/);
+        assert.match(body.messages[0].content, /"intent_sources":\[\]/, 'primary JSON example advertises the required provenance field');
+        assert.match(text, /participant \(turn-1\)/);
+        assert.match(text, /owner-current/);
+        return { data: { choices: [{ message: { content: '{"support_kind":"technical_problem","intent_sources":["owner-current"]}' } }] } };
+      } });
+    assert.deepEqual(planned.intentSources, ['owner-current']);
+    const understanding = { ...planned, customerIntent };
+    const answerPrompt = require('../prompt').buildUserPrompt({ question: 'Android sync still fails.', understanding });
+    assert.match(answerPrompt, /Application-owned current-owner intent projection/);
+    assert.match(answerPrompt, /withdrawnActions/);
+    await reviewAnswer({ question: 'Android sync still fails.', understanding, draft: 'A review is needed.',
+      post: async (_url, body) => {
+        assert.match(body.messages.map(message => message.content).join('\n'), /Application-owned current-owner intent projection/);
+        return { data: { choices: [{ message: { content: '{"final_answer":"A review is needed.","grounded":true,"relevant":true,"confidence":0.9}' } }] } };
+      } });
+  } finally {
+    if (previous === undefined) delete process.env.CMD_API_KEY; else process.env.CMD_API_KEY = previous;
+  }
+});
+
 test('contextual retrieval keeps human thread facts and drops prior bot wording', () => {
   const question = contextualQuestion('I am having the same problem too.', [
     { author: 'Jack', content: 'The battery jumps from 73% to 19% after unplugging.' },

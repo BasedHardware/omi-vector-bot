@@ -5,7 +5,7 @@ const express = require('express');
 const db = require('./db');
 const { queryAgent, reviewAnswer, understandQuestion, contextualQuestion, officialHandoffLinks } = require('./commandcode');
 const { splitHistory } = require('./supportContextFormat');
-const { requestCorrection } = require('./requestCorrections');
+const { projectCustomerIntent } = require('./customerIntent');
 const telegram = require('./telegram');
 const {
   isOnCooldown,
@@ -437,9 +437,10 @@ async function getHistory(channel, excludeId, customerId, onCustomerHistory = ()
   const samePost = channel.isThread?.() && (isHelpThread(channel) || isTestChannel(channel));
   if (!isTrustedHandoffThread(channel) && !samePost) return [];
   const messages = await channel.messages.fetch({ limit: 50 });
-  onCustomerHistory(clipThreadHistory([...messages.values()].reverse()
-    .filter(m => m.id !== excludeId && !m.author?.bot && String(m.author?.id || '') === String(customerId || ''))
-    .map(m => ({ author: 'customer', content: String(m.content || '') }))));
+  onCustomerHistory([...messages.values()].reverse().filter(m => m.id !== excludeId)
+    .map((m, index) => ({ id: `turn-${index + 1}`,
+      role: m.author?.bot ? 'bot' : String(m.author?.id || '') === String(customerId || '') ? 'owner' : 'participant',
+      content: String(m.content || '') })));
   if (learning().contextEnabled && learning().supports(channel)) return clipThreadHistory(await learning().history(channel, excludeId, [...messages.values()], customerId));
   const entries = [...messages.values()]
     .reverse()
@@ -666,6 +667,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
   }
   const unreadMedia = shouldMentionUnreadMedia(message.attachments, files, read);
   let asked = clipUserQuestion(caption) || caption;
+  const ownerAsked = asked;
   const forumPrefix = forumStarterPrefix(message);
   if (forumPrefix) asked = [forumPrefix, asked].filter(Boolean).join('\n');
   const embedNote = github.textFromEmbeds(message.embeds);
@@ -687,36 +689,35 @@ async function answerMessage(message, { directHistory = [] } = {}) {
 
   const stopTyping = keepTyping(message, channel);
   try {
-    const useThreadMetadata =
-      isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel);
-    const routeSource = [useThreadMetadata && channel.isThread?.() ? channel.name : '', question]
-      .filter(Boolean)
-      .join('\n');
     let contextHistory = directHistory;
     // Direct continuation contains an ownership-verified customer message and
     // the bot reply. Only the former may establish a customer request.
-    let prior = splitHistory(contextHistory).current.filter(entry => entry.author !== 'bot')
-      .map(entry => entry.content).join('\n');
+    let intentTurns = splitHistory(contextHistory).current.map((entry, index) => ({
+      id: `turn-${index + 1}`, role: entry.author === 'bot' ? 'bot' : 'owner', content: entry.content,
+    }));
     if (
       channel.isThread?.() &&
       (isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel))
     ) {
       try {
         contextHistory = await getHistory(channel, message.id, message.author.id, entries => {
-          prior = entries.map(entry => entry.content).join('\n');
+          intentTurns = entries;
         });
       } catch (err) {
         console.error('[Bot] thread context failed:', err.message);
       }
     }
-    const caseQuestion = contextualQuestion(question, contextHistory);
-    const routeText = [routeSource, prior].filter(Boolean).join('\n');
-    const groundedShop = router.needsGroundedShopAnswer(asked || question);
-    const classifiedCurrent = router.classify(asked || question);
+    const topic = channel.isThread?.() && (isHelpThread(channel) || isTrustedHandoffThread(channel) || isTestChannel(channel)) ? channel.name : '';
+    const scopedTurns = [...intentTurns, ...files.filter(file => typeof file.text === 'string' && file.text.trim())
+      .map((file, index) => ({ id: `attachment-${index + 1}`, role: 'attachment', content: file.text }))];
+    const customerIntent = projectCustomerIntent({ turns: scopedTurns, question: ownerAsked, topic, contextualize: contextualQuestion });
+    const caseQuestion = customerIntent.fallbackQuestion;
+    const groundedShop = router.needsGroundedShopAnswer(ownerAsked || question);
+    const classifiedCurrent = router.classify(ownerAsked || question);
     const currentRoute = groundedShop
       ? { ...classifiedCurrent, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' }
       : classifiedCurrent;
-    const contextRoute = router.classify(routeText);
+    const contextRoute = customerIntent.route;
     const failedSelfService = splitHistory(contextHistory).current.some(entry => entry.author === 'bot') &&
       router.isFailedSupportFollowup(asked || question);
     // History preserves the ticket topic, but only the newest customer message
@@ -729,16 +730,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     // An explicit correction can withdraw that old action, not a separate
     // current positive action. Version-only and ambiguous continuations still
     // retain the customer's earlier protected case topic.
-    const denied = requestCorrection(asked || question).denied;
-    const rejectedContext = (denied.has('money') && contextRoute.lane === 'money') ||
-      (denied.has('privacy') && ['privacy', 'account'].includes(contextRoute.lane));
-    if (rejectedContext && !['money', 'privacy', 'account', 'shop'].includes(currentRoute.lane)) {
-      route = currentRoute;
-    }
     if (groundedShop) route = { ...route, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' };
     if (plannerPolicy.suppressAcknowledgment(null, asked || question)) return;
     const cannedEnglish = plannerPolicy.skipPlannerForCanned(currentRoute, asked || question);
-    const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
+    const holdPublicCopy = isHelpThread(channel) &&
+      (!router.isPublicForumSafe(ownerAsked || question) || router.looksLikePii(question));
     let searchPlan = {
       standaloneQuestion: caseQuestion,
       customerGoal: asked || question,
@@ -751,9 +747,10 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       const stageStart = performance.now();
       try {
         searchPlan = await understandQuestion({
-          question: asked || question,
-          threadHistory: contextHistory,
+          question: ownerAsked || question,
+          threadHistory: clipThreadHistory(scopedTurns.map(turn => ({ author: `${turn.role} (${turn.id})`, content: turn.content }))),
           route,
+          customerIntent: customerIntent.summary,
           onUsage,
           sessionId: `discord-${channel.id}-search`,
         });
@@ -765,13 +762,14 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
     if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
     if (plannerPolicy.suppressOffTopic(searchPlan, currentRoute)) return;
-    searchPlan = plannerPolicy.constrainUnderstanding(searchPlan, asked || question);
+    searchPlan = plannerPolicy.constrainUnderstanding(searchPlan, asked || question, customerIntent);
     const replyLanguage = searchPlan.replyLanguage === 'hi'
       ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en';
     const plannedPersonKind = cannedEnglish ? '' : plannerPolicy.personKind(searchPlan, asked || question);
     route = cannedEnglish
       ? currentRoute
       : plannerPolicy.routeWithUnderstanding(route, searchPlan, asked || question);
+    if (searchPlan.unconfirmedPersonalIntent) route = { ...route, escalate: true };
     if (groundedShop) route = { ...route, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' };
     const forceGroundedPersonAnswer = Boolean(plannedPersonKind);
     const cannedEnglishReply = cannedEnglish ? router.cannedReply(route, asked || question) : '';
@@ -845,10 +843,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       // Chat replies are not ephemeral. Even a verified customer's order facts
       // belong in /order or the private staff card, never a public model prompt.
       const shopifyText = '';
-      const sourceQuestion = contextualQuestion(
-        searchPlan.standaloneQuestion || asked || question,
-        threadHistory
-      );
+      const sourceQuestion = searchPlan.standaloneQuestion || caseQuestion;
       const retrievalStart = performance.now();
       const sourceUrls = [];
       const onSources = urls => sourceUrls.push(...urls);

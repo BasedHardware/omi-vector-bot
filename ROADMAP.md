@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## October25 — persistent owner intent repaired locally, verification remains
+
+#75 addresses the two remaining history/provenance findings through the same owner-only chronological projection across routing/planning and downstream prompt context. Three actual-handler red-before regressions now pass, alongside preservation/reopening/multilingual controls. Full answer context, useful technical retrieval context, private-data safeguards and memory-off fixtures remain. No source-ID scheme is semantic proof; final checks, independent re-review and this PR's own generated-answer gate remain. The separate frozen C/#71 comparison does not certify these changes. No new PR, merge, deployment, optional feature or recording/customer-data operation. Overall product goal and score47/100 are unchanged.
+
 ## October24 — current-main customer-intent integration, still draft
 
 #75 integrates deployed main `d550dc1`, preserving #80/#81's redirect/language behavior and all current runtime/privacy fences. Full985/offline8 pass. Exact integrated-head CI, independent review, comparison and multi-turn verification remain required; no merge/deployment is approved by this integration. C/#82 is separate; #71 remains on accuracy hold. Aryan's two deployed reply-repair smokes remain pending. Optional features remain off.

@@ -7,6 +7,7 @@ const { redactSensitive } = require('./privacy');
 const { SUPPORT_VOICE } = require('./supportVoice');
 const { normalizeSubQuestions } = require('./retrieval');
 const { isPreviousPost, splitHistory, previousContextBlock } = require('./supportContextFormat');
+const { intentContextBlock } = require('./customerIntent');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
 
@@ -211,6 +212,7 @@ function parseSearchPlan(raw, question) {
     subQuestions,
     customerFacts: shortList(data.customer_facts, 6),
     supportKind: String(data.support_kind || 'other').trim().slice(0, 60),
+    intentSources: shortList(data.intent_sources, 8),
     wantsPerson: data.wants_person === true,
     dataLossRisk: data.data_loss_risk === true,
     messageKind: String(data.message_kind || 'question').trim().slice(0, 40),
@@ -439,7 +441,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en', { subQu
   return chosen.length ? `${body}\n\n${label ? `${label}: ` : ''}${chosen.join(' ')}` : body;
 }
 
-async function understandQuestion({ question, threadHistory = [], route, onUsage, post }) {
+async function understandQuestion({ question, threadHistory = [], route, customerIntent, onUsage, post }) {
   const provider = providerConfig();
   if (!provider.key) throw new Error('Missing CMD_API_KEY');
   const send = providerSend(post || axios.post.bind(axios), provider);
@@ -477,9 +479,13 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
         },
         {
           role: 'user',
-          content: `Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,
+          content: `${intentContextBlock(customerIntent)}${customerIntent ? '\n\n' : ''}Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,
         },
-      ],
+        ...(customerIntent ? [{ role: 'system', content: 'For order_lookup, account_action, exception_request, money or privacy, include intent_sources as an array of application-supplied owner turn IDs that establish the active request. Never cite another participant, a display name or thread title as customer intent. A withdrawal overrides an older request; later identifiers do not reopen it. Genuine new or ambiguous multilingual requests still need a person, not an invented personal-action claim.' }] : []),
+      ].map((message, index) => customerIntent && index === 0 ? {
+        ...message,
+        content: message.content.replace('"support_kind":"string","wants_person"', '"support_kind":"string","intent_sources":[],"wants_person"'),
+      } : message),
     })
   );
   recordModelUsage(data, 'planner', provider.model, onUsage);
@@ -667,7 +673,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
         }] : []),
         {
           role: 'user',
-          content: `Earlier thread:\n${modelThread(compact ? separatedHistory.current.slice(-3) : separatedHistory.current)
+          content: `${intentContextBlock(understanding?.customerIntent)}${understanding?.customerIntent ? '\n\n' : ''}Earlier thread:\n${modelThread(compact ? separatedHistory.current.slice(-3) : separatedHistory.current)
             .map((item) => `${item.author}: ${item.content}`)
             .join('\n') || '(none)'}${earlierContext ? '\n\n' + earlierContext : ''}\n\nNewest customer message:\n${question}\n\nProposed understanding:\n${JSON.stringify(
             understanding || {}

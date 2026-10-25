@@ -246,6 +246,22 @@ function classify(text) {
   return { ...classifyRoute(text), captureFailure: looksLikeCaptureFailure(text) };
 }
 
+function deviceActionRequest(text) {
+  return /\brma\b|\breplacement\s+(?:device|unit|omi)\b/i.test(String(text || ''));
+}
+
+function personalActionLanes(text) {
+  const s = requestCorrection(text).text;
+  const route = classify(s);
+  const lanes = [];
+  if (any(s, PRIVACY)) lanes.push('privacy');
+  if (any(s, STRONG_MONEY) || route.lane === 'money') lanes.push('money');
+  if (route.lane === 'shop') lanes.push('shop');
+  if (any(s, ACCOUNT)) lanes.push('account');
+  if (deviceActionRequest(s)) lanes.push('exception');
+  return lanes;
+}
+
 function looksLikeOtherLanguage(text) {
   const letters = String(text || '').match(/\p{L}/gu) || [];
   if (letters.length < 12) return false;
@@ -290,7 +306,7 @@ function classifyRoute(text) {
     return { area: 'unknown', lane: 'faq', escalate: wantHuman, wantHuman };
   }
   if (any(s, FIRMWARE)) {
-    const deviceRequest = /\brma\b|\breplacement\s+(?:device|unit|omi)\b/i.test(s);
+    const deviceRequest = deviceActionRequest(s);
     return { area: 'firmware', lane: 'firmware', escalate: wantHuman || deviceRequest || looksLikeReportedFailure(s), wantHuman };
   }
   if (any(s, DESKTOP)) {
@@ -762,6 +778,7 @@ function describe(route) {
 module.exports = {
   ORDER_STATUS_OPENING,
   classify,
+  personalActionLanes,
   looksLikePii,
   isPublicForumSafe,
   isTechLane,

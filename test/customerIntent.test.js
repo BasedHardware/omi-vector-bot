@@ -2,6 +2,99 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const router = require('../router');
 const policy = require('../plannerPolicy');
+const { projectCustomerIntent, constrainIntentPlan } = require('../customerIntent');
+const { contextualQuestion } = require('../commandcode');
+
+const project = (turns, question) => projectCustomerIntent({ turns, question, contextualize: contextualQuestion });
+
+test('withdrawals are folded before the bounded planning view clips middle turns', () => {
+  const turns = [
+    { id: 'owner-1', role: 'owner', content: 'I want a refund.' },
+    { id: 'owner-2', role: 'owner', content: 'Android sync fails.' },
+    { id: 'owner-3', role: 'owner', content: 'I am not asking for a refund; Android sync still fails.' },
+    ...Array.from({ length: 27 }, (_, i) => ({ id: `owner-${i + 4}`, role: 'owner', content: `Android diagnostic build ${i + 1}.` })),
+  ];
+  const p = project(turns, 'My Android app build is 8.4.3.');
+  assert.equal(p.active.has('money'), false);
+  assert.equal(p.withdrawn.has('money'), true);
+  assert.equal(p.summary.ownerTurns.length, 8);
+  assert.equal(p.route.lane, 'tech');
+  const result = constrainIntentPlan({ supportKind: 'technical_problem', customerGoal: 'refund the purchase',
+    queries: ['refund timing'], customerFacts: ['wants a refund'], mustAnswer: ['refund status'] }, p);
+  assert.deepEqual(result.queries, []);
+  assert.deepEqual(result.customerFacts, []);
+  assert.doesNotMatch(result.customerGoal, /refund/i);
+});
+
+test('new owner actions reopen independently while another participant cannot withdraw them', () => {
+  const turns = [
+    { id: 'owner-1', role: 'owner', content: 'I want a refund.' },
+    { id: 'owner-2', role: 'owner', content: 'Please delete my data.' },
+    { id: 'owner-3', role: 'owner', content: 'I do not want a refund.' },
+    { id: 'participant-1', role: 'participant', content: 'I did not request data deletion.' },
+  ];
+  const p = project(turns, 'My Android app build is 8.4.3.');
+  assert.equal(p.active.has('privacy'), true);
+  assert.equal(p.active.has('money'), false);
+  const reopened = project(turns, 'I want a refund now.');
+  assert.equal(reopened.active.has('money'), true);
+  assert.equal(reopened.withdrawn.has('money'), false);
+  assert.equal(reopened.active.has('privacy'), true);
+});
+
+test('valid owner provenance can protect new multilingual or ambiguous actions without English keywords', () => {
+  const denied = [{ id: 'owner-1', role: 'owner', content: 'I am not asking for a refund.' }];
+  for (const [turns, question] of [
+    [[], 'Ich möchte eine Rückerstattung.'],
+    [[], '注文を取り消したいです。'],
+    [denied, 'Actually, now I want one.'],
+  ]) {
+    const p = project(turns, question);
+    const result = constrainIntentPlan({ supportKind: 'exception_request', intentSources: ['owner-current'],
+      standaloneQuestion: 'The owner requests private review.', wantsPerson: true, dataLossRisk: true, replyLanguage: 'de' }, p);
+    assert.equal(result.supportKind, 'exception_request', question);
+    assert.equal(result.wantsPerson, true);
+    assert.equal(result.dataLossRisk, true);
+    assert.equal(result.replyLanguage, 'de');
+  }
+});
+
+test('a malformed or other-speaker action citation cannot grant personal-action authority', () => {
+  const p = project([{ id: 'participant-1', role: 'participant', content: 'Please refund my purchase.' }], 'Android sync fails.');
+  for (const intentSources of [undefined, [], ['participant-1'], ['made-up'], 'owner-current']) {
+    const result = constrainIntentPlan({ supportKind: 'money', intentSources, customerGoal: 'refund',
+      customerFacts: ['refund requested'], queries: ['refund'], subQuestions: [{ question: 'refund', query: 'refund' }],
+      handoffAcknowledgment: 'Your refund needs approval.', device: 'another participant device', topic: 'refund' }, p);
+    assert.equal(result.supportKind, 'other');
+    assert.deepEqual(result.customerFacts, []);
+    assert.deepEqual(result.queries, []);
+    assert.deepEqual(result.subQuestions, []);
+    assert.equal(result.handoffAcknowledgment, '');
+    assert.equal(result.device, '');
+    assert.equal(result.topic, '');
+    assert.equal(result.unconfirmedPersonalIntent, true, 'keep the conservative generic person path');
+  }
+});
+
+test('known owner money and device actions retain the existing exception classification', () => {
+  for (const question of ['Quiero un reembolso.', 'I need a replacement device.', 'I am not asking for a refund; I need a replacement device.']) {
+    const p = project([], question);
+    const result = constrainIntentPlan({ supportKind: 'exception_request', replyLanguage: 'es', wantsPerson: true }, p);
+    assert.equal(result.supportKind, 'exception_request', question);
+    assert.equal(result.wantsPerson, true);
+    assert.equal(result.replyLanguage, 'es');
+  }
+});
+
+test('already-read attachment diagnostics inform retrieval without granting personal-action authority', () => {
+  const p = project([{ id: 'attachment-1', role: 'attachment', content: 'Android sync failure: diagnostic code E-STAGE.' }], 'Please check the attached log.');
+  assert.match(p.fallbackQuestion, /E-STAGE/);
+  assert.equal(p.ownerIds.has('attachment-1'), false);
+  assert.equal(p.summary.ownerTurns.length, 1);
+  const request = constrainIntentPlan({ supportKind: 'money', intentSources: ['attachment-1'] }, p);
+  assert.equal(request.supportKind, 'other');
+  assert.equal(request.unconfirmedPersonalIntent, true);
+});
 
 test('negating unrelated help cannot erase a later protected request', () => {
   const {requestCorrection} = require('../requestCorrections');

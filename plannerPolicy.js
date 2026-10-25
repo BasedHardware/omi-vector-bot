@@ -1,5 +1,6 @@
 const router = require('./router');
 const { requestCorrection } = require('./requestCorrections');
+const { constrainIntentPlan } = require('./customerIntent');
 
 const PERSON_KINDS = new Set(['order_lookup', 'account_action', 'exception_request', 'money', 'privacy']);
 const CANNED_LANES = new Set(['money', 'privacy', 'shop', 'account']);
@@ -51,7 +52,8 @@ function personKind(understanding, question = '') {
   return PERSON_KINDS.has(kind) ? kind : '';
 }
 
-function constrainUnderstanding(understanding, question) {
+function constrainUnderstanding(understanding, question, customerIntent) {
+  if (customerIntent) return constrainIntentPlan(understanding, customerIntent);
   if (!PERSON_KINDS.has(understanding?.supportKind) || personKind(understanding, question)) return understanding;
   // A rejected action must not survive as a search query, requirement or
   // rewritten goal after its route was removed. Keep language/risk/human flags.

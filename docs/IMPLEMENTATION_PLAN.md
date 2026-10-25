@@ -1,5 +1,16 @@
 # Omi Support Bot Implementation Checklist
 
+## October25 — owner-intent P2 repair, still draft #75
+
+- [x] Reproduce three actual-handler failures on the previous head: withdrawn action revives after identifiers, generated financial title overrides technical owner context, other participant action enters planner output.
+- [x] Fold one owner-only chronological projection before planning clipping; use application-assigned roles/turn IDs, persistent withdrawals, independent reopening and shared route/planner constraints. Do not erase full answer/reviewer history or unrelated technical retrieval context.
+- [x] Add source-ID validation and conservative generic handoff for unconfirmed personal interpretations, with paired multilingual/ambiguous/positive controls. Do not claim provenance proves semantics or a bounded grammar covers every language.
+- [x] Exercise actual injected planner/answer/reviewer requests and preserve memory-off prompt snapshots. No provider, Discord, production or held-out input operation for this repair.
+- [x] Local full997/offline8 and guarded isolated PGlite SQL checks pass; red-before prompt-schema and rejected-copy assertions pass after repair. Full answer and memory-off prompt fixtures are preserved.
+- [ ] Current-head hosted CI, independent re-review and this PR's final-code quality/affected-flow gates. Keep draft; the running frozen C/#71 comparison does not verify #75.
+
+Earlier dated checkpoints below retain their historical state.
+
 ## October24 — existing #75 integration
 
 - [x] Integrate deployed main `d550dc1` without rebasing or removing current language/redirect/runtime safeguards; full985/offline8 and diff check pass.

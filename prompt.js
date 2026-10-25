@@ -224,6 +224,7 @@ function buildUserPrompt({ question, threadHistory, knowledgeSnippets, route, to
         `Must answer: ${(understanding.mustAnswer || []).join(' | ') || '(not supplied)'}`,
         `Facts stated by customer: ${(understanding.customerFacts || []).join(' | ') || '(not supplied)'}`,
         `Support kind: ${String(understanding.supportKind || 'other')}`,
+        ...(understanding.customerIntent ? [require('./customerIntent').intentContextBlock(understanding.customerIntent)] : []),
       ].join('\n')
     : '';
 

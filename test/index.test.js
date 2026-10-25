@@ -42,6 +42,7 @@ let modelDown = false;
 let searchPlanQueries = [];
 let plannerSubQuestions = [];
 const plannerCalls = [];
+const plannerInputs = [];
 let plannerSupportKind = 'other';
 let plannerMessageKind = 'question';
 let plannerStandaloneQuestion = '';
@@ -69,8 +70,10 @@ commandcode.queryAgent = async (args) => {
     ...modelReply,
   };
 };
-commandcode.understandQuestion = async ({ question, onUsage }) => {
+commandcode.understandQuestion = async (args) => {
+  const { question, onUsage } = args;
   plannerCalls.push(question);
+  plannerInputs.push(args);
   if (emitTestUsage) onUsage?.({ stage: 'planner', completionTokens: 20, reasoningTokens: 5 });
   if (plannerBarrier) await plannerBarrier;
   return {
@@ -742,6 +745,84 @@ test('a correction without a repeated symptom can withdraw an older financial ro
   assert.doesNotMatch(replyText(follow), /asking for a refund|payment or charge/i);
 });
 
+test('an owner withdrawal stays withdrawn on a later version-only turn', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; });
+  plannerSupportKind = 'technical_problem';
+  modelReply = { final_answer: 'The sync failure and your new app version are noted.', confidence: 0.9, escalate: true };
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Sync investigation' });
+  const follow = makeMessage('My Android app build is 8.4.3.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['withdrawn', { id: 'withdrawn', author: { id: owner, bot: false, username: 'customer' }, content: 'I am not asking for a refund; Android sync still fails.' }],
+    ['opening', { id: 'opening', author: { id: owner, bot: false, username: 'customer' }, content: 'I want a refund.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].route.lane, 'tech');
+  assert.doesNotMatch(replyText(follow), /payment or charge|asking for a refund/i);
+});
+
+test('a generated financial thread title is context, not owner action authority', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; });
+  plannerSupportKind = 'technical_problem';
+  modelReply = { final_answer: 'The Android sync failure needs investigation.', confidence: 0.9, escalate: true };
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Handoff · shop · money · Refund review' });
+  const follow = makeMessage('My Android app build is 8.4.3 and sync still fails.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['opening', { id: 'opening', author: { id: owner, bot: false, username: 'customer' }, content: 'Android sync stopped working.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].route.lane, 'tech');
+  assert.doesNotMatch(replyText(follow), /payment or charge|asking for a refund/i);
+});
+
+test('financial title metadata does not suppress a technical help-forum starter body', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; });
+  plannerSupportKind = 'technical_problem';
+  modelReply = { final_answer: 'The Android sync failure needs investigation.', confidence: 0.9, escalate: true };
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Refund review' });
+  const opening = makeMessage('My Android app build is 8.4.3 and sync still fails.', { channel, authorId: owner });
+  channel.id = opening.id;
+  channel.messages.fetch = async () => new Map([[opening.id, opening]]);
+  await handleMessage(opening);
+  assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].route.lane, 'tech');
+  assert.doesNotMatch(plannerInputs[0].customerIntent.ownerTurns.at(-1).content, /Refund review/);
+});
+
+test('a planner cannot import another participant action into the owner request', async t => {
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = ''; });
+  plannerSupportKind = 'exception_request';
+  plannerStandaloneQuestion = 'The customer requests a refund.';
+  searchPlanQueries = ['purchase refund policy'];
+  modelReply = { final_answer: 'The Android sync failure needs investigation.', confidence: 0.9, escalate: true };
+  const owner = nextId();
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Sync investigation' });
+  const follow = makeMessage('My Android app build is 8.4.3 and sync still fails.', { channel, authorId: owner });
+  channel.messages.fetch = async () => new Map([
+    [follow.id, follow],
+    ['participant', { id: 'participant', author: { id: nextId(), bot: false, username: 'customer' }, content: 'Please refund my purchase.' }],
+    ['opening', { id: 'opening', author: { id: owner, bot: false, username: 'other-user' }, content: 'Android sync stopped working.' }],
+  ]);
+  await handleMessage(follow);
+  assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].route.lane, 'tech');
+  assert.equal(modelCalls[0].understanding.supportKind, 'other');
+  assert.deepEqual(modelCalls[0].understanding.queries, []);
+  assert.doesNotMatch(modelCalls[0].understanding.customerGoal, /refund/i);
+  assert.equal(modelCalls[0].threadHistory.length, 2, 'full answer context stays available');
+  assert.ok(plannerInputs[0].customerIntent, 'planner receives the same application-owned projection');
+});
+
 test.beforeEach(() => {
   supportCases.setStoreForTests(supportCases.createMemoryStore());
   modelCalls.length = 0;
@@ -750,6 +831,7 @@ test.beforeEach(() => {
   searchPlanQueries = [];
   plannerSubQuestions = [];
   plannerCalls.length = 0;
+  plannerInputs.length = 0;
   plannerSupportKind = 'other';
   plannerMessageKind = 'question';
   plannerStandaloneQuestion = '';
