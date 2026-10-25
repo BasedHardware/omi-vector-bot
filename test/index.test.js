@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { generateKeyPairSync } = require('node:crypto');
 const { ChannelType, Events, MessageFlags, MessageMentions, User } = require('discord.js');
 
 const TEST_CHANNEL = '100000000000000100';
@@ -131,6 +132,9 @@ globalThis.fetch = async (url, opts = {}) => {
   }
   const method = opts.method || 'GET';
   githubCalls.push({ method, url: u, body: opts.body ? JSON.parse(opts.body) : null });
+  if (method === 'POST' && /\/app\/installations\/\d+\/access_tokens$/.test(u)) {
+    return { ok: true, status: 201, json: async () => ({ token: 'synthetic-installation-token', expires_at: new Date(Date.now() + 3600000).toISOString() }) };
+  }
   if (u.includes('/search/issues')) {
     return { ok: true, status: 200, json: async () => ({ items: u.includes('is%3Apr') ? pulls : issues }) };
   }
@@ -171,9 +175,10 @@ docs.relevantDocs = (...args) => docsObserver ? docsObserver(...args) : original
 const feedback = require('../feedback');
 const github = require('../github');
 const commands = require('../commands');
-const { app, client, handleMessage, shouldHandle, runtime, keepTyping } = require('../index');
+const { app, client, handleMessage, shouldHandle, noteCustomerLead, runtime, keepTyping } = require('../index');
 const router = require('../router');
 const supportCases = require('../supportCases');
+const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
 const supportThreadLanguage = require('../supportThreadLanguage');
 const { unreadMediaSentence } = require('../attachments');
 
@@ -635,18 +640,29 @@ function enableStaffDelivery(t) {
   const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
   const delivered = [];
   process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
-  client.channels.fetch = async () => ({
-    isTextBased: () => true,
+  const fixture = makeStaffChannel({ id: 'staff-room', botUserId: BOT_ID,
     send: async (payload) => {
       delivered.push(payload);
-      return payload;
+      return { id: nextId(), author: { id: BOT_ID }, ...payload };
     },
   });
+  client.channels.fetch = async () => fixture.channel;
   t.after(() => {
     client.channels.fetch = originalFetch;
     process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
   });
   return delivered;
+}
+
+let approvalSigningKey;
+function enableApprovalApp(t) {
+  approvalSigningKey ||= generateKeyPairSync('rsa', { modulusLength: 1024 }).privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const values = { GITHUB_APP_ID: '31', GITHUB_APP_INSTALLATION_ID: '41', GITHUB_APP_PRIVATE_KEY: approvalSigningKey };
+  const previous = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]));
+  Object.assign(process.env, values);
+  t.after(() => { for (const key of Object.keys(values)) {
+    if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
+  } });
 }
 
 test.beforeEach(() => {
@@ -685,16 +701,20 @@ test.beforeEach(() => {
 
 test('staff cards recover on Discord ready and every 30 seconds, but not while stopping', async t => {
   const caseCards = require('../caseCards');
+  const staffDestination = require('../staffDestination');
   const originals = { setInterval: global.setInterval, syncPending: caseCards.syncPending,
     onChange: supportCases.onChange, fetch: client.channels.fetch,
-    hydrate: knowledge.hydrateFromDiscord, register: commands.registerSlashCommands, stopping: runtime.stopping };
+    hydrate: knowledge.hydrateFromDiscord, register: commands.registerSlashCommands, stopping: runtime.stopping,
+    checkBoot: staffDestination.checkBootStaffDestination };
   t.after(() => {
     global.setInterval = originals.setInterval; caseCards.syncPending = originals.syncPending;
     supportCases.onChange = originals.onChange; client.channels.fetch = originals.fetch;
     knowledge.hydrateFromDiscord = originals.hydrate; commands.registerSlashCommands = originals.register;
     runtime.stopping = originals.stopping;
+    staffDestination.checkBootStaffDestination = originals.checkBoot;
   });
-  const timers = []; let passes = 0;
+  const timers = []; let passes = 0, bootChecks = 0;
+  staffDestination.checkBootStaffDestination = async receivedClient => { assert.equal(receivedClient, client); bootChecks++; return { ok: true, code: 'private_staff_destination' }; };
   global.setInterval = (callback, delay) => { const timer = { callback, delay, unreferenced: false,
     unref() { this.unreferenced = true; } }; timers.push(timer); return timer; };
   caseCards.syncPending = async receivedClient => { assert.equal(receivedClient, client); passes++; return 0; };
@@ -706,6 +726,7 @@ test('staff cards recover on Discord ready and every 30 seconds, but not while s
   const ready = client.listeners(Events.ClientReady)[0];
   assert.equal(typeof ready, 'function');
   await ready();
+  assert.equal(bootChecks, 1, 'Discord ready must validate the configured private destination');
   assert.equal(passes, 1, 'boot must repair persisted stale cards');
   const sweep = timers.find(timer => timer.delay === 30000);
   assert.ok(sweep); assert.equal(sweep.unreferenced, true);
@@ -1363,7 +1384,7 @@ test('delivered refund, order, and account tickets give one next step in the cus
   const originalFetch = client.channels.fetch;
   const previousStaff = process.env.STAFF_ALERT_CHANNEL_ID;
   process.env.STAFF_ALERT_CHANNEL_ID = 'staff-room';
-  client.channels.fetch = async () => ({ isTextBased: () => true, send: async (payload) => payload });
+  client.channels.fetch = async () => makeStaffChannel({ id: 'staff-room', botUserId: BOT_ID }).channel;
   t.after(() => {
     client.channels.fetch = originalFetch;
     process.env.STAFF_ALERT_CHANNEL_ID = previousStaff;
@@ -2033,7 +2054,7 @@ test('a related pull is mentioned cautiously only when the reviewer cites it', a
   assert.doesNotMatch(r.reply, /Pull request #4500 fixes this/i);
 });
 
-test('an open issue found by the duplicate search is linked on the Handoff and no new issue is filed', async () => {
+test('related issue search stays background until staff approve its case link', async () => {
   process.env.GITHUB_TOKEN = 'ghs_test';
   issues = [
     {
@@ -2049,7 +2070,7 @@ test('an open issue found by the duplicate search is linked on the Handoff and n
   assert.equal(r.thread.sent[0].components, undefined);
   assert.match(textOf(r.thread.sent[1]), /issues\/777/);
   assert.equal(posts().length, 0);
-  assert.deepEqual(github.threadsForIssue(777), [r.thread.id]);
+  assert.deepEqual(github.threadsForIssue(777), []);
 });
 
 test('a tech ticket does not file a public issue until staff press File', async () => {
@@ -2397,7 +2418,12 @@ test('a help-forum post with an email address gets a canned reply and a staff ca
   assert.equal(post.name, 'Pairing help');
 });
 
-test('filing the issue from a held help-forum post sends [email] to GitHub, never the address', async () => {
+test('a private issue review proposal never automatically publishes or copies the customer quote', async (t) => {
+  const staff = enableStaffDelivery(t);
+  enableApprovalApp(t);
+  const key = process.env.DATA_ENCRYPTION_KEY;
+  process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 11).toString('base64');
+  t.after(() => { process.env.DATA_ENCRYPTION_KEY = key; });
   process.env.GITHUB_TOKEN = 'ghs_test';
   process.env.STAFF_USER_IDS = '123456789012345678';
   modelReply = { topic: 'Omi off for jane.doe@example.com' };
@@ -2405,8 +2431,9 @@ test('filing the issue from a held help-forum post sends [email] to GitHub, neve
   const r = await ask('My Omi keeps turning itself off after 5 seconds. Reach me at jane.doe@example.com', {
     channel: post,
   });
-  assert.equal(r.github.filter((c) => c.method === 'POST').length, 0);
-  const button = post.sent[0].components[0].components[0];
+  assert.equal(r.github.filter((c) => c.method === 'POST' && /\/repos\//.test(c.url)).length, 0,
+    'App authentication for reads must not be confused with public issue/comment publication');
+  const button = staff[0].components[0].components[0];
   assert.match(button.custom_id, /^file:/);
   const filed = posts().length;
   await commands.handleInteraction({
@@ -2420,10 +2447,89 @@ test('filing the issue from a held help-forum post sends [email] to GitHub, neve
     editReply: async () => {},
   });
   const sent = posts().slice(filed);
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].body.title.includes('jane.doe@example.com'), false);
-  assert.match(sent[0].body.body, /\[email\]/);
+  assert.equal(sent.length, 0, 'public customer-thread click cannot approve a private GitHub action');
   assert.equal(JSON.stringify(sent).includes('jane.doe@example.com'), false);
+  const approval = await github.getScopedApproval(button.custom_id.slice('file:'.length));
+  assert.ok(approval.cardMessageId);
+  assert.doesNotMatch(JSON.stringify(approval.draft), /jane\.doe@example\.com|keeps turning itself off|What they wrote/);
+});
+
+test('automatic follow-up staging refuses a forum shared by multiple customer cases', async t => {
+  const staff = enableStaffDelivery(t);
+  enableApprovalApp(t);
+  const approvals = require('../supportApprovals');
+  const issueLinks = require('../supportIssueLinks');
+  const previousKey = process.env.DATA_ENCRYPTION_KEY;
+  process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32,15).toString('base64');
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  approvals.setStoreForTests(approvals.createMemoryStore());
+  issueLinks.setStoreForTests(issueLinks.createMemoryStore());
+  t.after(()=>{process.env.DATA_ENCRYPTION_KEY=previousKey;approvals.setStoreForTests(null);issueLinks.setStoreForTests(null);});
+  const post = makeChannel({thread:true,parentId:HELP_FORUM,name:'App technical problem'});
+  const customer = nextId();
+  post.ownerId = customer;
+  const value = await supportCases.getOrCreateCase({channelId:post.id,customerId:customer,customerThreadId:post.id,context:{area:'app',lane:'app'}});
+  await supportCases.getOrCreateCase({channelId:post.id,customerId:nextId(),customerThreadId:post.id,context:{area:'app',lane:'app'}});
+  assert.equal(await supportCases.getCaseByThread(post.id),null);
+  await issueLinks.link({repo:github.repo(),issueNumber:42,caseId:value.id,customerId:customer,channelId:post.id,threadId:post.id,sourceMessageId:'original-source',approvedBy:'staff-user'});
+  await noteCustomerLead(post,makeMessage('New synthetic debugging detail for review.',{channel:post,authorId:customer}));
+  assert.equal(staff.length,0);
+  assert.equal(githubCalls.filter(call=>call.method==='POST').length,0);
+});
+
+for (const concurrent of [false, true]) test(`later evidence from the linked customer becomes one private review, never an automatic GitHub comment (${concurrent ? 'concurrent' : 'serial'})`, async (t) => {
+  const staff = enableStaffDelivery(t);
+  enableApprovalApp(t);
+  const approvals = require('../supportApprovals'); const issueLinks = require('../supportIssueLinks');
+  const previousKey = process.env.DATA_ENCRYPTION_KEY;
+  process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 15).toString('base64');
+  process.env.GITHUB_TOKEN = 'ghs_test';
+  approvals.setStoreForTests(approvals.createMemoryStore());
+  issueLinks.setStoreForTests(issueLinks.createMemoryStore());
+  t.after(() => { process.env.DATA_ENCRYPTION_KEY = previousKey; approvals.setStoreForTests(null); issueLinks.setStoreForTests(null); });
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'App technical problem' });
+  const customer = nextId();
+  const value = await supportCases.getOrCreateCase({ channelId: post.id, customerId: customer,
+    customerThreadId: post.id, context: { area: 'app', lane: 'app' } });
+  await issueLinks.link({ repo: github.repo(), issueNumber: 18537, caseId: value.id, customerId: customer,
+    channelId: post.id, threadId: post.id, sourceMessageId: 'original-source', approvedBy: 'staff-user' });
+  post.ownerId = customer;
+  const update = makeMessage('I checked again and the conversation still disappears. My email is private@example.test.', { channel: post, authorId: customer });
+  const updates = [update,
+    makeMessage('The reproduction also persists after a different diagnostic attempt.', { channel: post, authorId: customer }),
+    makeMessage('A separate synthetic reproduction detail is ready for engineering review.', { channel: post, authorId: customer })];
+  if (concurrent) await Promise.all(updates.map(value => noteCustomerLead(post, value)));
+  else for (const value of updates) await noteCustomerLead(post, value);
+  await noteCustomerLead(post, update);
+  assert.equal(staff.length, 1);
+  const button = staff[0].components[0].components[0];
+  const record = await github.getScopedApproval(button.custom_id.slice('file:'.length));
+  assert.equal(record.kind, 'comment'); assert.equal(record.targetIssueNumber, 18537);
+  assert.equal(record.customerId, customer); assert.ok(record.cardMessageId);
+  assert.doesNotMatch(JSON.stringify(record.draft), /private@example\.test|conversation still disappears/);
+  assert.equal(githubCalls.filter((call) => call.method === 'POST').length, 0);
+  const other = makeMessage('I have new debugging evidence that belongs to someone else.', { channel: post, authorId: nextId() });
+  await noteCustomerLead(post, other);
+  assert.equal(staff.length, 1, 'another customer cannot update the linked case');
+  await issueLinks.link({ repo: github.repo(), issueNumber: 18538, caseId: value.id, customerId: customer,
+    channelId: post.id, threadId: post.id, sourceMessageId: 'second-source', approvedBy: 'staff-user' });
+  await noteCustomerLead(post, makeMessage('Another new debugging detail after a second issue was linked.', { channel: post, authorId: customer }));
+  assert.equal(staff.length, 1, 'ambiguous issue destinations require manual staff selection');
+});
+
+test('token-only GitHub auth leaves the real staff handoff available without an engineering approval', async t => {
+  const staff = enableStaffDelivery(t);
+  const previous = process.env.DATA_ENCRYPTION_KEY;
+  process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 16).toString('base64');
+  process.env.GITHUB_TOKEN = 'synthetic-read-token';
+  t.after(() => { if (previous === undefined) delete process.env.DATA_ENCRYPTION_KEY; else process.env.DATA_ENCRYPTION_KEY = previous; });
+  const post = makeChannel({ thread: true, parentId: HELP_FORUM, name: 'Desktop window failure' });
+  const result = await ask('My desktop app repeatedly freezes when I open its settings view.', { channel: post });
+  assert.equal(result.message.replies.length, 1);
+  assert.equal(staff.length, 1);
+  assert.ok(!staff.flatMap(card => card.components || []).flatMap(row => row.components || [])
+    .some(button => /^file:/.test(button.custom_id || '')));
+  assert.equal(result.github.filter(call => call.method === 'POST').length, 0);
 });
 
 test('a new help-forum post puts its title and tags in front of the model question', async () => {

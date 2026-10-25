@@ -3,8 +3,10 @@ const { isCloseableThread, canStaffAct, staffMentionIds, markHandoffClosed, send
 const github = require('./github');
 const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
+const { isDedicatedCustomerThread } = require('./customerThreadScope');
 const supportThreadLanguage = require('./supportThreadLanguage');
 const { appReviewButtons } = require('./appReviews');
+const githubFlow = require('./githubFlow').createGithubFlow();
 const { closingCopy } = require('./closingCopy');
 const { SUPPORT_DISPLAY_NAME } = require('./supportVoice');
 
@@ -382,73 +384,6 @@ async function handleDone(interaction) {
   }
 }
 
-async function handleFileIssue(interaction) {
-  if (!canStaffAct(interaction)) {
-    await interaction.reply({
-      content: 'Only named staff can file a GitHub issue.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-  const id = String(interaction.customId || '').replace(/^file:/, '');
-  const draft = github.takeDraft(id);
-  if (!draft) {
-    await interaction.reply({ content: 'That File button expired. Ask again in the channel.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  if (!github.isConfigured()) {
-    github.restoreDraft(id, draft);
-    await interaction.reply({ content: 'No GitHub token on the host.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  try {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  } catch (err) {
-    github.restoreDraft(id, draft);
-    throw err;
-  }
-  const prior = await github.existingWork(`${draft.title}\n${draft.body}`);
-  if (prior.error) {
-    github.restoreDraft(id, draft);
-    await interaction.editReply('I could not check GitHub for an existing issue. I did not file another.');
-    return;
-  }
-  if (prior.hit) {
-    github.restoreDraft(id, draft);
-    await interaction.editReply(`Already on GitHub: ${prior.hit.url}. I did not file another.`);
-    return;
-  }
-  const asked = `${draft.title}\n${draft.quote || draft.body}`;
-  const related = [...(await github.relatedPulls(asked)), ...(await github.relatedIssues(asked))];
-  const created = await github.createIssue({
-    ...draft,
-    body: github.issueBody({
-      quote: draft.quote,
-      reason: draft.reason,
-      threadUrl: github.discordThreadUrl(interaction),
-      related,
-      files: draft.files,
-    }),
-    threadId: interaction.channelId,
-  });
-  const filedUrl = String(created?.url || '');
-  if (!created?.ok || !/\/issues\/[1-9]\d*/.test(filedUrl)) {
-    github.restoreDraft(id, draft);
-    await interaction.editReply('GitHub did not accept the issue. I did not claim it was filed.');
-    return;
-  }
-  github.linkIssueThread(created.number, interaction.channelId);
-  const line = `GitHub issue ${filedUrl}`;
-  try {
-    if (interaction.channel?.isTextBased?.()) {
-      await interaction.channel.send(line);
-    }
-  } catch (err) {
-    console.error('[GitHub] thread notice failed:', err.message);
-  }
-  await interaction.editReply(`Filed ${filedUrl}`);
-}
-
 function canAcceptCase(interaction) {
   const staffChannelId = String(process.env.STAFF_ALERT_CHANNEL_ID || '').trim();
   if (!staffChannelId || String(interaction.channel?.id || '') !== staffChannelId ||
@@ -520,6 +455,7 @@ const handleAcceptCase = (interaction, options) => handleCaseAction(interaction,
 async function handleInteraction(interaction) {
   try {
     if (await orderFlow.handleOrderInteraction(interaction)) return;
+    if (await githubFlow.handleInteraction(interaction)) return;
     if (interaction.isChatInputCommand?.() && interaction.commandName === 'forget-support-history') {
       await handleForgetSupportHistory(interaction);
       return;
@@ -539,9 +475,6 @@ async function handleInteraction(interaction) {
     if (interaction.isButton?.() && /^case:(?:accept|refresh|work:)/.test(String(interaction.customId || ''))) {
       await handleCaseAction(interaction);
       return;
-    }
-    if (interaction.isButton?.() && String(interaction.customId || '').startsWith('file:')) {
-      await handleFileIssue(interaction);
     }
   } catch (err) {
     console.error('[Bot] interaction failed:', err.message);
@@ -574,23 +507,70 @@ async function handleForgetSupportHistory(interaction, { forget = require('./sup
   await respond('I couldn’t confirm deletion of retained history here. Please contact help@omi.me for a data-deletion request.');
 }
 
-async function notifyLinkedThreads(client, event) {
+async function notifyLinkedThreads(client, event, options = {}) {
   const nums = event?.numbers || (event?.number ? [event.number] : []);
-  const ids = new Set();
+  if (!client?.channels?.fetch) return 0;
+  const issueLinks = options.issueLinks || require('./supportIssueLinks');
+  const cases = options.cases || supportCases;
+  const repo = github.repo().toLowerCase();
+  const notices = [];
+  const legacyIds = new Set();
+  const scopedIds = new Set();
   for (const num of nums) {
-    for (const id of github.threadsForIssue(num)) ids.add(id);
+    let records;
+    try { records = await issueLinks.listForIssue(repo, Number(num)); }
+    catch { console.error('[GitHub] scoped notice lookup unavailable'); return 0; }
+    for (const record of records) {
+      const target = record.threadId || record.channelId;
+      if (target) scopedIds.add(String(target));
+      let value;
+      try { value = await cases.getCaseById(record.caseId); }
+      catch { console.error('[GitHub] notice ownership lookup unavailable'); continue; }
+      if (record.repo?.toLowerCase() === repo && value?.customerId === record.customerId &&
+          [value.channelId, value.customerThreadId, value.handoffThreadId].includes(target)) notices.push({ record, value, target: String(target) });
+    }
+    // Old internal rows lack repository/customer provenance. They may support
+    // legacy status notices for the original repository, never new approvals.
+    if (repo === github.DEFAULT_REPO.toLowerCase()) {
+      for (const id of github.threadsForIssue(num)) legacyIds.add(String(id));
+    }
   }
-  if (!ids.size || !client?.channels?.fetch) return 0;
   let n = 0;
-  for (const id of ids) {
+  const seen = new Set();
+  const payload = { content: event.line, allowedMentions: { parse: [], repliedUser: false } };
+  for (const { record, value, target } of notices) {
+    const key = JSON.stringify([repo, record.issueNumber, record.sourceMessageId]);
+    if (seen.has(key)) continue;
+    try {
+      const ch = await client.channels.fetch(target);
+      if (!ch?.isTextBased?.() || String(ch.id || '') !== target) continue;
+      let original;
+      try { original = await ch.messages?.fetch?.(record.sourceMessageId); }
+      catch { /* A missing source can fall back only to a proven dedicated thread. */ }
+      if (original) {
+        if (String(original.id || '') !== record.sourceMessageId || String(original.author?.id) !== record.customerId || typeof original.reply !== 'function') continue;
+        await original.reply(payload);
+      } else {
+        if (typeof ch.send !== 'function' ||
+            !(await isDedicatedCustomerThread(ch, value, {cases}))) continue;
+        await ch.send(payload);
+      }
+      seen.add(key);
+      n += 1;
+    } catch {
+      console.error('[GitHub] scoped notice delivery failed');
+    }
+  }
+  for (const id of legacyIds) {
+    // A legacy mapping must never bypass a failed modern ownership/source check.
+    if (scopedIds.has(id)) continue;
     try {
       const ch = await client.channels.fetch(id);
-      if (ch?.isTextBased?.() && typeof ch.send === 'function') {
-        await ch.send(event.line);
-        n += 1;
-      }
-    } catch (err) {
-      console.error('[GitHub] webhook notify failed:', err.message);
+      if (!ch?.isThread?.() || !ch.isTextBased?.() || typeof ch.send !== 'function') continue;
+      await ch.send(payload);
+      n += 1;
+    } catch {
+      console.error('[GitHub] legacy thread notice delivery failed');
     }
   }
   return n;

@@ -1,5 +1,25 @@
 # Omi Support Bot Implementation Checklist
 
+## October25 — approved queue, Step1 complete
+
+- [x] Reconcile Aryan's subsequent main38337e7 deployment7b41e119: SUCCESS/latest/one healthy instance, optional controls off, automatic deployment off. #59 now deployed by the operator, not newly smoke-accepted; fresh rollback verification still precedes the combined release.
+- [x] One simultaneous main/#59/#75 comparison,81×2 each/concurrency3 per arm; all486 final and6 earlier replies independently read. Original artifacts retained; no invalid rows or paid rerun. Actual first case starts differ by3ms; the original internal1000ms process-launch failure at1507ms remains documented, with independent concurrent-window qualification and full historical-power/source audit.
+- [x] Step1 cutoff: merge reviewed #59 as `38337e7`; close #75 unmerged for four new material findings despite numerical passes. Preserve its branch/tests/evidence and unfinished owner-intent scope. Production was then d550dc1, superseded by Aryan's later deployment recorded above.
+- [x] #28 local repair: atomic unpublished-comment creation and creator-only first-card attempt; immutable source/ciphertext/revision and filing/unknown fences preserved. Three distinct serial/concurrent follow-ups yield one card in the real handler. Red-before unit/handler/SQL evidence retained; full1086 and disposable SQL pass. Hosted multi-connection PostgreSQL remains required.
+- [x] #28 local repair: GitHub App identity plus encryption required for approval readiness, fixed value-free boot diagnostic, token-only/incomplete-config tests; ordinary handoff remains usable. Configuration readiness is not proof of provider permissions.
+- [x] Unknown-result manual-reconciliation runbook updated; metadata-retention issue [#85](https://github.com/BasedHardware/omi-vector-bot/issues/85) opened without implementation.
+- [x] Offline8/final diff and independent code review pass:103 approval/workflow tests,5 handler tests and8 transaction-failure probes. No runtime/security finding; configuration readiness is not live provider authorization and elected card creation is not guaranteed delivery.
+- [ ] Exact committed-head Node20/24/real PostgreSQL CI and final review identity before merge. No release/publication or optional enablement yet.
+- [ ] Then rework #84 once with shared deterministic public-output privacy enforcement, output regressions and no paid comparison; one combined exact-SHA release and Aryan's prescribed smokes follow both decisions. Memory notice/checklist preparation only; no flag until notice approval plus explicit enablement.
+
+## October24 — existing #28 current-main integration
+
+- [x] Integrate deployed main `d550dc1` with both boot workflows, both exported recovery/publication seams and combined approval/reference-memory SQL checks preserved.
+- [x] Full1063/offline8/diff and disposable PGlite SQL pass. No customer database, Discord/provider call, GitHub publication or settings change.
+- [x] Independent review reproduced a shared-forum scope inconsistency in automatic staging and missing-source webhook notices. Both actual-owner regressions fail before repair. One shared `customerThreadScope` predicate now composes matching thread/binding/owner with an unfiltered unique case/customer lookup in all three paths; missing/ambiguous/unavailable proof refuses. Original-source replies remain usable in shared channels.
+- [x] Repaired tree passes1069/offline8/isolated SQL; scoped independent re-review passes362 affected checks with no remaining finding. Positive fixtures now supply real thread/lookup proof; no existing assertion weakened.
+- [ ] Exact-head hosted Node20/24/multi-connection PostgreSQL, independent privacy/authorization review and affected-flow integration before readiness. Keep draft; decision dueOctober27 does not waive safety.
+
 ## October24 — existing #59 current-main integration
 
 - [x] Integrate deployed main `d550dc1`, retaining the existing shared persona diff and current source, language, redirect and runtime safeguards.
@@ -271,6 +291,10 @@ Deferred work has durable [GitHub issue links and resumption gates](SUPPORT_MAST
 - [x] Push runtime `698609f` with a fresh full `npm test`; hosted Node 20/24/Postgres run `39125817220` passes.
 - [ ] Independent review. Run its own answer comparison only after #48 is graded; no merge/deploy from local/hosted tests or the waived deployment timer alone.
 
+October 18: #28 integrates deployed main `7fe0e0a`; 844 unit tests, offline 8/8, isolated SQL, hosted Node 20/24/Postgres at runtime merge `758808a` and the fresh production-configured read-only staff audience gate pass. Independent re-review remains pending. Earlier October 12 audience rejection is historical, not a request for another permissions change. Release 1 live smoke still precedes another deployment. All memory/context/inbox switches stay off.
+
+The controlling product acceptance checklist is [SUPPORT_MASTER_PLAN.md](SUPPORT_MASTER_PLAN.md). This file maps implementation details; checked engineering work does not complete the product's live acceptance. Maintain the A–E workstreams across second-opinion reviews and preserve unfinished work, authorization blockers and the next concrete step. The current combined runtime candidate is #47; this documentation update does not alter its frozen comparison.
+
 Implement the [architecture](ARCHITECTURE.md) incrementally, retaining the working answer/review, official retrieval, public commands and private staff delivery. [The roadmap](../ROADMAP.md) is the authoritative progress record. Reports 1–3 passed. The retained #43 release record has localization deployed at `dad2505`, but its live close/reopen smoke is still pending; this branch does not recheck production. The support-experience foundation below is a separate draft. Each runtime change needs regression checks and release verification. No cloud access grants accompany this work.
 
 </details>
@@ -372,19 +396,29 @@ The encrypted-text implementation below is historical implementation evidence, *
 
 ## Phase 1 Durable workflows without new backend access
 
-- [ ] Add support cases with customer ownership, context summary, attempted steps, missing details, source references, linked work, delivery destination and resolution state.
+- [x] Add support cases with customer ownership, categories/source references, linked work, delivery destination and resolution state.
+- [ ] Add a retained cumulative context summary, attempted steps and missing details with an approved retention/deletion policy.
 - [x] Move message claims, per-case locks, duplicate-answer state, verification bindings and verification throttles to durable storage. Add expiries, revocation and encryption; do not persist raw verification codes.
 - [x] Add bounded leased workers and a metadata-only queue for unstarted requests.
 - [ ] Add the complete delivery outbox with attempt tracking, reconciliation and retries. Use backoff and an overall deadline, not unlimited retries.
 - [x] Stop new work on shutdown; drain accepted work and queue unstarted requests. Coordinate overlapping copies through Postgres claims. Started requests with uncertain delivery remain an operator-reconciliation task.
 - [x] Make `/done`, ratings/reopening and Telegram delivery operate on the same case state. Failed customer delivery must not resolve a case.
 - [x] Record real staff acceptance through an authenticated private-card action; preserve the first accepting actor/time.
+- [x] Persist encrypted staff-authored issue/comment drafts, scoped revisions, original cards, private previews, atomic approval claims and verified action results across restarts.
+- [x] Require explicit staff confirmation of the exact sanitized public summary; prevent public-card publication, stale previews, cross-customer/repository retargeting and blind retries after uncertain writes.
+- [x] Stage owning-customer follow-ups in dedicated threads for staff-approved comments on one unambiguous linked issue; retain manual selection for shared channels and multiple targets.
+- [x] Add read-only GitHub receipt reconciliation and idempotent private-link repair; never infer trusted ownership from a public marker.
+- [x] Draft #28: validate actual Discord staff audience and bot permissions before full-card delivery and GitHub actions; fetch only an unconfigured direct grantee uncached and fail closed on unknown/stale proof. Add boot validation and a bounded metadata-only Telegram alert; preserve existing readiness and shutdown.
+- [x] Obtain `private_staff_destination` from the approved production-configured read-only audience check after Aryan's permission repair. This does not approve #28's release.
+- [x] Reverify #28's current-main integration locally and repeat the read-only audience gate: 844 tests, offline 8/8, isolated SQL and `private_staff_destination` pass.
+- [x] Pass hosted Node 20/24/Postgres checks for runtime merge `758808a`.
+- [ ] Obtain independent re-review and check the latest head before merging #28. Never add unverified roles or relax checks to force a pass.
+- [ ] Add automatic draft retention cleanup, a general delivery outbox and Telegram destination verification. The bounded GitHub reconciliation flow is not the complete outbox.
 - [x] Shipped #41: project accepted/work/waiting/resolved/closed state into the existing private cards; persist message references, serialize edits and recover missed updates after restart. Retire deleted cards without reposting.
 - [x] Shipped #41: send one localized customer-thread acceptance notice naming the actual staff member; retain uncertainty and direct staff to Jump on notification failure. Clear prior ownership on a new reopened acceptance cycle.
 - [x] Phase 3 correction: every unconfirmed acceptance notification explicitly tells staff to reply in the customer's thread, in an ephemeral response. Confirmed boot/30-second sweep wiring and stale-card repair after a failed edit; Phase 2 main merged without a rebase. Combined unit suite 661 pass, offline 8/8.
 - [x] Report 3 review and production smoke accepted: English/Spanish acceptance/start/wait/refresh-after-restart and `/done` closure. No extra live double-click test required; reopening remains a later #30 smoke prerequisite.
 - [x] Phase 4b draft: localize the closing card from stored case language for the 14 acceptance languages, with English fallback; preserve all feedback IDs, links and delivery/ownership checks. Seven new tests (five red before), 668 unit tests pass; review and deployment remain pending after #42.
-- [ ] Persist staff-approved issue drafts and action results so a restart does not invalidate the File workflow. Decide whether approved customer updates should reach linked GitHub issues; do not document an inactive path as working.
 - [x] Correct exact order targeting: an explicit number not found stays a miss, never another order. Move the retired Shopify API version to a supported tested contract and verify the actual response version. Shopify documents [version fallback](https://shopify.dev/docs/api/usage/versioning) and [order-access scopes](https://shopify.dev/docs/api/usage/access-scopes).
 - [ ] Add bounded historical-order pagination and explain accessible history privately.
 
@@ -413,6 +447,7 @@ Acceptance: valid owner succeeds; unverified, expired, revoked, wrong customer, 
 ## Phase 3 Helpful communication backed by real case state
 
 - [x] Incorporate the standing support preference into answer/reviewer contracts and deterministic personal-action replies: empathy, remembered attempts, concise uncertainty and one delivery-controlled support next step.
+- [x] Normalize localized source labels and fullwidth punctuation without dropping real prose or unknown evidence groups.
 - [ ] Test before/after verification, staff delivery success/failure, staff acceptance, known/unknown recovery, and repeated follow-ups in several languages.
 - [ ] Distinguish attempted action, completed lookup, delivered case, accepted case and confirmed resolution in every reply.
 - [ ] Add an approved incident/release record with affected versions, supported workaround, deployment evidence and freshness. A merged PR is background, not a shipped-fix claim.

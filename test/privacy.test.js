@@ -97,7 +97,7 @@ test('a phone word in the sentence does not turn builds and serials into phone n
 
 test('a phone number written into a bug report stays out of the public issue', () => {
   const body = issueBody({
-    quote: 'The app crashes when I open Memories. Phone number: 9876543210 if you need to reach me.',
+    technicalSummary: 'The app crashes when I open Memories. Phone number: 9876543210 if you need to reach me.',
   });
   assert.doesNotMatch(body, /9876543210/);
   assert.ok(body.includes('The app crashes when I open Memories. Phone number: [phone] if you need to reach me.'));
