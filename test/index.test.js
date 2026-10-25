@@ -182,6 +182,53 @@ const { makeStaffChannel } = require('./fixtures/discord-staff-channel');
 const supportThreadLanguage = require('../supportThreadLanguage');
 const { unreadMediaSentence } = require('../attachments');
 
+test('signed GitHub HTTP ingress fences duplicate events before the real scoped notifier sends', async t => {
+  const { createHmac, randomUUID } = require('node:crypto');
+  const http = require('node:http');
+  const notices = require('../githubNoticeReceipts');
+  const links = require('../supportIssueLinks');
+  const priorSecret = process.env.GITHUB_WEBHOOK_SECRET;
+  process.env.GITHUB_WEBHOOK_SECRET = 'synthetic-webhook-secret';
+  notices.setStoreForTests(notices.createMemoryStore());
+  links.setStoreForTests(links.createMemoryStore());
+  t.after(() => { notices.setStoreForTests(null); links.setStoreForTests(null);
+    if (priorSecret === undefined) delete process.env.GITHUB_WEBHOOK_SECRET; else process.env.GITHUB_WEBHOOK_SECRET = priorSecret; });
+  const value = await supportCases.getOrCreateCase({ channelId: 'synthetic-http-thread', customerId: 'synthetic-http-owner' });
+  await links.link({ repo: 'basedhardware/omi', issueNumber: 42, caseId: value.id, customerId: value.customerId,
+    channelId: value.channelId, threadId: null, sourceMessageId: 'synthetic-http-source', approvedBy: 'synthetic-staff' });
+  let sent = 0;
+  t.mock.method(client.channels, 'fetch', async () => ({ id: value.channelId, isTextBased: () => true,
+    messages: { fetch: async () => ({ id: 'synthetic-http-source', author: { id: value.customerId }, reply: async () => {
+      sent++; return { id: '100000000000000999' };
+    } }) } }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const body = JSON.stringify({ action: 'closed', repository: { full_name: 'BasedHardware/omi' }, issue: { number: 42 } });
+  const deliveryId = randomUUID();
+  function post(overrides = {}, extra = {}) { return new Promise((resolve, reject) => {
+    const requestBody = JSON.stringify({ ...JSON.parse(body), ...extra });
+    const requestSignature = 'sha256=' + createHmac('sha256', process.env.GITHUB_WEBHOOK_SECRET).update(requestBody).digest('hex');
+    const headers = { 'content-type': 'application/json', 'x-hub-signature-256': requestSignature,
+      'x-github-delivery': deliveryId, 'x-github-event': 'issues', ...overrides };
+    const req = http.request({ hostname: '127.0.0.1', port: server.address().port, path: '/github-webhook', method: 'POST', headers }, res => {
+      res.resume(); res.on('end', () => resolve(res.statusCode));
+    }); req.on('error', reject); req.end(requestBody);
+  }); }
+  const beforeCalls = modelCalls.length;
+  assert.deepEqual(await Promise.all([post(), post({}, { installation: { id: 123 } })]), [200, 200]);
+  assert.equal(sent, 1);
+  assert.equal(await post({ 'x-github-delivery': randomUUID() }), 200);
+  assert.equal(sent, 2, 'new event with identical status wording is still delivered');
+  assert.equal(await post({ 'x-github-delivery': '' }), 400);
+  assert.equal(await post({ 'x-github-event': 'pull_request' }), 400);
+  assert.equal(await post({ 'x-hub-signature-256': 'sha256=invalid' }), 401);
+  notices.setStoreForTests({ begin: async () => { throw Error('Synthetic database unavailable'); } });
+  assert.equal(await post({ 'x-github-delivery': randomUUID() }), 503);
+  assert.equal(sent, 2);
+  assert.equal(modelCalls.length, beforeCalls);
+});
+
 test('quiet staff replies enter optional case memory without becoming customer questions', async t => {
   const observed = [];
   t.mock.method(require('../supportLearning'), 'getObserver', () => ({

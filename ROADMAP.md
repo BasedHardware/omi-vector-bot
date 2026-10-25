@@ -1,5 +1,25 @@
 # Omi Support Bot Roadmap
 
+## Latest October25 — duplicate-notice repair verified locally, not released
+
+`fix/github-notice-replay` adds a committed PostgreSQL event/recipient fence to the existing GitHub notifier, preserving its case/source/customer checks. Six new functional regressions fail before the change; the final tree passes1180 full tests,8 no-model checks, signed local HTTP ingress and isolated PGlite SQL. Same-event concurrent/restarted delivery sends once; a new event with identical wording still sends. Unknown send/receipt outcomes remain held, never blindly retried. No prompt or provider behavior changed and no paid run occurred. Independent review, exact-head multi-connection PostgreSQL CI and receipt-metadata retention review remain before readiness. No merge/deploy/settings/assignment or memory enablement. The prior queue was verified at zero; one focused draft is next. Clean-release/pilot sign-off remains held, score49/100 unchanged.
+
+## Latest October25 — preview verified; duplicate update notices need disposition
+
+How-to, damage privacy, order privacy and staff-authored private engineering preview are verified on `c6f482d` / `3d4cb5d8`. Aryan then explicitly confirms clicking Publish beyond the planned stop: the public issue contained exactly the synthetic summary, not private customer data. With separate approval, issue23602 was closed as not planned with a test-only note, preserving its body/history. This is not a customer incident or resolution.
+
+The later cleanup exposed two note notices and two closure notices in the test thread for one GitHub comment and one closure event. Source inspection and an offline repeated-event diagnostic reproduce two sends in both current code and rollback38337e7: no cross-delivery event receipt exists. The actual duplicate ingress source is unproven. Hold clean-release sign-off and memory pilot pending a focused reliability decision; no code, deployment, setting, assignment or paid run changed during diagnosis. Production remains healthy, optional/automatic deployment controls off, zero open support PRs. No new milestone point is claimed. Earlier smoke-pending checkpoints below are historical.
+
+**Latest October25 smoke checkpoint:** the19:30 IST English phone-only answer passes screenshot and live official-source review: complete short steps, relevant source and no customer-facing handoff claim. Logged asMSA-056; this is not customer-resolution proof. Aryan confirms triggering same-commit deployment `3d4cb5d8` at19:31 IST; it is now SUCCESS/latest with exact `c6f482d`, healthy readiness, one active/running instance and optional/auto controls off. No additional agent deployment or settings change. Damage privacy, order privacy and private engineering-preview-stop smokes remain; the earlier rollout record follows for history.
+
+## Current October25 — merged and deployed, smoke acceptance pending
+
+#84 merged as `c6f482d` after full1165/offline8/isolated SQL, exact-head Node20/24/real PostgreSQL CI and independent scoped review. The same merged main passes those checks and was deployed once from its exact GitHub SHA as `306d8377`. Railway records the matching commit, SUCCESS, healthy configured handoff, schema/Discord readiness and one active/running instance. The old process logged clean drain. Automatic deployment and all optional memory/context/fix-inbox controls remain off; no settings changed. Fresh verified rollback is `7b41e119` / `38337e7`.
+
+There are zero open PRs. This is deployed, not yet release-accepted: Aryan must run the prescribed how-to, damage privacy, order privacy and private engineering-preview smokes, stopping before Publish. Any failure rolls back. #75 was closed unmerged, so its correction smoke is not required. Memory preparation/notice approval and explicit enablement remain separate. #62/#83 are queued; no further paid run.
+
+## Earlier pre-release verification snapshot
+
 ## Current October25 — Step2 merged, deterministic privacy repair next
 
 #84 implements its one authorized deterministic output rework: shared request/echo filtering, application-owned localized private path gated by actual availability/delivery, question-aware handoff naming and final source/next-step/safety-warning length reservation. Initial32 output regressions were observed red; additional independent findings are repaired with output tests, not prompt self-certification. Full1165/offline8/isolated SQL and independent final scoped review pass. Exact final-head hosted CI/identity remain before readiness; keep draft and production unchanged. No paid run.

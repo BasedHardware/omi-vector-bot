@@ -163,10 +163,18 @@ app.post('/github-webhook', express.raw({ type: 'application/json' }), async (re
   }
   const event = github.describeWebhookEvent(payload);
   if (event) {
+    const deliveryId = req.headers['x-github-delivery'];
+    const expectedType = payload.pull_request ? 'pull_request' : payload.comment ? 'issue_comment' : 'issues';
+    if (!require('./githubNoticeReceipts').validDeliveryId(deliveryId) || req.headers['x-github-event'] !== expectedType) {
+      res.status(400).send('invalid delivery headers');
+      return;
+    }
     try {
-      await commands.notifyLinkedThreads(client, event);
-    } catch (err) {
-      console.error('[GitHub] webhook post failed:', err.message);
+      await commands.notifyLinkedThreads(client, { ...event, deliveryId });
+    } catch {
+      console.error('[GitHub] webhook notice coordination unavailable');
+      res.status(503).send('notice coordination unavailable');
+      return;
     }
   }
   res.send('ok');

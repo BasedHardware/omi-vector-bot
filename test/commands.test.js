@@ -1,5 +1,9 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { randomUUID } = require('node:crypto');
+const noticeReceipts = require('../githubNoticeReceipts');
+test.beforeEach(() => noticeReceipts.setStoreForTests(noticeReceipts.createMemoryStore()));
+test.after(() => noticeReceipts.setStoreForTests(null));
 const {
   closeHandoff,
   closePayload,
@@ -706,7 +710,7 @@ test('GitHub webhook notify posts one line and never archives', async () => {
         isTextBased: () => true,
         send: async (text) => {
           sent.push(text);
-          return text;
+          return { id: '100000000000000999' };
         },
         setArchived: async () => {
           throw new Error('must not auto /done');
@@ -714,7 +718,7 @@ test('GitHub webhook notify posts one line and never archives', async () => {
       }),
     },
   };
-  const n = await notifyLinkedThreads(client, { number: 9, numbers: [9], line: '#9 was closed.' });
+  const n = await notifyLinkedThreads(client, { deliveryId: randomUUID(), number: 9, numbers: [9], line: '#9 was closed.' });
   assert.equal(n, 1);
   assert.equal(sent[0].content, '#9 was closed.');
   assert.deepEqual(sent[0].allowedMentions.parse, []);
@@ -734,7 +738,7 @@ test('a forged vector-thread marker does not notify; a thread the bot linked doe
         isTextBased: () => true,
         send: async (text) => {
           sent.push({ id, text });
-          return text;
+          return { id: '100000000000000999' };
         },
         setArchived: async () => {
           throw new Error('must not auto /done');
@@ -743,6 +747,7 @@ test('a forged vector-thread marker does not notify; a thread the bot linked doe
     },
   };
   const forged = await notifyLinkedThreads(client, {
+    deliveryId: randomUUID(),
     number: 9,
     numbers: [9],
     threadIds: ['1550182642874589194'],
@@ -751,6 +756,7 @@ test('a forged vector-thread marker does not notify; a thread the bot linked doe
   assert.equal(forged, 0);
   github.linkIssueThread(9, '1550182642874589194');
   const linked = await notifyLinkedThreads(client, {
+    deliveryId: randomUUID(),
     number: 9,
     numbers: [9],
     threadIds: ['999'],
@@ -767,10 +773,12 @@ test('case-linked webhook notices address distinct source messages in a shared c
     customerId, channelId: 'general', threadId: 'general', sourceMessageId: `source-${customerId}` }));
   const replies = [];
   const client = { channels: { fetch: async () => ({ id: 'general', isTextBased: () => true, isThread: () => false,
-    messages: { fetch: async (id) => ({ id, author: { id: id.replace('source-', '') }, reply: async (payload) => replies.push({ id, payload }) }) },
+    messages: { fetch: async (id) => ({ id, author: { id: id.replace('source-', '') }, reply: async (payload) => {
+      replies.push({ id, payload }); return { id: '100000000000000999' };
+    } }) },
     send: async () => assert.fail('shared channel must not broadcast'),
   }) } };
-  const count = await notifyLinkedThreads(client, { number: 42, line: 'An engineering update is available.' }, {
+  const count = await notifyLinkedThreads(client, { deliveryId: randomUUID(), number: 42, line: 'An engineering update is available.' }, {
     issueLinks: { listForIssue: async () => [...records, records[0]] },
     cases: { getCaseById: async (id) => ({ channelId: 'general', customerId: id.replace('case-', '') }) },
   });
@@ -791,7 +799,7 @@ test('missing or wrong-author sources never produce shared-channel notices or by
       { id: 'another-source', author: { id: 'alice' }, reply: async () => assert.fail('wrong source') }]) {
       const count = await notifyLinkedThreads({ channels: { fetch: async () => ({ id: 'general', isTextBased: () => true, isThread: () => false,
         messages: { fetch: async () => original }, send: async () => assert.fail('must not broadcast'),
-      }) } }, { number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [record] },
+      }) } }, { deliveryId: randomUUID(), number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [record] },
         cases: { getCaseById: async () => ({ channelId: 'general', customerId: 'alice' }) },
       });
       assert.equal(count, 0);
@@ -810,7 +818,7 @@ test('missing source cannot broadcast into a forum shared by two customer cases'
   const record = {repo:'basedhardware/omi',issueNumber:42,caseId:value.id,customerId:'alice',channelId:'shared-forum',threadId:'shared-forum',sourceMessageId:'missing'};
   const client = {channels:{fetch:async()=>({id:'shared-forum',ownerId:'alice',isThread:()=>true,isTextBased:()=>true,
     messages:{fetch:async()=>null},send:async()=>{broadcasts++;}})}};
-  const count = await notifyLinkedThreads(client,{number:42,line:'Synthetic engineering status.'},{cases,issueLinks:{listForIssue:async()=>[record]}});
+  const count = await notifyLinkedThreads(client,{deliveryId:randomUUID(),number:42,line:'Synthetic engineering status.'},{cases,issueLinks:{listForIssue:async()=>[record]}});
   assert.equal(count,0);
   assert.equal(broadcasts,0);
 });
@@ -820,9 +828,9 @@ test('missing source fallback requires a case-bound dedicated customer or handof
   const record = { repo: 'basedhardware/omi', issueNumber: 42, caseId: 'case-alice', customerId: 'alice', channelId: 'general', threadId: 'dedicated', sourceMessageId: 'missing' };
   let sends = 0;
   const client = { channels: { fetch: async () => ({ id: 'dedicated', ownerId: 'alice', isThread: () => true, isTextBased: () => true,
-    messages: { fetch: async () => null }, send: async () => sends++,
+    messages: { fetch: async () => null }, send: async () => { sends++; return { id: '100000000000000999' }; },
   }) } };
-  const count = await notifyLinkedThreads(client, { number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [record] },
+  const count = await notifyLinkedThreads(client, { deliveryId: randomUUID(), number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [record] },
     cases: {
       getCaseById: async () => ({ id:'case-alice',channelId:'general',customerId:'alice',customerThreadId:'dedicated' }),
       getCaseByThread: async () => ({ id:'case-alice',customerId:'alice' }),
@@ -840,8 +848,8 @@ test('legacy status notices keep dedicated threads but skip ordinary general cha
   const sent = [];
   try {
     const count = await notifyLinkedThreads({ channels: { fetch: async (id) => ({ id, isTextBased: () => true, isThread: () => id === 'legacy-thread',
-      send: async (payload) => sent.push({ id, payload }),
-    }) } }, { number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [] } });
+      send: async (payload) => { sent.push({ id, payload }); return { id: '100000000000000999' }; },
+    }) } }, { deliveryId: randomUUID(), number: 42, line: 'Issue updated.' }, { issueLinks: { listForIssue: async () => [] } });
     assert.equal(count, 1);
     assert.equal(sent[0].id, 'legacy-thread');
     assert.deepEqual(sent[0].payload.allowedMentions.parse, []);

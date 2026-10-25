@@ -1,5 +1,41 @@
 # Omi Support Bot Implementation Checklist
 
+## Local duplicate-notice candidate — no production mutation
+
+- [x] Observe six intended failures in eight original replay tests before implementing the fence; preserve distinct-event and wrong-owner behavior.
+- [x] One durable PostgreSQL event/authorized-recipient receipt in the existing GitHub notification pipeline; no memory fallback on configuration/SQL failure, no replay of ambiguous sends or receipt acknowledgments.
+- [x] Preserve source/customer/dedicated-thread and legacy restrictions; no pings, raw issue/comment text or automatic case closure. Same-event linked issue numbers share the original recipient fence.
+- [x] Signed local HTTP integration exercises actual ingress/notifier: concurrent deliveries with differing installation metadata, same-ID suppression, different-ID delivery, malformed/type/signature rejection and pre-send database outage; zero model calls.
+- [x] Final1180/1180 full tests,8/8 no-model customer checks and isolated PGlite schema/claims/receipt integration pass. SQL covers concurrent callers, adapter recreation, uncertain rows, distinct recipients, committed-write/ack-loss and text-free columns.
+- [ ] Independent final-diff review and exact-head hosted Node20/24/multi-connection PostgreSQL CI. PGlite serializes connections and is not the hosted concurrent-database proof.
+- [ ] Review receipt metadata retention/erasure under #85 before readiness. No automatic tombstone expiry/reset, outbox, universal exactly-once or complete delivery-recovery claim.
+- [ ] A separately approved release and appropriately scoped verification remain; no further Discord test or paid comparison requested now. Memory/other optional features stay off, score49/100 unchanged.
+
+## Latest October25 — private preview verified, post-publication reliability hold
+
+- [x] Replacement technical handoff and private editor/preview supplied at20:08 IST. Preview contains exactly the staff-authored synthetic title/body, public target and confirmation control; no customer identifiers or raw incident evidence.
+- [x] Record that Aryan explicitly clicked Publish beyond the stop point. GitHub issue23602 matches only the synthetic summary and App author. Separately approved close-as-not-planned plus test-only comment is verified; no deletion or customer-resolution claim.
+- [x] Diagnose the new duplicate status notices read-only: screenshot shows two note/two closure notices, while GitHub has one comment/one closure event. Offline same-event probes produce two sends in current and rollback38337e7; no event identity/durable replay receipt reaches the notifier. Actual live ingress duplication remains unproven.
+- [ ] Obtain disposition for a focused replay-safe notification repair; preserve existing case/customer/source checks and uncertain-delivery fencing, with synthetic red-before/SQL/concurrent/restart verification as appropriate. No code/PR/fix is claimed by the diagnostic.
+- [ ] Clean-release sign-off and memory-pilot progression remain held on this newly observed path. Do not repeat paid comparisons, enable optional flags, change settings or claim rollback fixes the pre-existing replay weakness. Current runtime remains healthy, zero open PRs, score49/100 unchanged.
+
+## Latest October25 smoke progress
+
+- [x] English phone-only how-to at19:30 IST: screenshot shows one complete short sourced answer with no customer-facing handoff claim; official guide independently confirms the steps. FeedbackMSA-056; no underlying customer recovery inferred.
+- [x] Damage privacy at19:38 IST: public reply has relevant source/evidence guidance, no public identifying-intake request and no replacement/deadline guarantee. Matching19:38 card supplied at19:46 shows delivery to #vector-staff and corrected no-public-account/order-intake guidance. Status remains awaiting staff acceptance, not accepted/resolved. Same answerMSA-057, no duplicate ID.
+- [x] Order privacy at19:50 IST: public reply says to have order/tracking details ready, not post them, and invents no customer-specific status or delivery date. Matching private card is awaiting acceptance and prohibits public order/account intake. Relevant shipping guidance verified; minor wording/source-selection improvements tracked asMSA-058, not a failed privacy smoke.
+- [x] Reconcile Aryan's19:31 same-commit redeploy `3d4cb5d8`: exact `c6f482d`, SUCCESS/latest, health/schema/Discord readiness, one active/running instance, optional controls and auto-deploy off. The original agent release was `306d8377`; no second agent deployment/settings change.
+- [ ] Engineering preview:19:55 public reply acknowledges the Android crash and prior attempts; matching private card is awaiting acceptance and shows Review technical summary. Handoff/control stage passes; staff-authored synthetic summary and exact private payload preview remain. STOP before Publish. Any failed required smoke rolls back to the verified prior deployment. Overall release acceptance and memory enablement remain pending. FeedbackMSA-059; reported scenario is not an independently reproduced crash.
+
+## October25 combined release checkpoint
+
+- [x] #84 merged `c6f482d`; final-head CI40195885182 and merged-main CI40196153378 pass Node20/24/real PostgreSQL. Final local1165/offline8/isolated SQL and independent scoped review pass.
+- [x] Exact GitHub main deployed once as `306d8377`; matching recorded SHA, healthy staff readiness, schema/Discord login, one active/running instance and old clean drain verified. Optional features and auto-deploy off; no settings change. Fresh rollback `7b41e119` / `38337e7`.
+- [ ] Aryan's how-to, damaged-item privacy, order privacy and engineering private-preview smokes. STOP before Publish; App configuration is ready, not verified public-write authority. Roll back on any failure. No release acceptance or live milestone added yet.
+- [ ] Then Step5 notice/checklist preparation only. No flag until notice approval plus explicit enablement; no additional paid run. Zero open PRs; #62/#83 remain queued.
+
+## Earlier pre-release verification snapshot
+
 ## Current October25 finish status
 
 - [x] Step1 decided: #59 merged38337e7 and subsequently operator-deployed7b41e119; #75 closed unmerged, evidence/branch retained. No further paid run.

@@ -1,6 +1,7 @@
 const { REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { isCloseableThread, canStaffAct, staffMentionIds, markHandoffClosed, sendToStaffChannel } = require('./handoff');
 const github = require('./github');
+const githubNotices = require('./githubNoticeReceipts');
 const orderFlow = require('./orderFlow');
 const supportCases = require('./supportCases');
 const { isDedicatedCustomerThread } = require('./customerThreadScope');
@@ -508,11 +509,39 @@ async function handleForgetSupportHistory(interaction, { forget = require('./sup
 }
 
 async function notifyLinkedThreads(client, event, options = {}) {
+  if (!githubNotices.validDeliveryId(event?.deliveryId)) {
+    console.error('[GitHub] notice ignored: delivery identity unavailable');
+    return 0;
+  }
   const nums = event?.numbers || (event?.number ? [event.number] : []);
   if (!client?.channels?.fetch) return 0;
   const issueLinks = options.issueLinks || require('./supportIssueLinks');
   const cases = options.cases || supportCases;
   const repo = github.repo().toLowerCase();
+  const receipts = options.noticeReceipts || githubNotices;
+  async function sendOnce(recipient, send) {
+    const receipt = githubNotices.keys(repo, event.deliveryId, recipient);
+    // This committed fence is outside the send-error catch. A SQL/acknowledgment
+    // failure before dispatch must not become an unfenced Discord request.
+    if (!(await receipts.begin(receipt))) return 0;
+    let sent;
+    try { sent = await send(); }
+    catch {
+      await receipts.uncertain(receipt).catch(() => {});
+      console.error('[GitHub] notice outcome uncertain; inspect original thread, do not replay');
+      return 0;
+    }
+    if (!githubNotices.validMessageId(sent?.id)) {
+      await receipts.uncertain(receipt).catch(() => {});
+      console.error('[GitHub] notice receipt unavailable; inspect original thread, do not replay');
+      return 0;
+    }
+    try {
+      if (await receipts.confirm({ ...receipt, messageId: sent.id })) return 1;
+    } catch { /* The committed started fence remains held, even after a restart. */ }
+    console.error('[GitHub] notice receipt not confirmed; inspect original thread, do not replay');
+    return 0;
+  }
   const notices = [];
   const legacyIds = new Set();
   const scopedIds = new Set();
@@ -539,8 +568,10 @@ async function notifyLinkedThreads(client, event, options = {}) {
   const seen = new Set();
   const payload = { content: event.line, allowedMentions: { parse: [], repliedUser: false } };
   for (const { record, value, target } of notices) {
-    const key = JSON.stringify([repo, record.issueNumber, record.sourceMessageId]);
+    const recipient = ['case', record.caseId, record.customerId, target, record.sourceMessageId];
+    const key = JSON.stringify(recipient);
     if (seen.has(key)) continue;
+    let send;
     try {
       const ch = await client.channels.fetch(target);
       if (!ch?.isTextBased?.() || String(ch.id || '') !== target) continue;
@@ -549,29 +580,32 @@ async function notifyLinkedThreads(client, event, options = {}) {
       catch { /* A missing source can fall back only to a proven dedicated thread. */ }
       if (original) {
         if (String(original.id || '') !== record.sourceMessageId || String(original.author?.id) !== record.customerId || typeof original.reply !== 'function') continue;
-        await original.reply(payload);
+        send = () => original.reply(payload);
       } else {
         if (typeof ch.send !== 'function' ||
             !(await isDedicatedCustomerThread(ch, value, {cases}))) continue;
-        await ch.send(payload);
+        send = () => ch.send(payload);
       }
-      seen.add(key);
-      n += 1;
     } catch {
       console.error('[GitHub] scoped notice delivery failed');
+      continue;
     }
+    seen.add(key);
+    n += await sendOnce(recipient, send);
   }
   for (const id of legacyIds) {
     // A legacy mapping must never bypass a failed modern ownership/source check.
     if (scopedIds.has(id)) continue;
+    let channel;
     try {
       const ch = await client.channels.fetch(id);
       if (!ch?.isThread?.() || !ch.isTextBased?.() || typeof ch.send !== 'function') continue;
-      await ch.send(payload);
-      n += 1;
+      channel = ch;
     } catch {
       console.error('[GitHub] legacy thread notice delivery failed');
+      continue;
     }
+    n += await sendOnce(['legacy-thread', id], () => channel.send(payload));
   }
   return n;
 }

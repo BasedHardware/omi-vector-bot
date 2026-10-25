@@ -7,6 +7,7 @@ const cards = require('../caseCards');
 const { SupportIdentityStore, initSchema: initIdentity } = require('../supportIdentityStore');
 const approvals = require('../supportApprovals');
 const issueLinks = require('../supportIssueLinks');
+const githubNoticeReceipts = require('../githubNoticeReceipts');
 const supportMemory = require('../supportMemory');
 const memoryStore = require('../supportMemoryStore');
 const { createObserver } = require('../supportLearning');
@@ -194,9 +195,40 @@ async function verifyRuntimePickupFences(pool, prefix) {
   console.log('Early pickup two-worker SQL: partition fences, independent sweeps, queue-limit exclusion, transient/lost-ack recovery and ambiguous-marker no-replay passed');
 }
 
+async function verifyGitHubNoticeReceipts(pool, prefix) {
+  await githubNoticeReceipts.initSchema(pool);
+  await githubNoticeReceipts.initSchema(pool);
+  const a = githubNoticeReceipts.createPostgresStore(pool);
+  const b = githubNoticeReceipts.createPostgresStore(pool);
+  const value = githubNoticeReceipts.keys('BasedHardware/omi', randomUUID(), ['case', prefix]);
+  assert.deepEqual((await Promise.all([a.begin(value), b.begin(value)])).sort(), [false, true]);
+  assert.equal(await b.confirm({ ...value, messageId: '100000000000000999' }), true);
+  assert.equal(await githubNoticeReceipts.createPostgresStore(pool).begin(value), false);
+  assert.equal(await a.confirm({ ...value, messageId: '100000000000000998' }), false);
+  await a.uncertain(value);
+  assert.equal((await pool.query('SELECT state FROM support_github_notice_receipts WHERE event_key=$1 AND recipient_key=$2',
+    [value.eventKey, value.recipientKey])).rows[0].state, 'sent');
+  const unknown = githubNoticeReceipts.keys('BasedHardware/omi', randomUUID(), ['case', prefix]);
+  assert.equal(await a.begin(unknown), true); await a.uncertain(unknown);
+  assert.equal(await b.begin(unknown), false);
+  const ackLost = githubNoticeReceipts.keys('BasedHardware/omi', randomUUID(), ['case', prefix]);
+  const lost = githubNoticeReceipts.createPostgresStore({ query: async (...args) => {
+    await pool.query(...args); throw Error('Synthetic committed-write acknowledgement lost');
+  } });
+  await assert.rejects(lost.begin(ackLost));
+  assert.equal(await b.begin(ackLost), false);
+  const other = { ...value, recipientKey: githubNoticeReceipts.keys('BasedHardware/omi', randomUUID(), ['case', prefix, 'another-owner']).recipientKey };
+  assert.equal(await b.begin(other), true);
+  const columns = (await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name='support_github_notice_receipts' ORDER BY ordinal_position")).rows.map(row => row.column_name);
+  assert.deepEqual(columns, ['event_key','recipient_key','state','message_id','created_at','updated_at']);
+  assert.ok([value.eventKey, value.recipientKey].every(key => !key.includes(prefix)));
+  console.log('GitHub notice receipts: atomic concurrent claim, restart suppression, distinct recipients, uncertain sends, lost acknowledgements and text-free schema passed');
+}
+
 async function verify(pool) {
 
   const prefix = `test-${randomUUID()}`;
+  await verifyGitHubNoticeReceipts(pool, prefix);
   // Exercise an additive upgrade without dropping existing rows or state.
   await pool.query(`CREATE TABLE IF NOT EXISTS support_cases (
     id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, customer_id TEXT NOT NULL,
