@@ -1,5 +1,19 @@
 # Omi Support Bot Implementation Checklist
 
+## October25 accepted review and private-intake draft
+
+- [x] Verify exact GitHub d550dc1 / deployment1bce9049 is already live, healthy and optional features off; reuse accepted German-handoff/redirect-cleanup smokes. No duplicate deploy/input.
+- [x] Close #82 without merge; preserve branch/tests/results. Its73→68 pass-both and11→21 unwanted-handoff failures plus missed factual defects do not justify model self-certification.
+- [x] Integrate main into #71 using merge commit137cd47;992/offline8/current Node20/24/Postgres CI pass. Independent launch review and128 affected checks pass for one final simultaneous two-arm81×2 comparison, with no paid preflight or retry.
+- [ ] Complete that one comparison and full independent output/source review. Merge only if approved with no material finding absent from main; otherwise close with branch/tests and #65 preserved. No further rework/rerun or automatic deploy.
+- [x] Open #83 for deterministic newer-applicable same-topic source preference, synthetic tests/no URL-specific exceptions; issue only.
+- [x] Audit main's public intake without provider calls: missing global private-only model rule and ambiguous staff order/damage requests confirmed. Five original synthetic transport/card regressions fail before, pass after the small shared-policy repair. Full979/offline8 pass; no model calls/customer data.
+- [x] Privacy draft scoped independent review passes117 affected offline checks and independently confirms5/5 intended red-before failures against main; no provider calls.
+- [ ] Privacy draft: current-head checks and separately authorized affected generated-answer verification before readiness. Instruction presence does not prove model compliance; do not merge/deploy from these tests.
+- [ ] #28 remains draft b48e401: current CI/1069/offline8/SQL/scoped362-check review pass; affected private approval/publication flow evidence still required. Decision by October27, no deadline waiver. #59/#75 retain their own comparison/release gates; memory stays off.
+
+Earlier dated checkpoints below are history; these decisions supersede their pending C/A/B instructions, not unfinished product requirements.
+
 ## October24 production fix B — rejected-review language
 
 - [x] Reproduce de/fr/es English-body/localized-footer failure with original real-handler and evaluation-wrapper tests; unknown language retains English by design.

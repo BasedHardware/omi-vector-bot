@@ -423,7 +423,7 @@ function staffDetailsRequest(route, question) {
   const replacingItem = new RegExp(`\\b(?:replac(?:e|ing)\\s+${itemWords}${physicalItem}|replacement\\s+(?:(?:for|of)\\s+)?${itemWords}${physicalItem}|${physicalItem}\\s+(?:needs?|requires?)\\s+(?:a\\s+)?replacement)\\b`, 'i').test(text);
   if ((route.area === 'shop' || ['shop', 'money'].includes(route.lane)) &&
       (damagedItem || replacingItem)) {
-    return 'If they did not provide photos or a video of the damage, the order email and the delivery date, ask for them. Ask for the order email privately.';
+    return 'Ask only for missing photos or a video of the damage, with identifying details hidden. If missing, ask for the order email and delivery date privately through the approved support path, never in the public thread.';
   }
   if (/\b(?:bulk|wholesale|sales|business|enterprise|company|corporate|\d+\s+(?:units|devices|omis))\b/i.test(text) &&
       (route.area === 'shop' || route.lane === 'shop')) {
@@ -435,7 +435,7 @@ function staffDetailsRequest(route, question) {
   }
   if (route.area === 'shop' || route.lane === 'shop') {
     if (looksLikeShippingQuote(text)) return 'Ask for the checkout destination and quoted shipping cost, not private address details.';
-    return 'If they did not provide the order number and the delivery date tracking shows, ask for both.';
+    return 'If they did not provide the order number and the delivery date tracking shows, ask for both privately through the approved support path, never in the public thread.';
   }
   if (['app', 'desktop', 'firmware'].includes(route.area) || route.lane === 'tech') {
     return 'If they did not name the device and the app version, ask for both.';

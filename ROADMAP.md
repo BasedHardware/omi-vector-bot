@@ -1,5 +1,9 @@
 # Omi Support Bot Roadmap
 
+## Current October25 — final multipart decision and private intake
+
+#80/#81 are deployed as exact GitHub d550dc1/1bce9049, with both limited release smokes accepted and optional features off. #82 is closed unmerged, branch/evidence retained. One final simultaneous main-versus-standalone-#71 comparison is authorised; independent full accuracy review decides merge or close, with no further rerun or automatic deploy. #83 tracks source-date conflicts as issue-only work. A separately authorised private-intake draft adds shared private-only instructions and corrects staff order/damage intake; five red-before/979 full/offline8 checks pass without provider calls. Instructions are not proof of generated-answer compliance: review/current CI and appropriate affected verification remain before readiness. #28's October27 decision and #59/#75/memory gates remain. Score47/100 unchanged. Dated checkpoints below are history.
+
 ## Current October23 — smoke passed, approved merges resume
 
 All three reliability checks pass: sourced English answer without handoff; one private refund card; same-commit Redeploy with clean drain, one post-SIGTERM reply and old instance observed removed after69.197s, stable30s. Live6a815fbf records unchanged6b6d97d; rollback458d4a6f, optional features off. #67 merged94e4f57 after the auto-deploy-off guard. #74 integration7860417 preserves reviewed privacy/#67 code;952/offline8/SQL and independent298-check review pass. Final hosted CI precedes its approved merge; no new-code deploy or memory enablement. #71's guard/shared-page repair and fair concurrent-arm comparison remain. The named timing test is reproduced by withholding loopback progress; its separate test-only fix stays queued. Score47/100.

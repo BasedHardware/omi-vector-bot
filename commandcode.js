@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { buildSystemPrompt, buildUserPrompt } = require('./prompt');
+const { buildSystemPrompt, buildUserPrompt, PUBLIC_REPLY_PRIVACY_POLICY } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING, hasUnsyncedDataRisk } = require('./answerPipeline');
 const { isInstructionSentence, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
@@ -475,6 +475,7 @@ async function understandQuestion({ question, threadHistory = [], route, onUsage
           role: 'system',
           content: 'Multipart search coverage: represent every distinct sub-question in sub_questions as {"question":"neutral requirement","query":"short English official-search wording"}, in the order asked. Produce one search query for each distinct sub-question, without adding an expected answer or diagnosis. Use at most eight distinct parts; group closely related requirements only when necessary. For more than three parts, one query per part takes priority over generic search variants; otherwise keep two to four short searches. Include these pairs alongside the existing JSON fields.',
         },
+        { role: 'system', content: PUBLIC_REPLY_PRIVACY_POLICY },
         {
           role: 'user',
           content: `Route: ${route?.lane || 'unknown'} / ${route?.area || 'unknown'}\nEarlier thread:\n${history || '(none)'}\n\nCustomer question:\n<<<CUSTOMER\n${String(question || '').slice(0, 5000)}\nCUSTOMER>>>`,
@@ -661,6 +662,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
           role: 'system',
           content: `${SUPPORT_VOICE}\n\nClarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. If understanding.dataLossRisk is true, retain a brief warning in the customer language not to reinstall, log out, or clear local recordings while staff checks; do not add an English warning to a non-English reply. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.${handoffPlanned ? ` ${PLANNED_HANDOFF_GUIDANCE}` : ''}`,
         },
+        { role: 'system', content: PUBLIC_REPLY_PRIVACY_POLICY },
         ...(citationLimit === 4 ? [{
           role: 'system',
           content: 'This request contains more than three distinct sub-questions. Its one Source line may contain at most four exact URLs from the retrieved evidence, instead of the ordinary two, when needed to support the requested parts. Keep each supported part brief and in the order asked.',
