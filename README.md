@@ -45,7 +45,7 @@ The [runbook](docs/RUNBOOK.md) covers database configuration, private staff deli
 
 PR CI runs Node 20/24 regression checks, the offline customer scenarios and isolated PostgreSQL integration without Discord, customer or provider credentials. Behavior changes need an observed failing regression, an appropriate functional check and independent review where required. Green unit tests alone do not establish answer accuracy.
 
-Live model evaluation is a separate, deliberate quota spend. Preserve complete baseline/candidate results and source provenance; do not selectively rerun protected cases. [Quality contract](docs/ANSWER_QUALITY_CONTRACT.md) · [Stage evidence](docs/ANSWER_STAGE_EVIDENCE.md).
+Live model evaluation is a separate, deliberate quota spend. Its in-memory retrieval and stubbed delivery do not exercise production PostgreSQL or the source-ingestion scheduler. Preserve complete results and provenance. [Evaluation guide and limits](docs/EVALUATION.md) · [Quality contract](docs/ANSWER_QUALITY_CONTRACT.md) · [Stage evidence](docs/ANSWER_STAGE_EVIDENCE.md).
 
 Every PR starts as a draft. A merge does not deploy the service. Production changes need their existing release gates, an exact commit, a verified rollback target and relevant smoke checks. Optional features stay off until explicitly enabled. Aryan performs Discord smoke messages and commands.
 

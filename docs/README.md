@@ -21,6 +21,7 @@ Start with the [master plan](SUPPORT_MASTER_PLAN.md). It is the current product 
 | [Memory pilot preparation](MEMORY_PILOT_PREPARATION.md) · [Pilot checks](MEMORY_PILOT_CHECKS.md) | References-only design, approved notice and still-required enablement gates |
 | [Reviewed-knowledge privacy](KNOWLEDGE_PRIVACY.md) · [Retention](KNOWLEDGE_RETENTION.md) | Owner-scoped correction links, erasure and mandatory cleanup |
 | [Answer-stage evidence](ANSWER_STAGE_EVIDENCE.md) | Text-free evaluation tracing and what historical results cannot prove |
+| [Evaluation guide](EVALUATION.md) | Offline checks, paid-run authorization, SQL versus in-memory harness coverage and release limits |
 | [Data strategy](MIRA_DATA_STRATEGY.md) | Dataset rights, original synthetic scenarios and future evaluation gates |
 
 ## History
