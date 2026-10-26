@@ -2,7 +2,21 @@
 
 October 26 local draft, not merged or deployed. This extends the existing parse → draft-safety → reviewer/second look → presentation → application-owned delivery pipeline. It adds no model stage, customer-history store, backend capability or receipt authority.
 
-**Latest decision: HOLD.** The separately approved follow-up passes23/24 candidate contracts versus21/24 on main, but one material unsupported applicability claim remains. This is a known fictional regression cohort, not global accuracy. See the final follow-up record below; both one-run grants are consumed and #91 remains draft.
+## Current restoration and relative gate — October 26
+
+Aryan adopted no candidate-only material final failure, no protected-handoff regression, and no lower candidate pass count. He chose **fix #91 before merging** after mapping showed main's similar definite interpretation was only in a draft and was corrected before final. Zero material failures is not the gate.
+
+The later bf3a40e unknown-answer policy/shared-selection expansion is withdrawn. Restore production/evaluation runtime exactly to reviewed16ff136/generated3ad91ff, preserving the original context/audit/narration/requirement repair. This is scope withdrawal, not proof that the expansion caused its stochastic factual error. Withdrawn code/tests and v2's failure remain in Git history/backlog; no consumed artifact or grade is modified.
+
+The first frozen comparison passes the corrected relative gate: **candidate22/24 versus main21/24**. Candidateq10-r1-A/q10-r2-B and mainq10-r1-B/q10-r2-A share the final email-only/missing-detail-or-person failure and all preserve uncertainty. All12 required-person controls per arm remain true, with no main-true→candidate-false pair. Shared applicability/next-step weakness remains#83; no global-accuracy claim.
+
+All77 non-test runtime/config/data/dependency files match the original manifest. Network-blocked replay matches **all96 request-body hashes** and saved intermediate/final audits, selection and actual decisions over48flows, with no regeneration or regrading. Five later generic handler/script-preservation controls are retained because they pass the original source; tests solely for the withdrawn APIs are removed with those APIs and preserved in history. Full **1,244**, no-model **8/8**, source parity and the96-request replay pass. Final restored-diff review/current-head hosted CI precede merge. Use **22/24**, never v2's23/24.
+
+Original frozen grade SHA256 `9af3a9b06e5390fc8e8fecab09452265e8576d3e56f7bce26271a380b3258a42` is unchanged. The original158 candidate files were independently checked against archive/Git blobs. #90's identical undated staff-flag scenario has no demonstrated date-order cause; its exact unsafe raw review is rejected by the #91 audit/second-look owner in offline replay. No new #91 paid run is authorized.
+
+## Historical design and experiment record
+
+The sections below retain original design, the withdrawn expansion and former absolute-gate HOLDs. Current scope/gating above supersedes those states; historical results remain unchanged.
 
 ## Failure and intended behavior
 

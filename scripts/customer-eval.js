@@ -4,7 +4,8 @@ const { relevantDocs } = require('../docs');
 const { relevantFeedback } = require('../feedback');
 const { buildToolFacts, OFFICIAL } = require('../prompt');
 const { planSearch, queryAgent, reviewAnswer } = require('../commandcode');
-const { selectReviewedAnswer, reviewWithSecondLook } = require('../reviewDecision');
+const { approvedReview, reviewWithSecondLook } = require('../reviewDecision');
+const { reviewRejectionReply } = require('../supportReplyCopy');
 const triage = require('../triage');
 const { prepareDraftForReviewWithAudit, presentReviewedAnswer } = require('../answerPipeline');
 const { getRemovalAudit } = require('../answerFilterAudit');
@@ -237,8 +238,12 @@ async function replyFor(scene, route) {
         .join('\n\n'),
       sessionId: `eval-${scene.id}-review`,
     }, { review: reviewAnswer });
-    Object.assign(agent, selectReviewedAnswer({ agent, checked, route,
-      question: scene.ask, language: searchPlan.replyLanguage }).agent);
+    const approved = approvedReview(checked);
+    agent.final_answer = approved || checked.safeHandoff
+      ? checked.final_answer
+      : reviewRejectionReply(searchPlan.replyLanguage, scene.ask);
+    agent.escalate = Boolean(agent.escalate || checked.escalate || !approved);
+    agent.confidence = Math.min(Number(agent.confidence) || 0.4, Number(checked.confidence) || 0.4);
     return { answer: presentReviewedAnswer(agent.final_answer, { question: scene.ask,
       language: searchPlan.replyLanguage, orderAvailable: false }), agent, from: 'model+review' };
   } catch (err) {

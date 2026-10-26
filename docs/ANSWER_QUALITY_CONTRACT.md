@@ -40,3 +40,8 @@ The proposed full structured contract is not implemented by adding prose to a pr
 ## Release gates
 
 One customer problem per draft PR. Record baseline failure, passing checks at the current SHA, remaining actual E2E/quality gaps and review status. Never mark ready from mocks or unit counts alone. Preserve current held comparison results; do not tune from sealed cases or restart them automatically. No merge, deploy or optional-feature enablement without its existing approval. Delivery milestone progress and answer-quality scores remain separate.
+
+
+### Relative merge gate — Aryan's October 26 direction
+
+Require no material final-answer failure absent from main, no tested protected-handoff regression, and a candidate pass count at least as high as main. Zero material failures is not the gate; track inherited weaknesses separately. Compare final replies/decisions, not a main draft later corrected by review. Preserve frozen grades. Reusing earlier generated evidence requires demonstrated relevant source/runtime/config identity and full saved results; review the restored diff and pass current checks. This grants no new provider quota, deployment, optional enablement or risk waiver.

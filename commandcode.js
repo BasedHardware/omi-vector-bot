@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { buildSystemPrompt, buildUserPrompt, PUBLIC_REPLY_PRIVACY_POLICY, UNRESOLVED_ANSWER_POLICY } = require('./prompt');
+const { buildSystemPrompt, buildUserPrompt, PUBLIC_REPLY_PRIVACY_POLICY } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING, hasUnsyncedDataRisk } = require('./answerPipeline');
 const { isInstructionSentence, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
@@ -668,7 +668,6 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
           content: `${SUPPORT_VOICE}\n\nClarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. If understanding.dataLossRisk is true, retain a brief warning in the customer language not to reinstall, log out, or clear local recordings while staff checks; do not add an English warning to a non-English reply. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.${handoffPlanned ? ` ${PLANNED_HANDOFF_GUIDANCE}` : ''}`,
         },
         { role: 'system', content: PUBLIC_REPLY_PRIVACY_POLICY },
-        { role: 'system', content: UNRESOLVED_ANSWER_POLICY },
         ...(safetyAuditTruncated ? [{ role: 'system', content: 'Some removed draft text exceeded the bounded audit budget and is unavailable. Do not infer its contents or assume the draft covered every requested point. Use only the supplied conversation and official evidence.' }] : []),
         ...(citationLimit === 4 ? [{
           role: 'system',

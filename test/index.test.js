@@ -1070,7 +1070,7 @@ for (const [language, phrase] of [
   if (language !== 'xx') assert.doesNotMatch(response.reply, /couldn't verify|won't substitute|a person needs to check/u);
 });
 
-test('shared review selection keeps Devanagari rejection copy for a Devanagari question', async t => {
+test('rejected review keeps Devanagari copy for a Devanagari question', async t => {
   const staff = enableStaffDelivery(t);
   const previousKey = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'synthetic-provider-key';
