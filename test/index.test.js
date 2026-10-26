@@ -204,7 +204,8 @@ test('signed GitHub HTTP ingress fences duplicate events before the real scoped 
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
-  const body = JSON.stringify({ action: 'closed', repository: { full_name: 'BasedHardware/omi' }, issue: { number: 42 } });
+  const body = JSON.stringify({ action: 'closed', repository: { full_name: 'BasedHardware/omi' },
+    issue: { number: 42, closed_at: new Date().toISOString() } });
   const deliveryId = randomUUID();
   function post(overrides = {}, extra = {}) { return new Promise((resolve, reject) => {
     const requestBody = JSON.stringify({ ...JSON.parse(body), ...extra });
@@ -223,6 +224,11 @@ test('signed GitHub HTTP ingress fences duplicate events before the real scoped 
   assert.equal(await post({ 'x-github-delivery': '' }), 400);
   assert.equal(await post({ 'x-github-event': 'pull_request' }), 400);
   assert.equal(await post({ 'x-hub-signature-256': 'sha256=invalid' }), 401);
+  const expired = { issue: { number: 42, closed_at: new Date(Date.now() - 31 * 86400000).toISOString() } };
+  assert.equal(await post({}, expired), 200);
+  assert.equal(await post({ 'x-github-delivery': randomUUID() }, expired), 200);
+  assert.equal(await post({}, { issue: { number: 42 } }), 400);
+  assert.equal(sent, 2, 'old/manual redelivery and missing subject time cannot send or refresh a receipt');
   notices.setStoreForTests({ begin: async () => { throw Error('Synthetic database unavailable'); } });
   assert.equal(await post({ 'x-github-delivery': randomUUID() }), 503);
   assert.equal(sent, 2);

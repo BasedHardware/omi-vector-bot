@@ -58,6 +58,7 @@ const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAn
 const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
 const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const { reviewRejectionReply } = require('./supportReplyCopy');
+const githubNotices = require('./githubNoticeReceipts');
 const { recordStage } = require('./answerStageEvidence');
 const triage = require('./triage');
 const supportCases = require('./supportCases');
@@ -103,7 +104,7 @@ let caseCardTimer;
 let unsubscribeCaseCards;
 let supportMemoryTimer;
 let threadLanguageTimer;
-let knowledgeCleanup;
+let knowledgeCleanup, noticeCleanup;
 const { createKnowledgeCleanup } = require('./knowledgeCleanup');
 const BOT_REPLY_MEMORY_MAX = 2000;
 const BOT_REPLY_MEMORY_MS = 24 * 60 * 60 * 1000;
@@ -166,12 +167,15 @@ app.post('/github-webhook', express.raw({ type: 'application/json' }), async (re
   if (event) {
     const deliveryId = req.headers['x-github-delivery'];
     const expectedType = payload.pull_request ? 'pull_request' : payload.comment ? 'issue_comment' : 'issues';
-    if (!require('./githubNoticeReceipts').validDeliveryId(deliveryId) || req.headers['x-github-event'] !== expectedType) {
+    if (!githubNotices.validDeliveryId(deliveryId) || req.headers['x-github-event'] !== expectedType) {
       res.status(400).send('invalid delivery headers');
       return;
     }
+    const occurredAt = githubNotices.eventTimestamp(payload);
+    if (occurredAt === null || occurredAt > Date.now() + 5 * 60000) return res.status(400).json({ error: 'invalid_event_time' });
+    if (!githubNotices.recent(occurredAt)) return res.status(200).json({ ok: true, ignored: 'expired_event' });
     try {
-      await commands.notifyLinkedThreads(client, { ...event, deliveryId });
+      await commands.notifyLinkedThreads(client, { ...event, deliveryId, occurredAt });
     } catch {
       console.error('[GitHub] webhook notice coordination unavailable');
       res.status(503).send('notice coordination unavailable');
@@ -1498,6 +1502,12 @@ async function start() {
         track: operation => runtime.track(operation), stopping: () => runtime.stopping,
       });
       knowledgeCleanup.start();
+      noticeCleanup = createKnowledgeCleanup({
+        store: { pruneExpiredProvenance: (...args) => githubNotices.pruneExpired(...args) },
+        track: operation => runtime.track(operation), stopping: () => runtime.stopping,
+        logUnavailable: () => console.error('[GitHub] notice retention cleanup unavailable; pending retry'),
+      });
+      noticeCleanup.start();
       await require('./supportIdentityStore').getStore().pruneExpired();
       coordinationReady = true;
       await github.hydrateIssueThreads();
@@ -1531,6 +1541,7 @@ async function shutdown(signal) {
     console.log(`[Bot] Received ${signal}, draining replies...`);
     runtime.stopAccepting();
     knowledgeCleanup?.stop();
+    noticeCleanup?.stop();
     clearInterval(recoveryTimer);
     clearInterval(caseCardTimer);
     clearInterval(supportMemoryTimer);

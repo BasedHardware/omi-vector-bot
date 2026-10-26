@@ -200,7 +200,12 @@ async function verifyGitHubNoticeReceipts(pool, prefix) {
   await githubNoticeReceipts.initSchema(pool);
   const a = githubNoticeReceipts.createPostgresStore(pool);
   const b = githubNoticeReceipts.createPostgresStore(pool);
-  const value = githubNoticeReceipts.keys('BasedHardware/omi', randomUUID(), ['case', prefix]);
+  const databaseNow = async () => Number((await pool.query('SELECT EXTRACT(EPOCH FROM clock_timestamp())*1000 AS at')).rows[0].at);
+  const scope = (owner = prefix, eventAt = Date.now() - 1000) => ({
+    ...githubNoticeReceipts.keys('BasedHardware/omi', randomUUID(), ['case', prefix, randomUUID()]),
+    customerKey: githubNoticeReceipts.customerKey(owner), eventAt: Math.floor(eventAt),
+  });
+  const value = scope();
   assert.deepEqual((await Promise.all([a.begin(value), b.begin(value)])).sort(), [false, true]);
   assert.equal(await b.confirm({ ...value, messageId: '100000000000000999' }), true);
   assert.equal(await githubNoticeReceipts.createPostgresStore(pool).begin(value), false);
@@ -208,21 +213,84 @@ async function verifyGitHubNoticeReceipts(pool, prefix) {
   await a.uncertain(value);
   assert.equal((await pool.query('SELECT state FROM support_github_notice_receipts WHERE event_key=$1 AND recipient_key=$2',
     [value.eventKey, value.recipientKey])).rows[0].state, 'sent');
-  const unknown = githubNoticeReceipts.keys('BasedHardware/omi', randomUUID(), ['case', prefix]);
+  const unknown = scope();
   assert.equal(await a.begin(unknown), true); await a.uncertain(unknown);
   assert.equal(await b.begin(unknown), false);
-  const ackLost = githubNoticeReceipts.keys('BasedHardware/omi', randomUUID(), ['case', prefix]);
-  const lost = githubNoticeReceipts.createPostgresStore({ query: async (...args) => {
-    await pool.query(...args); throw Error('Synthetic committed-write acknowledgement lost');
+  const ackLost = scope();
+  const lost = githubNoticeReceipts.createPostgresStore({ connect: async () => {
+    const client = await pool.connect();
+    return { release: () => client.release(), query: async (sql, args) => {
+      const result = await client.query(sql, args);
+      if (sql === 'COMMIT') throw Error('Synthetic committed-write acknowledgement lost');
+      return result;
+    } };
   } });
   await assert.rejects(lost.begin(ackLost));
   assert.equal(await b.begin(ackLost), false);
   const other = { ...value, recipientKey: githubNoticeReceipts.keys('BasedHardware/omi', randomUUID(), ['case', prefix, 'another-owner']).recipientKey };
   assert.equal(await b.begin(other), true);
   const columns = (await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name='support_github_notice_receipts' ORDER BY ordinal_position")).rows.map(row => row.column_name);
-  assert.deepEqual(columns, ['event_key','recipient_key','state','message_id','created_at','updated_at']);
-  assert.ok([value.eventKey, value.recipientKey].every(key => !key.includes(prefix)));
-  console.log('GitHub notice receipts: atomic concurrent claim, restart suppression, distinct recipients, uncertain sends, lost acknowledgements and text-free schema passed');
+  assert.deepEqual(columns, ['event_key','recipient_key','customer_key','event_at','expires_at','state','message_id','created_at','updated_at']);
+  const erasureColumns = (await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name='support_github_notice_erasures' ORDER BY ordinal_position")).rows.map(row => row.column_name);
+  assert.deepEqual(erasureColumns, ['customer_key','erased_before','expires_at']);
+  assert.ok([value.eventKey, value.recipientKey, value.customerKey].every(key => !key.includes(prefix)));
+
+  // Prune an expired fence, then prove the subject-age guard still blocks it.
+  const old = scope(prefix + '-expired', (await databaseNow()) - 31 * 86400000);
+  await pool.query(`INSERT INTO support_github_notice_receipts(event_key,recipient_key,customer_key,event_at,expires_at,state)
+    VALUES ($1,$2,$3,to_timestamp($4::double precision/1000),to_timestamp($4::double precision/1000)+INTERVAL '30 days','sent')`,
+  [old.eventKey,old.recipientKey,old.customerKey,old.eventAt]);
+  await a.pruneExpired();
+  assert.equal((await pool.query('SELECT 1 FROM support_github_notice_receipts WHERE event_key=$1', [old.eventKey])).rows.length, 0);
+  assert.equal(await b.begin(old), false);
+  const fresh = scope(prefix + '-expired', await databaseNow());
+  assert.equal(await b.begin(fresh), true); assert.equal(await a.begin(fresh), false);
+  // A fast application clock must not delete a fence while PostgreSQL still accepts its event.
+  await a.pruneExpired(Date.now() + 365 * 86400000);
+  assert.equal(await b.begin(fresh), false);
+
+  const erased = await a.eraseCustomer(value.customerKey);
+  assert.deepEqual(erased, { ok:true, remaining:false });
+  assert.equal((await pool.query('SELECT 1 FROM support_github_notice_receipts WHERE customer_key=$1', [value.customerKey])).rows.length, 0);
+  assert.equal(await b.begin(value), false, 'customer cutoff survives store recreation');
+  assert.equal(await b.confirm({ ...value,messageId:'100000000000000999' }), false, 'late ACK cannot recreate an erased receipt');
+  assert.equal((await pool.query('SELECT 1 FROM support_github_notice_receipts WHERE event_key=$1', [fresh.eventKey])).rows.length, 1, 'other customer is preserved');
+  // A subsequent server-time event remains deliverable after erasure.
+  const later = scope(prefix, (await databaseNow()) + 1000);
+  assert.equal(await b.begin(later), true);
+
+  // Independent batches each make progress even with an expiry backlog.
+  const expiryOwner = githubNoticeReceipts.customerKey(prefix + '-expiry-backlog');
+  const eraseOwner = githubNoticeReceipts.customerKey(prefix + '-erase-backlog');
+  for (const [owner, age] of [[expiryOwner,31], [eraseOwner,1]]) {
+    await pool.query(`INSERT INTO support_github_notice_receipts(event_key,recipient_key,customer_key,event_at,expires_at,state)
+      SELECT md5($1 || n::text)||md5(n::text || $1),md5('recipient'||n::text)||md5(n::text||'recipient'),$1,
+        clock_timestamp()-($2::int*INTERVAL '1 day'),clock_timestamp()+((30-$2::int)*INTERVAL '1 day'),'sent'
+      FROM generate_series(1,205) n`, [owner,age]);
+  }
+  assert.deepEqual(await a.eraseCustomer(eraseOwner), { ok:true,remaining:true });
+  const count = async owner => Number((await pool.query('SELECT COUNT(*) AS n FROM support_github_notice_receipts WHERE customer_key=$1', [owner])).rows[0].n);
+  assert.equal(await count(eraseOwner),105);
+  assert.equal((await a.pruneExpired()).remaining,true);
+  assert.equal(await count(expiryOwner),105);
+  assert.equal(await count(eraseOwner),5,'erasure does not starve behind expiry');
+  await a.pruneExpired(); assert.equal((await a.pruneExpired()).remaining,false);
+  assert.equal(await count(expiryOwner),0); assert.equal(await count(eraseOwner),0);
+
+  // Both lock orders are safe: a claim before erasure is removed; one after is denied.
+  const race = scope(prefix + '-race');
+  await Promise.all([a.begin(race),b.eraseCustomer(race.customerKey)]);
+  assert.equal(await a.begin(race),false);
+  assert.equal(await count(race.customerKey),0);
+  // Expired cutoffs are bounded and retiring them cannot revive old subject times.
+  await pool.query(`INSERT INTO support_github_notice_erasures(customer_key,erased_before,expires_at)
+    SELECT md5($1||n::text)||md5(n::text||$1),clock_timestamp()-INTERVAL '31 days',clock_timestamp()-INTERVAL '1 day'
+    FROM generate_series(1,205) n`, [prefix + '-old-cutoff']);
+  const expiredCutoffs = async () => Number((await pool.query('SELECT COUNT(*) AS n FROM support_github_notice_erasures WHERE expires_at<=clock_timestamp()')).rows[0].n);
+  assert.equal((await a.pruneExpired()).remaining,true); assert.equal(await expiredCutoffs(),105);
+  await a.pruneExpired(); assert.equal((await a.pruneExpired()).remaining,false); assert.equal(await expiredCutoffs(),0);
+  assert.equal(await b.begin(old),false);
+  console.log('GitHub notice receipts: concurrent claims, uncertain/lost ACK fences, subject-age rejection after pruning, customer erasure/recreation, bounded non-starvable cleanup and text-free schema passed');
 }
 
 async function verify(pool) {

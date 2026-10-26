@@ -20,7 +20,7 @@ function fixture(state = new Map()) {
   const client = { channels: { fetch: async () => channel } };
   const options = { noticeReceipts: receipts, issueLinks: { listForIssue: async () => [record] },
     cases: { getCaseById: async () => ({ customerId: record.customerId, channelId: record.threadId }) } };
-  const event = { deliveryId: EVENT, kind: 'closed', number: 42, numbers: [42], line: '#42 was closed.' };
+  const event = { deliveryId: EVENT, occurredAt: Date.now(), kind: 'closed', number: 42, numbers: [42], line: '#42 was closed.' };
   return { state, sent, source, channel, client, options, event, record };
 }
 
@@ -101,6 +101,8 @@ test('the legacy dedicated-thread notice path uses the same durable delivery fen
   const f = fixture();
   f.options.issueLinks.listForIssue = async () => [];
   f.channel.isThread = () => true;
+  f.options.cases.getCaseByThread = async () => ({ id: 'synthetic-case', customerId: f.record.customerId,
+    handoffThreadId: 'synthetic-thread' });
   f.channel.send = async payload => { f.sent.push(payload); return { id: '100000000000000999' }; };
   assert.equal(await notifyLinkedThreads(f.client, f.event, f.options), 1);
   assert.equal(await notifyLinkedThreads(f.client, f.event, f.options), 0);

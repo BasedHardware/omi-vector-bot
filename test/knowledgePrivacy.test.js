@@ -51,6 +51,21 @@ test('a correction-erasure failure cannot claim complete deletion, but the memor
   assert.equal(await store.isSuppressed({ ...scope, threadId: 'later-post' }, Date.now()), true);
 });
 
+test('owner forgetting erases notice receipts too, even when knowledge erasure fails', async t => {
+  policy(t); const calls = [];
+  const store = memoryStore();
+  assert.equal(await forgetOwnedThread(channel, 'another-owner', { store,
+    eraseNotices: async value => { calls.push(value); return { ok:true }; } }), false);
+  assert.equal(calls.length, 0);
+  assert.equal(await forgetOwnedThread(channel, channel.ownerId, { store,
+    eraseKnowledge: async () => ({ok:false}),
+    eraseNotices: async value => { calls.push(value); return {ok:true}; } }), false);
+  assert.deepEqual(calls, [scope]);
+  assert.equal(await store.isSuppressed(scope,Date.now()),true);
+  assert.equal(await forgetOwnedThread(channel, channel.ownerId, {store,
+    eraseKnowledge: async () => ({ok:true}), eraseNotices: async () => ({ok:false})}), false);
+});
+
 test('a thrown correction-erasure failure is metadata-only and never becomes a success', async t => {
   policy(t); const logs = [];
   t.mock.method(console, 'error', (...parts) => logs.push(parts.join(' ')));

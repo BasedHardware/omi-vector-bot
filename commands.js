@@ -513,14 +513,19 @@ async function notifyLinkedThreads(client, event, options = {}) {
     console.error('[GitHub] notice ignored: delivery identity unavailable');
     return 0;
   }
+  if (!githubNotices.recent(event.occurredAt, (options.now || Date.now)())) {
+    console.error('[GitHub] notice ignored: subject time missing or outside retention window');
+    return 0;
+  }
   const nums = event?.numbers || (event?.number ? [event.number] : []);
   if (!client?.channels?.fetch) return 0;
   const issueLinks = options.issueLinks || require('./supportIssueLinks');
   const cases = options.cases || supportCases;
   const repo = github.repo().toLowerCase();
   const receipts = options.noticeReceipts || githubNotices;
-  async function sendOnce(recipient, send) {
-    const receipt = githubNotices.keys(repo, event.deliveryId, recipient);
+  async function sendOnce(recipient, customerId, send) {
+    const receipt = { ...githubNotices.keys(repo, event.deliveryId, recipient),
+      customerKey: githubNotices.customerKey(customerId), eventAt: event.occurredAt };
     // This committed fence is outside the send-error catch. A SQL/acknowledgment
     // failure before dispatch must not become an unfenced Discord request.
     if (!(await receipts.begin(receipt))) return 0;
@@ -591,7 +596,7 @@ async function notifyLinkedThreads(client, event, options = {}) {
       continue;
     }
     seen.add(key);
-    n += await sendOnce(recipient, send);
+    n += await sendOnce(recipient, record.customerId, send);
   }
   for (const id of legacyIds) {
     // A legacy mapping must never bypass a failed modern ownership/source check.
@@ -605,7 +610,16 @@ async function notifyLinkedThreads(client, event, options = {}) {
       console.error('[GitHub] legacy thread notice delivery failed');
       continue;
     }
-    n += await sendOnce(['legacy-thread', id], () => channel.send(payload));
+    // Lifecycle/erasure needs verified attribution. Never retain a new orphan
+    // receipt or let a legacy mapping bypass missing/ambiguous customer proof.
+    let owner;
+    try { owner = await cases.getCaseByThread?.(id); }
+    catch { /* fail closed without exposing lookup details */ }
+    if (!owner || !(await isDedicatedCustomerThread(channel, owner, {cases}))) {
+      console.error('[GitHub] legacy notice ignored: customer attribution unavailable');
+      continue;
+    }
+    n += await sendOnce(['legacy-thread', id], owner.customerId, () => channel.send(payload));
   }
   return n;
 }

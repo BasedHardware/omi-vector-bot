@@ -1,6 +1,6 @@
 # Omi Support Bot Roadmap
 
-**#86 lifecycle candidate, October26:** the original durable GitHub notice fence is integrated with reviewed main928676b. Thirty-day retention, original payload-subject-age rejection and customer erasure are approved requirements, not yet verified implementation. Preserve original/uncertain delivery fences; remaining lifecycle regressions, real PostgreSQL/current-head CI and independent review gate merge. Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement.
+**#86 lifecycle candidate, October26:** integrated with reviewed main928676b. The approved30-day subject-age replay guard, customer erasure and bounded/non-starvable cleanup pass1202 local tests, no-model8 and isolated PostgreSQL-engine verification. Hosted real PostgreSQL/current-head CI and independent review still gate merge. [Lifecycle details](docs/GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement. #87/#88 are merged; only #86 remains open. #62 stays open for the reproduced narration/context loss despite its merged diagnostics. Score remains56/100.
 
 
 ## Current audited dashboard — October 25, 2026

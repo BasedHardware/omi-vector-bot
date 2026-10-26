@@ -1,13 +1,13 @@
 # Omi Support Bot Architecture
 
-**#86 lifecycle candidate, October26:** the original durable GitHub notice fence is integrated with reviewed main928676b. Thirty-day retention, original payload-subject-age rejection and customer erasure are approved requirements, not yet verified implementation. Preserve original/uncertain delivery fences; remaining lifecycle regressions, real PostgreSQL/current-head CI and independent review gate merge. Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement.
+**#86 lifecycle candidate, October26:** integrated with reviewed main928676b. The approved30-day subject-age replay guard, customer erasure and bounded/non-starvable cleanup pass1202 local tests, no-model8 and isolated PostgreSQL-engine verification. Hosted real PostgreSQL/current-head CI and independent review still gate merge. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement.
 
 
 ## Current integrated boundary — October 26, 2026
 
 Audited main `c6f482d` contains #59's reviewed voice, #28's durable private approval workflow and #84's shared public-intake privacy enforcement. Optional references-only memory/context and reviewed-fact foundations are merged but remain disabled. The [master plan](SUPPORT_MASTER_PLAN.md) separates main implementation coverage64/100 from delivery completion56/100 and full acceptance2/21; these are not accuracy percentages.
 
-The production cleanup's duplicate GitHub notices remain a separate current weakness. #86's lifecycle is now approved:30 days, payload-subject-age replay rejection and customer erasure; implementation/testing/integration review remain before merge. Preserve uncertain-send and ownership boundaries. #52's speculative stored summaries are dropped; no approved memory requirement or existing encryption is removed. The notice's revised AI-provider disclosure is approved as wording only, not publication or enablement. All older checkpoints below are history where superseded.
+Duplicate GitHub notices remain a production weakness until #86 is released. Its candidate fences dispatch with PostgreSQL, rejects stale subject times after receipt expiry, serializes customer erasure/claims and retains one minimal30-day customer/time replay cutoff. Mandatory bounded cleanup reuses the tracked worker independently of optional flags. Ownerless legacy mappings cannot create unerasable receipts. Independent review and hosted real PostgreSQL CI remain before merge; broader #85 case/link/approval lifecycles and #51 outbox work remain. #52's speculative stored summaries are dropped. The revised AI-provider notice has wording approval only, not publication or enablement. All older checkpoints below are history where superseded.
 
 ## Merged #88 — real-path evaluation stage evidence
 

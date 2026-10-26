@@ -1,6 +1,6 @@
 # Omi Support Bot Implementation Checklist
 
-**#86 lifecycle candidate, October26:** the original durable GitHub notice fence is integrated with reviewed main928676b. Thirty-day retention, original payload-subject-age rejection and customer erasure are approved requirements, not yet verified implementation. Preserve original/uncertain delivery fences; remaining lifecycle regressions, real PostgreSQL/current-head CI and independent review gate merge. Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement.
+**#86 lifecycle candidate, October26:** integrated with reviewed main928676b. The approved30-day subject-age replay guard, customer erasure and bounded/non-starvable cleanup pass1202 local tests, no-model8 and isolated PostgreSQL-engine verification. Hosted real PostgreSQL/current-head CI and independent review still gate merge. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement.
 
 
 ## Current audited execution — October 26, 2026
@@ -8,7 +8,8 @@
 - [x] Reconcile main `c6f482d` and completed #59/#28/#84 decisions with the retained comparison/CI/review/release receipts. Four bounded combined-release scenarios are verified, not universal accuracy.
 - [x] Audit fixed25×4 progress:16 main +16 tested +16 reviewed +8 verified operations =56/100;44 left. Main milestone implementation coverage64/100; full A–E2/21. [Ledger](SUPPORT_PROGRESS.json) and four automatic consistency checks preserve definitions.
 - [x] Audit12 open issues; close only speculative stored summaries #52 not planned. Preserve11 unresolved issues, existing assignments and closed-branch evidence. [Disposition](SUPPORT_ISSUE_AUDIT_2026-10-25.md).
-- [ ] #86 lifecycle approved:30-day bounded/non-starvable expiry, original payload-subject-age replay guard and customer erasure. Implement/red-before/real PostgreSQL/current CI/independent review before merge; no deletion that re-enables old sends.
+- [x] #86 lifecycle implemented locally:30-day bounded/non-starvable expiry, payload subject-time rejection, erasure of owned receipt rows with a minimal replay cutoff; red-before synthetic checks,1202/no-model8/isolated SQL pass.
+- [ ] #86 hosted real PostgreSQL/Node20/24 CI, final independent review and merge; later approved-release smoke. No deletion that re-enables old sends, memory enablement or new public test issue.
 - [x] #88 merged884fb46 with1174/offline8/current CI/independent35 checks and unchanged reply bytes; #62 remains separate from deployment/customer resolution.
 - [x] Step5 preparation and revised AI-provider-disclosing notice wording approved. Publication, processor/backups and explicit enablement remain unchecked; no memory flag changed.
 - [ ] Then #83 general source conflicts and #65 accuracy; remaining C/D/E and #51/#53/#56 operational reliability stay required. No automatic paid evaluation, customer data use, issue assignment, merge or deployment.
@@ -20,7 +21,8 @@ Older dated checklists below are retained implementation history, not current pe
 - [x] Add explicit per-turn evaluation collection, fixed text-free records, ephemeral keyed hashes, bounded overflow and closed late-work handling; no production logger/store or default activation.
 - [x] Wire actual generation/review/safety/presentation/clipping/handoff/send projection, plus opt-in harness collection and missing-baseline compatibility. No duplicate formatter or judge/prompt/source change.
 - [x] Focused synthetic real-function/reviewer/handler/handoff/harness, byte-parity, concurrency, bounds and failure checks pass without paid calls or Discord.
-- [x] Full1174/no-model8/exact-head CI and independent35-check review passed before merge884fb46. No paid rerun, customer-data use or separate deployment. Close #62 only after merged-main/integration evidence is checked; wider E2 execution-validity and customer outcome requirements remain.
+- [x] Full1174/no-model8/exact-head CI and independent35-check review passed before merge884fb46. No paid rerun, customer-data use or separate deployment.
+- [ ] Keep #62 open: integrated main still loses independent synthetic symptom/attempt context joined to narration. Redirect repairs and merged diagnostics do not complete the general narration/context-preservation requirement; prerequisites and safety conditions must remain attached.
 
 ## Current October25 finish status
 
