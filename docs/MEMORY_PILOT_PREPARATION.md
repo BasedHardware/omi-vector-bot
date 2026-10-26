@@ -1,10 +1,10 @@
 # References-only memory pilot — preparation, not enablement
 
-Audited against main `c6f482d`, October25,2026. Step5 preparation only: no notice approval/publication, configuration change, pilot, deployment or paid run. Replay disposition and applicable privacy/security/processor/backup gates remain.
+Updated October26,2026 against the merged references-only implementation. The exact notice wording below is approved; publication, configuration change, pilot, deployment and paid runs are not. #86 implementation/review and applicable privacy/security/processor/backup gates remain.
 
-## Proposed customer notice — needs Aryan's approval
+## Approved customer notice — wording only, not published
 
-> I'm Mira, Omi's AI support assistant. In this test forum, I can use up to two of your earlier support posts so you don't have to repeat steps. For memory, I keep references—not copies of your messages—for up to 30 days and read the messages live. Use /forget-support-history in your own support post to clear those references and stop future saving for you in this forum. This doesn't delete your Discord posts or other support records.
+> I'm Mira, Omi's AI support assistant. In this test forum, I may look back at up to two of your earlier support posts from the last 30 days, so you don't have to repeat what you've already tried. I don't save copies of your messages; I keep a link and re-read them when needed, and that text is sent to our AI provider only to write my reply. To clear this and stop it, use /forget-support-history in your own post. This doesn't delete your Discord posts or other support records.
 
 Test forum only, not public Help. Do not publish this as current enabled behavior. Minimal opt-out state remains. Operational case/approval/issue-link data and backup erasure are separate (#85); the memory command does not erase them. Processor handling and any platform review need actual evidence; transient context can reach the model provider, so do not promise otherwise.
 
@@ -31,8 +31,9 @@ Within a process with disabled policy, new/queued captures recheck the switch, c
 ## Before enablement
 
 - [ ] Resolve the duplicate-status release hold through reviewed disposition; #86 is not main/live.
-- [ ] Obtain Aryan's approval for the exact notice; publish it in the test forum before capture.
-- [ ] Review processor/data use, applicable security/platform review, deletion and backups. Existing30-day support-memory approval stands; it does not approve #86's new receipt lifetime.
+- [x] Exact revised notice wording approved by the October26 user-supplied reviewer decision, including AI-provider use.
+- [ ] Publish the approved notice in the test forum before capture, only under the later approved rollout.
+- [ ] Review processor/data use, applicable security/platform review, deletion and backups. Existing30-day support-memory approval stands. #86 has a separate30-day receipt lifecycle decision, not blanket approval for other operational metadata.
 - [ ] Privately verify runtime SHA, actual test-forum ID, allowlist, all controls, staff audience and a tested rollback target. No secrets in the receipt.
 - [ ] Obtain explicit **enable** approval for capture/context and the approved isolated runtime/destination. A generic “continue” or passed test is not enablement.
 - [ ] Arm required bounded metadata-only observation first. Aryan sends every Discord input/command/button; no automated posts.

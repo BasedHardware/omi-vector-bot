@@ -2,6 +2,8 @@
 
 ## Current operation checkpoint — October 25, 2026
 
+**October26:** fresh read confirms c6f482d/3d4cb5d8 remains healthy/latest/one running instance, optional controls and automatic deploy off. #88 is merged884fb46 but not deployed separately. #86's receipt lifecycle is approved30 days with original subject-time replay rejection and customer erasure; its implementation/CI/review still gate merge/release. Revised memory notice wording is approved, not posted or enabled. No new public Omi issue may be created for the next smoke; use an existing linked synthetic case or reviewed alternative after the release/observer is ready.
+
 Use [the current master plan](SUPPORT_MASTER_PLAN.md), not historical deployment instructions below. Last verified production is exact `c6f482d` / `3d4cb5d8`, optional memory/context/fix-inbox and automatic deploy off. Bounded how-to/damage/order/private-preview checks passed. Operator-triggered synthetic publication #23602 was separately closed not planned with the approved test-only note; it is not a customer incident or resolution.
 
 Duplicate note/closure notices exposed replay weakness; draft #86 is not deployed. Code/CI/integration review passes, but receipt-metadata retention/erasure is unapproved. Never clear held receipts or replay uncertain sends. Keep clean-release/pilot sign-off held pending disposition without repeating passed unrelated smokes. No new Discord input, paid run, settings change, deployment or optional enablement by this audit. Step5 is notice/checklist preparation only; actual environment configuration reaches a process only through the operator's approved replacement/restart, not instantly in already-running processes.

@@ -117,6 +117,22 @@ function captureModelUsage(state, event) {
   });
 }
 
+async function withTurnEvidence(state, operation, { enabled = false, stageModule, turn = 1 } = {}) {
+  if (!enabled || !stageModule) {
+    state.stageEvidenceStatus = enabled ? 'unavailable' : 'disabled';
+    return operation();
+  }
+  const collector = stageModule.createStageEvidence();
+  try { return await collector.run(operation); }
+  finally {
+    const result = collector.snapshot();
+    state.stageEvidence ||= [];
+    state.stageEvidence.push(...result.records.map(row => ({ turn, ...row })));
+    state.stageEvidenceTruncated = Boolean(state.stageEvidenceTruncated || result.truncated);
+    state.stageEvidenceStatus = state.stageEvidenceTruncated ? 'truncated' : 'captured';
+  }
+}
+
 function captureEscalation(state, parts) {
   if (!state) return;
   const line = parts.map(String).join(' ');
@@ -200,7 +216,7 @@ function evaluationDocsEvidence(retrieval, question, options, officialDocs, offi
   return retrieval.combineEvidence(officialDocs, official);
 }
 
-async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () => {} } = {}) {
+async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () => {}, stageEvidence = false } = {}) {
   // These overrides make it impossible for the harness to contact actual
   // customers or staff. They are set before index.js captures env values.
   process.env.VECTOR_TEST_CHANNEL_ID = '899999999999999999';
@@ -224,6 +240,8 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
   }
 
   const inRoot = (name) => require(path.join(root, name));
+  const stageModule = stageEvidence && fs.existsSync(path.join(root, 'answerStageEvidence.js'))
+    ? inRoot('answerStageEvidence.js') : null;
   const retrieval = inRoot('retrieval.js');
   const docs = inRoot('docs.js');
   const helpcenter = inRoot('helpcenter.js');
@@ -304,7 +322,9 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
       try {
         for (const turn of scene.turns || [scene.ask]) {
           const message = makeMessage(turn, channel, history, authorId);
-          await handleMessage(message);
+          await withTurnEvidence(state, () => handleMessage(message), {
+            enabled: stageEvidence, stageModule, turn: turnReplies.length + 1,
+          });
           reply = message.replies.map(payloadText).join('\n');
           turnReplies.push(reply);
         }
@@ -320,6 +340,8 @@ async function run(root, selected, { runs = 3, concurrency = 1, onProgress = () 
         id: scene.id, run: runIndex, reply, turnReplies, handoff: state.handoff, urls,
         escalationSignals: state.escalationSignals,
         timings: state.timings, modelCalls: state.modelCalls, latencyMs: Math.round(performance.now() - start),
+        ...(stageEvidence ? { stageEvidenceStatus: state.stageEvidenceStatus,
+          stageEvidence: state.stageEvidence || [] } : {}),
         pass: scene.observeOnly || Boolean(state.providerError) ? null : problems.length === 0,
         invalid: Boolean(state.providerError), problems,
       };
@@ -368,7 +390,7 @@ async function main() {
     ? path.resolve(value('--output'))
     : path.join(currentRoot, 'eval', 'results', `live-${path.basename(root)}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  const result = await run(root, selected, { runs, concurrency, onProgress: (partial) => {
+  const result = await run(root, selected, { runs, concurrency, stageEvidence: args.includes('--stage-evidence'), onProgress: (partial) => {
     fs.writeFileSync(outputPath, JSON.stringify(partial, null, 2));
   } });
   fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
@@ -380,4 +402,4 @@ async function main() {
 
 if (require.main === module) main().catch((err) => { console.error(err.message); process.exitCode = 1; });
 
-module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, captureEscalation, makeChannel, makeMessage, evaluationDocsEvidence, run };
+module.exports = { cases, selectCases, parseCaseLine, loadCasesFile, judge, summarize, captureModelUsage, captureEscalation, makeChannel, makeMessage, evaluationDocsEvidence, withTurnEvidence, run };

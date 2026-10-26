@@ -7,6 +7,7 @@ const { redactSensitive } = require('./privacy');
 const { SUPPORT_VOICE } = require('./supportVoice');
 const { normalizeSubQuestions } = require('./retrieval');
 const { isPreviousPost, splitHistory, previousContextBlock } = require('./supportContextFormat');
+const { recordStage } = require('./answerStageEvidence');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
 
@@ -692,12 +693,14 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const content = data?.choices?.[0]?.message?.content;
   if (!content) throw new Error('CommandCode review was empty');
   const parsed = jsonObject(content);
+  recordStage('review_parsed', parsed.final_answer);
   const sourceIds = Array.isArray(parsed.sources_used)
     ? parsed.sources_used.map((value) => String(value)).slice(0, 4)
     : [];
   const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, {
     question, language: understanding?.replyLanguage, dataLossRisk: understanding?.dataLossRisk === true,
   });
+  recordStage('review_safety', safety.answer);
   const answer = !String(safety.answer || '').trim()
     ? ''
     : safety.fallback

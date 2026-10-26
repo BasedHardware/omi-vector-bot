@@ -42,6 +42,6 @@ test('all 21 A–E acceptance requirements remain distinct and unmerged work doe
   assert.equal(items.length, 21);
   assert.equal(new Set(items.map(match => match[2])).size, 21);
   assert.deepEqual(items.filter(match => match[1] === 'x').map(match => match[2]), ['A3', 'B1']);
-  assert.match(plan, /New receipt retention\/erasure remains unapproved/);
+  assert.match(plan, /Receipt lifecycle approved October26/);
   assert.match(plan, /No memory flag until notice approval/);
 });

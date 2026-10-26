@@ -1,14 +1,18 @@
+const { recordStage } = require('./answerStageEvidence');
+
 function approvedReview(result) {
   return Boolean(result?.grounded && result?.relevant && String(result?.final_answer || '').trim());
 }
 
 async function reviewWithSecondLook(args, { review, log = console.log } = {}) {
   const first = await review(args);
+  recordStage('review_returned', first?.final_answer);
   if (approvedReview(first) || first?.safeHandoff) return first;
 
   let approved = false;
   try {
     const second = await review({ ...args, reasoningEffort: null });
+    recordStage('review_returned', second?.final_answer);
     approved = approvedReview(second);
     return approved ? second : first;
   } finally {
