@@ -6,15 +6,26 @@ for (const key of ['CMD_API_KEY','OPENCODE_API_KEY','DATABASE_URL','DISCORD_TOKE
 process.env.EVAL_NO_MODEL = '';
 globalThis.fetch = async () => { throw new Error('Unexpected network use in synthetic evaluation test'); };
 let language = 'en';
+let draftEscalate = false;
+let chosenReview = null;
 const provider = require('../commandcode');
 provider.planSearch = async () => ({replyLanguage:language,queries:[],standaloneQuestion:'How is text size adjusted?'});
-provider.queryAgent = async () => ({final_answer:'An unrelated draft.',confidence:0.9,escalate:false});
-provider.reviewAnswer = async () => ({final_answer:'An unrelated draft.',grounded:false,relevant:false,confidence:0.1,escalate:true});
+provider.queryAgent = async () => ({final_answer:'An unrelated draft.',confidence:0.9,escalate:draftEscalate});
+provider.reviewAnswer = async () => chosenReview || ({final_answer:'An unrelated draft.',grounded:false,relevant:false,confidence:0.1,escalate:true});
 require('../docs').relevantDocs = async () => '';
 require('../feedback').relevantFeedback = async () => '';
 require('../github').searchOfficialCode = async () => '';
 const {replyFor} = require('../scripts/customer-eval');
 const {reviewRejectionReply} = require('../supportReplyCopy');
+test('the real customer-eval wrapper clears stale draft escalation just like the handler', async t => {
+  draftEscalate = true; language = 'en';
+  chosenReview = { final_answer: 'Open Display, then Text size.', grounded: true, relevant: true, confidence: 0.9, escalate: false };
+  t.after(() => { draftEscalate = false; chosenReview = null; });
+  const result = await replyFor({id:'synthetic-selection-parity',ask:'Where is the documentation for text size?'}, {lane:'faq',area:'app'});
+  assert.equal(result.from, 'model+review');
+  assert.equal(result.agent.escalate, false);
+  assert.match(result.answer, /Open Display/);
+});
 test('copy helper handles regions, unknown/prototype keys and Hindi script without promises', () => {
   assert.equal(reviewRejectionReply('DE-DE'), reviewRejectionReply('de'));
   for (const unknown of ['xx','toString','__proto__','constructor']) assert.equal(reviewRejectionReply(unknown), reviewRejectionReply('en'));

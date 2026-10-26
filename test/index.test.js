@@ -1125,6 +1125,51 @@ test('actual handler keeps localized rejection and verified handoff after two na
   assert.doesNotMatch(result.reply, /forwarded|have notified|couldn't verify a direct answer/);
 });
 
+test('an unresolved official-source point reaches one real staff dispatch despite a FAQ-shaped question', async t => {
+  const staff = enableStaffDelivery(t);
+  const source = 'https://help.omi.me/en/articles/synthetic-reminder-options';
+  modelReply = { final_answer: 'The reminder option needs clarification.', confidence: 0.9, escalate: false };
+  reviewerResponse = () => ({ final_answer: `The guides disagree about custom reminder intervals, so that option remains uncertain.\nSource: ${source}`,
+    grounded: true, relevant: true, confidence: 0.9, escalate: true });
+  const result = await ask('Where is the documentation for custom reminder intervals?');
+  assert.equal(reviewCalls.length, 1);
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /guides disagree/);
+  assert.ok(result.reply.includes(source));
+  assert.equal((result.reply.match(/A person on the team has this now/g) || []).length, 1);
+  assert.doesNotMatch(result.reply, /help@|reply here in this thread|already investigating|accepted/i);
+});
+
+test('a missing applicability detail survives review selection without manufacturing a handoff', async t => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'Which app version is installed?', confidence: 0.9, escalate: false };
+  reviewerResponse = ({ draft }) => ({ final_answer: draft, grounded: true, relevant: true,
+    confidence: 0.9, escalate: false });
+  const result = await ask('Where is the documentation for custom reminder intervals?');
+  assert.match(result.reply, /Which app version is installed\?/);
+  assert.equal(staff.length, 0);
+  assert.doesNotMatch(result.reply, /team has this|will reply|help@/);
+});
+
+test('unresolved-point handoff failure preserves uncertainty and makes no receipt claim', async () => {
+  modelReply = { final_answer: 'The guides disagree about custom reminder intervals.', confidence: 0.9, escalate: false };
+  reviewerResponse = ({ draft }) => ({ final_answer: draft, grounded: true, relevant: true,
+    confidence: 0.9, escalate: true });
+  const result = await ask('Where is the documentation for custom reminder intervals?');
+  assert.match(result.reply, /guides disagree/);
+  assert.match(result.reply, /could not deliver|could not reach|couldn.t reach/i);
+  assert.doesNotMatch(result.reply, /team has this now|will reply in this thread|accepted/i);
+});
+
+test('cosmetic removal of a conditional email footer does not turn a solved FAQ into a staff case', async t => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'Open Reminders to view saved entries. If you need more help, email help@omi.me.', confidence: 0.9, escalate: false };
+  const result = await ask('Where is the documentation for viewing saved reminders?');
+  assert.match(result.reply, /Open Reminders/);
+  assert.doesNotMatch(result.reply, /help@/);
+  assert.equal(staff.length, 0);
+});
+
 test('official docs retrieval waits for the planner and runs once with its queries', async () => {
   const previousKey = process.env.CMD_API_KEY;
   const previousQueries = searchPlanQueries;

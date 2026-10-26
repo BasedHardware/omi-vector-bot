@@ -57,8 +57,7 @@ const { matchingRelease } = require('./releases');
 const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, fitPublicReply, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk, stripUnverifiedOrderClaims } = require('./answerPipeline');
 const { getRemovalAudit } = require('./answerFilterAudit');
 const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
-const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
-const { reviewRejectionReply } = require('./supportReplyCopy');
+const { selectReviewedAnswer, reviewWithSecondLook } = require('./reviewDecision');
 const githubNotices = require('./githubNoticeReceipts');
 const { recordStage } = require('./answerStageEvidence');
 const triage = require('./triage');
@@ -966,38 +965,16 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             } finally {
               stageMs.review += Math.round(performance.now() - reviewStart);
             }
-            const approved = approvedReview(checked);
+            const selected = selectReviewedAnswer({ agent: aiResponse, checked, route,
+              question: asked || question, language: replyLanguage });
+            const approved = selected.approved;
             if (!approved) observeSupport(observer => observer.signal(channel, {
               eventId: `${message.id}-review`, kind: 'review_rejected', area: route.area,
             }, message.author.id));
             reviewedGrounded = Boolean(approved);
-            aiResponse.final_answer = approved
-              ? github.reviewedPullMention(checked.final_answer, relatedPull)
-              : checked.safeHandoff
-                ? checked.final_answer
-                : reviewRejectionReply(replyLanguage);
+            Object.assign(aiResponse, selected.agent);
+            if (approved) aiResponse.final_answer = github.reviewedPullMention(aiResponse.final_answer, relatedPull);
             recordStage('review_selected', aiResponse.final_answer);
-            aiResponse.confidence = Math.min(
-              Number(aiResponse.confidence) || 0.4,
-              Number(checked.confidence) || 0.4
-            );
-            if (checked.escalate || !approved) {
-              aiResponse.escalate = true;
-              aiResponse.reason =
-                aiResponse.reason ||
-                (checked.relevant
-                  ? 'The answer was not fully supported by official pages.'
-                  : 'The drafted reply did not answer the customer question.');
-            } else if (
-              route.lane === 'faq' &&
-              !route.wantHuman &&
-              !route.escalate &&
-              (router.looksLikeDocs(asked || question) ||
-                router.looksLikeRecordingHow(asked || question) ||
-                router.looksLikeDeviceReset(asked || question))
-            ) {
-              aiResponse.escalate = false;
-            }
           } catch (err) {
             console.error('[Bot] review failed:', err.message);
             const links = officialHandoffLinks(retrievedEvidence);
