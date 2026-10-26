@@ -1,6 +1,6 @@
 # Contributing
 
-This bot speaks publicly in Omi's Discord, so correctness and restraint matter more than the number of answers it produces.
+Mira speaks publicly in Omi's Discord, so correctness and restraint matter more than the number of answers it produces. The product name is Mira; keep existing technical identifiers stable unless a migration is explicitly in scope. Use the [documentation index](docs/README.md) and [current master plan](docs/SUPPORT_MASTER_PLAN.md) before adding work.
 
 ## Before changing behavior
 
@@ -32,7 +32,7 @@ Support facts are ranked in this order:
 6. Omi Feedback portal metadata and customer reports, for issue/status signals only
 7. Discord help history, for corroboration only
 
-If authoritative sources disagree, the Help Center controls customer-support instructions. A Help Center article omitting a detail is not a contradiction: check the relevant Help Center, docs, and current official repository source before calling a product step undocumented. If no authoritative page answers the question, say so and route the customer to `help@omi.me` rather than guessing.
+If authoritative sources disagree, the Help Center controls customer-support instructions. A Help Center article omitting a detail is not a contradiction: check the relevant Help Center, docs, and current official repository source before calling a product step undocumented. If no authoritative page answers the question, preserve uncertainty and use the verified in-thread staff handoff. An email fallback belongs only to the application-owned failed-delivery path; do not add an email redirect beside a confirmed handoff.
 
 ## Deployment
 

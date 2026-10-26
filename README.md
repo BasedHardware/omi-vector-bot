@@ -1,144 +1,71 @@
-# Omi Support Bot
+# Mira
 
-Discord support agent for Omi. Customers see it as **Omi Support**. It answers product questions from retrieved Omi sources, verifies model-written answers against those sources, and hands account or device-specific work to a person without inventing a status or a ping.
+**Omi’s AI support assistant.** Mira answers from official Omi sources, remembers the context of the current conversation, and hands unresolved or private work to a person through a verified staff route. It must never invent a fix, an account check, staff ownership or a delivery promise.
 
-## Architecture and implementation
+The technical repository name remains `omi-vector-bot`. The product is **Mira**.
 
-The living [Roadmap](ROADMAP.md) records implemented work and pending rollout.
-[Architecture](docs/ARCHITECTURE.md), [Implementation Checklist](docs/IMPLEMENTATION_PLAN.md)
-and [Operations Runbook](docs/RUNBOOK.md) cover durable support cases, shared worker
-claims, private verification and truthful, action-first communication. The backend
-recording-diagnostics gateway remains planned, not an enabled capability.
+## Start here
 
-## Answer pipeline
+| You want to… | Read |
+| --- | --- |
+| See what is done, what is live and what is next | [Master plan and evidence-backed progress](docs/SUPPORT_MASTER_PLAN.md) |
+| Understand the system | [Architecture](docs/ARCHITECTURE.md) |
+| Run or recover the service | [Operations runbook](docs/RUNBOOK.md) |
+| Find a design, privacy boundary or verification record | [Documentation index](docs/README.md) |
+| Contribute a change | [Contributing](CONTRIBUTING.md) · [Agent instructions](AGENTS.md) |
 
-1. A deterministic router protects private orders, money, privacy, app failures, and device failures before model output can change the lane. Informational exceptions still use the grounded answer pipeline.
-2. An interpretation pass identifies the customer’s actual goal, facts they supplied, and every point the response must answer. It then rewrites follow-ups into a standalone question and several short search queries. Non-English questions are translated for retrieval while names, places, prices, device names, versions, and error codes are preserved.
-3. PostgreSQL full-text search retrieves small, overlapping passages instead of whole truncated pages. Results from multiple queries are combined and labeled by source trust.
-4. The answer model receives the most relevant evidence, same-thread history, and explicit notes saved by named staff with `faq:`. Legacy database notes with unknown authorship are not loaded into this path.
-5. Deterministic honesty filters run on the draft. A separate review model then checks the interpretation against the raw message and official evidence, verifies claims, and can restore relevant supported details. An irrelevant or unverified answer fails closed and goes to a person.
-6. The reviewed answer receives only the no-false-ping guard and Discord formatting/length limits; sentence-deleting claim filters do not run after review. Staff notes are never pasted directly into the final answer.
+The master plan separates **implemented → tested → reviewed → deployed → customer-confirmed**. Its completion score measures delivery progress, not answer accuracy. Cross-post memory and the reviewed-learning inbox remain disabled until their own approval and release gates pass.
 
-Source priority:
+## How Mira works
 
-1. `help.omi.me` — official customer-support instructions
-2. `docs.omi.me` — official product and developer documentation
-3. Current official BasedHardware/Omi repository source — product behavior not yet covered by customer docs
-4. `omi.me` — official product and policy pages
-5. BasedHardware/Omi releases — version and release-note questions
-6. `feedback.omi.me` — public issue/request status and customer-reported symptoms only; never product instructions
-7. Discord help history — discovery and corroboration only; never sufficient for a factual claim
+1. **Understand and route.** Preserve the customer’s goal, language, device/app context and earlier attempts. Application rules protect private orders, money, accounts and data.
+2. **Retrieve official evidence.** Search bounded passages from Omi’s Help Center, documentation, current repository source and other approved public sources.
+3. **Answer and review.** Generate a useful response, check it against the evidence, preserve necessary warnings and uncertainty, then apply the shared privacy and presentation boundaries.
+4. **Deliver or hand off.** Send the reply in the original conversation. When a person is needed, create a private case and acknowledge delivery only after the application confirms it. Delivery, staff acceptance and resolution are separate states.
 
-The source catalog refreshes in the background, including the support-relevant providers and services in the public Omi app source. Relevant public Featurebase posts are fetched on demand from the Feedback sitemap; only the post and portal metadata are retained, not authors, emails, comments, or old bot replies. A live repository search is used as an optional supplement when its GitHub credentials permit it. GitHub issues and pull requests are used only to identify existing engineering work; unlike repository source, they are not product documentation.
+Help Center instructions outrank other sources. Customer reports and Discord history can reveal a problem; they are not authoritative product instructions. See the [source policy](CONTRIBUTING.md#source-policy).
 
-## Local setup
+Staff-approved GitHub publication uses an exact sanitized preview and durable authorization. Mira never forwards a customer transcript automatically or treats a merged PR as proof a fix shipped. Uncertain external sends stay held for reconciliation. [Workflow and recovery](docs/RUNBOOK.md#engineering-approvals-and-uncertain-github-writes).
 
-Requires Node.js 20 or newer.
+## Local development
+
+Requires **Node.js 20+**. These checks use no paid model calls:
 
 ```sh
-cp .env.example .env
-npm install
-npm test
-npm run ask -- "How do I pair my Omi?"
-```
-
-Set `CMD_API_KEY` in ignored `.env` for the CommandCode Provider API. `CMD_MODEL`,
-`CMD_REVIEW_MODEL`, `CMD_API_URL`, and `CMD_TIMEOUT_MS` are optional overrides.
-The bot requires `CMD_API_KEY`; an old provider key cannot be used as a fallback.
-Never commit or log a real key.
-
-For human handoffs, production must have either `STAFF_ALERT_CHANNEL_ID` pointing
-to a private staff-only Discord text channel, or both `TELEGRAM_TOKEN` and
-`TELEGRAM_CHAT_ID` pointing to the private staff chat. A customer-visible
-Handoff card does not count as delivery. If both staff routes fail, the bot
-tells the customer to email `help@omi.me`; `/health` reports `staffHandoff:
-"missing"` without exposing any IDs. Check that staff can receive a test ticket
-before enabling public support.
-
-## Live answer evaluation
-
-`node scripts/live-eval.js --runs 3 --concurrency 2` evaluates the built-in
-support cases through the real answer path with Discord and staff delivery
-stubbed. It spends CommandCode quota but does not log in to Discord, send staff
-messages, look up private orders, or file GitHub issues. Use `--root
-/absolute/path/to/checkout` to evaluate a separate `main` checkout with the
-same key and model; `--cases id1,id2` selects a focused subset. `--cases-file
-/absolute/path/to/cases.jsonl` accepts a held-out JSONL file outside the repo
-with `{"id":"...","ask":"...","first":"answer|person|none"}` or `turns`
-instead of `ask`. Held-out cases receive structural checks only. Every reply
-and stage time is saved in ignored `eval/results/`; a case passes at 2 of 3
-runs, with inconsistent cases listed as flaky.
-
-Only the local `main` comparison adapter maps its old variable names to the
-CommandCode endpoint. The current bot never falls back to OpenCode.
-
-The runner loads current official Help Center and Omi website pages and uses
-the production chunking/ranking functions in memory. It does not exercise
-production Postgres storage or the `scripts/fill-db.js` scheduler, so compare
-the scores with that limitation in mind. Do not merge on a single run.
-
-Never commit `.env` or the local `railway.toml`. Do not run a local Discord process while the hosted process is active, or two bots may answer the same message.
-
-## Quality checks
-
-```sh
+npm ci
 npm test
 EVAL_NO_MODEL=1 node scripts/customer-eval.js
-node scripts/customer-eval.js
 ```
 
-The final command uses the configured model key and should only be run when a live-model check is intentional. Customer-facing behavior changes need a focused regression test. A green rules suite alone does not prove answer quality; retrieved evidence and the final answer must both be evaluated.
+For an intentional provider-backed local query, copy `.env.example` to ignored `.env`, configure `CMD_API_KEY`, then use `npm run ask -- "your synthetic question"`. This spends provider quota. Never commit credentials, customer records, `.env` or local `railway.toml`.
 
-To rebuild the stored source catalog:
+The [runbook](docs/RUNBOOK.md) covers database configuration, private staff delivery, webhook verification, health and deployment. Do not run a second Discord worker against the live bot.
 
-```sh
-node scripts/fill-db.js --force
-```
+## Verification and release
 
-Without `--force`, each source is refreshed only when its freshness window has elapsed.
+PR CI runs Node 20/24 regression checks, the offline customer scenarios and isolated PostgreSQL integration without Discord, customer or provider credentials. Behavior changes need an observed failing regression, an appropriate functional check and independent review where required. Green unit tests alone do not establish answer accuracy.
 
-## Discord behavior
+Live model evaluation is a separate, deliberate quota spend. Its in-memory retrieval and stubbed delivery do not exercise production PostgreSQL or the source-ingestion scheduler. Preserve complete results and provenance. [Evaluation guide and limits](docs/EVALUATION.md) · [Quality contract](docs/ANSWER_QUALITY_CONTRACT.md) · [Stage evidence](docs/ANSWER_STAGE_EVIDENCE.md).
 
-- New posts in the configured help forum are answered; historical posts are not replayed.
-- Other bots, greetings, acknowledgements, and thanks are ignored.
-- Follow-ups inside the same thread keep their thread context.
-- Outside support threads, Omi Support answers only an explicit bot-user mention or a same-customer direct reply to that answer. It never reads surrounding channel conversation for context.
-- Sensitive order, email, address, phone, and privacy content is not repeated publicly.
-- `/done` closes a support thread and asks the original customer whether the answer helped.
-- The `/done` card also offers optional honest App Store/Google Play reviews to
-  all customers, independently of their support-feedback choice. Store links do
-  not record a dashboard vote or tell the bot whether a review was submitted.
-- `/order`, `/orders`, and `/unlink` are public customer commands. Responses are ephemeral, and order access requires a code sent to the email on the Shopify order; Discord staff status is never used as authorization.
+Every PR starts as a draft. A merge does not deploy the service. Production changes need their existing release gates, an exact commit, a verified rollback target and relevant smoke checks. Optional features stay off until explicitly enabled. Aryan performs Discord smoke messages and commands.
 
-## Human handoff
+## Backlog
 
-Money, orders, privacy, account deletion, app crashes, and device faults require a person. The full handoff card, including Shopify facts, is sent only to the configured staff channel. If that fails, the bot prefers a private customer-and-staff thread when Discord supports one; any customer-visible thread or channel receives only a minimal card without customer text, order data, or Shopify facts. The bot only says that someone was notified when Discord actually accepted the handoff.
+| Workstream | GitHub |
+| --- | --- |
+| Answer quality, source conflicts and multipart coverage | [#83](https://github.com/BasedHardware/omi-vector-bot/issues/83) · [#65](https://github.com/BasedHardware/omi-vector-bot/issues/65) · [#62](https://github.com/BasedHardware/omi-vector-bot/issues/62) |
+| Delivery reliability and capability monitoring | [#51](https://github.com/BasedHardware/omi-vector-bot/issues/51) · [#56](https://github.com/BasedHardware/omi-vector-bot/issues/56) |
+| Metadata retention and erasure | [#85](https://github.com/BasedHardware/omi-vector-bot/issues/85) |
+| Deferred work with a return point | [Parked issues](https://github.com/BasedHardware/omi-vector-bot/issues?q=is%3Aissue%20is%3Aopen%20label%3Aparked) |
 
-Named staff may save an explicit support note inside a Handoff thread:
+Use the existing [issue forms](https://github.com/BasedHardware/omi-vector-bot/issues/new/choose) for a safe synthetic reproduction or answer-quality report. Keep customer details and security findings private. Existing issue assignments are preserved; working on a fix does not authorize assigning it to someone.
 
-```text
-faq: Teal LED means charging and connected.
-```
+## Service endpoints
 
-Only configured staff user IDs can save notes. Ordinary staff replies are not learned automatically. On restart, the bot reloads `faq:` lines only from named staff in test-channel Handoff threads. Legacy database notes are ignored because they lack author provenance. Notes are not a substitute for official-source verification.
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /health` | Runtime readiness and configured handoff capability |
+| `GET /ratings` | Aggregate helpful/still-needs-help feedback |
+| `POST /github-webhook` | Signed, scoped GitHub status events |
 
-An authenticated Telegram escalation reply may also include `KB: short support note` after its `A:` answer. The note enters the same in-memory pool as Discord `faq:` and is subject to the same official-source review before a customer sees an answer. Telegram notes are not written to the legacy database and do not survive a restart.
-
-## GitHub workflow
-
-Technical handoffs can show **Review technical summary** in the verified private staff channel. Staff write a technical summary, inspect the exact sanitized public issue/comment preview and explicitly publish that revision. Customer text, attachments and Discord links are not forwarded automatically. The related-work search uses the staff summary, and a matching pull request is not proof that the customer issue is fixed.
-
-Drafts, staff edits, approvals and receipts are encrypted/minimized in Postgres using the existing `DATA_ENCRYPTION_KEY`. They are bound to the customer case, source message, repository and fixed target; parallel clicks or restarts cannot turn an uncertain publication into an automatic retry. Missing encryption configuration disables GitHub publication, not support handoffs. Pending proposals expire after seven days; automatic ciphertext cleanup is still roadmap work.
-
-Important later evidence from the owning customer in a dedicated thread can create a new private comment proposal when one issue is unambiguously linked. Staff must author and approve it again. Shared-channel or multi-issue follow-ups remain manual. **Check GitHub result** reconciles uncertain writes read-only; it does not send a second post. Verified private links route webhook updates; public thread markers do not establish customer ownership. See the [runbook](docs/RUNBOOK.md) for permissions and recovery.
-
-Repository contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). PR CI runs the
-rules suite, offline customer checks and an isolated Postgres integration check
-without customer, Discord or provider credentials. Live answer quality remains a
-separate release gate.
-
-## HTTP endpoints
-
-- `GET /health` — process health
-- `GET /ratings` — aggregate helpful / still-needs-help counts
-- `POST /github-webhook` — signed GitHub events for bot-linked support threads
+Health/configuration is not proof that a staff case was accepted or a customer’s problem was resolved.

@@ -1,6 +1,6 @@
-# Omi Support Bot Implementation Checklist
+# Mira implementation checklist
 
-**#86 lifecycle candidate, October26:** integrated with reviewed main928676b. The approved30-day subject-age replay guard, customer erasure and bounded/non-starvable cleanup pass1202 local tests, no-model8 and isolated PostgreSQL-engine verification. Hosted real PostgreSQL/current-head CI and independent review still gate merge. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement.
+**October26 current state:** #86 merged647b549 after1202/no-model8, exact-head hosted Node20/24/real PostgreSQL, independent review and merged-main CI. Release/smoke remain pending. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d. Mira repository presentation and #83 source provenance are separate new work; no paid run, public Omi test issue or memory enablement.
 
 
 ## Current audited execution — October 26, 2026
@@ -9,7 +9,8 @@
 - [x] Audit fixed25×4 progress:16 main +16 tested +16 reviewed +8 verified operations =56/100;44 left. Main milestone implementation coverage64/100; full A–E2/21. [Ledger](SUPPORT_PROGRESS.json) and four automatic consistency checks preserve definitions.
 - [x] Audit12 open issues; close only speculative stored summaries #52 not planned. Preserve11 unresolved issues, existing assignments and closed-branch evidence. [Disposition](SUPPORT_ISSUE_AUDIT_2026-10-25.md).
 - [x] #86 lifecycle implemented locally:30-day bounded/non-starvable expiry, payload subject-time rejection, erasure of owned receipt rows with a minimal replay cutoff; red-before synthetic checks,1202/no-model8/isolated SQL pass.
-- [ ] #86 hosted real PostgreSQL/Node20/24 CI, final independent review and merge; later approved-release smoke. No deletion that re-enables old sends, memory enablement or new public test issue.
+- [x] #86 hosted real PostgreSQL/Node20/24 CI, final independent85-test/signed HTTP/SQL/two-migration-probe review and merge647b549; merged-main CI passes.
+- [ ] #86 later approved-release smoke on an existing linked synthetic issue/thread. No memory enablement or new public test issue.
 - [x] #88 merged884fb46 with1174/offline8/current CI/independent35 checks and unchanged reply bytes; #62 remains separate from deployment/customer resolution.
 - [x] Step5 preparation and revised AI-provider-disclosing notice wording approved. Publication, processor/backups and explicit enablement remain unchecked; no memory flag changed.
 - [ ] Then #83 general source conflicts and #65 accuracy; remaining C/D/E and #51/#53/#56 operational reliability stay required. No automatic paid evaluation, customer data use, issue assignment, merge or deployment.
