@@ -76,7 +76,7 @@ function provenanceLine(value) {
   return parts.join(' | ');
 }
 
-function preferNewerApplicable(rows, sourceOf) {
+function preferNewerApplicable(rows, sourceOf, relevanceOf) {
   const result=[...rows], groups=new Map();
   const normalized=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
   const scopeIdentity=value=>String(value).normalize('NFKC').trim().toLowerCase().replace(/\s+/g,' ');
@@ -85,11 +85,15 @@ function preferNewerApplicable(rows, sourceOf) {
     if (!['help','docs','github','website'].includes(source)) return;
     const data=normalizeProvenance(row.provenance), scope=data.applicability;
     if (!['product','surface','version'].every(key=>scope?.[key])) return;
-    const topic=normalized(row.section || row.title);
-    if (!topic) return;
+    const title=normalized(row.title), section=normalized(row.section);
+    if (!title) return;
+    const relevance=relevanceOf?.(row);
+    if (!Array.isArray(relevance) || !relevance.length || !relevance.every(Number.isFinite)) return;
     const dateKind=data.updatedAt?'updatedAt':data.publishedAt?'publishedAt':null;
     if (!dateKind) return;
-    const group=JSON.stringify([source,topic,...['product','surface','version'].map(key=>scopeIdentity(scope[key])),dateKind]);
+    // Generic section names cannot establish article topic equivalence. Dates
+    // also cannot replace a stronger lexical match or multi-query support.
+    const group=JSON.stringify([source,title,section,...['product','surface','version'].map(key=>scopeIdentity(scope[key])),dateKind,relevance]);
     if (!groups.has(group)) groups.set(group,[]);
     groups.get(group).push({index,row,at:data[dateKind]});
   });

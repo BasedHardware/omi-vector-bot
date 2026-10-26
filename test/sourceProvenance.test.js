@@ -98,6 +98,34 @@ test('date preference cannot override source authority, different topics, versio
   }
 });
 
+test('generic shared headings cannot merge unrelated article topics or displace relevant evidence at the full cap', () => {
+  const [old,fresh]=competingRows();
+  const relevant=Array.from({length:8},(_,index)=>({...old,title:`Offline capture guide ${index}`,section:'Overview',
+    url:`https://help.omi.me/en/articles/synthetic-offline-${index}`,rank:1-index/20,
+    body:'Offline capture keeps pending clips until upload completes.'}));
+  const unrelated={...fresh,title:'Appearance settings',section:'Overview',rank:0.001,
+    body:'Set a light or dark theme for the toolbar.'};
+  const select=[
+    (rows,limit)=>mergeRanked([rows],limit,{customerQuestion:'Offline capture'}),
+    (rows,limit)=>rankLocalChunks(['Offline capture'],rows,limit,{customerQuestion:'Offline capture'}),
+  ];
+  for(const choose of select) {
+    assert.equal(choose([relevant[0],unrelated],1)[0].url,relevant[0].url);
+    const without=choose(relevant,8).map(row=>row.url);
+    assert.deepEqual(choose([...relevant,unrelated],8).map(row=>row.url),without);
+  }
+});
+
+test('a newer same-title document cannot override a stronger match or broader query corroboration', () => {
+  const [old,fresh]=competingRows();
+  old.rank=10;fresh.rank=0.1;
+  assert.equal(mergeRanked([[old,fresh]],1)[0].url,old.url);
+  old.rank=1;fresh.rank=1;
+  assert.equal(mergeRanked([[old,fresh],[old]],1)[0].url,old.url);
+  old.body='Capture pause supports offline duration limits.';
+  assert.equal(rankLocalChunks(['Capture pause offline duration'],[old,fresh],1)[0].url,old.url);
+});
+
 test('unknown, equal, unreliable and incomparable dates or applicability do not manufacture precedence', () => {
   const variants=[
     {},{...provenance,updatedAt:'2025-02-03T04:05:06.000Z'},

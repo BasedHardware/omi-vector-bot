@@ -374,6 +374,7 @@ function diverseTop(rows, limit, maxPerPage = 2) {
 function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
   const phoneQuestion = isConsumerPhoneQuestion(customerQuestion);
   const merged = new Map();
+  const dateRelevance = new Map();
   for (const rows of resultSets || []) {
     (rows || []).forEach((row, index) => {
       const key = `${row.url || ''}#${row.chunk_index ?? row.chunkIndex ?? index}`;
@@ -386,14 +387,23 @@ function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
       if (prior) {
         prior.relevanceScore += relevanceScore;
         prior.fusedScore += score;
-      } else merged.set(key, { ...row, authority, relevanceScore, fusedScore: score });
+        const evidence = dateRelevance.get(prior);
+        evidence.matches += 1;
+        evidence.rankSum += Number(row.rank || 0);
+      } else {
+        const value = { ...row, authority, relevanceScore, fusedScore: score };
+        merged.set(key, value);
+        dateRelevance.set(value, { matches: 1, rankSum: Number(row.rank || 0) });
+      }
     });
   }
   const ranked = [...merged.values()]
     .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
       consumerSourceFit(customerQuestion, b) - consumerSourceFit(customerQuestion, a) ||
       b.fusedScore - a.fusedScore || b.authority - a.authority);
-  return diverseTop(preferNewerApplicable(ranked,row=>row.source||sourceKind(row.url)), limit);
+  return diverseTop(preferNewerApplicable(ranked, row => row.source || sourceKind(row.url), row => [
+    dateRelevance.get(row).matches, dateRelevance.get(row).rankSum, consumerSourceFit(customerQuestion,row),
+  ]), limit);
 }
 
 function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQuestions = [] } = {}) {
@@ -432,7 +442,9 @@ function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQ
     .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
       consumerSourceFit(customerQuestion || queries?.[0], b) - consumerSourceFit(customerQuestion || queries?.[0], a) ||
       b.rank - a.rank || b.authority - a.authority);
-  const preferred=preferNewerApplicable(ranked,row=>row.source||sourceKind(row.url));
+  const preferred=preferNewerApplicable(ranked, row => row.source || sourceKind(row.url), row => [
+    row.rank, consumerSourceFit(customerQuestion || queries?.[0],row),
+  ]);
   return normalizeSubQuestions(subQuestions).length > 3
     ? selectSubQuestionEvidence(preferred, subQuestions, limit, { customerQuestion: customerQuestion || queries?.[0] })
     : diverseTop(preferred, limit);

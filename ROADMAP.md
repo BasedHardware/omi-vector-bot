@@ -1,6 +1,6 @@
 # Mira roadmap
 
-**October26 current state:** #86 is operator-deployed as647b549/dba28f7d, explicitly confirmed by Aryan; fresh health/startup pass, one running instance, optional features and automatic deploy off. Notice smoke remains pending. #89's Mira repository guide is mergeda9c9508 with all checks/review; no runtime change after production. Current draft #83 adds publisher provenance, conservative explicit-scope date ordering and shared conflict policy, with twelve synthetic regressions; accuracy/review/CI gates remain. #62 stays open for narration/context loss. Main implementation64/100; delivery56/100;44 left. No paid run, agent deployment or memory enablement.
+**October26 current state:** #86 is operator-deployed as647b549/dba28f7d, explicitly confirmed by Aryan; fresh health/startup pass, one running instance, optional features and automatic deploy off. Notice smoke remains pending. #89's Mira repository guide is mergeda9c9508 with all checks/review; no runtime change after production. Draft #90/#83 adds publisher provenance, equivalent-topic/scope/relevance date ordering and shared conflict policy. The independent generic-heading displacement is reproduced/repaired, fourteen new regressions pass; final accuracy/re-review/CI gates remain. #62 stays open for narration/context loss. Main implementation64/100; delivery56/100;44 left. No paid run, agent deployment or memory enablement.
 
 
 ## Current audited dashboard — October 26, 2026

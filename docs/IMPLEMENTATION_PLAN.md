@@ -6,8 +6,8 @@
 
 - [x] Observe missing publisher provenance across ingestion/chunks/evidence before implementation; preserve fetch time as a separate operational field.
 - [x] Carry bounded publisher dates and explicit product/surface/version scope through production persistence/search/formatting; unknown/invalid/ambiguous metadata remains unknown and an undated refresh clears stale provenance.
-- [x] Add source/topic/explicit-scope/date ordering without deleting rows or increasing budgets, plus one shared applicability/conflict policy in answer and both reviewer attempts. Preserve identifier punctuation and complementary safety details.
-- [x] Twelve original synthetic regressions pass, including policy transport and six simultaneous fetches with10-second deadlines for two-/three-part questions. No provider call or protected case.
+- [x] Add source/article-title/section/explicit-scope/date ordering only for equivalent relevance/corroboration, plus one shared applicability/conflict policy in answer and both reviewer attempts. Preserve identifier punctuation and complementary safety details; the independent generic-heading displacement is reproduced and repaired.
+- [x] Fourteen original synthetic regressions pass, including full-cap topic separation, stronger-match/query-corroboration guards, policy transport and six simultaneous fetches with10-second deadlines for two-/three-part questions. No provider call or protected case.
 - [ ] Complete final full/no-model/current-head hosted PostgreSQL CI and independent review; then obtain authorization before any necessary generated-answer checks. A policy reaching a model is not proof of compliance. Keep #83 open and draft until its actual accuracy gates pass.
 
 

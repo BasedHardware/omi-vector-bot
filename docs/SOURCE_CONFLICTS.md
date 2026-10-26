@@ -21,17 +21,18 @@ Formatted evidence includes bounded publisher dates/date origin and any explicit
 Both stored fusion and local ranking can reorder their already-ranked slots when documents have:
 
 - the same official source kind/authority;
-- the same normalized heading (or title if no heading);
+- the same normalized article title and section (a generic section such as Overview is insufficient);
 - identical explicitly declared product, surface and version identifiers;
 - comparable reliable dates (updated versus updated, or published versus published).
+- equal existing relevance signals: stored rank contribution and query corroboration, or local keyword rank; source-fit remains equal too.
 
-Newer documents occupy the earlier slots only within that group. Other topics, authorities and scopes keep their positions. Identifier punctuation is significant: version2.1 cannot become version2-1. Equal, unknown, unreliable or incomparable dates do not create preference. Rows are not deleted or declared obsolete. The fixed selectionReason enum explains the ordering; it is not proof of semantic contradiction or customer-version applicability.
+Newer documents occupy the earlier slots only within that group. Other topics, authorities and scopes keep their positions; a date cannot replace a stronger match or broader corroboration across searches. Identifier punctuation is significant: version2.1 cannot become version2-1. Equal, unknown, unreliable or incomparable dates do not create preference. Rows are not deleted or declared obsolete. The fixed sourcePreference enum explains the ordering; it is not proof of semantic contradiction or customer-version applicability.
 
 This narrow ordering is deliberately separate from resolving a claim. The existing answer/reviewer must still establish the actual applicability and contradiction from the evidence; a heading match alone is insufficient. Incomplete or differently worded topics remain available with their dates/uncertainty rather than being silently filtered. No broad claim that every official-source conflict is automatically solved follows.
 
 ## Checks and readiness
 
-Twelve new synthetic tests cover ingestion/ambiguity, chunks, real formatted stored evidence, known-scope preference, authority/topic/surface/version exclusions, punctuation, absent/equal/unreliable/incomparable metadata, complementary safety facts, shared answer/normal+compact review policy delivery, and two-/three-part fetch guards. Observed red-before records distinguish four missing-provenance behaviors, two ordering behaviors, absent policy delivery and a subsequently caught identifier-normalization error. No protected inputs, customer messages or production writes are used.
+Fourteen new synthetic tests cover ingestion/ambiguity, chunks, real formatted stored evidence, known-scope preference, authority/topic/surface/version exclusions, punctuation, absent/equal/unreliable/incomparable metadata, complementary safety facts, shared answer/normal+compact review policy delivery, and two-/three-part fetch guards. The independent review reproduced a generic-heading collision that displaced relevant evidence at the eight-slot cap. The repaired key includes article title/section and relevance equivalence; new guards cover that full-cap case, stronger matches and multi-query corroboration. Observed red-before records also distinguish four missing-provenance behaviors, two ordering behaviors, absent policy delivery and an identifier-normalization error. No protected inputs, customer messages or production writes are used.
 
 The two-/three-part checks assert all six page requests start before any completes, the per-request timeout remains10 seconds, and existing eight-chunk/9000-character output bounds hold. The real persistence/search/formatter owners are exercised against the isolated SQL engine, including an undated refresh and idempotent schema initialization. Hosted real PostgreSQL and final independent review remain required. The evaluation harness receives provenance through the same Help Center/chunk owners; its separate in-memory/storage limitations remain in the [evaluation guide](EVALUATION.md).
 
