@@ -1,6 +1,6 @@
 # Mira: master product plan
 
-Updated October 26, 2026 (IST), after the final #91 follow-up review. Current GitHub main is `a9c9508ac9be03a2bfd0f571e90f6779b6d96a48`; the fixed milestone foundation audit remains recorded against `647b549bade498573e6fb2a16bf4544377884b1e`. The later repository-guide and inactive evidence-hook commits add no completed milestone. Aryan sets product priorities; this is the single current product checklist. The product is Mira; technical repository/deployment/package identifiers remain unchanged.
+Updated October 26, 2026 (IST), after the final #91 follow-up review. Current GitHub main is `a9c9508ac9be03a2bfd0f571e90f6779b6d96a48`; the fixed milestone foundation audit remains recorded against `647b549bade498573e6fb2a16bf4544377884b1e`. The repository-guide update adds no completed milestone; evidence hooks alone do not complete an additional product requirement. Aryan sets product priorities; this is the single current product checklist. The product is Mira; technical repository/deployment/package identifiers remain unchanged.
 
 ## Current score — 56 / 100 done, 44 / 100 left
 
