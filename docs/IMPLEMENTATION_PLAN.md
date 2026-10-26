@@ -1,6 +1,6 @@
 # Mira implementation checklist
 
-**October26 current state:** Aryan deployed647b549 asdba28f7d; fresh health/schema/Discord startup pass, one running instance, optional features/automatic deploy off. #86 notice smoke remains pending. Maina9c9508 adds only the reviewed Mira repository guide. #83 source provenance/conflict handling is a separate draft; no paid run, public Omi test issue, agent deployment or memory enablement.
+**October 26 current state:** Aryan deployed647b549 as `dba28f7d`; health/schema/Discord startup pass, one running instance, optional features/automatic deploy off. #86's authorized existing-synthetic reopen/close smoke passes with one notice per event and the issue closed again; this does not finish #51 or #85. Main `a9c9508` adds only the reviewed Mira repository guide. #83 source provenance/conflict handling is a separate draft; no paid run, new public Omi test issue, agent deployment or memory enablement.
 
 ## #83 source provenance and conflict handling — draft
 
@@ -8,7 +8,8 @@
 - [x] Carry bounded publisher dates and explicit product/surface/version scope through production persistence/search/formatting; unknown/invalid/ambiguous metadata remains unknown and an undated refresh clears stale provenance.
 - [x] Add source/article-title/section/explicit-scope/date ordering only for equivalent relevance/corroboration, plus one shared applicability/conflict policy in answer and both reviewer attempts. Preserve identifier punctuation and complementary safety details; the independent generic-heading displacement is reproduced and repaired.
 - [x] Fourteen original synthetic regressions pass, including full-cap topic separation, stronger-match/query-corroboration guards, policy transport and six simultaneous fetches with10-second deadlines for two-/three-part questions. No provider call or protected case.
-- [ ] Complete final full/no-model/current-head hosted PostgreSQL CI and independent review; then obtain authorization before any necessary generated-answer checks. A policy reaching a model is not proof of compliance. Keep #83 open and draft until its actual accuracy gates pass.
+- [x] Runtime `42619cf` passes full 1,216/no-model 8/isolated SQL, exact-head hosted Node 20/24/real PostgreSQL and independent 69-check code review plus all four original reproduction assertions. Later documentation-only heads still need their required CI/review; unchanged runtime evidence is reusable.
+- [ ] Obtain authorization before the necessary generated-answer checks. A policy reaching a model is not proof of compliance. Keep #83 open and draft until its actual accuracy gates pass.
 
 
 ## Current audited execution — October 26, 2026
@@ -18,7 +19,7 @@
 - [x] Audit12 open issues; close only speculative stored summaries #52 not planned. Preserve11 unresolved issues, existing assignments and closed-branch evidence. [Disposition](SUPPORT_ISSUE_AUDIT_2026-10-25.md).
 - [x] #86 lifecycle implemented locally:30-day bounded/non-starvable expiry, payload subject-time rejection, erasure of owned receipt rows with a minimal replay cutoff; red-before synthetic checks,1202/no-model8/isolated SQL pass.
 - [x] #86 hosted real PostgreSQL/Node20/24 CI, final independent85-test/signed HTTP/SQL/two-migration-probe review and merge647b549; merged-main CI passes.
-- [ ] #86 later approved-release smoke on an existing linked synthetic issue/thread. No memory enablement or new public test issue.
+- [x] #86 authorized existing-synthetic reopen/close smoke passes on `647b549` / `dba28f7d`: one notice per event, ordered open checkpoint then closure, and no extra notice at the follow-up read. Issue #23602 ends closed not planned. No memory enablement or new public test issue; [limits](GITHUB_NOTICE_LIFECYCLE.md).
 - [x] #88 merged884fb46 with1174/offline8/current CI/independent35 checks and unchanged reply bytes; #62 remains separate from deployment/customer resolution.
 - [x] Step5 preparation and revised AI-provider-disclosing notice wording approved. Publication, processor/backups and explicit enablement remain unchecked; no memory flag changed.
 - [ ] Then #83 general source conflicts and #65 accuracy; remaining C/D/E and #51/#53/#56 operational reliability stay required. No automatic paid evaluation, customer data use, issue assignment, merge or deployment.

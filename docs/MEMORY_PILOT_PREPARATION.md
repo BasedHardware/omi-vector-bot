@@ -1,6 +1,6 @@
 # References-only memory pilot — preparation, not enablement
 
-Updated October26,2026 against the merged references-only implementation. The exact notice wording below is approved; publication, configuration change, pilot and paid runs are not. Aryan deployed #86 as647b549/dba28f7d after its code/CI/review gates; the notice smoke and applicable privacy/security/processor/backup gates remain. Memory stays off.
+Updated October 26,2026 against the merged references-only implementation. The exact notice wording below is approved; publication, configuration change, pilot and paid runs are not. Aryan deployed #86 as `647b549` / `dba28f7d` after its code/CI/review gates; its scoped notice smoke now passes. Applicable privacy/security/processor/backup gates remain. Memory stays off.
 
 ## Approved customer notice — wording only, not published
 
@@ -30,7 +30,7 @@ Within a process with disabled policy, new/queued captures recheck the switch, c
 
 ## Before enablement
 
-- [ ] Accept the scoped duplicate-status notice smoke; #86 is deployed, health/startup verified, but notice delivery is not yet accepted.
+- [x] #86 is deployed with health/startup verified; the authorized existing-synthetic reopen/close smoke passed with one notice per event and the issue closed again. This is bounded notice evidence, not a full outbox or memory-pilot pass. [Receipt and limits](GITHUB_NOTICE_LIFECYCLE.md).
 - [x] Exact revised notice wording approved by the October26 user-supplied reviewer decision, including AI-provider use.
 - [ ] Publish the approved notice in the test forum before capture, only under the later approved rollout.
 - [ ] Review processor/data use, applicable security/platform review, deletion and backups. Existing30-day support-memory approval stands. #86 has a separate30-day receipt lifecycle decision, not blanket approval for other operational metadata.
