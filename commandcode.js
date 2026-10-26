@@ -8,6 +8,8 @@ const { SUPPORT_VOICE } = require('./supportVoice');
 const { normalizeSubQuestions } = require('./retrieval');
 const { isPreviousPost, splitHistory, previousContextBlock } = require('./supportContextFormat');
 const { recordStage } = require('./answerStageEvidence');
+const { stripPingNarration } = require('./utils');
+const { removedAnswerUnits, rememberRemovalAudit } = require('./answerFilterAudit');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
 
@@ -149,8 +151,9 @@ function parseAgentJson(raw) {
   }
   const confidence = Number(data.confidence);
   const labels = Array.isArray(data.labels) ? data.labels.map((x) => String(x)) : [];
-  return {
-    final_answer: stripStaffLies(data.final_answer.trim()),
+  const answer = stripStaffLies(data.final_answer.trim());
+  return rememberRemovalAudit({
+    final_answer: answer,
     confidence: Number.isFinite(confidence) ? confidence : 0.4,
     escalate: Boolean(data.escalate),
     reason: String(data.reason || data.escalation_question_for_aarav || '').trim(),
@@ -159,7 +162,7 @@ function parseAgentJson(raw) {
     area: String(data.area || '').trim(),
     lane: String(data.lane || '').trim(),
     file_issue: Boolean(data.file_issue),
-  };
+  }, removedAnswerUnits(data.final_answer, answer));
 }
 
 function parseSearchPlan(raw, question) {
@@ -625,7 +628,7 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
   };
 }
 
-async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], sources, understanding, policy, lane, handoffPlanned = false, reasoningEffort = 'low', onUsage, post }) {
+async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], safetyAuditTruncated = false, sources, understanding, policy, lane, handoffPlanned = false, reasoningEffort = 'low', onUsage, post }) {
   const provider = providerConfig();
   if (!String(draft || '').trim() || (!provider.key && !post)) {
     return {
@@ -663,6 +666,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
           content: `${SUPPORT_VOICE}\n\nClarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. If understanding.dataLossRisk is true, retain a brief warning in the customer language not to reinstall, log out, or clear local recordings while staff checks; do not add an English warning to a non-English reply. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.${handoffPlanned ? ` ${PLANNED_HANDOFF_GUIDANCE}` : ''}`,
         },
         { role: 'system', content: PUBLIC_REPLY_PRIVACY_POLICY },
+        ...(safetyAuditTruncated ? [{ role: 'system', content: 'Some removed draft text exceeded the bounded audit budget and is unavailable. Do not infer its contents or assume the draft covered every requested point. Use only the supplied conversation and official evidence.' }] : []),
         ...(citationLimit === 4 ? [{
           role: 'system',
           content: 'This request contains more than three distinct sub-questions. Its one Source line may contain at most four exact URLs from the retrieved evidence, instead of the ordinary two, when needed to support the requested parts. Keep each supported part brief and in the order asked.',
@@ -701,25 +705,31 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
     question, language: understanding?.replyLanguage, dataLossRisk: understanding?.dataLossRisk === true,
   });
   recordStage('review_safety', safety.answer);
+  // Use the same narration owner as final presentation before approving a
+  // review. A destructive removal invalidates that review; the existing second
+  // look may repair supported context, but a sanitized claim is not approval.
+  const filtered = stripPingNarration(stripStaffLies(safety.answer));
+  const audit = removedAnswerUnits(safety.answer, filtered);
+  const narrationRemoved = audit.removed.length > 0 || audit.truncated;
   const answer = !String(safety.answer || '').trim()
     ? ''
     : safety.fallback
       ? safety.answer
-      : groundedSourceLine(stripStaffLies(safety.answer), sources, sourceIds, understanding?.replyLanguage, { subQuestions: understanding?.subQuestions });
+      : groundedSourceLine(filtered, sources, sourceIds, understanding?.replyLanguage, { subQuestions: understanding?.subQuestions });
   const hasAnswer = Boolean(String(answer || '').trim());
-  return {
+  return rememberRemovalAudit({
     final_answer: answer,
-    grounded: hasAnswer && !safety.fallback && parsed.grounded === true,
+    grounded: hasAnswer && !safety.fallback && !narrationRemoved && parsed.grounded === true,
     relevant: hasAnswer && !safety.fallback && parsed.relevant === true,
-    escalate: !hasAnswer || safety.escalate || Boolean(parsed.escalate) || parsed.grounded !== true || parsed.relevant !== true,
+    escalate: !hasAnswer || narrationRemoved || safety.escalate || Boolean(parsed.escalate) || parsed.grounded !== true || parsed.relevant !== true,
     confidence: Number.isFinite(Number(parsed.confidence)) ? Number(parsed.confidence) : 0.4,
     sources_used: sourceIds,
     answered_requirements: Array.isArray(parsed.answered_requirements)
       ? parsed.answered_requirements.map((value) => String(value)).slice(0, 5)
       : [],
-    safeHandoff: Boolean(safety.fallback),
-    reason: safety.reason,
-  };
+    safeHandoff: !narrationRemoved && Boolean(safety.fallback),
+    reason: narrationRemoved ? 'Unverified staff narration removed from reviewed answer' : safety.reason,
+  }, audit);
 }
 
 module.exports = {

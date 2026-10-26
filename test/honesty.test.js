@@ -231,7 +231,7 @@ test('issue replies drop person-on-the-team narration', () => {
   assert.equal(out.includes(ISSUE_FOOTER), true);
 });
 
-test('enough-for-a-person-on-the-team sentences are dropped', () => {
+test('unknown enough-for-a-person affiliation statements remain conservatively removed', () => {
   const out = escalateReply(
     [
       'You mean the 2.5 hours on your Apple Watch and the two small clips — still nothing in the app.',
@@ -240,11 +240,12 @@ test('enough-for-a-person-on-the-team sentences are dropped', () => {
     { issue: true, pingAuthor: true }
   );
   assert.equal(/person on the team/i.test(out), false);
+  assert.doesNotMatch(out, /has this now|has accepted|already checked/i);
   assert.equal(/do not need to ping anyone/i.test(out), false);
   assert.match(out, /Apple Watch/i);
 });
 
-test('cannot-mention-you and passing-on lines are dropped', () => {
+test('mention/passing-on chatter is removed while a genuine review requirement survives', () => {
   const out = escalateReply(
     [
       'Still the 2.5 hours from your Apple Watch and the two small clips, and still nothing showing up in the app.',
@@ -257,7 +258,8 @@ test('cannot-mention-you and passing-on lines are dropped', () => {
   assert.equal(/mention myself/i.test(out), false);
   assert.equal(/passing on/i.test(out), false);
   assert.equal(/re-explaining/i.test(out), false);
-  assert.equal(/person who can look/i.test(out), false);
+  assert.equal(/person who can look/i.test(out), true);
+  assert.doesNotMatch(out, /has this now|has accepted|already checked/i);
 });
 
 test('sent-this-along claims are dropped from Handoff follow-ups', () => {

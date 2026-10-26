@@ -393,21 +393,31 @@ const PING_NARRATION = [
   /handoff happens/i,
   /flagging this/i,
   /i('m| am) not able to ping/i,
-  /person on the team/i,
   /going into your account/i,
   /can'?t send you a mention/i,
   /cannot send you a mention/i,
   /send you a mention myself/i,
   /i('m| am) passing on/i,
   /keep re-explaining/i,
-  /needs a person who can look/i,
-  /this one needs a person/i,
-  /not sure what the (blue|red|orange|teal) (dot|light)/i,
   /sent this along/i,
   /passed this along/i,
   /passing it along/i,
-  /needs the app side to look/i,
 ];
+
+// Retain only a complete, bounded requirement expression here. An arbitrary
+// suffix (including another predicate about the same person) is not a proven
+// requirement. Unknown staff-affiliation claims keep the old fail-closed guard.
+// This is intentionally not a general semantic parser. Mixed/unknown removed
+// units belong in the untrusted reviewer audit, never in an inferred rewrite.
+const PERSON_REQUIREMENT = /^(?:(?:a|the|no)\s+)?person on the team\s+(?:(?:still\s+)?needs?\s+to|has\s+to|must|should|(?:may|might|will)\s+need\s+to)\s+(?:review|check|handle|take|look\s+at)\s+(?:this|it|that|(?:your|the)\s+(?:case|issue|request|problem|report|details|evidence))[.!?]?$/i;
+
+function isPingNarration(text) {
+  // Classify displayed words without allowing Markdown to hide a predicate;
+  // the original text, conditions and punctuation are retained when allowed.
+  const shown = String(text || '').replace(/[*_~`]/g, '').trim();
+  if (PING_NARRATION.some(re => re.test(shown))) return true;
+  return /person on the team/i.test(shown) && !PERSON_REQUIREMENT.test(shown);
+}
 
 const ALREADY_SAID_PINGED = [
   /sent this to a person/i,
@@ -423,10 +433,12 @@ function dropPingNarration(text) {
     .replace(/\byou don'?t need to keep re-explaining\b/gi, '')
     .split('\n')
     .map((line) => {
-      if (!PING_NARRATION.some((re) => re.test(line))) return line;
+      if (!isPingNarration(line)) return line;
       return line
-        .split(/(?<=[.!?])\s+|\s+[—–]\s+/)
-        .filter((sentence) => !PING_NARRATION.some((re) => re.test(sentence)))
+        // A dash is not proof of semantic independence: deleting an approval
+        // condition before it can leave a stronger, unsafe instruction.
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => !isPingNarration(sentence))
         .join(' ');
     })
     .map((line) => line.replace(/^[,\s]+/, '').replace(/\s{2,}/g, ' ').trim())
