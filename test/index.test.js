@@ -1070,6 +1070,21 @@ for (const [language, phrase] of [
   if (language !== 'xx') assert.doesNotMatch(response.reply, /couldn't verify|won't substitute|a person needs to check/u);
 });
 
+test('shared review selection keeps Devanagari rejection copy for a Devanagari question', async t => {
+  const staff = enableStaffDelivery(t);
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = previousKey; });
+  plannerReplyLanguage = 'hi';
+  reviewerResponse = () => ({ final_answer: 'An unrelated draft.', grounded: false,
+    relevant: false, confidence: 0.1, escalate: true });
+  const response = await ask('ऐप में अक्षरों का आकार कैसे बदलें?');
+  assert.equal(reviewCalls.length, 2);
+  assert.equal(staff.length, 1);
+  assert.match(response.reply, /जाँच/u);
+  assert.doesNotMatch(response.reply, /jaanch|couldn't verify/u);
+});
+
 test('actual handler carries parse-stage removed context into the existing reviewer only', async t => {
   const priorKey = process.env.CMD_API_KEY;
   process.env.CMD_API_KEY = 'synthetic-provider-key';
