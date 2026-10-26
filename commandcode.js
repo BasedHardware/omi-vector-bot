@@ -8,6 +8,7 @@ const { SUPPORT_VOICE } = require('./supportVoice');
 const { normalizeSubQuestions } = require('./retrieval');
 const { isPreviousPost, splitHistory, previousContextBlock } = require('./supportContextFormat');
 const { recordStage } = require('./answerStageEvidence');
+const { SOURCE_DATE_POLICY } = require('./sourceProvenance');
 
 const PLANNED_HANDOFF_GUIDANCE = 'A person from the Omi team will reply in this thread if staff delivery succeeds. The application adds that line after delivery; do not repeat or claim it already happened. Don\'t tell the customer to contact support, email, use a contact form or post in another channel. Give relevant official steps and ask only for missing details.';
 
@@ -663,6 +664,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
           content: `${SUPPORT_VOICE}\n\nClarification: the ban on steps from static fallback applies only to troubleshooting a tech or firmware symptom. For a how-to FAQ, the Omi team static product facts are usable below the Help Center and docs when not contradicted; do not invent a source URL. For refund, billing, subscription, account, and data requests, answer any supported policy or procedure from official pages while keeping escalation for the human action. General policy pages cannot verify a specific order status, location, tracking, or delivery date; remove or reject any such claim unless a verified order lookup tool fact supports it. If understanding.dataLossRisk is true, retain a brief warning in the customer language not to reinstall, log out, or clear local recordings while staff checks; do not add an English warning to a non-English reply. Use the customer language and script throughout, including a localized source label; romanized Hindi stays romanized. Do not append an English Source line to an existing localized citation.${handoffPlanned ? ` ${PLANNED_HANDOFF_GUIDANCE}` : ''}`,
         },
         { role: 'system', content: PUBLIC_REPLY_PRIVACY_POLICY },
+        { role: 'system', content: SOURCE_DATE_POLICY },
         ...(citationLimit === 4 ? [{
           role: 'system',
           content: 'This request contains more than three distinct sub-questions. Its one Source line may contain at most four exact URLs from the retrieved evidence, instead of the ordinary two, when needed to support the requested parts. Keep each supported part brief and in the order asked.',

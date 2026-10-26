@@ -1,6 +1,6 @@
 # GitHub notice replay and receipt lifecycle — #86
 
-Merged October26 as647b549; not deployed. Aryan approved30-day receipt retention, payload-subject-age rejection and customer erasure. Local1202/no-model8, hosted Node20/24/real PostgreSQL and final independent85-test/signed HTTP/SQL/two-migration-probe review pass at62776f8; merged-main CI is green. Release/smoke remain required. This is notice deduplication, not the full #51 delivery outbox or universal exactly-once delivery.
+Merged October26 as647b549 and operator-deployed asdba28f7d at12:59 IST, explicitly confirmed by Aryan. Fresh health/schema/Discord startup checks pass, one running instance, optional features and automatic deploy off; the notice smoke remains pending. Local1202/no-model8, hosted Node20/24/real PostgreSQL and final independent85-test/signed HTTP/SQL/two-migration-probe review pass at62776f8. This is notice deduplication, not the full #51 delivery outbox or universal exactly-once delivery.
 
 ## Send authority and subject time
 

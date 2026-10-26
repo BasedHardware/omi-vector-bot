@@ -2,6 +2,7 @@ const SITEMAP = 'https://help.omi.me/sitemap.xml';
 const HELP_FORUM = () => String(process.env.HELP_FORUM_CHANNEL_ID || '').trim();
 const { cleanDocument } = require('./retrieval');
 const { redactSensitive } = require('./privacy');
+const { articleProvenance } = require('./sourceProvenance');
 
 function articleUrls(xml) {
   return [...String(xml || '').matchAll(/<loc>(https:\/\/help\.omi\.me\/en\/articles\/[^<]+)<\/loc>/g)].map(
@@ -52,7 +53,7 @@ async function loadHelpCenter(fetchImpl, db) {
       const html = await res.text();
       const body = htmlToText(html);
       if (!body) return;
-      await db.saveDocPage({ url, title: titleFromHtml(html, url), body });
+      await db.saveDocPage({ url, title: titleFromHtml(html, url), body, provenance: articleProvenance(html,url) });
       saved += 1;
     } catch (err) {
       console.error('[Help] article failed:', err.message);

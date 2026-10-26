@@ -1,6 +1,14 @@
 # Mira implementation checklist
 
-**October26 current state:** #86 merged647b549 after1202/no-model8, exact-head hosted Node20/24/real PostgreSQL, independent review and merged-main CI. Release/smoke remain pending. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d. Mira repository presentation and #83 source provenance are separate new work; no paid run, public Omi test issue or memory enablement.
+**October26 current state:** Aryan deployed647b549 asdba28f7d; fresh health/schema/Discord startup pass, one running instance, optional features/automatic deploy off. #86 notice smoke remains pending. Maina9c9508 adds only the reviewed Mira repository guide. #83 source provenance/conflict handling is a separate draft; no paid run, public Omi test issue, agent deployment or memory enablement.
+
+## #83 source provenance and conflict handling — draft
+
+- [x] Observe missing publisher provenance across ingestion/chunks/evidence before implementation; preserve fetch time as a separate operational field.
+- [x] Carry bounded publisher dates and explicit product/surface/version scope through production persistence/search/formatting; unknown/invalid/ambiguous metadata remains unknown and an undated refresh clears stale provenance.
+- [x] Add source/topic/explicit-scope/date ordering without deleting rows or increasing budgets, plus one shared applicability/conflict policy in answer and both reviewer attempts. Preserve identifier punctuation and complementary safety details.
+- [x] Twelve original synthetic regressions pass, including policy transport and six simultaneous fetches with10-second deadlines for two-/three-part questions. No provider call or protected case.
+- [ ] Complete final full/no-model/current-head hosted PostgreSQL CI and independent review; then obtain authorization before any necessary generated-answer checks. A policy reaching a model is not proof of compliance. Keep #83 open and draft until its actual accuracy gates pass.
 
 
 ## Current audited execution — October 26, 2026

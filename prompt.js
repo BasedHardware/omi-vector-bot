@@ -2,6 +2,7 @@ const { describe } = require('./router');
 const { askedWhereRecordingsWent } = require('./honesty');
 const { SUPPORT_VOICE } = require('./supportVoice');
 const { splitHistory, previousContextBlock } = require('./supportContextFormat');
+const { SOURCE_DATE_POLICY } = require('./sourceProvenance');
 
 const HOWTO_FAQ = [
   'Omi works with iPhone and Android. Keep the Omi app open. If you fully close it (swipe it away), it stops writing down what was said and the device disconnects.',
@@ -144,6 +145,8 @@ ${SUPPORT_POLICY}
 ${SUPPORT_COMMUNICATION_POLICY}
 
 ${PUBLIC_REPLY_PRIVACY_POLICY}
+
+${SOURCE_DATE_POLICY}
 
 The person asking is a customer. They may paste a rant, a screenshot dump, numbered questions, or one messy paragraph. Read it like a person would. Figure out the actual problem.
 

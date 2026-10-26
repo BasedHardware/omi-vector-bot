@@ -1,6 +1,6 @@
 # Mira roadmap
 
-**October26 current state:** #86 merged647b549 after1202/no-model8, exact-head hosted Node20/24/real PostgreSQL, independent review and merged-main CI. [Lifecycle details](docs/GITHUB_NOTICE_LIFECYCLE.md). The old PR backlog is cleared; new work is Mira repository presentation and local #83 source provenance/conflict handling. #62 stays open for reproduced narration/context loss despite merged diagnostics. Production stays c6f482d; no paid run, public Omi test issue or memory enablement. Main implementation64/100; delivery56/100;44 left. Technical identifiers remain unchanged under the Mira product name.
+**October26 current state:** #86 is operator-deployed as647b549/dba28f7d, explicitly confirmed by Aryan; fresh health/startup pass, one running instance, optional features and automatic deploy off. Notice smoke remains pending. #89's Mira repository guide is mergeda9c9508 with all checks/review; no runtime change after production. Current draft #83 adds publisher provenance, conservative explicit-scope date ordering and shared conflict policy, with twelve synthetic regressions; accuracy/review/CI gates remain. #62 stays open for narration/context loss. Main implementation64/100; delivery56/100;44 left. No paid run, agent deployment or memory enablement.
 
 
 ## Current audited dashboard — October 26, 2026

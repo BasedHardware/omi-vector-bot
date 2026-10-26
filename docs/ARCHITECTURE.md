@@ -1,6 +1,8 @@
 # Mira architecture
 
-**October26 current state:** #86 merged647b549 after1202/no-model8, exact-head hosted Node20/24/real PostgreSQL, final independent review and merged-main CI. Its30-day subject-time replay guard, customer erasure and non-starvable cleanup are on main, awaiting release. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no paid run, public Omi test issue or memory enablement. The product name is Mira; technical identifiers are stable. Separate #83 source-provenance work is local and not an accuracy claim.
+**October26 current state:** Aryan confirmed his647b549/dba28f7d deployment; health/schema/Discord startup pass with one running instance and optional features/automatic deploy off. #86's notice smoke is still pending. Maina9c9508 adds only the reviewed Mira repository guide. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). No agent deployment, paid run or memory enablement.
+
+**#83 draft boundary:** one sourceProvenance module carries reliable publisher dates and explicitly declared software applicability through Help Center ingestion, parent-page JSONB, in-memory chunks, stored search and evidence formatting. Stored fusion/local ranking reorder only equivalent explicit scope/topic/source slots; they delete no source or complementary fact. One shared answer/review policy handles unresolved applicability/conflicts without a new model request. Existing budgets/authority/privacy/handoff paths remain. [Design, limitations and acceptance](SOURCE_CONFLICTS.md). This code is not on main and generated-answer accuracy remains unverified.
 
 
 ## Current integrated boundary — October 26, 2026

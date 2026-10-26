@@ -293,6 +293,32 @@ async function verifyGitHubNoticeReceipts(pool, prefix) {
   console.log('GitHub notice receipts: concurrent claims, uncertain/lost ACK fences, subject-age rejection after pruning, customer erasure/recreation, bounded non-starvable cleanup and text-free schema passed');
 }
 
+async function verifySourceProvenance(pool) {
+  // Use the production persistence/search owners against this isolated database.
+  // This runs after legacy-upgrade fixtures; it cannot pre-upgrade their schemas.
+  const db = require('../db');
+  const original = { connect:db.pool.connect,query:db.pool.query };
+  db.pool.connect = pool.connect.bind(pool); db.pool.query = pool.query.bind(pool);
+  try {
+    await db.initSchema();
+    const url = 'https://help.omi.me/en/articles/synthetic-capture-provenance';
+    const provenance = { publishedAt:'2025-01-02T03:04:05.000Z',updatedAt:'2026-02-03T04:05:06.000Z',
+      dateOrigin:'article-jsonld',applicability:{product:'synthetic-recorder',surface:'mobile',version:'2'} };
+    await db.saveDocPage({url,title:'Capture provenance',body:'Capture provenance settings are available.',provenance});
+    const rows = await db.searchDocPages('Capture provenance',8,['help']);
+    assert.ok(rows.length > 0); assert.deepEqual(rows[0].provenance,provenance);
+    const evidence = await require('../docs').storedDocs('Capture provenance',db);
+    assert.match(evidence,/Updated: 2026-02-03T04:05:06\.000Z/);
+    assert.match(evidence,/surface=mobile/);
+    // A refresh without dates clears obsolete metadata, never promotes fetched_at.
+    await db.saveDocPage({url,title:'Capture provenance',body:'Capture provenance settings remain available.'});
+    assert.deepEqual((await db.searchDocPages('Capture provenance',8,['help']))[0].provenance,{});
+    await db.initSchema();
+    assert.deepEqual((await db.searchDocPages('Capture provenance',8,['help']))[0].provenance,{});
+    console.log('Official source provenance: production save/search/evidence round trip, unknown-date refresh and additive schema passed');
+  } finally { db.pool.connect=original.connect; db.pool.query=original.query; }
+}
+
 async function verify(pool) {
 
   const prefix = `test-${randomUUID()}`;
@@ -894,7 +920,7 @@ async function verifyKnowledgePrivacy(pool, prefix) {
 
 (async () => {
   const pool = await isolatedPool();
-  try { await verify(pool); } finally { await pool.end(); }
+  try { await verify(pool); await verifySourceProvenance(pool); } finally { await pool.end(); }
 })().catch((error) => {
   // SQL and connection errors can contain inputs. Never dump them or a URL.
   console.error(`Support database integration failed: ${error.name}; code=${String(error.code || 'check_failed').replace(/[^A-Za-z0-9_]/g, '')}`);
