@@ -12,6 +12,27 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+test('optional stage-evidence harness uses the same operation and preserves metadata after a failure', async () => {
+  const { withTurnEvidence } = require('../scripts/live-eval');
+  const stageModule = require('../answerStageEvidence');
+  const state = {};
+  const failure = Error('synthetic failure');
+  await assert.rejects(withTurnEvidence(state, () => {
+    stageModule.recordStage('generated', 'synthetic secret');
+    throw failure;
+  }, { enabled: true, stageModule, turn: 2 }), error => error === failure);
+  assert.equal(state.stageEvidenceStatus, 'captured');
+  assert.equal(state.stageEvidence.length, 1);
+  assert.equal(state.stageEvidence[0].turn, 2);
+  assert.doesNotMatch(JSON.stringify(state), /synthetic secret/);
+  const disabled = {}, absent = {};
+  assert.equal(await withTurnEvidence(disabled, () => 'same bytes', { stageModule }), 'same bytes');
+  assert.equal(disabled.stageEvidenceStatus, 'disabled');
+  assert.equal(disabled.stageEvidence, undefined);
+  assert.equal(await withTurnEvidence(absent, () => 7, { enabled: true }), 7);
+  assert.equal(absent.stageEvidenceStatus, 'unavailable');
+});
+
 test('comparison instrumentation captures only actual escalation lines in the current case', () => {
   const { captureEscalation } = require('../scripts/live-eval');
   const first = { escalationSignals: [] }, second = { escalationSignals: [] };

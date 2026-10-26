@@ -946,6 +946,39 @@ test('answer path emits per-stage timing metrics without customer text', async (
   }
 });
 
+test('actual answer handler emits optional stage evidence with byte-identical delivered output', async t => {
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { if (previousKey === undefined) delete process.env.CMD_API_KEY; else process.env.CMD_API_KEY = previousKey; });
+  modelReply = { final_answer: 'The connection detail is useful. Which app version is installed?', escalate: false };
+  const { createStageEvidence } = require('../answerStageEvidence');
+  const collector = createStageEvidence();
+  const captured = await collector.run(() => ask('How does Omi pair with a phone?'));
+  const plain = await ask('How does Omi pair with a phone?');
+  assert.equal(captured.reply, plain.reply);
+  const records = collector.snapshot().records;
+  for (const stage of ['generated','draft_input','draft_safety','review_returned','review_selected','presentation_input','presentation_output','send_input','send_payload']) {
+    assert.ok(records.some(row => row.stage === stage), stage);
+  }
+  assert.equal(records.findLast(row => row.stage === 'send_payload').chars, captured.reply.length);
+  assert.doesNotMatch(JSON.stringify(records), /connection detail|app version|pair with|100000000/);
+});
+
+test('actual handoff exposes composition separately from final send without changing the reply', async t => {
+  enableStaffDelivery(t);
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'test-only-key';
+  t.after(() => { if (previousKey === undefined) delete process.env.CMD_API_KEY; else process.env.CMD_API_KEY = previousKey; });
+  modelReply = { final_answer: 'Your app still closes after the earlier check. Which app version is installed?', escalate: true };
+  const collector = require('../answerStageEvidence').createStageEvidence();
+  const result = await collector.run(() => ask('My desktop app closes whenever I open settings.'));
+  const records = collector.snapshot().records;
+  assert.ok(records.some(row => row.stage === 'handoff_input'));
+  assert.ok(records.some(row => row.stage === 'handoff_output'));
+  assert.equal(records.findLast(row => row.stage === 'send_payload').chars, result.reply.length);
+  assert.doesNotMatch(JSON.stringify(records), /app still closes|desktop app|100000000/);
+});
+
 test('an approved second look supplies the reply and counts both reviews in timing', async () => {
   const previousKey = process.env.CMD_API_KEY;
   const originalLog = console.log;

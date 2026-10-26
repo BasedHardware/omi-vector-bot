@@ -1,40 +1,26 @@
 # Omi Support Bot Implementation Checklist
 
-## Local duplicate-notice candidate — no production mutation
+**#86 lifecycle candidate, October26:** the original durable GitHub notice fence is integrated with reviewed main928676b. Thirty-day retention, original payload-subject-age rejection and customer erasure are approved requirements, not yet verified implementation. Preserve original/uncertain delivery fences; remaining lifecycle regressions, real PostgreSQL/current-head CI and independent review gate merge. Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement.
 
-- [x] Observe six intended failures in eight original replay tests before implementing the fence; preserve distinct-event and wrong-owner behavior.
-- [x] One durable PostgreSQL event/authorized-recipient receipt in the existing GitHub notification pipeline; no memory fallback on configuration/SQL failure, no replay of ambiguous sends or receipt acknowledgments.
-- [x] Preserve source/customer/dedicated-thread and legacy restrictions; no pings, raw issue/comment text or automatic case closure. Same-event linked issue numbers share the original recipient fence.
-- [x] Signed local HTTP integration exercises actual ingress/notifier: concurrent deliveries with differing installation metadata, same-ID suppression, different-ID delivery, malformed/type/signature rejection and pre-send database outage; zero model calls.
-- [x] Final1180/1180 full tests,8/8 no-model customer checks and isolated PGlite schema/claims/receipt integration pass. SQL covers concurrent callers, adapter recreation, uncertain rows, distinct recipients, committed-write/ack-loss and text-free columns.
-- [ ] Independent final-diff review and exact-head hosted Node20/24/multi-connection PostgreSQL CI. PGlite serializes connections and is not the hosted concurrent-database proof.
-- [ ] Review receipt metadata retention/erasure under #85 before readiness. No automatic tombstone expiry/reset, outbox, universal exactly-once or complete delivery-recovery claim.
-- [ ] A separately approved release and appropriately scoped verification remain; no further Discord test or paid comparison requested now. Memory/other optional features stay off, score49/100 unchanged.
 
-## Latest October25 — private preview verified, post-publication reliability hold
+## Current audited execution — October 26, 2026
 
-- [x] Replacement technical handoff and private editor/preview supplied at20:08 IST. Preview contains exactly the staff-authored synthetic title/body, public target and confirmation control; no customer identifiers or raw incident evidence.
-- [x] Record that Aryan explicitly clicked Publish beyond the stop point. GitHub issue23602 matches only the synthetic summary and App author. Separately approved close-as-not-planned plus test-only comment is verified; no deletion or customer-resolution claim.
-- [x] Diagnose the new duplicate status notices read-only: screenshot shows two note/two closure notices, while GitHub has one comment/one closure event. Offline same-event probes produce two sends in current and rollback38337e7; no event identity/durable replay receipt reaches the notifier. Actual live ingress duplication remains unproven.
-- [ ] Obtain disposition for a focused replay-safe notification repair; preserve existing case/customer/source checks and uncertain-delivery fencing, with synthetic red-before/SQL/concurrent/restart verification as appropriate. No code/PR/fix is claimed by the diagnostic.
-- [ ] Clean-release sign-off and memory-pilot progression remain held on this newly observed path. Do not repeat paid comparisons, enable optional flags, change settings or claim rollback fixes the pre-existing replay weakness. Current runtime remains healthy, zero open PRs, score49/100 unchanged.
+- [x] Reconcile main `c6f482d` and completed #59/#28/#84 decisions with the retained comparison/CI/review/release receipts. Four bounded combined-release scenarios are verified, not universal accuracy.
+- [x] Audit fixed25×4 progress:16 main +16 tested +16 reviewed +8 verified operations =56/100;44 left. Main milestone implementation coverage64/100; full A–E2/21. [Ledger](SUPPORT_PROGRESS.json) and four automatic consistency checks preserve definitions.
+- [x] Audit12 open issues; close only speculative stored summaries #52 not planned. Preserve11 unresolved issues, existing assignments and closed-branch evidence. [Disposition](SUPPORT_ISSUE_AUDIT_2026-10-25.md).
+- [ ] #86 lifecycle approved:30-day bounded/non-starvable expiry, original payload-subject-age replay guard and customer erasure. Implement/red-before/real PostgreSQL/current CI/independent review before merge; no deletion that re-enables old sends.
+- [x] #88 merged884fb46 with1174/offline8/current CI/independent35 checks and unchanged reply bytes; #62 remains separate from deployment/customer resolution.
+- [x] Step5 preparation and revised AI-provider-disclosing notice wording approved. Publication, processor/backups and explicit enablement remain unchecked; no memory flag changed.
+- [ ] Then #83 general source conflicts and #65 accuracy; remaining C/D/E and #51/#53/#56 operational reliability stay required. No automatic paid evaluation, customer data use, issue assignment, merge or deployment.
 
-## Latest October25 smoke progress
+Older dated checklists below are retained implementation history, not current pending work or renewed authorization. The [master plan](SUPPORT_MASTER_PLAN.md) controls the current queue.
+## #62 evidence-only implementation — #88 merged
 
-- [x] English phone-only how-to at19:30 IST: screenshot shows one complete short sourced answer with no customer-facing handoff claim; official guide independently confirms the steps. FeedbackMSA-056; no underlying customer recovery inferred.
-- [x] Damage privacy at19:38 IST: public reply has relevant source/evidence guidance, no public identifying-intake request and no replacement/deadline guarantee. Matching19:38 card supplied at19:46 shows delivery to #vector-staff and corrected no-public-account/order-intake guidance. Status remains awaiting staff acceptance, not accepted/resolved. Same answerMSA-057, no duplicate ID.
-- [x] Order privacy at19:50 IST: public reply says to have order/tracking details ready, not post them, and invents no customer-specific status or delivery date. Matching private card is awaiting acceptance and prohibits public order/account intake. Relevant shipping guidance verified; minor wording/source-selection improvements tracked asMSA-058, not a failed privacy smoke.
-- [x] Reconcile Aryan's19:31 same-commit redeploy `3d4cb5d8`: exact `c6f482d`, SUCCESS/latest, health/schema/Discord readiness, one active/running instance, optional controls and auto-deploy off. The original agent release was `306d8377`; no second agent deployment/settings change.
-- [ ] Engineering preview:19:55 public reply acknowledges the Android crash and prior attempts; matching private card is awaiting acceptance and shows Review technical summary. Handoff/control stage passes; staff-authored synthetic summary and exact private payload preview remain. STOP before Publish. Any failed required smoke rolls back to the verified prior deployment. Overall release acceptance and memory enablement remain pending. FeedbackMSA-059; reported scenario is not an independently reproduced crash.
-
-## October25 combined release checkpoint
-
-- [x] #84 merged `c6f482d`; final-head CI40195885182 and merged-main CI40196153378 pass Node20/24/real PostgreSQL. Final local1165/offline8/isolated SQL and independent scoped review pass.
-- [x] Exact GitHub main deployed once as `306d8377`; matching recorded SHA, healthy staff readiness, schema/Discord login, one active/running instance and old clean drain verified. Optional features and auto-deploy off; no settings change. Fresh rollback `7b41e119` / `38337e7`.
-- [ ] Aryan's how-to, damaged-item privacy, order privacy and engineering private-preview smokes. STOP before Publish; App configuration is ready, not verified public-write authority. Roll back on any failure. No release acceptance or live milestone added yet.
-- [ ] Then Step5 notice/checklist preparation only. No flag until notice approval plus explicit enablement; no additional paid run. Zero open PRs; #62/#83 remain queued.
-
-## Earlier pre-release verification snapshot
+- [x] Observe a failing actual draft/presentation instrumentation assertion before wiring; preserve the existing filter/presentation behavior.
+- [x] Add explicit per-turn evaluation collection, fixed text-free records, ephemeral keyed hashes, bounded overflow and closed late-work handling; no production logger/store or default activation.
+- [x] Wire actual generation/review/safety/presentation/clipping/handoff/send projection, plus opt-in harness collection and missing-baseline compatibility. No duplicate formatter or judge/prompt/source change.
+- [x] Focused synthetic real-function/reviewer/handler/handoff/harness, byte-parity, concurrency, bounds and failure checks pass without paid calls or Discord.
+- [x] Full1174/no-model8/exact-head CI and independent35-check review passed before merge884fb46. No paid rerun, customer-data use or separate deployment. Close #62 only after merged-main/integration evidence is checked; wider E2 execution-validity and customer outcome requirements remain.
 
 ## Current October25 finish status
 

@@ -1,5 +1,6 @@
 const { stripStaffLies, stripInventedLookup } = require('./honesty');
 const { createHash } = require('node:crypto');
+const { recordStage } = require('./answerStageEvidence');
 const { isPreviousPost } = require('./supportContextFormat');
 const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR, hasTroubleshootingStep, hasSafetyWarning } = require('./supportSteps');
 const SOURCE_HEADING = new RegExp(`^\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}`, 'iu');
@@ -515,11 +516,12 @@ function stripFalseCertainty(text) {
 const ISSUE_FOOTER = 'The problem is written in this thread. Keep talking here — you do not need to ping anyone.';
 
 function escalateReply(answer, opts = {}) {
+  recordStage('handoff_input', answer);
   const shown = composeEscalation(answer, opts);
-  return require('./publicReplyPrivacy').publicReplyPrivacy(shown, {
+  return recordStage('handoff_output', require('./publicReplyPrivacy').publicReplyPrivacy(shown, {
     ...opts, orderAvailable: opts.orderAvailable ?? require('./orderFlow').isLive(),
     staffDelivered: opts.pinged === true && !opts.deliveryFailed,
-  }).text;
+  }).text);
 }
 
 function composeEscalation(answer, opts = {}) {

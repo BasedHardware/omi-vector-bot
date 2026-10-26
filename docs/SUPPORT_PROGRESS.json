@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 1,
+  "auditedOn": "2026-10-26",
+  "timezone": "Asia/Kolkata",
+  "auditedMain": "884fb467d8df7793acdec5e7e0c12735c7b50f6b",
+  "rubric": "25 fixed milestones; one point per main implementation, tested, independently reviewed and relevant live/tool-operation verification",
+  "notAccuracy": true,
+  "milestones": [
+    {
+      "id": 1,
+      "name": "Short plain replies",
+      "workstream": "A1",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": true,
+      "evidence": "Release 1; shared supportVoice.js and answerPipeline.js; accepted six-scenario release.",
+      "source": "supportVoice.js"
+    },
+    {
+      "id": 2,
+      "name": "How-to versus failure routing",
+      "workstream": "A2",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": false,
+      "evidence": "Release 1 routing tests/review; broader hypothetical/actual-failure and corrected-intent quality remains open.",
+      "source": "router.js"
+    },
+    {
+      "id": 3,
+      "name": "Multipart coverage, complete clipping and damage intake",
+      "workstream": "A2",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": false,
+      "evidence": "Release 1 foundation; #65 and forced-overflow/general multipart live acceptance remain incomplete.",
+      "source": "answerPipeline.js"
+    },
+    {
+      "id": 4,
+      "name": "Grounded confidence/source-fit foundation",
+      "workstream": "A2",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": true,
+      "evidence": "#48 reviewed and accepted on its release; not proof of every confidence or source-conflict case.",
+      "source": "reviewDecision.js"
+    },
+    {
+      "id": 5,
+      "name": "Calm practical AI-labelled Mira voice",
+      "workstream": "A1",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": false,
+      "evidence": "#59 merged 38337e7 after independent reading of its final comparison; current multilingual voice acceptance incomplete.",
+      "source": "supportVoice.js"
+    },
+    {
+      "id": 6,
+      "name": "Typing refresh and cosmetic-error isolation",
+      "workstream": "A4",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": true,
+      "evidence": "#46 and accepted Release 1 typing observation; isolation has automated failure tests, not an injected production fault.",
+      "source": "index.js"
+    },
+    {
+      "id": 7,
+      "name": "Read-only private staff-audience preflight",
+      "workstream": "B1",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": true,
+      "evidence": "Production-configured private_staff_destination check passed; not Telegram expansion authority.",
+      "source": "staffDestination.js"
+    },
+    {
+      "id": 8,
+      "name": "Durable staff-case lifecycle and refresh",
+      "workstream": "B2",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": true,
+      "evidence": "#41 accepted work/wait/close/restart scenarios; broader B2 remains open.",
+      "source": "caseCards.js"
+    },
+    {
+      "id": 9,
+      "name": "Scoped pickup notices and visible notice failure",
+      "workstream": "B2",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": true,
+      "evidence": "#41 reviewed/live pickup evidence and durable per-cycle claim; no universal exactly-once guarantee.",
+      "source": "caseCards.js"
+    },
+    {
+      "id": 10,
+      "name": "Durable private engineering approvals",
+      "workstream": "B2",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": true,
+      "evidence": "#28 merged 0986b75; October25 exact staff-authored private preview verified. Subsequent operator publication/cleanup exposed separate replay weakness.",
+      "source": "supportApprovals.js"
+    },
+    {
+      "id": 11,
+      "name": "Known-unsent queued/abandoned reply recovery",
+      "workstream": "B3",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": false,
+      "evidence": "#70 merged 6b6d97d; independent review, two-worker SQL partition/lost-ack/recovery tests. Does not finish #51 outbox/held alerts or prove live outage recovery.",
+      "source": "supportRuntime.js"
+    },
+    {
+      "id": 12,
+      "name": "Full uncertain-send close/reopen hardening",
+      "workstream": "B3",
+      "onMain": false,
+      "tested": false,
+      "reviewed": false,
+      "liveVerified": false,
+      "evidence": "#30 closed unmerged; remaining receipt/reconciliation requirements preserved in #51."
+    },
+    {
+      "id": 13,
+      "name": "Operational queue and alert coverage",
+      "workstream": "B4",
+      "onMain": false,
+      "tested": false,
+      "reviewed": false,
+      "liveVerified": false,
+      "evidence": "Staff coverage, queue, ownership and actionable failed-delivery alerts remain #53/#56."
+    },
+    {
+      "id": 14,
+      "name": "References-only support-memory store",
+      "workstream": "C1",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": false,
+      "evidence": "#61 reviewed/merged for off-only release; no message text/ciphertext; enablement/privacy/notice gates remain.",
+      "source": "supportMemoryStore.js"
+    },
+    {
+      "id": 15,
+      "name": "Bounded same-owner cross-post context",
+      "workstream": "C2",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": false,
+      "evidence": "#61 owner/forum/role/cap/deadline checks plus #73 SQL/reader rehearsal; no enabled generated-answer pilot.",
+      "source": "supportLearning.js"
+    },
+    {
+      "id": 16,
+      "name": "Forum-wide erasure, deletion, expiry and isolation",
+      "workstream": "C3",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": false,
+      "evidence": "#61/#73 and merged #74 tests/review cover opt-out races and verified correction links. Not erasure of case/approval metadata/backups; #85 and pilot remain.",
+      "source": "supportKnowledgePrivacy.js"
+    },
+    {
+      "id": 17,
+      "name": "Reviewed memory pilot and controlled expansion",
+      "workstream": "C4",
+      "onMain": false,
+      "tested": false,
+      "reviewed": false,
+      "liveVerified": false,
+      "evidence": "Notice/policy/backup/processor review, explicit test-only enablement, real two-post checks and 48 clean hours remain."
+    },
+    {
+      "id": 18,
+      "name": "Versioned reviewed-fact/revocation foundation",
+      "workstream": "D5",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": false,
+      "evidence": "#49 merged ec51f7a after independent foundation review; disabled without real validator, review controls and jobs.",
+      "source": "knowledgeReview.js"
+    },
+    {
+      "id": 19,
+      "name": "Owner-scoped minimized review signals",
+      "workstream": "D1",
+      "onMain": false,
+      "tested": false,
+      "reviewed": false,
+      "liveVerified": false,
+      "evidence": "Basic outcome storage is not complete deduplicated D1 signal detection/coverage."
+    },
+    {
+      "id": 20,
+      "name": "Grouped private review inbox and decisions",
+      "workstream": "D2/D4",
+      "onMain": false,
+      "tested": false,
+      "reviewed": false,
+      "liveVerified": false,
+      "evidence": "Digest, safe grouping and persistent authorized Approve/Edit/Reject/Snooze workflow not built."
+    },
+    {
+      "id": 21,
+      "name": "Real validator and controlled fact publication",
+      "workstream": "D3/D5",
+      "onMain": false,
+      "tested": false,
+      "reviewed": false,
+      "liveVerified": false,
+      "evidence": "Official-source conflict/applicability validation, synthetic regression and safe publication/revocation flow remain."
+    },
+    {
+      "id": 22,
+      "name": "Nightly regression jobs and visible failures",
+      "workstream": "D6",
+      "onMain": false,
+      "tested": false,
+      "reviewed": false,
+      "liveVerified": false,
+      "evidence": "No reviewed scheduled runner/alert loop is enabled or verified."
+    },
+    {
+      "id": 23,
+      "name": "Honest weekly outcome scorecard",
+      "workstream": "E1",
+      "onMain": false,
+      "tested": false,
+      "reviewed": false,
+      "liveVerified": false,
+      "evidence": "No automated weekly denominator/coverage/outcome scorecard exists."
+    },
+    {
+      "id": 24,
+      "name": "Automated regression/SQL and reviewed comparison tooling",
+      "workstream": "E2",
+      "onMain": true,
+      "tested": true,
+      "reviewed": true,
+      "liveVerified": true,
+      "evidence": "Existing CI/local SQL and completed independently graded comparisons verified as tooling; #88 stage evidence is merged, invalid-generation diagnostics remain #56/E2.",
+      "source": "scripts/verify-support-db.js"
+    },
+    {
+      "id": 25,
+      "name": "Complete support-memory-fix-revocation demonstration",
+      "workstream": "E3",
+      "onMain": false,
+      "tested": false,
+      "reviewed": false,
+      "liveVerified": false,
+      "evidence": "Full staged, enabled end-to-end demonstration has not happened."
+    }
+  ]
+}
