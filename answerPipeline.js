@@ -8,6 +8,7 @@ const {
 const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
 const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 const { publicReplyPrivacy } = require('./publicReplyPrivacy');
+const { recordStage } = require('./answerStageEvidence');
 
 const EMPTY_ANSWER_FALLBACK = 'I could not verify a safe answer here. A person needs to check this.';
 const UNSYNCED_DATA_WARNING = 'Recordings may still be unsynced. Do not reinstall the app, log out, or clear Pending/All storage until a person checks; those actions could erase local recordings.';
@@ -19,6 +20,7 @@ function ensureNonEmptyAnswer(answer) {
 // Filter the draft, and separately show the reviewer the original sentences
 // removed by those filters. Only the reviewer may restore supported details.
 function prepareDraftForReviewWithAudit(answer, lane, question) {
+  recordStage('draft_input', answer);
   const original = String(answer || '').trim();
   const draft = stripFalseCertainty(
     stripUnsupportedClaims(
@@ -34,6 +36,7 @@ function prepareDraftForReviewWithAudit(answer, lane, question) {
     .filter(Boolean)
     .filter((sentence) => !normalizedDraft.includes(sentence.replace(/\s+/g, ' ').toLowerCase()))
     .slice(0, 12);
+  recordStage('draft_safety', draft);
   return { draft, removed };
 }
 
@@ -115,19 +118,22 @@ function clipKeepingSource(answer, max = DISCORD_REPLY_MAX) {
 }
 
 function presentReviewedAnswer(answer, opts = {}) {
+  recordStage('presentation_input', answer);
   const privacy = publicReplyPrivacy(stripPingNarration(answer), opts);
   opts.onPrivacy?.(privacy);
-  return ensureNonEmptyAnswer(fitPublicReply({ ...privacy, text: formatDiscordReply(privacy.text) }));
+  recordStage('presentation_filtered', privacy.text);
+  return recordStage('presentation_output', ensureNonEmptyAnswer(fitPublicReply({ ...privacy, text: formatDiscordReply(privacy.text) })));
 }
 
 // Late delivery/privacy copy must fit too. Reserve the complete custody warning,
 // application-owned next steps and scoped links before optional prose.
 function fitPublicReply(privacy, max = DISCORD_REPLY_MAX) {
   const text = String(privacy.text || '').trim();
-  if (text.length <= max) return text;
+  recordStage('clip_input', text);
+  if (text.length <= max) return recordStage('clip_output', text);
   const tail = [text.includes(UNSYNCED_DATA_WARNING) ? UNSYNCED_DATA_WARNING : '',
     privacy.privateNextStep, ...new Set(privacy.channelLinks || [])].filter(Boolean);
-  if (!tail.length) return clipKeepingSource(text, max);
+  if (!tail.length) return recordStage('clip_output', clipKeepingSource(text, max));
   let body = text;
   for (const item of tail) body = body.split(item).join('');
   const sources = [];
@@ -139,7 +145,7 @@ function fitPublicReply(privacy, max = DISCORD_REPLY_MAX) {
   body = [body, ...sources].filter(Boolean).join('\n\n');
   const ending = tail.join('\n\n');
   const budget = Math.max(0, max - ending.length - (ending ? 2 : 0));
-  return [clipKeepingSource(body, budget), ending].filter(Boolean).join('\n\n');
+  return recordStage('clip_output', [clipKeepingSource(body, budget), ending].filter(Boolean).join('\n\n'));
 }
 
 function stripUnverifiedOrderClaims(answer, { verifiedLookup = false } = {}) {
