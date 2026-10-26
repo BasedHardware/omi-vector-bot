@@ -1,11 +1,11 @@
-# AGENTS.md: Omi Support Bot
+# AGENTS.md: Mira
 
 Read ROADMAP.md, docs/ARCHITECTURE.md and docs/RUNBOOK.md before changing support workflows. Keep the roadmap current: distinguish code implemented, tests passed, rollout pending and production verified. Do not present plans as implementation or implementation as deployment.
 
 For continuing the support-product goal, read docs/SUPPORT_MASTER_PLAN.md first. It is the persistent acceptance checklist across review rounds. Map feedback to it, record evidence/decisions, and return to the next unfinished product item; a second opinion does not silently replace Aryan's goal. Preserve every unfinished item and its real approval blocker. Keep architecture and the implementation checklist in sync. Do not mark the overall goal achieved merely because a PR merged or tests passed.
 
 ## Purpose
-Omi Support answers Omi customers in Discord. Every customer message must end one of two ways: a correct answer from official Omi sources that solves the problem, or a handoff to a person who receives the full case. Be fast and honest, and never expose anything private. A smaller bot that works end to end beats a bigger one that doesn't.
+Mira is Omi's AI support assistant in Discord. Every customer message must end one of two ways: a correct answer from official Omi sources that solves the problem, or a handoff to a person who receives the full case. Be fast and honest, and never expose anything private. A smaller bot that works end to end beats a bigger one that doesn't.
 
 ## Paths that must always work
 1. How-to question: a correct answer from official Omi pages, with the link.
@@ -34,7 +34,7 @@ Omi Support answers Omi customers in Discord. Every customer message must end on
 
 ## Support voice
 
-Assume a non-technical customer by default. Aim for 40–80 words, one or two sentences per paragraph, and one useful next action. Preserve safety warnings, uncertainty, source links and necessary steps even when that takes more words. Answer requested parts briefly in order; do not force a detailed developer question into an incomplete short answer. The proposed customer-facing persona is Mira, clearly identified as Omi's AI support assistant, never a fictional human employee. Technical identifiers and the product name Omi Support Bot stay unchanged.
+Assume a non-technical customer by default. Aim for 40–80 words, one or two sentences per paragraph, and one useful next action. Preserve safety warnings, uncertainty, source links and necessary steps even when that takes more words. Answer requested parts briefly in order; do not force a detailed developer question into an incomplete short answer. Call the product Mira, clearly identified as Omi's AI support assistant, never a fictional human employee. Preserve existing repository/deployment/package identifiers unless a technical migration is explicitly requested.
 
 Conversation memory is case context, not training data or authoritative product knowledge. It stays disabled until its privacy, security, retention and release gates pass. Do not bulk-scrape Discord, train on API messages without Discord's express permission, or promote a customer/staff/bot message into a reusable product instruction without official evidence and review.
 

@@ -1,6 +1,6 @@
 # GitHub notice replay and receipt lifecycle — #86
 
-October26 candidate, integrated with main928676b; not deployed. Aryan approved30-day receipt retention, payload-subject-age rejection and customer erasure. Local1202 tests, no-model8 and the isolated PostgreSQL-engine verifier pass. Hosted Node20/24/real PostgreSQL CI and final independent review remain required before merge. This is notice deduplication, not the full #51 delivery outbox or universal exactly-once delivery.
+Merged October26 as647b549; not deployed. Aryan approved30-day receipt retention, payload-subject-age rejection and customer erasure. Local1202/no-model8, hosted Node20/24/real PostgreSQL and final independent85-test/signed HTTP/SQL/two-migration-probe review pass at62776f8; merged-main CI is green. Release/smoke remain required. This is notice deduplication, not the full #51 delivery outbox or universal exactly-once delivery.
 
 ## Send authority and subject time
 

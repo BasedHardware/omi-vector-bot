@@ -1,4 +1,4 @@
-name: Bot bug
+name: Mira bug
 description: Report a reproducible runtime, Discord, ingestion, database, GitHub, or order-flow problem.
 title: "Bug: "
 body:

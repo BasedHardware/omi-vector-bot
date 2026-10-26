@@ -1,13 +1,13 @@
-# Omi Support Bot Architecture
+# Mira architecture
 
-**#86 lifecycle candidate, October26:** integrated with reviewed main928676b. The approved30-day subject-age replay guard, customer erasure and bounded/non-starvable cleanup pass1202 local tests, no-model8 and isolated PostgreSQL-engine verification. Hosted real PostgreSQL/current-head CI and independent review still gate merge. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement.
+**October26 current state:** #86 merged647b549 after1202/no-model8, exact-head hosted Node20/24/real PostgreSQL, final independent review and merged-main CI. Its30-day subject-time replay guard, customer erasure and non-starvable cleanup are on main, awaiting release. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no paid run, public Omi test issue or memory enablement. The product name is Mira; technical identifiers are stable. Separate #83 source-provenance work is local and not an accuracy claim.
 
 
 ## Current integrated boundary — October 26, 2026
 
-Audited main `c6f482d` contains #59's reviewed voice, #28's durable private approval workflow and #84's shared public-intake privacy enforcement. Optional references-only memory/context and reviewed-fact foundations are merged but remain disabled. The [master plan](SUPPORT_MASTER_PLAN.md) separates main implementation coverage64/100 from delivery completion56/100 and full acceptance2/21; these are not accuracy percentages.
+Audited main647b549 contains #59's reviewed voice, #28's durable private approval workflow, #84's shared public-intake privacy enforcement, #88's evaluation-only stage evidence and #86's notice lifecycle. Optional references-only memory/context and reviewed-fact foundations remain disabled. The [master plan](SUPPORT_MASTER_PLAN.md) separates main implementation coverage64/100 from delivery completion56/100 and full acceptance2/21; these are not accuracy percentages.
 
-Duplicate GitHub notices remain a production weakness until #86 is released. Its candidate fences dispatch with PostgreSQL, rejects stale subject times after receipt expiry, serializes customer erasure/claims and retains one minimal30-day customer/time replay cutoff. Mandatory bounded cleanup reuses the tracked worker independently of optional flags. Ownerless legacy mappings cannot create unerasable receipts. Independent review and hosted real PostgreSQL CI remain before merge; broader #85 case/link/approval lifecycles and #51 outbox work remain. #52's speculative stored summaries are dropped. The revised AI-provider notice has wording approval only, not publication or enablement. All older checkpoints below are history where superseded.
+Duplicate GitHub notices remain a production weakness until #86 is released. Its merged implementation fences dispatch with PostgreSQL, rejects stale subject times after receipt expiry, serializes customer erasure/claims and retains one minimal30-day customer/time replay cutoff. Mandatory bounded cleanup reuses the tracked worker independently of optional flags. Ownerless legacy mappings cannot create unerasable receipts. Merge review/CI passed; broader #85 case/link/approval lifecycles and #51 outbox work remain. #52's speculative stored summaries are dropped. The revised AI-provider notice has wording approval only, not publication or enablement. All older checkpoints below are history where superseded.
 
 ## Merged #88 — real-path evaluation stage evidence
 
