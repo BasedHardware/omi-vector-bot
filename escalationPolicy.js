@@ -34,6 +34,8 @@ function protectedSubject(route, triaged, question, supportKind) {
     /\b(?:refunds?|replacements?|warrant(?:y|ies)|accounts?|delet(?:e|ing|ion)|eras(?:e|ing|ure))\b/i.test(String(question || ''));
 }
 
+const { classifyReviewRequirement, isOptionalDiagnosticQualifier } = require('./reviewRequirement');
+
 function answerNeedsPerson(answer) {
   // This is a conservative wording guard, not the authority for delivery or
   // acceptance. Structured model/reviewer/route/privacy signals remain separate.
@@ -53,9 +55,14 @@ function answerNeedsPerson(answer) {
     for (const clause of sentence.split(/[;；]\s*/)) {
       // A complete conditional request for optional details does not scope a
       // later independent handoff. Ambiguous condition fragments remain held.
-      const optionalDetails = /^\s*if\s+(?:you|they|the customer)\b[^;]*,\s*(?:please\s+)?(?:share|include|provide|tell|send|add|give)\b/i.test(clause);
+      const optionalDetails = isOptionalDiagnosticQualifier(clause);
       conditional ||= !optionalDetails && /\b(?:if|unless|when|until|provided)\b|\bonly\s+(?:after|once)\b|^\s*(?:after|before|once)\b/i.test(clause);
       if (conditional) continue;
+      const requirement = classifyReviewRequirement(clause);
+      if (requirement.recognized) {
+        if (requirement.needsPerson) return true;
+        continue;
+      }
       if (direct.test(clause.trim())) return true;
       person.lastIndex = 0;
       for (const match of clause.matchAll(person)) {

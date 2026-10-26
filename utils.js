@@ -2,6 +2,7 @@ const { stripStaffLies, stripInventedLookup } = require('./honesty');
 const { createHash } = require('node:crypto');
 const { recordStage } = require('./answerStageEvidence');
 const { isPreviousPost } = require('./supportContextFormat');
+const { classifyReviewRequirement } = require('./reviewRequirement');
 const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR, hasTroubleshootingStep, hasSafetyWarning } = require('./supportSteps');
 const SOURCE_HEADING = new RegExp(`^\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}`, 'iu');
 
@@ -409,14 +410,12 @@ const PING_NARRATION = [
 // requirement. Unknown staff-affiliation claims keep the old fail-closed guard.
 // This is intentionally not a general semantic parser. Mixed/unknown removed
 // units belong in the untrusted reviewer audit, never in an inferred rewrite.
-const PERSON_REQUIREMENT = /^(?:(?:a|the|no)\s+)?person on the team\s+(?:(?:still\s+)?needs?\s+to|has\s+to|must|should|(?:may|might|will)\s+need\s+to)\s+(?:review|check|handle|take|look\s+at)\s+(?:this|it|that|(?:your|the)\s+(?:case|issue|request|problem|report|details|evidence))[.!?]?$/i;
-
 function isPingNarration(text) {
   // Classify displayed words without allowing Markdown to hide a predicate;
   // the original text, conditions and punctuation are retained when allowed.
   const shown = String(text || '').replace(/[*_~`]/g, '').trim();
   if (PING_NARRATION.some(re => re.test(shown))) return true;
-  return /person on the team/i.test(shown) && !PERSON_REQUIREMENT.test(shown);
+  return /person on the team/i.test(shown) && !classifyReviewRequirement(shown).recognized;
 }
 
 const ALREADY_SAID_PINGED = [

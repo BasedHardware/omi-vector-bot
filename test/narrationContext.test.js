@@ -169,6 +169,54 @@ test('a conditional detail request does not hide a later independent requirement
   assert.equal(answerNeedsPerson('If the upload fails again; a person needs to review this.'), false);
 });
 
+test('every retained affirmative bounded requirement reaches the actual person decision', () => {
+  for (const text of [
+    'A person on the team must review this.',
+    'A person on the team should take your case.',
+    'A person on the team has to take this.',
+    'A person on the team will need to check your request.',
+  ]) {
+    assert.equal(presentReviewedAnswer(text), text);
+    assert.equal(answerNeedsPerson(text), true, text);
+    const result = decideEscalation({ route: { lane: 'faq' }, question: 'How do I choose this setting?',
+      answer: text, agent: { confidence: 0.95, escalate: false }, triaged: { lane: 'faq' }, reviewApproved: true });
+    assert.equal(result.escalate, true, text);
+    assert.ok(result.signals.includes('answer_person'), text);
+  }
+});
+
+test('future requested procedures keep their conditional scope through the actual decision', () => {
+  for (const text of [
+    'If you later request a review, send a message; a person needs to check it.',
+    'If you decide to appeal, provide the details; a person needs to review the case.',
+    'If you have the app version for an appeal, include it; a person needs to review this.',
+  ]) {
+    const result = decideEscalation({ route: { lane: 'faq' }, question: 'How do I choose this setting?',
+      answer: presentReviewedAnswer(text), agent: { confidence: 0.95, escalate: false },
+      triaged: { lane: 'faq' }, reviewApproved: true });
+    assert.equal(result.escalate, false, text);
+    assert.ok(!result.signals.includes('answer_person'), text);
+  }
+});
+
+test('bounded current diagnostic availability does not condition an independent review requirement', () => {
+  for (const text of [
+    'If you know your device model, share it; a person needs to review this.',
+    'If you have diagnostic logs, provide them; a person needs to review the case.',
+  ]) assert.equal(answerNeedsPerson(text), true, text);
+});
+
+test('possible and negated bounded requirements are preserved without asserting a current person need', () => {
+  for (const text of [
+    'No person on the team needs to review this.',
+    'A person on the team may need to review this.',
+    'A person on the team might need to handle your request.',
+  ]) {
+    assert.equal(presentReviewedAnswer(text), text);
+    assert.equal(answerNeedsPerson(text), false, text);
+  }
+});
+
 test('honest uncertainty is retained with the actual reported symptom', () => {
   const text = 'I am not sure what the orange light means; your capture is still pending.';
   assert.equal(stripPingNarration(text), text);
