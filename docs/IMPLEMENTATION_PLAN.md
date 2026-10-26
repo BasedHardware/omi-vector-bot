@@ -1,12 +1,23 @@
 # Omi Support Bot Implementation Checklist
 
-## #62 evidence-only candidate — not merged
+## Current audited execution — October 26, 2026
+
+- [x] Reconcile main `c6f482d` and completed #59/#28/#84 decisions with the retained comparison/CI/review/release receipts. Four bounded combined-release scenarios are verified, not universal accuracy.
+- [x] Audit fixed25×4 progress:16 main +16 tested +16 reviewed +8 verified operations =56/100;44 left. Main milestone implementation coverage64/100; full A–E2/21. [Ledger](SUPPORT_PROGRESS.json) and four automatic consistency checks preserve definitions.
+- [x] Audit12 open issues; close only speculative stored summaries #52 not planned. Preserve11 unresolved issues, existing assignments and closed-branch evidence. [Disposition](SUPPORT_ISSUE_AUDIT_2026-10-25.md).
+- [ ] #86 lifecycle approved:30-day bounded/non-starvable expiry, original payload-subject-age replay guard and customer erasure. Implement/red-before/real PostgreSQL/current CI/independent review before merge; no deletion that re-enables old sends.
+- [x] #88 merged884fb46 with1174/offline8/current CI/independent35 checks and unchanged reply bytes; #62 remains separate from deployment/customer resolution.
+- [x] Step5 preparation and revised AI-provider-disclosing notice wording approved. Publication, processor/backups and explicit enablement remain unchecked; no memory flag changed.
+- [ ] Then #83 general source conflicts and #65 accuracy; remaining C/D/E and #51/#53/#56 operational reliability stay required. No automatic paid evaluation, customer data use, issue assignment, merge or deployment.
+
+Older dated checklists below are retained implementation history, not current pending work or renewed authorization. The [master plan](SUPPORT_MASTER_PLAN.md) controls the current queue.
+## #62 evidence-only implementation — #88 merged
 
 - [x] Observe a failing actual draft/presentation instrumentation assertion before wiring; preserve the existing filter/presentation behavior.
 - [x] Add explicit per-turn evaluation collection, fixed text-free records, ephemeral keyed hashes, bounded overflow and closed late-work handling; no production logger/store or default activation.
 - [x] Wire actual generation/review/safety/presentation/clipping/handoff/send projection, plus opt-in harness collection and missing-baseline compatibility. No duplicate formatter or judge/prompt/source change.
 - [x] Focused synthetic real-function/reviewer/handler/handoff/harness, byte-parity, concurrency, bounds and failure checks pass without paid calls or Discord.
-- [ ] Full/no-model/exact-head CI and independent final review before readiness. Keep #62 open until its full scope is satisfied on main; no merge/deploy/paid rerun or customer-data use by this candidate.
+- [x] Full1174/no-model8/exact-head CI and independent35-check review passed before merge884fb46. No paid rerun, customer-data use or separate deployment. Close #62 only after merged-main/integration evidence is checked; wider E2 execution-validity and customer outcome requirements remain.
 
 ## Current October25 finish status
 
