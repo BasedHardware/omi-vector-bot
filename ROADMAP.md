@@ -1,5 +1,8 @@
 # Omi Support Bot Roadmap
 
+**#86 lifecycle candidate, October26:** integrated with reviewed main928676b. The approved30-day subject-age replay guard, customer erasure and bounded/non-starvable cleanup pass1202 local tests, no-model8 and isolated PostgreSQL-engine verification. Hosted real PostgreSQL/current-head CI and independent review still gate merge. [Lifecycle details](docs/GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement. #87/#88 are merged; only #86 remains open. #62 stays open for the reproduced narration/context loss despite its merged diagnostics. Score remains56/100.
+
+
 ## Current audited dashboard — October 25, 2026
 
 **October26 superseding decision:** #88 merged884fb46 with merge commit, no separate deployment. #87 integrates that exact main and the approved provider-disclosing memory notice; wording approval is not publication/enablement. #86 lifecycle is now decided30 days with payload-subject-age replay rejection and customer erasure; implementation/red-before/CI/independent review remain. No repeat policy question or paid run. Delivery score56/100 is unchanged: no new rubric point from bookkeeping or inactive diagnostics. Production remains c6f482d, optional controls/automatic deploy off at fresh read.

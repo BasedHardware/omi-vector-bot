@@ -1,7 +1,8 @@
 // Mandatory metadata retention, not publication or a conversation observer.
 // It remains available with both the inbox and memory switches off.
 function createKnowledgeCleanup({ store, track = operation => operation(), now = Date.now,
-  stopping = () => false, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+  stopping = () => false, setTimer = setTimeout, clearTimer = clearTimeout,
+  logUnavailable = () => console.error('[KnowledgeReview] retention cleanup unavailable; pending retry') } = {}) {
   if (!store?.pruneExpiredProvenance) throw Error('A provenance cleanup store is required');
   let started = false, stopped = false, timer, pending;
   const unavailable = () => stopped || stopping();
@@ -22,7 +23,7 @@ function createKnowledgeCleanup({ store, track = operation => operation(), now =
       if (result?.remaining) nextDelay = 250;
       return result;
     }).catch(() => {
-      console.error('[KnowledgeReview] retention cleanup unavailable; pending retry');
+      logUnavailable();
       return null;
     }).finally(() => { pending = null; schedule(nextDelay); });
     return pending;

@@ -103,6 +103,7 @@ async function initSchema() {
     await require('./supportIdentityStore').initSchema(client);
     await require('./supportApprovals').initSchema(client);
     await require('./supportIssueLinks').initSchema(client);
+    await require('./githubNoticeReceipts').initSchema(client);
     await require('./supportMemoryStore').initSchema(client);
     await require('./knowledgeReviewStore').initSchema(client);
     await require('./supportThreadLanguage').initSchema(client);

@@ -1,5 +1,10 @@
 # Omi Support Bot Operations Runbook
 
+**#86 lifecycle candidate, October26:** integrated with reviewed main928676b. The approved30-day subject-age replay guard, customer erasure and bounded/non-starvable cleanup pass1202 local tests, no-model8 and isolated PostgreSQL-engine verification. Hosted real PostgreSQL/current-head CI and independent review still gate merge. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no separate #88 deploy, paid run, public Omi test issue or memory enablement.
+
+Do not delete receipt/cutoff rows to force webhook replay. The candidate ignores stale payload subject times, holds uncertain outcomes and retains a minimal customer/time cutoff after owner erasure; cleanup is mandatory even with optional features off. Fixed notice-retention errors mean pending cleanup, not erased records. An unexpected populated pre-lifecycle schema fails closed for review. Use an existing linked synthetic issue/thread for the next approved-release smoke; no new public issue.
+
+
 ## Current operation checkpoint — October 25, 2026
 
 **October26:** fresh read confirms c6f482d/3d4cb5d8 remains healthy/latest/one running instance, optional controls and automatic deploy off. #88 is merged884fb46 but not deployed separately. #86's receipt lifecycle is approved30 days with original subject-time replay rejection and customer erasure; its implementation/CI/review still gate merge/release. Revised memory notice wording is approved, not posted or enabled. No new public Omi issue may be created for the next smoke; use an existing linked synthetic case or reviewed alternative after the release/observer is ready.

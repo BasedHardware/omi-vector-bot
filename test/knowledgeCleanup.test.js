@@ -60,14 +60,14 @@ test('SQL barrier deletion rechecks expiry on the deleted row, not only candidat
   assert.match(deletion, /WHERE expires_at<=\$1 AND ctid IN/);
 });
 
-function workerFixture(store) {
+function workerFixture(store, options = {}) {
   const { createKnowledgeCleanup } = require('../knowledgeCleanup');
   const timers = [], tracked = [];
   let stopping = false;
   const job = createKnowledgeCleanup({ store, now: () => 300, stopping: () => stopping,
     track: operation => { tracked.push(operation); return operation(); },
     setTimer: (callback, delay) => { const timer = { callback, delay, unref() { this.unrefed = true; } }; timers.push(timer); return timer; },
-    clearTimer: timer => { timer.cleared = true; } });
+    clearTimer: timer => { timer.cleared = true; }, ...options });
   return { job, timers, tracked, stopRuntime: () => { stopping = true; } };
 }
 
@@ -113,6 +113,16 @@ test('shutdown prevents queued and late callbacks from starting another cleanup 
   assert.equal(calls, 1);
 });
 
+test('receipt retention uses the same retry worker with its own fixed unavailable log', async () => {
+  let notices = 0, calls = 0;
+  const f = workerFixture({ pruneExpiredProvenance: async () => { calls++; throw Error('private fixture error'); } },
+    { logUnavailable: () => { notices++; } });
+  assert.equal(await f.job.start(), null);
+  assert.equal(notices, 1); assert.equal(f.timers[0].delay, 60000);
+  f.timers[0].callback(); await f.job.run();
+  assert.equal(calls, 2); assert.equal(notices, 2); f.job.stop();
+});
+
 test('cleanup startup is database scoped, before login, and independent of publication flags', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
   const start = source.slice(source.indexOf('async function start()'), source.indexOf('async function shutdown('));
@@ -121,4 +131,7 @@ test('cleanup startup is database scoped, before login, and independent of publi
   assert.ok(start.indexOf('knowledgeCleanup.start()') < start.indexOf('await client.login('));
   assert.doesNotMatch(start, /SUPPORT_FIX_INBOX|SUPPORT_MEMORY_ENABLED/);
   assert.match(source.slice(source.indexOf('async function shutdown(')), /knowledgeCleanup\?\.stop\(\)/);
+  assert.ok(start.indexOf('await db.initSchema()') < start.indexOf('noticeCleanup.start()'));
+  assert.ok(start.indexOf('noticeCleanup.start()') < start.indexOf('await client.login('));
+  assert.match(source.slice(source.indexOf('async function shutdown(')), /noticeCleanup\?\.stop\(\)/);
 });

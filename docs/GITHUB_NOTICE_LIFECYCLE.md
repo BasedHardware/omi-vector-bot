@@ -1,0 +1,33 @@
+# GitHub notice replay and receipt lifecycle — #86
+
+October26 candidate, integrated with main928676b; not deployed. Aryan approved30-day receipt retention, payload-subject-age rejection and customer erasure. Local1202 tests, no-model8 and the isolated PostgreSQL-engine verifier pass. Hosted Node20/24/real PostgreSQL CI and final independent review remain required before merge. This is notice deduplication, not the full #51 delivery outbox or universal exactly-once delivery.
+
+## Send authority and subject time
+
+The signed webhook still validates HMAC, configured repository, event type and delivery UUID. A notice uses the original payload subject time: issue opened→created_at, reopened→updated_at, closed→closed_at; new comment→comment.created_at; merged pull request→merged_at. There is no arrival-time fallback. Missing/invalid dates or times over five minutes ahead fail closed; an event at least30 days old is acknowledged as ignored. Replaying it after receipt deletion, even with a changed delivery UUID, cannot send again. This guard applies to the notifier and to the database claim, not only the HTTP adapter.
+
+PostgreSQL commits a unique(event,recipient) started fence before any Discord send. Confirmed sends update it to sent; uncertain sends stay held. Lost commit acknowledgments block dispatch and leave the committed fence in place. Confirmation only updates an existing started row, so a late acknowledgment cannot recreate an erased row. No SQL failure falls back to memory. Fresh independent events can still send once to each independently verified recipient.
+
+Modern delivery retains the saved case/customer/source checks. Legacy mappings now also require an unambiguous owned case and the existing dedicated-customer-thread proof. Missing attribution is skipped; it cannot create a new receipt that customer erasure could not locate. The mapping itself is preserved. This can suppress notices for old unverifiable mappings; staff can follow up manually rather than bypass ownership.
+
+## Retained metadata and erasure
+
+Receipt rows contain namespaced event/recipient/customer hashes, event/expiry times, fixed state, an optional Discord message ID and created/updated times. Hashes are pseudonymous identifiers, not anonymization. No message body, email, order data, issue/comment body or customer prompt is stored in these tables. Expiry is subject time plus30 days.
+
+The existing owner-verified forget command attempts notice erasure even if correction-link erasure fails, after persisting reference-memory opt-out. Notice erasure is customer-wide across this service, including other forums; it does not delete independent support cases, approval records, GitHub links or Discord posts. Those broader lifecycles remain #85. Unknown owners cannot erase someone else's receipts. A command reports full success only when both erasure groups confirm.
+
+Deleting a still-fresh receipt alone would allow replay. Therefore erasure keeps one minimal customer-hash/time cutoff, with no event/recipient/message IDs or content, until that cutoff plus30 days. Existing receipt event times within the accepted clock skew are included in the cutoff. Customer claims and erasure serialize with the same transaction advisory lock. Old events stay blocked after adapter/process recreation; a later event beyond the cutoff can send. This barrier is not remembered conversation content and is not deleted early to force a replay. An already-started external send cannot be recalled; erasure is not a promise to retract it.
+
+## Bounded mandatory cleanup
+
+The existing tracked retention worker runs at boot and every60 seconds regardless of optional memory/fix-inbox flags. A backlog schedules the next batch after250ms; shutdown stops future batches and drains tracked work. Failures produce one fixed metadata-only log and retry later.
+
+Each pass independently deletes at most100 expired receipts,100 erasure-covered receipts and100 expired cutoffs, using indexed ordered selection and SKIP LOCKED. One backlog cannot starve the other group. Owner-command erasure attempts up to ten100-row batches; remaining work returns pending and the mandatory worker continues it. Each transaction sets a1-second lock timeout and2-second statement timeout. Multiple cleanup workers serialize. The database's execution clock controls expiry/replay checks; a fast Node clock or a transaction waiting across expiry cannot extend validity. Cutoff deletion rechecks expiry on the current row so a concurrent renewal is preserved.
+
+The pre-lifecycle candidate was never released. An unexpected populated old development table without customer/time attribution fails schema initialization for review; it is not emptied or silently assigned guessed metadata. Existing empty development schemas upgrade additively. Do not run the verifier against production or reset fences manually.
+
+## Evidence and release gate
+
+New synthetic notifier tests observe no send for stale/missing timestamps, expiry followed by replay, retained erasure protection across adapter recreation, fresh independent delivery and ownerless legacy refusal. A reproducible run of the new lifecycle/worker tests on the integrated pre-change tree yields nine failures and eight passes, including actual sends for stale/missing subject times and ownerless legacy mappings. Missing new APIs are recorded separately from behavioral failures. Signed HTTP integration covers invalid/stale payloads without provider calls. Owner-command tests cover failure of each independent erasure group. SQL verification exercises real constraints/transactions, concurrent claims, committed-write acknowledgment loss, erasure/claim races, late confirmation, preserved other customers,205-row backlogs and independent progress, expired-cutoff cleanup and database-clock authority. Local PGlite serializes connections; hosted PostgreSQL is the required concurrent integration gate.
+
+After merge, ship with the next approved release using the standard exact-commit/rollback/health gates. Smoke: one status change on an existing linked synthetic issue/thread must yield exactly one matching Discord notice. Do not create a new public BasedHardware/omi issue for this test, replay uncertain sends or enable memory. Aryan performs every Discord action. These checks do not prove every external send is delivered exactly once.
