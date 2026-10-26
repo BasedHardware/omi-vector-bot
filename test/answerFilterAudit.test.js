@@ -107,3 +107,32 @@ test('audit truncation is disclosed and removed draft text remains explicitly un
       return postResult('Which app version do you use?')();
     } });
 });
+
+test('normal and compact review share evidence-scope rules for restoring mixed removed units', async t => {
+  t.mock.method(console, 'error', () => {});
+  const captures = [];
+  const mixed = 'You retried at 09:00; I have notified the engineers.';
+  await reviewAnswer({ question: 'I retried at 09:00 and the capture is still pending.',
+    threadHistory: [{ author: 'customer', content: 'The earlier retry did not help.' }],
+    draft: 'Which app version do you use?', removedBySafetyFilters: [mixed], sources: '', lane: 'faq',
+    post: async (_url, body) => {
+      captures.push(body);
+      if (captures.length === 1) return { data: { choices: [] } };
+      return postResult('You reported retrying at 09:00. Which app version do you use?')();
+    } });
+  assert.equal(captures.length, 2);
+  for (const body of captures) {
+    const systems = body.messages.filter(message => message.role === 'system').map(message => message.content).join('\n');
+    assert.match(systems, /actual customer message\/thread.*attributed symptoms, incident times and attempted steps/i);
+    assert.match(systems, /official.*evidence.*product facts/i);
+    assert.match(systems, /only independently supported parts of a mixed unit/i);
+    assert.match(systems, /never the adjoining invented staff action/i);
+    assert.match(systems, /promised deadlines/i);
+    assert.match(systems, /General documentation cannot verify a specific customer's current state/i);
+    assert.doesNotMatch(systems, /restore one only if a cited official source supports it exactly/i);
+    const user = body.messages.find(message => message.role === 'user').content;
+    assert.match(user, /Removed by safety filters.*apply the system restoration rules/);
+    assert.ok(user.includes(mixed));
+    assert.doesNotMatch(user, /Restore a sentence only if a cited official source supports it exactly/);
+  }
+});
