@@ -1,6 +1,7 @@
 const MAX_DOCUMENT = 60_000;
 const CHUNK_SIZE = 1_400;
 const CHUNK_OVERLAP = 220;
+const { normalizeProvenance, provenanceLine, preferNewerApplicable } = require('./sourceProvenance');
 
 const STOP_WORDS = new Set([
   'about',
@@ -139,7 +140,7 @@ function splitLongPart(part, size = CHUNK_SIZE) {
   return out;
 }
 
-function chunkDocument({ url, title, body }, { size = CHUNK_SIZE, overlap = CHUNK_OVERLAP } = {}) {
+function chunkDocument({ url, title, body, provenance }, { size = CHUNK_SIZE, overlap = CHUNK_OVERLAP } = {}) {
   const clean = cleanDocument(body);
   if (!clean) return [];
   const parts = clean
@@ -160,6 +161,7 @@ function chunkDocument({ url, title, body }, { size = CHUNK_SIZE, overlap = CHUN
       body: text,
       source: sourceKind(url),
       chunkIndex: chunks.length,
+      ...(provenance ? { provenance:normalizeProvenance(provenance) } : {}),
     });
     const tail = text.slice(Math.max(0, text.length - overlap));
     const boundary = tail.indexOf(' ');
@@ -372,6 +374,7 @@ function diverseTop(rows, limit, maxPerPage = 2) {
 function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
   const phoneQuestion = isConsumerPhoneQuestion(customerQuestion);
   const merged = new Map();
+  const dateRelevance = new Map();
   for (const rows of resultSets || []) {
     (rows || []).forEach((row, index) => {
       const key = `${row.url || ''}#${row.chunk_index ?? row.chunkIndex ?? index}`;
@@ -384,14 +387,23 @@ function mergeRanked(resultSets, limit = 8, { customerQuestion = '' } = {}) {
       if (prior) {
         prior.relevanceScore += relevanceScore;
         prior.fusedScore += score;
-      } else merged.set(key, { ...row, authority, relevanceScore, fusedScore: score });
+        const evidence = dateRelevance.get(prior);
+        evidence.matches += 1;
+        evidence.rankSum += Number(row.rank || 0);
+      } else {
+        const value = { ...row, authority, relevanceScore, fusedScore: score };
+        merged.set(key, value);
+        dateRelevance.set(value, { matches: 1, rankSum: Number(row.rank || 0) });
+      }
     });
   }
   const ranked = [...merged.values()]
     .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
       consumerSourceFit(customerQuestion, b) - consumerSourceFit(customerQuestion, a) ||
       b.fusedScore - a.fusedScore || b.authority - a.authority);
-  return diverseTop(ranked, limit);
+  return diverseTop(preferNewerApplicable(ranked, row => row.source || sourceKind(row.url), row => [
+    dateRelevance.get(row).matches, dateRelevance.get(row).rankSum, consumerSourceFit(customerQuestion,row),
+  ]), limit);
 }
 
 function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQuestions = [] } = {}) {
@@ -430,9 +442,12 @@ function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQ
     .sort((a, b) => (phoneQuestion ? b.relevanceScore - a.relevanceScore : 0) ||
       consumerSourceFit(customerQuestion || queries?.[0], b) - consumerSourceFit(customerQuestion || queries?.[0], a) ||
       b.rank - a.rank || b.authority - a.authority);
+  const preferred=preferNewerApplicable(ranked, row => row.source || sourceKind(row.url), row => [
+    row.rank, consumerSourceFit(customerQuestion || queries?.[0],row),
+  ]);
   return normalizeSubQuestions(subQuestions).length > 3
-    ? selectSubQuestionEvidence(ranked, subQuestions, limit, { customerQuestion: customerQuestion || queries?.[0] })
-    : diverseTop(ranked, limit);
+    ? selectSubQuestionEvidence(preferred, subQuestions, limit, { customerQuestion: customerQuestion || queries?.[0] })
+    : diverseTop(preferred, limit);
 }
 
 function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2, onSources } = {}) {
@@ -455,7 +470,8 @@ function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2, onSources } = 
     const section = row.section ? ` — ${row.section}` : '';
     const body = cleanDocument(row.body, 1_700);
     if (!body) continue;
-    const block = `[${id} | ${sourceLabel(kind)} | ${trust}]\n${row.title || 'Untitled'}${section}\n${url}\n${body}`;
+    const metadata = provenanceLine(row.provenance);
+    const block = `[${id} | ${sourceLabel(kind)} | ${trust}]\n${row.title || 'Untitled'}${section}\n${url}\n${metadata ? metadata+'\n' : ''}${body}`;
     const separatorChars = blocks.length ? 2 : 0;
     if (used + separatorChars + block.length > maxChars && blocks.length) break;
     blocks.push(block);

@@ -10,6 +10,7 @@ Start with the [master plan](SUPPORT_MASTER_PLAN.md). It is the current product 
 | [Architecture](ARCHITECTURE.md) | Customer → evidence → answer/review → delivery → staff/engineering workflow |
 | [Implementation checklist](IMPLEMENTATION_PLAN.md) · [Roadmap](../ROADMAP.md) | Implemented boundaries, checks and next work |
 | [Mira’s voice](MIRA_PERSONALITY.md) · [Answer-quality contract](ANSWER_QUALITY_CONTRACT.md) | Considerate, useful and truthful support behavior |
+| [Source conflicts](SOURCE_CONFLICTS.md) | Draft publisher provenance, applicability-aware ordering and unresolved-conflict policy |
 
 ## Operations, privacy and verification
 

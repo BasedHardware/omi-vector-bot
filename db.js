@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { Pool } = require('pg');
 const { chunkDocument, cleanDocument, queryTerms, sourceAuthority } = require('./retrieval');
+const { normalizeProvenance } = require('./sourceProvenance');
 
 function sslFor(connectionString) {
   const value = String(connectionString || '');
@@ -51,6 +52,7 @@ async function initSchema() {
         body TEXT NOT NULL DEFAULT '',
         fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE doc_pages ADD COLUMN IF NOT EXISTS provenance JSONB NOT NULL DEFAULT '{}'::jsonb;
 
       CREATE TABLE IF NOT EXISTS doc_chunks (
         url TEXT NOT NULL REFERENCES doc_pages(url) ON DELETE CASCADE,
@@ -110,7 +112,7 @@ async function initSchema() {
     const chunks = await client.query(`SELECT count(*)::int AS n FROM doc_chunks`);
     const pages = await client.query(`SELECT count(*)::int AS n FROM doc_pages`);
     if ((chunks.rows[0]?.n || 0) === 0 && (pages.rows[0]?.n || 0) > 0) {
-      const existing = await client.query(`SELECT url, title, body FROM doc_pages`);
+      const existing = await client.query(`SELECT url, title, body, provenance FROM doc_pages`);
       for (const page of existing.rows) {
         await replaceDocChunks(client, page);
       }
@@ -232,21 +234,22 @@ async function replaceDocChunks(client, page) {
   return chunks.length;
 }
 
-async function saveDocPage({ url, title, body }) {
+async function saveDocPage({ url, title, body, provenance }) {
   if (!url) return;
   const page = {
     url: String(url),
     title: String(title || ''),
     body: cleanDocument(body),
+    provenance: normalizeProvenance(provenance),
   };
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO doc_pages (url, title, body, fetched_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (url) DO UPDATE SET title = $2, body = $3, fetched_at = NOW()`,
-      [page.url, page.title, page.body]
+      `INSERT INTO doc_pages (url, title, body, fetched_at, provenance)
+       VALUES ($1, $2, $3, NOW(), $4::jsonb)
+       ON CONFLICT (url) DO UPDATE SET title = $2, body = $3, fetched_at = NOW(), provenance = $4::jsonb`,
+      [page.url, page.title, page.body, JSON.stringify(page.provenance)]
     );
     await replaceDocChunks(client, page);
     await client.query('COMMIT');
@@ -265,9 +268,9 @@ async function searchDocPages(question, limit = 8, sources = []) {
   const wantedSources = Array.isArray(sources) ? sources.map(String).filter(Boolean) : [];
   const { rows } = await pool.query(
     `WITH query AS (SELECT websearch_to_tsquery('english', $1) AS value)
-     SELECT title, url, section, source, authority, body, chunk_index,
+     SELECT c.title, c.url, c.section, c.source, c.authority, c.body, c.chunk_index, p.provenance,
             ts_rank_cd(search_vector, query.value, 32) AS rank
-     FROM doc_chunks, query
+     FROM doc_chunks c JOIN doc_pages p ON p.url=c.url CROSS JOIN query
      WHERE search_vector @@ query.value
        AND (cardinality($3::text[]) = 0 OR source = ANY($3::text[]))
      ORDER BY (ts_rank_cd(search_vector, query.value, 32) * (1 + authority * 0.06)) DESC,
