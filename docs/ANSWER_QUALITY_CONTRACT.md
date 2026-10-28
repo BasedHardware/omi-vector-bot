@@ -4,7 +4,7 @@ Updated October 26, 2026. This is an implementation contract, **not a claim that
 
 ## Priority and status
 
-The [master plan](SUPPORT_MASTER_PLAN.md) takes precedence. The old PR queue is cleared; #71/#75/#82 closed unmerged with unresolved requirements retained. #91 context preservation is merged/deployed at a461f86 with release smokes pending. #90 provenance integrates that main and awaits final review/CI; the frozen staff-flagging defect is rejected by both integrated #90 and current main. Shared unresolved-next-step/applicability weaknesses remain #83; no new paid run is authorized by these implementation checks. Preserve the maximum of three open PRs.
+The [master plan](SUPPORT_MASTER_PLAN.md) takes precedence. The old PR queue is cleared; #71/#75/#82 closed unmerged with unresolved requirements retained. #91 context preservation is merged at a461f86; its rollout failed source applicability and was rolled back. Context/delivery passed, but that does not waive the failed grounding check. #90 provenance integrates that main and awaits final review/CI; the frozen staff-flagging defect is rejected by both integrated #90 and current main. Shared unresolved-next-step/applicability weaknesses remain #83; no new paid run is authorized by these implementation checks. Preserve the maximum of three open PRs.
 
 | Order | Customer failure to prevent | Required regression / acceptance | State |
 | --- | --- | --- | --- |
