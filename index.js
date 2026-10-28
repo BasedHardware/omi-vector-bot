@@ -55,6 +55,7 @@ const { relevantFeedback } = require('./feedback');
 const { combineEvidence } = require('./retrieval');
 const { matchingRelease } = require('./releases');
 const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, fitPublicReply, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk, stripUnverifiedOrderClaims } = require('./answerPipeline');
+const { getRemovalAudit } = require('./answerFilterAudit');
 const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
 const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const { reviewRejectionReply } = require('./supportReplyCopy');
@@ -933,7 +934,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           const prepared = prepareDraftForReviewWithAudit(
             aiResponse.final_answer,
             draftLane,
-            caseQuestion
+            caseQuestion,
+            { earlierAudit: getRemovalAudit(aiResponse) }
           );
           aiResponse.final_answer = prepared.draft;
           try {
@@ -945,6 +947,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
                 threadHistory,
                 draft: aiResponse.final_answer,
                 removedBySafetyFilters: prepared.removed,
+                safetyAuditTruncated: prepared.auditTruncated,
                 understanding: searchPlan,
                 policy: toolFacts,
                 lane: draftLane,

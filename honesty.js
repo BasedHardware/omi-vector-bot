@@ -20,6 +20,7 @@ const LIE_PATTERNS = [
   /passing it along/i,
   /passed this along/i,
   /someone will follow up/i,
+  new RegExp(`\\bi(?:['’]ve| have| had)?\\s+(?:(?:just|already|now)\\s+)?(?:flagged|forwarded|sent|raised|reported|handed|passed|filed)\\s+(?:this|it|that|(?:your|the)\\s+[\\w -]+?)(?:\\s+(?:on|along|over|up))?\\s+(?:to|with|for)\\s+${TEAM}`, 'i'),
 ];
 
 const DROP_SENTENCE = [
@@ -39,7 +40,7 @@ const DROP_SENTENCE = [
 
 function looksLikeStaffLie(text) {
   if (!text) return false;
-  return LIE_PATTERNS.some((re) => re.test(text));
+  return LIE_PATTERNS.some((re) => re.test(String(text).replace(/[*_~`]/g, '')));
 }
 
 function looksLikeInventedLookup(text) {

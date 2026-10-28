@@ -1,6 +1,6 @@
 # Source provenance and conflicting guidance — #83
 
-October26 draft implementation, not merged or deployed. This extends the existing ingestion → PostgreSQL/chunks → ranking → answer → review pipeline. It does not add a model call, a second knowledge store or a URL-specific exception. Main/production and all other acceptance requirements remain in the [master plan](SUPPORT_MASTER_PLAN.md).
+October28 integration of main #91; final head review/CI pending before merge. Not deployed. This extends the existing ingestion → PostgreSQL/chunks → ranking → answer → review pipeline. It does not add a model call, a second knowledge store or a URL-specific exception. Main/production and all other acceptance requirements remain in the [master plan](SUPPORT_MASTER_PLAN.md).
 
 ## Failure and contract
 
@@ -36,7 +36,7 @@ Fourteen new synthetic tests cover ingestion/ambiguity, chunks, real formatted s
 
 The two-/three-part checks assert all six page requests start before any completes, the per-request timeout remains 10 seconds, and existing eight-chunk/9000-character output bounds hold. The real persistence/search/formatter owners are exercised against the isolated SQL engine, including an undated refresh and idempotent schema initialization. Runtime `42619cf` passes hosted Node 20/24/real PostgreSQL CI and independent scoped code review: 69 affected checks and all four original reproduction assertions. Later documentation-only heads retain their current CI/review requirement. The evaluation harness receives provenance through the same Help Center/chunk owners; its separate in-memory/storage limitations remain in the [evaluation guide](EVALUATION.md).
 
-## October 26 controlled answer comparison — HOLD
+## October 26 controlled answer comparison — frozen historical hold
 
 Aryan approved one run with a ceiling of 288 requests. It completed all 48 answer flows using **96 requests**: twelve original fictional scenarios, two repetitions per arm, main `a9c9508` versus candidate `c870a8b` (runtime `42619cf`). Both arms used the same provider configuration and fixtures; initial starts were simultaneous and paired scenario starts differed by at most 4 ms. Both workers exited normally, source hashes stayed fixed, and saved full-window power history covers the run without a sleep/wake event. The single-use approval is consumed; unused ceiling is not authorization for another run.
 
@@ -54,4 +54,12 @@ The controlled path exercises real fixture ingestion/chunks/ranking/evidence, an
 
 Private evidence retains the original manifest, both source snapshots, all stages and the pre-unblinding grades. Manifest SHA256: `3279438a6d1ccac0024ff440fa6039ebe2896da1d11aa9fad7b40fbb8bbcd402`; independent grades SHA256: `358796a2d8bc18bec5812f48eceb6a110ebd55dfb4d2b629bd8ce536ccf88183`. The original candidate archive verifies all 156 manifest file hashes. No generated case text or credentials are published here.
 
-**Readiness remains HOLD:** code/CI review passes are separate from the failed generated-answer gate. Continue general offline repairs and affected-flow tests, then independent review. Any further provider comparison needs a fresh reviewed plan and Aryan's explicit approval. Keep #90 draft and #83 open; #65 multipart accuracy and #62 narration/context loss remain unfinished. No merge, deployment, memory enablement or Discord test follows from this result.
+## October28 integration and relative-gate decision
+
+Frozen mapping: no-loss q06-r1-B shares the broader custody-assurance family with main q03-r1-B, not an identical same-scenario guarantee. Unsupported cloud/UI state q06-r2-A shares main q06-r1-A. Completed staff flagging q07-r2-A is absent from all24 old-main finals. Its evidence is byte-identical and undated; no date-order cause is established.
+
+Main #91 (`a461f86`) is now integrated with a merge commit, retaining both source policy and removal-audit propagation. Full1,258/no-model8 pass. Independent review passes240 focused checks: original provenance/db/ranking code matches reviewedb9d7274; #91 safety/routing/handler code matches current main; only source policy import/system text differs in the conflict-resolved reviewer.
+
+Fresh offline injection of the exact frozen unsafe reviewer response through both normal and compact paths confirms old main/frozen#90 accept it while current main/integrated#90 remove/audit the invented flag, invalidate approval and invoke the existing second look. Repeated unsafe reviews stay rejected/escalated. This establishes an inherited acceptance gap now blocked for this observed defect. It does not prove that prompt changes had no influence on stochastic wording; no provenance-specific cause or integrated generated accuracy rate is claimed.
+
+The independent reviewer recommends merge after final-head review and Node20/24/real PostgreSQL CI. Aryan's conditional max96-request run is not activated; no paid run occurred. Keep the frozen21/24 versus19/24 and all original grades unchanged. #83 stays open for the remaining email-only/no-next-step and unsupported applicability problems, addressed offline next with general red-before tests. #65 remains unfinished. #90 releases separately at least24 hours after #91, after accepted #91 smokes and fresh release gates. Memory remains off.

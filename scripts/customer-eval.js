@@ -7,7 +7,8 @@ const { planSearch, queryAgent, reviewAnswer } = require('../commandcode');
 const { approvedReview, reviewWithSecondLook } = require('../reviewDecision');
 const { reviewRejectionReply } = require('../supportReplyCopy');
 const triage = require('../triage');
-const { prepareDraftForReview, presentReviewedAnswer } = require('../answerPipeline');
+const { prepareDraftForReviewWithAudit, presentReviewedAnswer } = require('../answerPipeline');
+const { getRemovalAudit } = require('../answerFilterAudit');
 const github = require('../github');
 const { loadOfficialSource } = require('../sourcecode');
 const {
@@ -220,9 +221,13 @@ async function replyFor(scene, route) {
       sessionId: `eval-${scene.id}`,
     });
     const draftLane = triage.merge(route, agent, scene.ask).lane;
+    const prepared = prepareDraftForReviewWithAudit(agent.final_answer, draftLane, scene.ask,
+      { earlierAudit: getRemovalAudit(agent) });
     const checked = await reviewWithSecondLook({
       question: scene.ask,
-      draft: prepareDraftForReview(agent.final_answer, draftLane, scene.ask),
+      draft: prepared.draft,
+      removedBySafetyFilters: prepared.removed,
+      safetyAuditTruncated: prepared.auditTruncated,
       understanding: searchPlan,
       policy: toolFacts,
       sources: [

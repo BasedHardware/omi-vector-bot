@@ -37,8 +37,10 @@ const utils = require('../utils');
 utils.typingDelay = async () => {};
 
 const commandcode = require('../commandcode');
+const realReviewAnswer = commandcode.reviewAnswer;
 const modelCalls = [];
 let modelReply = {};
+let modelResultFactory = null;
 let modelDown = false;
 let searchPlanQueries = [];
 let plannerSubQuestions = [];
@@ -58,6 +60,7 @@ commandcode.queryAgent = async (args) => {
   modelCalls.push(args);
   if (modelDown) throw new Error('model unavailable');
   if (emitTestUsage) args.onUsage?.({ stage: 'answer', completionTokens: 40, reasoningTokens: 12 });
+  if (modelResultFactory) return modelResultFactory(args);
   return {
     final_answer: 'Hold the center button for ten seconds, then pair it again from the app.',
     confidence: 0.9,
@@ -802,6 +805,7 @@ test.beforeEach(() => {
   plannerWantsPerson = false;
   plannerDataLossRisk = false;
   reviewerResponse = null;
+  modelResultFactory = null;
   reviewCalls.length = 0;
   pulls = [];
   issues = [];
@@ -1064,6 +1068,121 @@ for (const [language, phrase] of [
   assert.equal(staff.length, 1);
   assert.match(response.reply, phrase);
   if (language !== 'xx') assert.doesNotMatch(response.reply, /couldn't verify|won't substitute|a person needs to check/u);
+});
+
+test('rejected review keeps Devanagari copy for a Devanagari question', async t => {
+  const staff = enableStaffDelivery(t);
+  const previousKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = previousKey; });
+  plannerReplyLanguage = 'hi';
+  reviewerResponse = () => ({ final_answer: 'An unrelated draft.', grounded: false,
+    relevant: false, confidence: 0.1, escalate: true });
+  const response = await ask('ऐप में अक्षरों का आकार कैसे बदलें?');
+  assert.equal(reviewCalls.length, 2);
+  assert.equal(staff.length, 1);
+  assert.match(response.reply, /जाँच/u);
+  assert.doesNotMatch(response.reply, /jaanch|couldn't verify/u);
+});
+
+test('actual handler carries parse-stage removed context into the existing reviewer only', async t => {
+  const priorKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = priorKey; });
+  const lost = 'You already opened the language menu; I have notified the engineers.';
+  modelResultFactory = () => commandcode.parseAgentJson(JSON.stringify({
+    final_answer: `${lost} Which language do you use?`, confidence: 0.9, escalate: false,
+  }));
+  reviewerResponse = args => {
+    assert.ok(args.removedBySafetyFilters.includes(lost));
+    assert.doesNotMatch(args.draft, /notified the engineers/);
+    return { final_answer: 'The language menu is already open. Choose the language you speak.',
+      grounded: true, relevant: true, confidence: 0.9, escalate: false };
+  };
+  const collector = require('../answerStageEvidence').createStageEvidence();
+  const result = await collector.run(() => ask('How do I change the transcription language? I already opened the language menu.'));
+  assert.equal(reviewCalls.length, 1);
+  assert.match(result.reply, /language menu is already open/);
+  assert.doesNotMatch(result.reply, /notified|removedBySafetyFilters|earlierAudit/);
+  assert.doesNotMatch(JSON.stringify(collector.snapshot()), /notified|language menu|earlierAudit/);
+});
+
+test('actual handler repairs reviewer-authored staff narration through its existing second look', async t => {
+  const priorKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = priorKey; });
+  const first = 'The menu is already open; I have forwarded the details to the engineers.';
+  reviewerResponse = args => realReviewAnswer({ ...args, post: async () => ({ data: { choices: [{ message: {
+    content: JSON.stringify({ final_answer: reviewCalls.length === 1 ? first : 'Choose the language you speak.',
+      grounded: true, relevant: true, confidence: 0.9, sources_used: [] }),
+  } }] } }) });
+  const result = await ask('How do I change the transcription language?');
+  assert.equal(reviewCalls.length, 2);
+  assert.ok(reviewCalls[1].removedBySafetyFilters.includes(first));
+  assert.match(result.reply, /Choose the language/);
+  assert.doesNotMatch(result.reply, /forwarded|notified|has this now/);
+});
+
+test('actual handler keeps localized rejection and verified handoff after two narration-invalid reviews', async t => {
+  const staff = enableStaffDelivery(t);
+  const priorKey = process.env.CMD_API_KEY;
+  process.env.CMD_API_KEY = 'synthetic-provider-key';
+  t.after(() => { process.env.CMD_API_KEY = priorKey; });
+  plannerReplyLanguage = 'fr';
+  reviewerResponse = args => realReviewAnswer({ ...args, post: async () => ({ data: { choices: [{ message: {
+    content: JSON.stringify({ final_answer: 'I have forwarded the details to the engineers.',
+      grounded: true, relevant: true, confidence: 0.9, sources_used: [] }),
+  } }] } }) });
+  const result = await ask('How do I adjust the text size in the app?');
+  assert.equal(reviewCalls.length, 2);
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /pas pu vérifier.*réponse directe/u);
+  assert.doesNotMatch(result.reply, /forwarded|have notified|couldn't verify a direct answer/);
+});
+
+test('an unresolved official-source point reaches one real staff dispatch despite a FAQ-shaped question', async t => {
+  const staff = enableStaffDelivery(t);
+  const source = 'https://help.omi.me/en/articles/synthetic-reminder-options';
+  modelReply = { final_answer: 'The reminder option needs clarification.', confidence: 0.9, escalate: false };
+  reviewerResponse = () => ({ final_answer: `The guides disagree about custom reminder intervals, so that option remains uncertain.\nSource: ${source}`,
+    grounded: true, relevant: true, confidence: 0.9, escalate: true });
+  const result = await ask('Where is the documentation for custom reminder intervals?');
+  assert.equal(reviewCalls.length, 1);
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /guides disagree/);
+  assert.ok(result.reply.includes(source));
+  assert.equal((result.reply.match(/A person on the team has this now/g) || []).length, 1);
+  assert.doesNotMatch(result.reply, /help@|reply here in this thread|already investigating|accepted/i);
+});
+
+test('a missing applicability detail survives review selection without manufacturing a handoff', async t => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'Which app version is installed?', confidence: 0.9, escalate: false };
+  reviewerResponse = ({ draft }) => ({ final_answer: draft, grounded: true, relevant: true,
+    confidence: 0.9, escalate: false });
+  const result = await ask('Where is the documentation for custom reminder intervals?');
+  assert.match(result.reply, /Which app version is installed\?/);
+  assert.equal(staff.length, 0);
+  assert.doesNotMatch(result.reply, /team has this|will reply|help@/);
+});
+
+test('unresolved-point handoff failure preserves uncertainty and makes no receipt claim', async () => {
+  modelReply = { final_answer: 'The guides disagree about custom reminder intervals.', confidence: 0.9, escalate: false };
+  reviewerResponse = ({ draft }) => ({ final_answer: draft, grounded: true, relevant: true,
+    confidence: 0.9, escalate: true });
+  const result = await ask('Where is the documentation for custom reminder intervals?');
+  assert.match(result.reply, /guides disagree/);
+  assert.match(result.reply, /could not deliver|could not reach|couldn.t reach/i);
+  assert.doesNotMatch(result.reply, /team has this now|will reply in this thread|accepted/i);
+});
+
+test('cosmetic removal of a conditional email footer does not turn a solved FAQ into a staff case', async t => {
+  const staff = enableStaffDelivery(t);
+  modelReply = { final_answer: 'Open Reminders to view saved entries. If you need more help, email help@omi.me.', confidence: 0.9, escalate: false };
+  const result = await ask('Where is the documentation for viewing saved reminders?');
+  assert.match(result.reply, /Open Reminders/);
+  assert.doesNotMatch(result.reply, /help@/);
+  assert.equal(staff.length, 0);
 });
 
 test('official docs retrieval waits for the planner and runs once with its queries', async () => {
