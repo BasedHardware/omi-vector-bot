@@ -79,7 +79,7 @@ The earlier PR backlog is cleared, not the full product backlog. #88 merged884fb
 
 **Release timing:** #91 is deployed at exact `a461f86` / `c42efc65`; the release receipt is in the runbook. Next release requires at least24 hours since this actual deployment, completed #91 smokes and fresh live/rollback/off-state/source checks. Another operator deployment can move that window. #90 is not part of the already deployed image. Never use Restart for teardown.
 
-**Need Aryan now:** the three #91 Discord smokes, sequentially when prompted: normal phone-only how-to, broken-device symptom plus completed attempts, and explicit request for a person. Aryan sends every message, command and button action. No new quota, enabled memory, customer data or automatic message is requested. Continue #90's final gates and #83 offline work while waiting.
+**Need Aryan now:** the three #91 Discord smokes, sequentially when prompted: normal phone-only how-to, broken-device symptom plus completed attempts, and explicit request for a person. Aryan sends every message, command and button action. No new quota, enabled memory, customer data or automatic message is requested. No memory flag until notice approval **and** an explicit enable instruction. Continue #90's final gates and #83 offline work while waiting.
 
 ## Fixed milestone ledger
 
