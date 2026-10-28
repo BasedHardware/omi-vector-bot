@@ -9,6 +9,7 @@ const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./h
 const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 const { publicReplyPrivacy } = require('./publicReplyPrivacy');
 const { recordStage } = require('./answerStageEvidence');
+const { mergeRemovalAudits, removedAnswerUnits } = require('./answerFilterAudit');
 
 const EMPTY_ANSWER_FALLBACK = 'I could not verify a safe answer here. A person needs to check this.';
 const UNSYNCED_DATA_WARNING = 'Recordings may still be unsynced. Do not reinstall the app, log out, or clear Pending/All storage until a person checks; those actions could erase local recordings.';
@@ -19,7 +20,7 @@ function ensureNonEmptyAnswer(answer) {
 
 // Filter the draft, and separately show the reviewer the original sentences
 // removed by those filters. Only the reviewer may restore supported details.
-function prepareDraftForReviewWithAudit(answer, lane, question) {
+function prepareDraftForReviewWithAudit(answer, lane, question, { earlierAudit } = {}) {
   recordStage('draft_input', answer);
   const original = String(answer || '').trim();
   const draft = stripFalseCertainty(
@@ -29,15 +30,9 @@ function prepareDraftForReviewWithAudit(answer, lane, question) {
       question
     )
   );
-  const normalizedDraft = draft.replace(/\s+/g, ' ').toLowerCase();
-  const removed = original
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean)
-    .filter((sentence) => !normalizedDraft.includes(sentence.replace(/\s+/g, ' ').toLowerCase()))
-    .slice(0, 12);
+  const audit = mergeRemovalAudits(earlierAudit, removedAnswerUnits(original, draft));
   recordStage('draft_safety', draft);
-  return { draft, removed };
+  return { draft, removed: audit.removed, auditTruncated: audit.truncated };
 }
 
 function prepareDraftForReview(answer, lane, question) {

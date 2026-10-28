@@ -1,11 +1,11 @@
 # Mira operations runbook
 
-**October26 current state:** #86 merged647b549 with all required checks/review and green merged-main CI; its replay/retention change is not deployed. [Lifecycle details](GITHUB_NOTICE_LIFECYCLE.md). Production stays c6f482d; no paid run, public Omi test issue or memory enablement. Mira is the product name; repository/deployment identifiers remain unchanged.
+**Current operator receipt, October26:** successful active deployment `914a38f0-1aa6-4d69-8059-34c84a2fcd9a` of `a9c9508`, created at18:52:34 IST, is confirmed operator-triggered by Aryan. One active deployment, complete automatic-trigger reads showing off, and optional memory/context/fix-inbox controls off were checked. This is metadata verification, not a new health/smoke observation. The change since647b549 is the repository guide only. Next release must be **no earlier thanOctober27 at18:52:34 IST**, with fresh live/rollback/optional-off checks and the pinned approved GitHub commit. #91 restoration/review precedes merge; no deployment is ready now. Aryan performs the three post-deploy smokes; a failure uses the verified rollback. [Current master plan](SUPPORT_MASTER_PLAN.md) controls status.
 
 Do not delete receipt/cutoff rows to force webhook replay. The candidate ignores stale payload subject times, holds uncertain outcomes and retains a minimal customer/time cutoff after owner erasure; cleanup is mandatory even with optional features off. Fixed notice-retention errors mean pending cleanup, not erased records. An unexpected populated pre-lifecycle schema fails closed for review. Use an existing linked synthetic issue/thread for the next approved-release smoke; no new public issue.
 
 
-## Current operation checkpoint — October 26, 2026
+## Earlier operation checkpoint — superseded by the receipt above
 
 Fresh read confirms c6f482d/3d4cb5d8 remains healthy/latest/one running instance, optional controls and automatic deploy off. #88/#87/#86 are merged; #86's30-day receipt/replay/erasure code passed all merge gates, but release/smoke remain pending. Revised memory notice wording is approved, not posted or enabled. No new public Omi issue may be created for the next smoke; use an existing linked synthetic case or reviewed alternative after the release/observer is ready.
 
