@@ -1,3 +1,4 @@
+const answerTrace = require('./answerTrace');
 const {
   sanitizeReply,
   stripFalseCertainty,
@@ -30,6 +31,7 @@ function prepareDraftForReviewWithAudit(answer, lane, question, { earlierAudit }
       question
     )
   );
+  answerTrace.filter('draft_safety', original, draft);
   const audit = mergeRemovalAudits(earlierAudit, removedAnswerUnits(original, draft));
   recordStage('draft_safety', draft);
   return { draft, removed: audit.removed, auditTruncated: audit.truncated };
@@ -114,7 +116,11 @@ function clipKeepingSource(answer, max = DISCORD_REPLY_MAX) {
 
 function presentReviewedAnswer(answer, opts = {}) {
   recordStage('presentation_input', answer);
-  const privacy = publicReplyPrivacy(stripPingNarration(answer), opts);
+  const narrated = stripPingNarration(answer);
+  answerTrace.filter('staff_narration', answer, narrated);
+  const privacy = publicReplyPrivacy(narrated, opts);
+  answerTrace.filter('presentation_privacy', narrated, privacy.text);
+  answerTrace.stage('presentation','ok');
   opts.onPrivacy?.(privacy);
   recordStage('presentation_filtered', privacy.text);
   return recordStage('presentation_output', ensureNonEmptyAnswer(fitPublicReply({ ...privacy, text: formatDiscordReply(privacy.text) })));
@@ -122,7 +128,14 @@ function presentReviewedAnswer(answer, opts = {}) {
 
 // Late delivery/privacy copy must fit too. Reserve the complete custody warning,
 // application-owned next steps and scoped links before optional prose.
-function fitPublicReply(privacy, max = DISCORD_REPLY_MAX) {
+function fitPublicReply(privacy,max=DISCORD_REPLY_MAX) {
+  const text=String(privacy.text||'').trim();
+  const result=fitPublicReplyImpl(privacy,max);
+  answerTrace.filter('reply_clipping',text,result);
+  return result;
+}
+
+function fitPublicReplyImpl(privacy, max = DISCORD_REPLY_MAX) {
   const text = String(privacy.text || '').trim();
   recordStage('clip_input', text);
   if (text.length <= max) return recordStage('clip_output', text);

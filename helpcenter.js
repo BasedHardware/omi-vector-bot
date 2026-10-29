@@ -1,3 +1,4 @@
+const {registerPublishedSources}=require('./answerTrace');
 const SITEMAP = 'https://help.omi.me/sitemap.xml';
 const HELP_FORUM = () => String(process.env.HELP_FORUM_CHANNEL_ID || '').trim();
 const { cleanDocument } = require('./retrieval');
@@ -45,6 +46,7 @@ async function loadHelpCenter(fetchImpl, db) {
   const index = await fetchFn(SITEMAP, { headers: { 'User-Agent': 'omi-vector-bot' } });
   if (!index.ok) return 0;
   const urls = articleUrls(await index.text());
+  registerPublishedSources(urls);
   let saved = 0;
   await mapPool(urls, 4, async (url) => {
     try {

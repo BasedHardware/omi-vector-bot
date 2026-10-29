@@ -1,3 +1,4 @@
+const answerTrace = require('./answerTrace');
 const axios = require('axios');
 const { buildSystemPrompt, buildUserPrompt, PUBLIC_REPLY_PRIVACY_POLICY } = require('./prompt');
 const { stripStaffLies } = require('./honesty');
@@ -41,12 +42,16 @@ function providerHeaders(provider) {
 // the configured budget. The abort signal bounds the whole operation,
 // including body consumption, and surfaces as the same timeout error shape
 // callers already handle.
-function providerSend(send, provider) {
+function providerSend(send, provider, stage) {
   return async (url, body) => {
     const signal = AbortSignal.timeout(provider.timeout);
+    const finishAttempt=answerTrace.attempt(stage);
     try {
-      return await send(url, body, { timeout: provider.timeout, signal, headers: providerHeaders(provider) });
+      const response = await send(url, body, { timeout: provider.timeout, signal, headers: providerHeaders(provider) });
+      finishAttempt(response?.data?.choices?.[0]?.message?.content?'ok':'empty');
+      return response;
     } catch (err) {
+      finishAttempt('failed');
       if (signal.aborted && err?.response === undefined) {
         const timeoutError = new Error(`timeout of ${provider.timeout}ms exceeded`);
         timeoutError.code = 'ECONNABORTED';
@@ -449,7 +454,7 @@ function groundedSourceLine(answer, sources, sourceIds, language = 'en', { subQu
 async function understandQuestion({ question, threadHistory = [], route, onUsage, post }) {
   const provider = providerConfig();
   if (!provider.key) throw new Error('Missing CMD_API_KEY');
-  const send = providerSend(post || axios.post.bind(axios), provider);
+  const send = providerSend(post || axios.post.bind(axios), provider, 'planner');
   const history = modelThread(splitHistory(threadHistory).current)
     .map((item) => `${item.author}: ${item.content}`)
     .join('\n')
@@ -515,7 +520,7 @@ async function queryAgent({
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const send = providerSend(post || axios.post.bind(axios), provider);
+      const send = providerSend(post || axios.post.bind(axios), provider, 'answer');
       const { data } = await send(
         provider.url,
         privateProviderBody({
@@ -644,7 +649,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
       answered_requirements: [],
     };
   }
-  const send = providerSend(post || axios.post.bind(axios), provider);
+  const send = providerSend(post || axios.post.bind(axios), provider, 'review');
   const citationLimit = normalizeSubQuestions(understanding?.subQuestions).length > 3 ? 4 : 2;
   const separatedHistory = splitHistory(threadHistory);
   const earlierContext = previousContextBlock(separatedHistory.previous);
@@ -708,11 +713,13 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, {
     question, language: understanding?.replyLanguage, dataLossRisk: understanding?.dataLossRisk === true,
   });
+  answerTrace.filter('review_safety',parsed.final_answer,safety.answer);
   recordStage('review_safety', safety.answer);
   // Use the same narration owner as final presentation before approving a
   // review. A destructive removal invalidates that review; the existing second
   // look may repair supported context, but a sanitized claim is not approval.
   const filtered = stripPingNarration(stripStaffLies(safety.answer));
+  answerTrace.filter('staff_narration',safety.answer,filtered);
   const audit = removedAnswerUnits(safety.answer, filtered);
   const narrationRemoved = audit.removed.length > 0 || audit.truncated;
   const answer = !String(safety.answer || '').trim()
