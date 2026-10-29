@@ -163,7 +163,59 @@ function hasIndependentDirective(text) {
   return hasSafetyWarning(shown) || hasTroubleshootingStep(shown) || /https?:\/\//iu.test(shown);
 }
 
-function stripSupportRedirect(text, {language = 'en'} = {}) {
+// This bounded English grammar recognizes a current instruction, not every
+// possible way to request help. Unknown wording/address mentions grant no
+// routing authority. The same removed clause must establish the action.
+function isCurrentContactInstruction(clause, sentence, { quoted = false } = {}) {
+  if (quoted) return false;
+  const directive = String(clause).replace(/[*_~]/g, '').replace(/^\s*(?:[-+•]|\d+[.)])\s+/, '').trim();
+  const at = String(sentence).indexOf(clause);
+  const prefix = String(sentence).slice(0, at).replace(/[*_~]/g, '');
+  const suffix = String(sentence).slice(at + clause.length).replace(/[*_~]/g, '');
+  // A completed fact can contain a past temporal phrase without conditioning
+  // a later independent instruction. A leading condition fragment or trailing
+  // condition still scopes that instruction conservatively.
+  if (prefix.split(/[;；]/u).some(part => /^\s*(?:if|unless|when|until|before|after|once|provided|assuming)\b|\b(?:only\s+(?:if|when|after|once)|first|otherwise|alternatively|or)\b/i.test(part)) || suffix.replace(/[;；.!?\s]/gu, '')) return false;
+  // A complete positive grammar binds the action to Omi support. Arbitrary
+  // purposes/suffixes can contain conditions or alternative recipients; they
+  // stay unrecognized rather than becoming a guessed current requirement.
+  return /^(?:for (?:confirmation|help|assistance|support|review),\s*)?(?:please\s+)?(?:you\s+(?:need to|have to|must|should)\s+)?(?:e-?mail|contact|reach out to|write to|message|get in touch with)\s+(?:(?:the|our)\s+)?(?:omi\s+support|support(?:\s+team)?|help@omi\.me|team@basedhardware\.com)(?:\s+(?:now|directly))?(?:\s+for\s+(?:confirmation|help|assistance|support|review|a review))?[.!]*$/i.test(directive);
+}
+
+function contactQuoteSpans(line, previous) {
+  const characters = [...line], positions = [];
+  let offset = 0;
+  for (const character of characters) { positions.push(offset); offset += character.length; }
+  const spans = [];
+  let open = previous, start = open ? 0 : -1;
+  const word = character => /[\p{L}\p{N}]/u.test(character || '');
+  for (let index = 0; index < characters.length; index++) {
+    const character = characters[index];
+    if (character === '`') {
+      let end = index + 1;
+      while (characters[end] === '`') end++;
+      const count = end - index;
+      if (!open) { open = { closing: '`', count }; start = positions[index]; }
+      else if (open.closing === '`' && open.count === count) {
+        spans.push([start, positions[end] ?? line.length]); open = null;
+      }
+      index = end - 1;
+    } else if (open) {
+      const contraction = (character === "'" || character === '’') && word(characters[index - 1]) && word(characters[index + 1]);
+      if (character === open.closing && !contraction) {
+        spans.push([start, positions[index] + character.length]); open = null;
+      }
+    } else if (["'", '‘', '"', '“'].includes(character) &&
+        (character !== "'" || !word(characters[index - 1]))) {
+      open = { closing: { "'": "'", '‘': '’', '"': '"', '“': '”' }[character] };
+      start = positions[index];
+    }
+  }
+  if (open) spans.push([start, line.length]);
+  return { spans, open };
+}
+
+function stripSupportRedirectWithAudit(text, {language = 'en'} = {}) {
   const isRedirect = (sentence) => {
     // A warning not to send secrets is not an instruction to leave this thread.
     if (/\b(?:never|do not|don['’]t)\s+(?:e-?mail|send|share)|\bno\s+(?:env[ií]es|compartas)|不要(?:发送|分享)/i.test(sentence)) return false;
@@ -177,16 +229,38 @@ function stripSupportRedirect(text, {language = 'en'} = {}) {
     return directContact.test(sentence) || supportForm.test(sentence) || supportChannel.test(sentence) || contactControl.test(sentence);
   };
   let removedReference = false;
+  let currentContactRequested = false;
+  let fenced = null;
+  let openQuote = null;
+  let continuationScope = false;
   const supported = REDIRECT_LANGUAGES.has(String(language).toLowerCase().split('-')[0]);
-  return String(text || '')
+  const cleaned = String(text || '')
     .split('\n')
     .map((line) => {
-      if (!line.trim()) { removedReference = false; return line; }
+      const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/u);
+      const fence = fenceMatch?.[1];
+      const codeOrQuote = Boolean(fenced || fence || /^\s*>|^ {4}|^\t/.test(line));
+      if (fence) {
+        if (!fenced) fenced = { character: fence[0], length: fence.length };
+        else if (fence[0] === fenced.character && fence.length >= fenced.length && !fenceMatch[2].trim()) fenced = null;
+      }
+      if (!line.trim()) { removedReference = false; continuationScope = false; return line; }
       if (SOURCE_HEADING.test(line)) return line;
+      const quote = codeOrQuote ? { spans: [[0, line.length]], open: openQuote } : contactQuoteSpans(line, openQuote);
+      openQuote = quote.open;
+      const displayed = line.replace(/^\s*(?:[-+*•]|\d+[.)])\s+/, '').replace(/[*_~]/g, '').trim();
+      const condition = /^(?:if|unless|when|until|before|after|once|provided|assuming)\b/i.test(displayed);
+      const scopeHeld = continuationScope || condition;
+      // An unfinished heading/condition can scope the following physical lines
+      // or list. Do not reinterpret that continuation as a fresh imperative.
+      if (!codeOrQuote && (condition || !/[.!?。！？]["'”’`]*$/u.test(displayed))) continuationScope = true;
       const privateOrderIntake = sentence => /^\s*include (?:the )?order (?:number|#)/i.test(sentence);
       const originalClauses = line.split(/(?<=[.!?])\s+|[;；]\s*|(?<=[。！？])\s*|\s+(?:and|y)\s+(?=(?:do\s+not|don't|never|no)\b)/iu);
       if (!removedReference && !originalClauses.some(s => isRedirect(s) || privateOrderIntake(s))) return line;
+      let sentenceCursor = 0;
       return line.split(/(?<=[.!?])\s+|(?<=[。！？])\s*/u).filter(Boolean).flatMap(sentence => {
+        const sentenceAt = line.indexOf(sentence, sentenceCursor);
+        sentenceCursor = sentenceAt + sentence.length;
         const clauses = sentence.split(/[;；]\s*|\s+(?:and|y)\s+(?=(?:do\s+not|don't|never|no)\b)/iu).map(s=>s.trim()).filter(Boolean);
         const removed = clauses.some(s => isRedirect(s) || privateOrderIntake(s));
         if (!removed) {
@@ -195,7 +269,12 @@ function stripSupportRedirect(text, {language = 'en'} = {}) {
           return [sentence];
         }
         removedReference = true;
+        let clauseCursor = 0;
         return clauses.flatMap(clause => {
+          const clauseAt = sentence.indexOf(clause, clauseCursor);
+          clauseCursor = clauseAt + clause.length;
+          const start = sentenceAt + clauseAt, end = start + clause.length;
+          const quoted = scopeHeld || quote.spans.some(([left, right]) => start < right && end > left);
           if (SOURCE_HEADING.test(clause)) return [clause];
           if (privateOrderIntake(clause)) return [];
           if (!isRedirect(clause)) {
@@ -204,6 +283,7 @@ function stripSupportRedirect(text, {language = 'en'} = {}) {
             if (!supported && !hasIndependentDirective(clause)) return [];
             return startsRedirectReference(clause) && !hasIndependentDirective(clause) ? [] : [clause];
           }
+          currentContactRequested ||= isCurrentContactInstruction(clause, sentence, { quoted });
           const details = clause.match(/\b(?:please\s+)?include\b.+$/i);
           return details && !isRedirect(details[0]) ? [`Please ${details[0].replace(/^please\s+/i, '')}`] : [];
         });
@@ -213,6 +293,11 @@ function stripSupportRedirect(text, {language = 'en'} = {}) {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+  return { text: cleaned, currentContactRequested };
+}
+
+function stripSupportRedirect(text, options) {
+  return stripSupportRedirectWithAudit(text, options).text;
 }
 
 const IN_THREAD_NEXT = {
@@ -588,6 +673,7 @@ module.exports = {
   typingDelay,
   sanitizeReply,
   stripSupportRedirect,
+  stripSupportRedirectWithAudit,
   inThreadReply,
   formatDiscordReply,
   clipForDiscord,
