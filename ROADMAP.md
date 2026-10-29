@@ -531,3 +531,7 @@ Results are retained outside Git in `~/omi-eval/holdout-main-sameday-oct10.json`
 No production settings or credentials change as a side effect of coding. Previously exposed credentials remain unrotated/unconfirmed, deferred by Aryan with accepted risk; encryption-key rotation needs a data-preserving migration. Omi Support Bot is the product name; technical repository/domain/channel names are not renamed without an explicit migration.
 
 See [Architecture](docs/ARCHITECTURE.md), [Implementation Checklist](docs/IMPLEMENTATION_PLAN.md), and [Operations Runbook](docs/RUNBOOK.md).
+
+## October29 draft: machine-check evidence and expose adversarial regressions
+
+Prepare a separate evidence-policy PR and wire six fictional deterministic boundary probes into the existing no-model checks. Four pass, two (#83 refund approval and hardware applicability) remain genuine failures; no expected-failure waiver or green accuracy claim. The draft stays blocked for general repairs/current-head verification and reviewed policy installation. Main currently has no branch protection; required head-check enforcement is still uninstalled. No score point, paid run, merge, deploy or optional enablement.

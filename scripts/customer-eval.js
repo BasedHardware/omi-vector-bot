@@ -261,6 +261,10 @@ async function main() {
   const key = Boolean(String(process.env.CMD_API_KEY || '').trim());
   console.log(`model ${key && !modelBlocked ? 'on' : 'off'}`);
   let failed = 0;
+  if (process.env.EVAL_NO_MODEL === '1') {
+    const adversarial = await require('./support-adversarial').runAdversarial();
+    failed += adversarial.filter(row => !row.ok).length;
+  }
   let ran = 0;
   const requested = String(process.env.EVAL_SCENARIO || '').trim();
   const selected = (modelBlocked ? scenarios : [...scenarios, ...liveScenarios]).filter(
@@ -283,7 +287,7 @@ async function main() {
     console.log(result.answer.replace(/\s+/g, ' ').slice(0, 420));
     if (problems.length) console.log(`problems: ${problems.join('; ')}`);
   }
-  console.log(`\n${ran - failed}/${ran} ok`);
+  console.log(`\n${ran} ordinary cases evaluated; ${failed} total failures including adversarial probes`);
   process.exit(failed ? 1 : 0);
 }
 

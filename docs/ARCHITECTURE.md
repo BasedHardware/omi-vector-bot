@@ -302,3 +302,7 @@ Enforce customer isolation, authorization, time/result bounds, output schemas an
 Operational logs contain opaque case/request references, stage times, token counts, tool outcome codes, escalation reasons and delivery state—not customer content or secrets. Keep diagnostic/audit retention deliberate and approved. Public diagnostics remain disabled until isolation, privacy, restart, overlap and real-delivery tests pass.
 
 See [the implementation checklist](IMPLEMENTATION_PLAN.md) for rollout order and acceptance gates.
+
+## October29 draft: CI evidence declaration and adversarial boundaries
+
+[Answer evidence policy](ANSWER_EVIDENCE_GATE.md) is a separate trusted-base metadata workflow with a fixed head-SHA check, current comparison declaration or exact-head/body independently approved exemption. It never runs PR code with its check-publishing token. Required branch enforcement remains a post-review installation step. The existing no-model runner gains original synthetic production-owner probes; refund-approval and unidentified-hardware checks currently fail and block readiness. These diagnostics are not a production repair, generated model-robustness proof or grounds to deploy #90.

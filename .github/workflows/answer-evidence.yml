@@ -1,0 +1,42 @@
+name: Answer evidence policy
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  workflow_run:
+    workflows: [Mira review metadata event]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: PR number to recheck after review
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
+concurrency:
+  group: answer-evidence-${{ github.event.pull_request.number || inputs.pull_request_number || 'review-refresh' }}
+  cancel-in-progress: true
+
+jobs:
+  answer-evidence:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.event == 'pull_request_review'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Always execute trusted base code. No PR checkout, dependency install,
+      # imported PR code, shell interpolation of body text, or provider secret.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: node scripts/answer-evidence-gate.js
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

@@ -1,0 +1,13 @@
+# Unprivileged event relay only. Trusted main workflow re-fetches metadata;
+# it never imports this run's code, artifacts, outputs, PR number or payload text.
+name: Mira review metadata event
+on:
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+permissions: {}
+jobs:
+  review-event:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - run: 'true'

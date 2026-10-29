@@ -28,3 +28,11 @@ Functional/integration evidence and independent review, proportionate to this ch
 Keep the PR draft until the final diff and current-commit checks pass. State any remaining accuracy, integration or approval gate. A merge does not deploy or enable an optional feature.
 
 Main / production impact and the next required release check:
+
+
+Use `comparison` for an answer change. Its evidence record must identify the tested baseline/candidate, inputs, output/grade evidence and independent review; a link alone is not scientific approval. Use `no-answer-change` only with a concrete `Justification:` instead of `Evidence:` and a non-author maintainer APPROVED review on this exact head containing `Mira evidence approval: <SHA256 of this exact section>`. `pending` blocks the policy check. Updating head or justification requires updated approval. Never paste customer/model text or secrets into a public evidence record.
+
+## Answer-change evidence
+Mode: pending
+Head: REPLACE_WITH_CURRENT_40_CHARACTER_HEAD_SHA
+Evidence: LINK_TO_COMPARISON_RECORD_IN_THIS_REPOSITORY
