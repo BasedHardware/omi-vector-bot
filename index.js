@@ -847,7 +847,7 @@ async function answerMessageImpl(message, { directHistory = [] } = {}) {
     let snippets = [];
     let privateIntakeNeeded = false;
     const publicPrivacy = { question: [question, caseQuestion, ...contextHistory.map(row => row.content)].filter(Boolean).join('\n'),
-      language: replyLanguage, orderAvailable: orderFlow.isLive() };
+      language: replyLanguage, orderAvailable: orderFlow.isLive(), financialContext:route.lane==='money' };
     const onPrivacy = value => { privateIntakeNeeded ||= value.privateIntakeNeeded; };
 
     if (useShopify) {

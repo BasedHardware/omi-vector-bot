@@ -306,3 +306,7 @@ See [the implementation checklist](IMPLEMENTATION_PLAN.md) for rollout order and
 ## October29 draft: metadata-only answer observation
 
 The [production trace](PRODUCTION_ANSWER_TRACE.md) extends the existing answer/review/presentation/delivery pipeline using request-local metadata. Public publisher catalogs enroll source URLs; arbitrary retrieved or model links cannot become logged identities. The observer has no routing, tool, store, prompt, retry or delivery authority. It remains distinct from evaluation-only HMAC stage evidence and from durable delivery reconciliation. Source origin does not establish product applicability. Release stays held after the rejected #91 smoke; #90 provenance is not an applicability enforcement fix.
+
+## October30 production fix A: unverified financial outcomes
+
+The [financial outcome boundary](UNVERIFIED_FINANCIAL_OUTCOMES.md) extends the existing honesty → review removal-audit → public privacy/presentation pipeline. It rejects fabricated refund/replacement/return/credit/warranty outcomes and deadlines without touching actual financial state. Known financial routing reaches short-status filtering; private order lookup is not an approval authority. Conditional instructions remain atomic, and the existing durable handoff/receipt boundary stays authoritative. Keep the separate applicability defect/release gate open until B and combined verification complete.
