@@ -97,7 +97,7 @@ test('independent review: prefaced statuses and mixed exemptions cannot assert a
   'Do not ship the replacement until the refund is approved; your refund has been approved.',
   'After your refund was approved, keep the receipt.']) assert.equal(strip(text,{financialContext:true}),'',text);
  for(const text of ['Refunds are processed to the original payment method.','This function returns the processed transcript.',
-  'Return the processed transcript.','Has your refund been approved?','A person needs to process your refund request.']) assert.equal(strip(text),text,text);
+  'Return the processed transcript.','Has your refund been approved?','A person needs to process your refund request.','I could not deliver this to the support team from here.']) assert.equal(strip(text),text,text);
 });
 
 test('implicit financial subjects and exception prefixes stay fail-closed',()=>{
@@ -107,4 +107,14 @@ test('implicit financial subjects and exception prefixes stay fail-closed',()=>{
  'Your refund must be approved, as it now is.',
  "You reported seeing an 'approved' label for your refund, which proves it."])
  assert.equal(strip(text,{financialContext:true}),'',text);
+});
+
+test('whole uncertainty forms cannot borrow an affirmative tail',()=>{
+ const strip=require('../honesty').stripUnverifiedOutcomeClaims;
+ for(const text of ['I cannot confirm whether your refund was approved — it definitely was.',
+ 'Je ne peux pas confirmer si votre remboursement est approuvé — c’est pourtant le cas.',
+ 'Has your refund been approved, because it has?','If your return is approved, it definitely was.'])
+ assert.equal(strip(text,{financialContext:true}),'',text);
+ for(const text of ['The SDK returns a successful response.',"I'm not sure whether your refund was approved."])
+ assert.equal(strip(text),text,text);
 });

@@ -547,7 +547,7 @@ async function queryAgent({
 
       const content = data?.choices?.[0]?.message?.content;
       if (!content) throw new Error('CommandCode response empty');
-      const parsed = parseAgentJson(content,{question,financialContext:['money','shop','account'].includes(route?.lane)});
+      const parsed = parseAgentJson(content,{question,financialContext:route?.lane==='money'});
       if (parsed.reason === 'model json failed' && attempt === 0) continue;
       return parsed;
     } catch (err) {
@@ -719,7 +719,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   // review. A destructive removal invalidates that review; the existing second
   // look may repair supported context, but a sanitized claim is not approval.
   const narrated=stripPingNarration(stripStaffLies(safety.answer));
-  const filtered = stripUnverifiedOutcomeClaims(narrated,{question,financialContext:['money','shop','account'].includes(lane)});
+  const filtered = stripUnverifiedOutcomeClaims(narrated,{question,financialContext:lane==='money'});
   answerTrace.filter('financial_outcome',narrated,filtered);
   answerTrace.filter('staff_narration',safety.answer,filtered);
   const audit = removedAnswerUnits(safety.answer, filtered);
