@@ -1,3 +1,4 @@
+const {publisherDeviceScope}=require('./deviceApplicability');
 const MAX_DOCUMENT = 60_000;
 const CHUNK_SIZE = 1_400;
 const CHUNK_OVERLAP = 220;
@@ -142,6 +143,8 @@ function splitLongPart(part, size = CHUNK_SIZE) {
 
 function chunkDocument({ url, title, body, provenance }, { size = CHUNK_SIZE, overlap = CHUNK_OVERLAP } = {}) {
   const clean = cleanDocument(body);
+  const restriction=publisherDeviceScope(title,clean);
+  provenance=normalizeProvenance({...provenance,...(restriction && !provenance?.deviceScope?{deviceScope:restriction}:{})});
   if (!clean) return [];
   const parts = clean
     .split(/\n+/)
@@ -453,6 +456,7 @@ function rankLocalChunks(queries, rows, limit = 8, { customerQuestion = '', subQ
 function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2, onSources } = {}) {
   const blocks = [];
   const sourceUrls = new Set();
+  const catalog=[];
   const perPage = new Map();
   let used = 0;
   for (const row of rows || []) {
@@ -468,12 +472,13 @@ function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2, onSources } = 
           : 'authoritative';
     const id = `S${blocks.length + 1}`;
     const section = row.section ? ` — ${row.section}` : '';
-    const body = cleanDocument(row.body, 1_700);
+    const body = cleanDocument(row.body, 1_700).replace(/\[S\d+\s*\|/g,'[quoted source |');
     if (!body) continue;
     const metadata = provenanceLine(row.provenance);
-    const block = `[${id} | ${sourceLabel(kind)} | ${trust}]\n${row.title || 'Untitled'}${section}\n${url}\n${metadata ? metadata+'\n' : ''}${body}`;
+    const block = `[${id} | ${sourceLabel(kind)} | ${trust}]\n${String(row.title || 'Untitled').replace(/[\r\n]/g,' ').replace(/\[S\d+\s*\|/g,'[quoted source |')}${section.replace(/[\r\n]/g,' ')}\n${url}\n${metadata ? metadata+'\n' : ''}${body}`;
     const separatorChars = blocks.length ? 2 : 0;
     if (used + separatorChars + block.length > maxChars && blocks.length) break;
+    catalog.push({id,url,provenance:normalizeProvenance(row.provenance),offset:used+separatorChars});
     blocks.push(block);
     if (url) sourceUrls.add(url);
     used += separatorChars + block.length;
@@ -481,8 +486,21 @@ function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2, onSources } = 
   }
   // Provenance travels outside formatted prose. A title/body can contain links
   // or forged evidence markers, but cannot add a retrieved source identity.
-  onSources?.([...sourceUrls]);
+  onSources?.([...sourceUrls],catalog);
   return blocks.join('\n\n');
+}
+
+function combineEvidenceWithCatalog(parts) {
+  let next=0;const catalog=[];
+  const text=parts.map(part=>{
+    const entries=new Map((part.catalog||[]).map(row=>[row.offset,row]));
+    return String(part.text||'').replace(/\[S\d+\s*\|/g,(marker,offset)=>{
+      const id='S'+(++next),row=entries.get(offset);
+      if(row)catalog.push({...row,id});
+      return '['+id+' |';
+    });
+  }).filter(Boolean).join('\n\n');
+  return {text,catalog};
 }
 
 function combineEvidence(...values) {
@@ -551,5 +569,6 @@ module.exports = {
   rankLocalChunks,
   formatEvidence,
   combineEvidence,
+  combineEvidenceWithCatalog,
   jointMultipartEvidence,
 };

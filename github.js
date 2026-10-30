@@ -429,7 +429,7 @@ async function searchOfficialCode(question, { queries: planned = [], fetchImpl, 
   const cacheKey = searches.join('\n').toLowerCase();
   const cached = officialCodeCache.get(cacheKey);
   if (cached && Date.now() - cached.at < OFFICIAL_CODE_CACHE_MS) {
-    onSources?.([...(cached.sourceUrls || [])]);
+    onSources?.([...(cached.sourceUrls || [])],cached.sourceCatalog||[]);
     return cached.text;
   }
   const found = new Map();
@@ -467,11 +467,11 @@ async function searchOfficialCode(question, { queries: planned = [], fetchImpl, 
 
     const rankingQueries = [question, ...planned, ...searches].filter(Boolean);
     const chunks = pages.flatMap((page) => chunkDocument(page));
-    let sourceUrls = [];
+    let sourceUrls = [],sourceCatalog=[];
     require('./answerTrace').registerPublishedSources(chunks.map(row=>row.url));
-    const text = formatEvidence(rankLocalChunks(rankingQueries, chunks, 8), { onSources: urls => { sourceUrls = urls; } });
-    officialCodeCache.set(cacheKey, { at: Date.now(), text, sourceUrls });
-    onSources?.([...sourceUrls]);
+    const text = formatEvidence(rankLocalChunks(rankingQueries, chunks, 8), { onSources: (urls,items) => { sourceUrls = urls;sourceCatalog=items; } });
+    officialCodeCache.set(cacheKey, { at: Date.now(), text, sourceUrls,sourceCatalog });
+    onSources?.([...sourceUrls],sourceCatalog);
     while (officialCodeCache.size > 200) {
       officialCodeCache.delete(officialCodeCache.keys().next().value);
     }

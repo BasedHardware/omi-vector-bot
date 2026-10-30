@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { Pool } = require('pg');
 const { chunkDocument, cleanDocument, queryTerms, sourceAuthority } = require('./retrieval');
+const {publisherDeviceScope}=require('./deviceApplicability');
 const { normalizeProvenance } = require('./sourceProvenance');
 
 function sslFor(connectionString) {
@@ -268,7 +269,7 @@ async function searchDocPages(question, limit = 8, sources = []) {
   const wantedSources = Array.isArray(sources) ? sources.map(String).filter(Boolean) : [];
   const { rows } = await pool.query(
     `WITH query AS (SELECT websearch_to_tsquery('english', $1) AS value)
-     SELECT c.title, c.url, c.section, c.source, c.authority, c.body, c.chunk_index, p.provenance,
+     SELECT c.title, c.url, c.section, c.source, c.authority, c.body, c.chunk_index, p.provenance, LEFT(p.body, 2400) AS scope_intro,
             ts_rank_cd(search_vector, query.value, 32) AS rank
      FROM doc_chunks c JOIN doc_pages p ON p.url=c.url CROSS JOIN query
      WHERE search_vector @@ query.value
@@ -279,7 +280,10 @@ async function searchDocPages(question, limit = 8, sources = []) {
      LIMIT $2`,
     [search, limit, wantedSources]
   );
-  return rows;
+  return rows.map(({scope_intro,...row})=>{
+    const scope=publisherDeviceScope(row.title,scope_intro);
+    return {...row,provenance:normalizeProvenance({...row.provenance,...(scope && !row.provenance?.deviceScope?{deviceScope:scope}:{})})};
+  });
 }
 
 async function markSourceSynced(sourceKey, itemCount) {

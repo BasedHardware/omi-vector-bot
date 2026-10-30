@@ -3014,7 +3014,7 @@ test('a same-customer direct reply continues a mentioned support exchange withou
 
   assert.equal(modelCalls.length, before + 1);
   assert.deepEqual(modelCalls.at(-1).threadHistory, [
-    { author: 'customer', content: 'How do I pair Omi with my phone?' },
+    { author: 'customer', content: 'How do I pair Omi with my phone?',customerOwned:true },
     { author: 'bot', content: 'Hold the center button for ten seconds, then pair it again from the app.' },
   ]);
   assert.equal(follow.replies.length, 1);
@@ -3462,4 +3462,25 @@ test('production trace reports delivery uncertainty without retaining thrown tex
   assert.equal(lines.length,1);
   assert.equal(lines[0].delivery.reply,'uncertain');
   assert.ok(!JSON.stringify(lines).includes('PRIVATE-TRANSPORT-TOKEN'));
+});
+
+
+test('device scope guard asks a clarifier and retains an explicit private handoff in actual handler',async t=>{
+ const staff=enableStaffDelivery(t);process.env.CMD_API_KEY='synthetic-only';t.after(()=>{process.env.CMD_API_KEY='';});
+ plannerWantsPerson=true;plannerSupportKind='tech';
+ docsObserver=async (_q,options)=>require('../retrieval').formatEvidence([{url:'https://help.omi.me/en/articles/98760017-fictional',title:'FieldBadge Mini setup',source:'help',body:'Disable background restrictions.',provenance:{deviceScope:{products:['FieldBadge Mini'],origin:'publisher-product'}}}],options);
+ modelReply={final_answer:'Disable background restrictions.',confidence:1,escalate:false};
+ reviewerResponse=args=>realReviewAnswer({...args,post:async()=>({data:{choices:[{message:{content:JSON.stringify({final_answer:'Disable background restrictions.',grounded:true,relevant:true,confidence:1,escalate:false,sources_used:['S1']})}}]}})});
+ const result=await ask('My Omi disconnects as soon as I lock my phone. I already restarted the app and phone. Please have a person review this.');
+ assert.match(result.reply,/Which device are you using/);assert.doesNotMatch(result.reply,/Disable background restrictions/);
+ assert.equal(staff.length,1);assert.match(JSON.stringify(staff),/restarted/);
+});
+
+test('device scope clarification alone does not invent a staff handoff for an ordinary FAQ',async t=>{
+ const staff=enableStaffDelivery(t);process.env.CMD_API_KEY='synthetic-only';t.after(()=>{process.env.CMD_API_KEY='';});
+ docsObserver=async (_q,options)=>require('../retrieval').formatEvidence([{url:'https://help.omi.me/en/articles/98760017-fictional',title:'FieldBadge Mini setup',source:'help',body:'Open Settings to pair the recorder.',provenance:{deviceScope:{products:['FieldBadge Mini'],origin:'publisher-product'}}}],options);
+ modelReply={final_answer:'Open Settings to pair the recorder.',confidence:1,escalate:false};
+ reviewerResponse=args=>realReviewAnswer({...args,post:async()=>({data:{choices:[{message:{content:JSON.stringify({final_answer:'Open Settings to pair the recorder.',grounded:true,relevant:true,confidence:1,escalate:false,sources_used:['S1']})}}]}})});
+ const result=await ask('How do I pair a recorder with the app?');
+ assert.match(result.reply,/Which device are you using/);assert.equal(staff.length,0);
 });

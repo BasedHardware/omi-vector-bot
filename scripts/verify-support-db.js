@@ -315,6 +315,18 @@ async function verifySourceProvenance(pool) {
     assert.deepEqual((await db.searchDocPages('Capture provenance',8,['help']))[0].provenance,{});
     await db.initSchema();
     assert.deepEqual((await db.searchDocPages('Capture provenance',8,['help']))[0].provenance,{});
+    // A previously cached unscoped parent is restricted at read time, even
+    // when the selected chunk no longer includes the introductory sentence.
+    const restricted='https://help.omi.me/en/articles/98760018-cached-scope';
+    await db.saveDocPage({url:restricted,title:'Using your FieldBadge Mini with Omi',body:'Omi lets you use your FieldBadge Mini with the Omi app. '+('Introduction filler. '.repeat(100))+'\nDisable background restrictions for connection.'});
+    const legacy=await db.searchDocPages('background restrictions',8,['help']);
+    assert.deepEqual(legacy.find(row=>row.url===restricted).provenance.deviceScope.products,['fieldbadge mini']);
+    // Structured restriction persists independently of a rejected date.
+    await db.saveDocPage({url:restricted,title:'Using your FieldBadge Mini with Omi',body:'Background restrictions are configured here.',provenance:{dateOrigin:'declared',updatedAt:'invalid',deviceScope:{products:['FieldBadge Mini'],origin:'publisher-product'}}});
+    const refreshed=(await db.searchDocPages('background restrictions',8,['help'])).find(row=>row.url===restricted);
+    assert.deepEqual(refreshed.provenance.deviceScope.products,['FieldBadge Mini']);
+    await db.saveDocPage({url:restricted,title:'Generic connection setup',body:'Background restrictions can vary.'});
+    assert.deepEqual((await db.searchDocPages('background restrictions',8,['help'])).find(row=>row.url===restricted).provenance,{});
     console.log('Official source provenance: production save/search/evidence round trip, unknown-date refresh and additive schema passed');
   } finally { db.pool.connect=original.connect; db.pool.query=original.query; }
 }

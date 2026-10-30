@@ -1,3 +1,4 @@
+const {applicabilityDecision}=require('./deviceApplicability');
 const answerTrace = require('./answerTrace');
 const axios = require('axios');
 const { buildSystemPrompt, buildUserPrompt, PUBLIC_REPLY_PRIVACY_POLICY } = require('./prompt');
@@ -636,7 +637,7 @@ function technicalReviewSafety(answer, lane, sources, sourceIds = [], { question
   };
 }
 
-async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], safetyAuditTruncated = false, sources, understanding, policy, lane, handoffPlanned = false, reasoningEffort = 'low', onUsage, post }) {
+async function reviewAnswer({ question, threadHistory = [], draft, removedBySafetyFilters = [], safetyAuditTruncated = false, sources, sourceCatalog=[], understanding, policy, lane, handoffPlanned = false, reasoningEffort = 'low', onUsage, post }) {
   const provider = providerConfig();
   if (!String(draft || '').trim() || (!provider.key && !post)) {
     return {
@@ -710,6 +711,9 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const sourceIds = Array.isArray(parsed.sources_used)
     ? parsed.sources_used.map((value) => String(value)).slice(0, 4)
     : [];
+  const applicability=applicabilityDecision({question,threadHistory,sourceCatalog,sourceIds,answer:parsed.final_answer,language:understanding?.replyLanguage});
+  answerTrace.devices(applicability);
+  if(applicability.blocked)return {final_answer:applicability.question,grounded:false,relevant:true,confidence:1,escalate:false,safeClarification:true,sources_used:[],answered_requirements:[]};
   const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, {
     question, language: understanding?.replyLanguage, dataLossRisk: understanding?.dataLossRisk === true,
   });
