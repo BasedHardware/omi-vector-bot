@@ -124,3 +124,11 @@ test('application review prerequisites remain honest without asserting an outcom
  const text='The charge needs a team review before any adjustment can be confirmed.';
  assert.equal(strip(text,{financialContext:true}),text);
 });
+
+test('future financial action commitments require unavailable authority too',()=>{
+ const strip=require('../honesty').stripUnverifiedOutcomeClaims;
+ for(const text of ['We will refund your purchase tomorrow.','We will credit your account tomorrow.',
+ 'I will send you a replacement tomorrow.','Wir erstatten Ihren Kauf morgen.',
+ 'Nous vous rembourserons demain.','Le reembolsaremos mañana.','Rimborseremo il tuo acquisto domani.'])
+ assert.equal(strip(text,{financialContext:true}),'',text);
+});
