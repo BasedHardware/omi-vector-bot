@@ -272,5 +272,8 @@
       "liveVerified": false,
       "evidence": "Full staged, enabled end-to-end demonstration has not happened."
     }
-  ]
+  ],
+  "stateObservedOn": "2026-10-30",
+  "currentMainObserved": "9b7154df6226dec6bfea5a32e2225e9f7d627019",
+  "currentChangeNote": "93/95 merged;96/94/92 pending. No new milestone credit or accuracy percentage."
 }

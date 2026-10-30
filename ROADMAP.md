@@ -533,3 +533,11 @@ Results are retained outside Git in `~/omi-eval/holdout-main-sameday-oct10.json`
 No production settings or credentials change as a side effect of coding. Previously exposed credentials remain unrotated/unconfirmed, deferred by Aryan with accepted risk; encryption-key rotation needs a data-preserving migration. Omi Support Bot is the product name; technical repository/domain/channel names are not renamed without an explicit migration.
 
 See [Architecture](docs/ARCHITECTURE.md), [Implementation Checklist](docs/IMPLEMENTATION_PLAN.md), and [Operations Runbook](docs/RUNBOOK.md).
+
+## October29 draft: explain support answer decisions
+
+Prepare the production metadata trace as one separate PR, with red-before actual-handler tests, privacy/attempt/receipt/filter checks and independent review. It records stages, public catalog sources, claimed reviewer citations, filter codes and delivery status without customer/model text or platform IDs. This is observation only, with omitted-source markers for unknown metadata; broader #83 applicability and #85 operational retention remain open. No implementation/delivery score changes, paid run or deployment.
+
+## October30 production fix A
+
+Prepare one production-fix PR for unverified financial outcome statements across draft/review/final output. Its original #94 refund probe and independent adversarial findings have regression coverage; hardware applicability remains B. No paid run or financial capability is added. Final current-head CI/independent review and combined #94 integration remain before readiness; production stays the rollback baseline.

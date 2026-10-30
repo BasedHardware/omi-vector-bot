@@ -1,3 +1,4 @@
+const answerTrace = require('./answerTrace');
 const { recordStage } = require('./answerStageEvidence');
 const { getRemovalAudit, mergeRemovalAudits } = require('./answerFilterAudit');
 
@@ -8,6 +9,7 @@ function approvedReview(result) {
 
 async function reviewWithSecondLook(args, { review, log = console.log } = {}) {
   const first = await review(args);
+  answerTrace.review(first);
   recordStage('review_returned', first?.final_answer);
   const firstAudit = getRemovalAudit(first);
   if (approvedReview(first) || (first?.safeHandoff && !firstAudit.removed.length && !firstAudit.truncated)) return first;
@@ -18,6 +20,7 @@ async function reviewWithSecondLook(args, { review, log = console.log } = {}) {
     const auditArgs = audit.removed.length || audit.truncated
       ? { removedBySafetyFilters: audit.removed, safetyAuditTruncated: audit.truncated } : {};
     const second = await review({ ...args, ...auditArgs, reasoningEffort: null });
+    answerTrace.review(second,{secondLook:true});
     recordStage('review_returned', second?.final_answer);
     approved = approvedReview(second);
     return approved ? second : first;

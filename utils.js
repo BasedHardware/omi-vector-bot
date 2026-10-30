@@ -1,3 +1,4 @@
+const answerTrace = require('./answerTrace');
 const { stripStaffLies, stripInventedLookup } = require('./honesty');
 const { createHash } = require('node:crypto');
 const { recordStage } = require('./answerStageEvidence');
@@ -297,7 +298,9 @@ function stripSupportRedirectWithAudit(text, {language = 'en'} = {}) {
 }
 
 function stripSupportRedirect(text, options) {
-  return stripSupportRedirectWithAudit(text, options).text;
+  const result=stripSupportRedirectWithAudit(text, options).text;
+  answerTrace.filter('support_redirect',text,result);
+  return result;
 }
 
 const IN_THREAD_NEXT = {

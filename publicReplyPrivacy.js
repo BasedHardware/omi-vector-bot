@@ -1,3 +1,4 @@
+const {stripUnverifiedOutcomeClaims}=require('./honesty');
 const { redactSensitive } = require('./privacy');
 const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 
@@ -119,7 +120,7 @@ function publicReplyPrivacy(answer, opts = {}) {
   const question = String(opts.question || '');
   const code = locale(opts.language, question);
   let needed = opts.privateIntakeNeeded === true;
-  let text = String(answer || '').replace(/[\uE000-\uE005]/g, '').trim();
+  let text = stripUnverifiedOutcomeClaims(answer,{question,financialContext:opts.financialContext===true}).replace(/[\uE000-\uE005]/g, '').trim();
   for (const line of ownedLines) if (text.includes(line)) {
     text = text.split(line).join(''); needed = true;
   }

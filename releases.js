@@ -58,6 +58,7 @@ async function loadNotes(fetchImpl, store) {
       body: clip(item.body),
       publishedAt: item.published_at || null,
     }));
+    require('./answerTrace').registerPublishedSources(notes.filter(row=>row.tag).map(row=>`https://github.com/BasedHardware/omi/releases/tag/${encodeURIComponent(row.tag)}`));
     cache = { at: now, notes };
     if (store?.saveRelease) {
       for (const note of notes) {

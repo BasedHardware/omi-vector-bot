@@ -3496,3 +3496,73 @@ test('optional future contact and useful missing-detail questions keep an ordina
     assert.match(result.reply, /Open Status|Check Status|desktop or phone app/);
   }
 });
+
+
+test('production trace emits one metadata-only record for actual answer and private handoff paths', async t => {
+  const lines=[];
+  t.mock.method(console,'log',(...parts)=>{if(String(parts[0]).startsWith('[AnswerTrace] ')) lines.push(String(parts[0]).slice(14));});
+  modelReply={final_answer:'Open the Omi app. Source: https://help.omi.me/en/articles/12345678-synthetic',confidence:0.9};
+  const answer=makeMessage('How do I pair my Omi?');
+  await handleMessage(answer);
+  assert.equal(lines.length,1);
+  const first=JSON.parse(lines[0]);
+  assert.equal(first.delivery.reply,'confirmed');
+  assert.equal(first.stages.answer,'ok');
+  assert.equal(first.selectedReview.grounded,true);
+  const staff=enableStaffDelivery(t);
+  const person=makeMessage('I need to talk to a human about my Omi.');
+  await handleMessage(person);
+  assert.equal(lines.length,2);
+  const second=JSON.parse(lines[1]);
+  assert.notEqual(first.requestId,second.requestId);
+  assert.ok(second.escalationSignals.length);
+  assert.equal(staff.length,1);
+  assert.equal(second.delivery.staff,'confirmed');
+  for(const message of [answer,person]) {
+    assert.ok(!lines.join('').includes(message.id));
+    assert.ok(!lines.join('').includes(message.author.id));
+    assert.ok(!lines.join('').includes(message.content));
+  }
+  assert.ok(!lines.join('').includes('Open the Omi app'));
+});
+
+test('production trace reports delivery uncertainty without retaining thrown text', async t => {
+  const lines=[];
+  t.mock.method(console,'log',(...parts)=>{if(String(parts[0]).startsWith('[AnswerTrace] ')) lines.push(JSON.parse(String(parts[0]).slice(14)));});
+  const message=makeMessage('How do I pair my Omi?');
+  message.reply=async()=>{throw Error('PRIVATE-TRANSPORT-TOKEN');};
+  await handleMessage(message);
+  assert.equal(lines.length,1);
+  assert.equal(lines[0].delivery.reply,'uncertain');
+  assert.ok(!JSON.stringify(lines).includes('PRIVATE-TRANSPORT-TOKEN'));
+});
+
+test('financial outcome guard keeps real handoff and policy while removing approving model or reviewer copy',async t=>{
+ const staff=enableStaffDelivery(t);process.env.CMD_API_KEY='synthetic-only';
+ t.after(()=>{process.env.CMD_API_KEY='';});
+ plannerSupportKind='money';plannerReplyLanguage='de';
+ modelReply={final_answer:'Deine Rückerstattung wurde genehmigt. Rückerstattungen werden vom Team geprüft.',escalate:false,confidence:1};
+ reviewerResponse=async()=>({final_answer:'Deine Rückerstattung wurde genehmigt. Rückerstattungen werden vom Team geprüft.',grounded:true,relevant:true,confidence:1,escalate:false});
+ const result=await ask('Ich möchte eine Rückerstattung für meinen Kauf. Bitte prüfen.');
+ assert.doesNotMatch(result.reply,/wurde genehmigt/iu);assert.match(result.reply,/vom Team geprüft/iu);
+ assert.equal(staff.length,1);assert.match(result.reply,/Team|team/);
+});
+
+test('financial outcome guard preserves honest failed-delivery fallback without an invented approval',async t=>{
+ process.env.CMD_API_KEY='synthetic-only';t.after(()=>{process.env.CMD_API_KEY='';});
+ plannerSupportKind='money';plannerReplyLanguage='fr';
+ modelReply={final_answer:'Votre remboursement a été approuvé.',escalate:false,confidence:1};
+ reviewerResponse=async()=>({final_answer:'Votre remboursement a été approuvé.',grounded:true,relevant:true,confidence:1,escalate:false});
+ const result=await ask('Je demande un remboursement. Merci de vérifier cette demande.');
+ assert.doesNotMatch(result.reply,/a été approuvé/iu);
+ assert.match(result.reply,/help@omi\.me|failed|not.*(?:sent|notified)|pas|équipe|personne/iu);
+});
+
+test('known money route blocks a noun-free approving real review and still delivers staff case',async t=>{
+ const staff=enableStaffDelivery(t);process.env.CMD_API_KEY='synthetic-only';
+ t.after(()=>{process.env.CMD_API_KEY='';});plannerSupportKind='money';plannerReplyLanguage='de';
+ modelReply={final_answer:'Die gewünschte Transaktion wurde inzwischen genehmigt.',confidence:1,escalate:false};
+ reviewerResponse=args=>realReviewAnswer({...args,post:async()=>({data:{choices:[{message:{content:JSON.stringify({final_answer:'Die gewünschte Transaktion wurde inzwischen genehmigt.',grounded:true,relevant:true,confidence:1,escalate:false})}}]}})});
+ const result=await ask('Bitte prüfen Sie die doppelte Abbuchung.');
+ assert.equal(staff.length,1);assert.doesNotMatch(result.reply,/wurde genehmigt/iu);
+});
