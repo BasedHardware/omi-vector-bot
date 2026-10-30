@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {formatEvidence,combineEvidenceWithCatalog,chunkDocument}=require('../retrieval');
 const {reviewAnswer}=require('../commandcode');
 const {applicabilityDecision,publisherDeviceScope,ownedDevice}=require('../deviceApplicability');
-const row={url:'https://help.omi.me/en/articles/98760017-fictional',title:'FieldBadge Mini setup',body:'For the FieldBadge Mini only, disable background restrictions.',provenance:{applicability:{product:'FieldBadge Mini',surface:'Android',version:'15'}}};
+const row={url:'https://help.omi.me/en/articles/98760017-fictional',title:'FieldBadge Mini setup',body:'For the FieldBadge Mini only, disable background restrictions.',provenance:{applicability:{product:'FieldBadge Mini',surface:'Android',version:'15'},deviceScope:{products:['FieldBadge Mini'],origin:'publisher-product'}}};
 function evidence(rows=[row]){let catalog;const text=formatEvidence(rows,{onSources:(_urls,items)=>{catalog=items;}});return{text,catalog};}
 test('unknown and mismatched hardware cannot pass an approving real reviewer; matching hardware can',async()=>{
  for(const question of ['My recorder disconnects when the screen locks.','My Omi necklace disconnects when the screen locks.','My FieldBadge Mini disconnects when the screen locks.']) {
@@ -77,4 +77,16 @@ test('legacy software tags do not become hardware; publisher declarations exclud
  const chunks=chunkDocument({url:'https://discord.com/channels/1/2/3',title:'Using FieldBadge Mini with Omi',body:'Omi lets you use your FieldBadge Mini with the Omi app. Open Status.'});
  assert.ok(chunks.every(row=>!row.provenance?.deviceScope));
  const {catalog:discord}=evidence(chunks);assert.equal(applicabilityDecision({question:'My device broke.',sourceCatalog:discord,sourceIds:['S1']}).blocked,false);
+});
+
+test('multiple owned devices, undelivered devices and copied examples never prove one current device',()=>{
+ for(const text of ['My FieldBadge Mini and my Omi necklace both disconnect.','I have a FieldBadge Mini and an Omi necklace.',
+  'My FieldBadge Mini has not arrived yet. My current recorder disconnects.',
+  '~~~text\nMy FieldBadge Mini disconnects.\n~~~\nMy current recorder disconnects.',
+  '"A copied example:\nMy FieldBadge Mini disconnects.\n" My current recorder disconnects.'])
+ assert.ok(['','multiple'].includes(ownedDevice(text,[],['FieldBadge Mini'])),text);
+});
+test('audience, activity and platform restrictions never establish hardware identity',()=>{
+ for(const text of ['This guide is for new users.','This guide is for recording meetings.','For Android only, open Status.'])
+ assert.equal(publisherDeviceScope('App help',text),null,text);
 });

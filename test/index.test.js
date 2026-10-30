@@ -3509,7 +3509,7 @@ test('device scope guard asks a clarifier and retains an explicit private handof
 test('device scope clarification alone does not invent a staff handoff for an ordinary FAQ',async t=>{
  const staff=enableStaffDelivery(t);process.env.CMD_API_KEY='synthetic-only';t.after(()=>{process.env.CMD_API_KEY='';});
  docsObserver=async (_q,options)=>require('../retrieval').formatEvidence([{url:'https://help.omi.me/en/articles/98760017-fictional',title:'FieldBadge Mini setup',source:'help',body:'Open Settings to pair the recorder.',provenance:{deviceScope:{products:['FieldBadge Mini'],origin:'publisher-product'}}}],options);
- modelReply={final_answer:'Open Settings to pair the recorder.',confidence:1,escalate:false};
+ modelReply={final_answer:'Open Settings to pair the recorder.',confidence:0.2,escalate:false};
  reviewerResponse=args=>realReviewAnswer({...args,post:async()=>({data:{choices:[{message:{content:JSON.stringify({final_answer:'Open Settings to pair the recorder.',grounded:true,relevant:true,confidence:1,escalate:false,sources_used:['S1']})}}]}})});
  const result=await ask('How do I pair a recorder with the app?');
  assert.match(result.reply,/Which device are you using/);assert.equal(staff.length,0);

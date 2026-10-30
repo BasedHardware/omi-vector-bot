@@ -1019,7 +1019,7 @@ async function answerMessageImpl(message, { directHistory = [] } = {}) {
                 ? checked.final_answer
                 : reviewRejectionReply(replyLanguage);
             recordStage('review_selected', aiResponse.final_answer);
-            aiResponse.confidence = Math.min(
+            aiResponse.confidence = checked.safeClarification===true ? 1 : Math.min(
               Number(aiResponse.confidence) || 0.4,
               Number(checked.confidence) || 0.4
             );
