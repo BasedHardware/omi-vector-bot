@@ -54,3 +54,11 @@ test('compact review retry still returns localized application clarifier without
  }})});
  assert.equal(calls,2);assert.equal(result.safeClarification,true);assert.equal(result.final_answer,'Quel appareil utilisez-vous ?');
 });
+
+test('clarification retains a localized custody warning and fixed device categories only',()=>{
+ const {catalog}=evidence();
+ const result=applicabilityDecision({question:'Mes enregistrements ont disparu.',sourceCatalog:catalog,sourceIds:['S1'],language:'fr',dataLossRisk:true});
+ assert.match(result.question,/Quel appareil.*\n\nNe réinstallez/s);
+ assert.equal(result.detectedDevice,'unknown');assert.equal(result.evidenceDeviceScope,'other');
+ assert.ok(!JSON.stringify({detectedDevice:result.detectedDevice,evidenceDeviceScope:result.evidenceDeviceScope}).includes('FieldBadge'));
+});

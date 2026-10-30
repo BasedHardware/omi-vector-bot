@@ -1,7 +1,7 @@
 // Publisher restrictions are structured data. Customer/model text cannot grant
 // source scope. Unknown scope never means universal applicability.
 const TRACE_DEVICES=new Set(['unknown','omi_necklace','omi_devkit','limitless_pendant','other','multiple']);
-const TRACE_SCOPES=new Set(['unknown','unrestricted','matching','mismatched','unidentified','conflicting']);
+const TRACE_SCOPES=new Set(['unknown','unrestricted','omi_necklace','omi_devkit','limitless_pendant','other','multiple']);
 const name=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 function product(value) {
  return typeof value==='string' && /^[\p{L}\p{N} ._+/-]{2,80}$/u.test(value) ? value.trim() : '';
@@ -63,8 +63,9 @@ function ownedDevice(question,history=[],products=[]) {
  }
  return known;
 }
+const WARNINGS={en:'Do not reinstall, log out or clear local recordings while the team checks; unsynced recordings may still be on your phone.',fr:'Ne réinstallez pas l’application, ne vous déconnectez pas et n’effacez pas les enregistrements locaux pendant la vérification ; des enregistrements non synchronisés peuvent encore se trouver sur votre téléphone.',de:'Installiere die App nicht neu, melde dich nicht ab und lösche keine lokalen Aufnahmen, während das Team prüft; nicht synchronisierte Aufnahmen können noch auf dem Telefon liegen.',es:'No reinstales la aplicación, no cierres sesión ni borres grabaciones locales mientras el equipo revisa el caso; puede haber grabaciones sin sincronizar en tu teléfono.',pt:'Não reinstale o app, não saia da conta nem apague gravações locais durante a análise; gravações não sincronizadas podem estar no telefone.',it:'Non reinstallare l’app, non uscire dall’account e non cancellare registrazioni locali durante la verifica; potrebbero esserci registrazioni non sincronizzate sul telefono.',tr:'Ekip incelerken uygulamayı yeniden yüklemeyin, oturumu kapatmayın veya yerel kayıtları silmeyin; eşitlenmemiş kayıtlar telefonunuzda olabilir.',id:'Selama tim memeriksa, jangan instal ulang aplikasi, keluar dari akun, atau hapus rekaman lokal; rekaman yang belum tersinkron mungkin masih ada di ponsel.',zh:'团队检查期间，请勿重新安装应用、退出账号或删除本地录音；手机上可能仍有未同步的录音。',ja:'チームが確認する間は、アプリの再インストール、ログアウト、ローカル録音の削除をしないでください。未同期の録音がスマートフォンに残っている可能性があります。',ko:'팀에서 확인하는 동안 앱을 재설치하거나 로그아웃하거나 로컬 녹음을 삭제하지 마세요. 동기화되지 않은 녹음이 휴대폰에 남아 있을 수 있습니다.',ru:'Пока команда проверяет, не переустанавливайте приложение, не выходите из аккаунта и не удаляйте локальные записи: несинхронизированные записи могут оставаться на телефоне.',hi:'टीम की जाँच के दौरान ऐप दोबारा इंस्टॉल न करें, लॉग आउट न करें और स्थानीय रिकॉर्डिंग न मिटाएँ; बिना सिंक हुई रिकॉर्डिंग फ़ोन में हो सकती हैं।','hi-Latn':'Team ki jaanch ke dauran app dobara install na karein, log out na karein aur local recordings na mitaayein; bina sync hui recordings phone par ho sakti hain.'};
 const QUESTIONS={en:'Which device are you using?',fr:'Quel appareil utilisez-vous ?',de:'Welches Gerät verwendest du?',es:'¿Qué dispositivo estás usando?',pt:'Qual dispositivo você está usando?',it:'Quale dispositivo stai usando?',tr:'Hangi cihazı kullanıyorsunuz?',id:'Perangkat apa yang Anda gunakan?',zh:'你使用的是哪款设备？',ja:'どのデバイスを使っていますか？',ko:'어떤 기기를 사용하고 계신가요?',ru:'Какое устройство вы используете?',hi:'आप कौन-सा डिवाइस इस्तेमाल कर रहे हैं?','hi-Latn':'Aap kaunsa device istemal kar rahe hain?'};
-function applicabilityDecision({question,threadHistory=[],sourceCatalog=[],sourceIds=[],answer='',language='en'}={}) {
+function applicabilityDecision({question,threadHistory=[],sourceCatalog=[],sourceIds=[],answer='',language='en',dataLossRisk=false}={}) {
  const cited=new Set(sourceIds);
  const urls=new Set((String(answer).match(/https:\/\/[^\s<>]+/g)||[]).map(v=>v.replace(/[).,;]+$/,'')));
  let rows=sourceCatalog.filter(row=>cited.has(row.id)||urls.has(row.url));
@@ -76,8 +77,12 @@ function applicabilityDecision({question,threadHistory=[],sourceCatalog=[],sourc
  const identity=ownedDevice(question,threadHistory,products), detectedDevice=identity==='multiple'?'multiple':deviceCode(identity);
  const conflict=restrictions.some(scope=>scope.conflicting);
  const mismatched=conflict || products.length>0 && (!identity||identity==='multiple'||restrictions.some(scope=>!scope.products.some(p=>name(p)===identity)));
- const evidenceDeviceScope=!rows.length?'unknown':!restrictions.length?'unrestricted':conflict?'conflicting':!identity?'unidentified':identity==='multiple'?'conflicting':mismatched?'mismatched':'matching';
+ const scopeNames=[...new Set(products.map(name))];
+ const evidenceDeviceScope=!rows.length?'unknown':!restrictions.length?'unrestricted':conflict||scopeNames.length>1?'multiple':deviceCode(scopeNames[0]);
+ const locale=QUESTIONS[language]?language:String(language).split('-')[0];
+ const questionText=QUESTIONS[locale]||QUESTIONS.en;
+ const warning=dataLossRisk?(WARNINGS[locale]||WARNINGS.en):'';
  return {blocked:mismatched,detectedDevice,evidenceDeviceScope,
-  question:QUESTIONS[language]||QUESTIONS[String(language).split('-')[0]]||QUESTIONS.en};
+  question:[questionText,warning].filter(Boolean).join('\n\n')};
 }
 module.exports={normalizeDeviceScope,publisherDeviceScope,scopeFor,ownedDevice,applicabilityDecision,TRACE_DEVICES,TRACE_SCOPES};

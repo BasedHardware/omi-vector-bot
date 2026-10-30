@@ -711,7 +711,7 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   const sourceIds = Array.isArray(parsed.sources_used)
     ? parsed.sources_used.map((value) => String(value)).slice(0, 4)
     : [];
-  const applicability=applicabilityDecision({question,threadHistory,sourceCatalog,sourceIds,answer:parsed.final_answer,language:understanding?.replyLanguage});
+  const applicability=applicabilityDecision({question,threadHistory,sourceCatalog,sourceIds,answer:parsed.final_answer,language:understanding?.replyLanguage,dataLossRisk:understanding?.dataLossRisk===true||hasUnsyncedDataRisk(question)});
   answerTrace.devices(applicability);
   if(applicability.blocked)return {final_answer:applicability.question,grounded:false,relevant:true,confidence:1,escalate:false,safeClarification:true,sources_used:[],answered_requirements:[]};
   const safety = technicalReviewSafety(parsed.final_answer, lane, sources, sourceIds, {
