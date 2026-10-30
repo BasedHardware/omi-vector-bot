@@ -1,7 +1,7 @@
 const answerTrace = require('./answerTrace');
 const axios = require('axios');
 const { buildSystemPrompt, buildUserPrompt, PUBLIC_REPLY_PRIVACY_POLICY } = require('./prompt');
-const { stripStaffLies } = require('./honesty');
+const { stripStaffLies,stripUnverifiedOutcomeClaims } = require('./honesty');
 const { EMPTY_ANSWER_FALLBACK, UNSYNCED_DATA_WARNING, hasUnsyncedDataRisk } = require('./answerPipeline');
 const { isInstructionSentence, SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 const { redactSensitive } = require('./privacy');
@@ -132,7 +132,7 @@ function jsonObject(raw) {
   return JSON.parse(escapeJsonStringControls(trimmed.slice(start, end + 1)));
 }
 
-function parseAgentJson(raw) {
+function parseAgentJson(raw, {question='',financialContext=false}={}) {
   const trimmed = String(raw || '')
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/i, '')
@@ -159,7 +159,7 @@ function parseAgentJson(raw) {
   }
   const confidence = Number(data.confidence);
   const labels = Array.isArray(data.labels) ? data.labels.map((x) => String(x)) : [];
-  const answer = stripStaffLies(data.final_answer.trim());
+  const answer = stripUnverifiedOutcomeClaims(stripStaffLies(data.final_answer.trim()),{question,financialContext});
   return rememberRemovalAudit({
     final_answer: answer,
     confidence: Number.isFinite(confidence) ? confidence : 0.4,
@@ -547,7 +547,7 @@ async function queryAgent({
 
       const content = data?.choices?.[0]?.message?.content;
       if (!content) throw new Error('CommandCode response empty');
-      const parsed = parseAgentJson(content);
+      const parsed = parseAgentJson(content,{question,financialContext:['money','shop','account'].includes(route?.lane)});
       if (parsed.reason === 'model json failed' && attempt === 0) continue;
       return parsed;
     } catch (err) {
@@ -718,7 +718,9 @@ async function reviewAnswer({ question, threadHistory = [], draft, removedBySafe
   // Use the same narration owner as final presentation before approving a
   // review. A destructive removal invalidates that review; the existing second
   // look may repair supported context, but a sanitized claim is not approval.
-  const filtered = stripPingNarration(stripStaffLies(safety.answer));
+  const narrated=stripPingNarration(stripStaffLies(safety.answer));
+  const filtered = stripUnverifiedOutcomeClaims(narrated,{question,financialContext:['money','shop','account'].includes(lane)});
+  answerTrace.filter('financial_outcome',narrated,filtered);
   answerTrace.filter('staff_narration',safety.answer,filtered);
   const audit = removedAnswerUnits(safety.answer, filtered);
   const narrationRemoved = audit.removed.length > 0 || audit.truncated;

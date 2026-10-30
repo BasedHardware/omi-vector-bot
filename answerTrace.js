@@ -6,7 +6,7 @@ const PREFIX = '[AnswerTrace] ';
 const LANES = new Set(['faq','tech','firmware','shop','money','privacy','account','unknown']);
 const STAGES = new Set(['planner','retrieval','answer','review','presentation','delivery']);
 const RESULTS = new Set(['started','ok','failed','skipped','uncertain']);
-const FILTERS = new Set(['draft_safety','review_safety','staff_narration','presentation_privacy','support_redirect','final_privacy','reply_clipping']);
+const FILTERS = new Set(['financial_outcome','draft_safety','review_safety','staff_narration','presentation_privacy','support_redirect','final_privacy','reply_clipping']);
 const SIGNALS = new Set(['model_review','want_human','route','triage','data_loss','answer_person','public_copy','low_confidence','caption','empty_after_private_intake','empty_after_redirect','current_contact_redirect']);
 // Explicit grammar for public publisher routes. Strip titles/slugs where possible;
 // reject credentials, queries, fragments, escaped data and arbitrary website URLs.

@@ -408,7 +408,70 @@ function stripShopBleed(text, lane) {
   return cleaned || raw;
 }
 
+
+// Public replies have no authoritative refund/replacement outcome facts.
+// The private order lookup proves neither an approval nor a promised date.
+// Never accept a model field or the unrelated verifiedLookup boolean as proof.
+const FINANCIAL_SUBJECT = /refund[\p{L}\p{M}]*|reimburs[\p{L}\p{M}]*|replacement[\p{L}\p{M}]*|returns?|credits?|warranty\s+claims?|rückerstatt[\p{L}\p{M}]*|erstatt[\p{L}\p{M}]*|gutschrift[\p{L}\p{M}]*|ersatz(?:gerät|lieferung)?[\p{L}\p{M}]*|rückgabe[\p{L}\p{M}]*|garantie(?:antrag|anspruch)[\p{L}\p{M}]*|remboursement[\p{L}\p{M}]*|remplacement[\p{L}\p{M}]*|retours?|avoirs?|demande\s+de\s+garantie|reembolso[\p{L}\p{M}]*|reemplazo[\p{L}\p{M}]*|devoluci[oó]n[\p{L}\p{M}]*|cr[eé]dito[\p{L}\p{M}]*|reclama(?:ci[oó]n|[cç][aã]o)\s+de\s+garant[ií]a|substitui[cç][aã]o|devolu[cç][aã]o|rimborso|sostituzione|reso|credito|garanzia|iade[\p{L}\p{M}]*|değişim[\p{L}\p{M}]*|kredi[\p{L}\p{M}]*|garanti\s+taleb[\p{L}\p{M}]*|pengembalian\s+dana|penggantian|retur|kredit|klaim\s+garansi|退款|退货|退貨|换货|換貨|替换|替換|保修申请|返金|返品|交換|保証請求|환불|교환|반품|보증\s*청구|возврат[\p{L}\p{M}]*|возмещение[\p{L}\p{M}]*|замен[\p{L}\p{M}]*|кредит[\p{L}\p{M}]*|гарантийн[\p{L}\p{M}]*\s+заявк[\p{L}\p{M}]*|रिफंड|धनवापसी|प्रतिस्थापन|वापसी|क्रेडिट|वारंटी|refund|replacement|vaapsi|wapsi/iu;
+const FINANCIAL_OUTCOME = /(?<![\p{L}\p{M}])(?:approv(?:ed|ing)|issu(?:ed|ing)|process(?:ed|ing)|schedul[\p{L}\p{M}]*|authori[sz][\p{L}\p{M}]*|grant(?:ed|ing)|accept(?:ed|ing)|paid|refunded|dispatch[\p{L}\p{M}]*|shipp[\p{L}\p{M}]*|arriv[\p{L}\p{M}]*|deliver[\p{L}\p{M}]*|receiv[\p{L}\p{M}]*|credited|confirmed|complete|completed|sent|successful|on\s+(?:its|the)\s+way|in\s+transit|genehmigt|bestätigt|abgeschlossen|bewilligt|ausgestellt|bearbeitet|verarbeitet|geplant|unterwegs|angekommen|approuv[\p{L}\p{M}]*|confirmé[\p{L}\p{M}]*|effectué[\p{L}\p{M}]*|[eé]mis[\p{L}\p{M}]*|trait[eé][\p{L}\p{M}]*|programm[eé][\p{L}\p{M}]*|en\s+route|arriver[\p{L}\p{M}]*|aprob[\p{L}\p{M}]*|confirmad[\p{L}\p{M}]*|completad[\p{L}\p{M}]*|emitid[\p{L}\p{M}]*|procesad[\p{L}\p{M}]*|programad[\p{L}\p{M}]*|en\s+camino|llegar[\p{L}\p{M}]*|aprovad[\p{L}\p{M}]*|processad[\p{L}\p{M}]*|agendad[\p{L}\p{M}]*|a\s+caminho|chegar[\p{L}\p{M}]*|approvat[\p{L}\p{M}]*|emess[\p{L}\p{M}]*|elaborat[\p{L}\p{M}]*|programmat[\p{L}\p{M}]*|in\s+arrivo|onayland[\p{L}\p{M}]*|düzenlend[\p{L}\p{M}]*|işlend[\p{L}\p{M}]*|planland[\p{L}\p{M}]*|yolda|disetujui|diterbitkan|diproses|dijadwalkan|dikirim|akan\s+tiba|выпущен[\p{L}\p{M}]*|одобрен[\p{L}\p{M}]*|обработан[\p{L}\p{M}]*|запланирован[\p{L}\p{M}]*|отправлен[\p{L}\p{M}]*|в\s+пути|прибуд[\p{L}\p{M}]*|approve|issue|process|schedule)(?![\p{L}\p{M}])|退款成功|退貨成功|退货成功|返金完了|환불\s*완료|已?(?:获|獲)?(?:批准|核准|发放|發放|处理|處理|安排|寄出|発送)|(?:将|將)会?(?:到账|到賬|到达|到達)|承認(?:され|済)|発行(?:され|済)|処理(?:され|済)|予定(?:され|です)|発送(?:され|済)|届きます|승인(?:되|됐)|처리(?:되|됐)|발급(?:되|됐)|예정|배송\s*중|도착할|स्वीकृत|जारी|संसाधित|प्रक्रिया\s*में|निर्धारित|रास्ते\s*में|पहुंचेगा|हो\s*गया/iu;
+const FINANCIAL_UNCERTAINTY = /^(?:[-*•]\s*)?(?:I\s+(?:cannot|can['’]t|could\s+not|can\s+not|do\s+not|don['’]t|am\s+not|['’]m\s+not)\s+(?:confirm|verify|know|guarantee|promise|sure|approve|issue|process|schedule|authorize|refund)|we\s+(?:cannot|can['’]t|do\s+not)\s+(?:confirm|verify|guarantee|promise|approve|issue|process|schedule|authorize|refund)|ich\s+kann\b.*\bnicht\s+(?:bestätigen|garantieren)|je\b.*\b(?:ne|n['’])[^.!?]*\b(?:confirmer|garantir)|no\s+(?:puedo|podemos)\s+(?:confirmar|garantizar)|n[aã]o\s+(?:posso|podemos)\s+(?:confirmar|garantir)|non\s+posso\s+(?:confermare|garantire)|(?:bunu\s+)?doğrulayam|saya\s+(?:tidak|belum)\s+(?:dapat|bisa)\s+(?:memastikan|mengonfirmasi)|я\s+не\s+могу\s+(?:подтвердить|гарантировать)|我(?:无法|無法|不能|不能夠)确认|確認できません|확인할\s*수\s*없|मैं\s+.*(?:पुष्टि|गारंटी).*नहीं|main\s+.*(?:confirm|guarantee).*nahi)/iu;
+const GENERIC_FINANCIAL_POLICY = /^(?:[-*•]\s*)?(?:refunds|reimbursements|returns|replacements|credits|warranty\s+claims|rückerstattungen|erstattungen|gutschriften|rückgaben|remboursements|remplacements|retours|reembolsos|reemplazos|devoluciones|cr[eé]ditos|rimborsi|sostituzioni|iadeler|pengembalian\s+dana)\b/iu;
+const POLICY_CONDITION = /\b(?:after|once|only|typically|usually|generally|policy|review|nach|erst|prüf|après|uniquement|examen|después|solo|revisi[oó]n|ap[oó]s|somente|an[aá]lise|dopo|solo|inceleme|sonra|setelah|peninjauan)\b/iu;
+const CASE_POSSESSION = /\b(?:your|this|our|dein[\p{L}\p{M}]*|ihr[\p{L}\p{M}]*|votre|ton|ta|vos|tus?|su|seu|sua|tuo|tua|sizin|anda|ваш[\p{L}\p{M}]*|твой[\p{L}\p{M}]*|aapka|tumhara)\b|您的?|你的?|お客様|あなた|고객|귀하|आपका|आपकी/iu;
+const ANAPHOR = /^(?:[-*•]\s*)?(?:it|they|this|that|es|sie|das|il|elle|cela|esto|eso|ele|ela|isso|questo|bunun|ini|itu|он|она|это|это|यह|yeh)\b/iu;
+
+function stripUnverifiedOutcomeClaims(answer, { question = '', financialContext = false } = {}) {
+  const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR }=require('./supportSteps');
+  const sourceLine=new RegExp(`^\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}`,'iu');
+  let pending=financialContext===true || FINANCIAL_SUBJECT.test(String(question));
+  let changed=false;
+  const urls=[];
+  const text=String(answer||'').replace(/[\uE110\uE111]/g,'')
+    .replace(/https?:\/\/[^\s<>]+/giu,url=>`\uE110${urls.push(url)-1}\uE111`);
+  const result=text.split('\n').map(line=>{
+    if(sourceLine.test(line) && !line.replace(sourceLine,'').replace(/\uE110\d+\uE111|[\s,<>]/g,''))return line;
+    const kept=[];
+    for(const unit of line.split(/(?<=[.!?。！？।])\s+|(?<=[。！？।])/u)) {
+      const shown=unit.normalize('NFKC').replace(/\u0130/g,'i').replace(/[*_~`]/g,'').trim();
+      const mention=FINANCIAL_SUBJECT.exec(shown);
+      // "returns" in a code description is a verb, not a customer return.
+      const subject=Boolean(mention) && !(mention[0].toLowerCase()==='returns' &&
+        mention.index>0 && !CASE_POSSESSION.test(shown) && !/^the\s+returns\b/iu.test(shown));
+      const outcome=FINANCIAL_OUTCOME.test(shown);
+      const count=[...shown.matchAll(new RegExp(FINANCIAL_OUTCOME.source,'giu'))].length;
+      const terse=outcome && shown.split(/\s+/u).length<6;
+      const claim=outcome && (subject || (pending && (ANAPHOR.test(shown)||terse)));
+      const before=mention?shown.slice(0,mention.index).trim():'';
+      // Exempt only a single uncertainty/prerequisite, not a prefix that can
+      // authorize an affirmative clause later in the same sentence.
+      const uncertainty=Boolean(mention) && FINANCIAL_UNCERTAINTY.test(shown) && count<=1 &&
+        !/[,;:，；：]|\b(?:and|but|et|y|und|mais|pero|aber|date|datum|fecha|data|because|since|car|parce|porque|denn|weil)\b/iu.test(before);
+      const leadingCondition=shown.match(/^(?:if|when|falls|wenn|si|se|eğer|jika|only\s+after|after)\b[^,]{1,240},\s*/iu);
+      const hypothetical=Boolean(leadingCondition) && !FINANCIAL_OUTCOME.test(shown.slice(leadingCondition[0].length));
+      const custodyCondition=shown.match(/^(?:do\s+not|don['’]t|never|avoid)\b[^.!?]{0,160}\b(?:until|unless|before)\b/iu);
+      const protective=Boolean(custodyCondition) && !FINANCIAL_OUTCOME.test(custodyCondition[0]);
+      const prospective=count===1 && /\b(?:must|needs?\s+to|has\s+to|can\s+only)\s+(?:first\s+)?be\s+approved\b/iu.test(shown);
+      const attributed=count===1 && /^you\s+reported\s+seeing\b/iu.test(shown) && /['‘’"“”](?:approved|issued|processed)['‘’"“”]\s+label/iu.test(shown);
+      const generic=GENERIC_FINANCIAL_POLICY.test(shown) && !CASE_POSSESSION.test(shown) &&
+        !/\b(?:have\s+been|were|will\s+be|already|today|tomorrow|gestern|heute|demain|mañana)\b/iu.test(shown) &&
+        (POLICY_CONDITION.test(shown) || /^returns\s+are\s+accepted\b/iu.test(shown));
+      if(claim && !uncertainty && !hypothetical && !protective && !prospective && !attributed && !generic) {
+        pending=true;changed=true;
+        const links=unit.match(/\uE110\d+\uE111/g)||[];
+        if(links.length)kept.push('Source: '+links.join(' '));
+        continue;
+      }
+      pending ||= subject;
+      kept.push(unit);
+    }
+    return kept.join(' ').trim();
+  }).filter(Boolean).join('\n').trim();
+  if(!changed)return String(answer||'').trim();
+  return result.replace(/\uE110(\d+)\uE111/g,(_,index)=>urls[Number(index)]);
+}
+
 module.exports = {
+  stripUnverifiedOutcomeClaims,
   looksLikeStaffLie,
   stripStaffLies,
   stripInventedLookup,

@@ -3463,3 +3463,33 @@ test('production trace reports delivery uncertainty without retaining thrown tex
   assert.equal(lines[0].delivery.reply,'uncertain');
   assert.ok(!JSON.stringify(lines).includes('PRIVATE-TRANSPORT-TOKEN'));
 });
+
+test('financial outcome guard keeps real handoff and policy while removing approving model or reviewer copy',async t=>{
+ const staff=enableStaffDelivery(t);process.env.CMD_API_KEY='synthetic-only';
+ t.after(()=>{process.env.CMD_API_KEY='';});
+ plannerSupportKind='money';plannerReplyLanguage='de';
+ modelReply={final_answer:'Deine Rückerstattung wurde genehmigt. Rückerstattungen werden vom Team geprüft.',escalate:false,confidence:1};
+ reviewerResponse=async()=>({final_answer:'Deine Rückerstattung wurde genehmigt. Rückerstattungen werden vom Team geprüft.',grounded:true,relevant:true,confidence:1,escalate:false});
+ const result=await ask('Ich möchte eine Rückerstattung für meinen Kauf. Bitte prüfen.');
+ assert.doesNotMatch(result.reply,/wurde genehmigt/iu);assert.match(result.reply,/vom Team geprüft/iu);
+ assert.equal(staff.length,1);assert.match(result.reply,/Team|team/);
+});
+
+test('financial outcome guard preserves honest failed-delivery fallback without an invented approval',async t=>{
+ process.env.CMD_API_KEY='synthetic-only';t.after(()=>{process.env.CMD_API_KEY='';});
+ plannerSupportKind='money';plannerReplyLanguage='fr';
+ modelReply={final_answer:'Votre remboursement a été approuvé.',escalate:false,confidence:1};
+ reviewerResponse=async()=>({final_answer:'Votre remboursement a été approuvé.',grounded:true,relevant:true,confidence:1,escalate:false});
+ const result=await ask('Je demande un remboursement. Merci de vérifier cette demande.');
+ assert.doesNotMatch(result.reply,/a été approuvé/iu);
+ assert.match(result.reply,/help@omi\.me|failed|not.*(?:sent|notified)|pas|équipe|personne/iu);
+});
+
+test('known money route blocks a noun-free approving real review and still delivers staff case',async t=>{
+ const staff=enableStaffDelivery(t);process.env.CMD_API_KEY='synthetic-only';
+ t.after(()=>{process.env.CMD_API_KEY='';});plannerSupportKind='money';plannerReplyLanguage='de';
+ modelReply={final_answer:'Es wurde genehmigt.',confidence:1,escalate:false};
+ reviewerResponse=args=>realReviewAnswer({...args,post:async()=>({data:{choices:[{message:{content:JSON.stringify({final_answer:'Es wurde genehmigt.',grounded:true,relevant:true,confidence:1,escalate:false})}}]}})});
+ const result=await ask('Bitte prüfen Sie die doppelte Abbuchung.');
+ assert.equal(staff.length,1);assert.doesNotMatch(result.reply,/wurde genehmigt/iu);
+});
