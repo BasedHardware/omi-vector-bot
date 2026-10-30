@@ -1,6 +1,6 @@
 const router = require('./router');
 const plannerPolicy = require('./plannerPolicy');
-const { shouldEscalate, CONFIDENCE_THRESHOLD, containsEscalationKeyword, needsHumanAccess } = require('./utils');
+const { shouldEscalate, CONFIDENCE_THRESHOLD, containsEscalationKeyword, needsHumanAccess, stripSupportRedirectWithAudit } = require('./utils');
 const { hasUnsyncedDataRisk } = require('./answerPipeline');
 
 function officialCitationUrl(value) {
@@ -78,9 +78,13 @@ function answerNeedsPerson(answer) {
 
 function decideEscalation({ route = {}, question = '', answer = '', agent = {}, caption = '', triaged = {}, holdPublicCopy = false, dataLossRisk = false, reviewApproved = false, retrievedUrls = [], supportKind = '' } = {}) {
   const answerPerson = answerNeedsPerson(answer);
+  // Preserve the next actor before presentation removes an external contact
+  // route. This signal requires the same removed clause's bounded current
+  // instruction, never an address mention or model-authored receipt claim.
+  const currentContact = stripSupportRedirectWithAudit(answer).currentContactRequested;
   const needsPerson = Boolean(
     agent.escalate || route.wantHuman || route.escalate || triaged.escalate ||
-    dataLossRisk || answerPerson
+    dataLossRisk || answerPerson || currentContact
   );
   const docsQuiet = !needsPerson && (
     plannerPolicy.isGroundedHowTo(route, question, answer) ||
@@ -105,6 +109,7 @@ function decideEscalation({ route = {}, question = '', answer = '', agent = {}, 
     ['triage', Boolean(triaged.escalate)],
     ['data_loss', Boolean(dataLossRisk)],
     ['answer_person', answerPerson],
+    ['current_contact_redirect', currentContact],
     ['public_copy', Boolean(holdPublicCopy)],
     ['low_confidence', lowConfidence && !confidenceOnlyExempt],
     ['caption', captionSignal],
