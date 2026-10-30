@@ -1,3 +1,4 @@
+const {registerPublishedSources}=require('./answerTrace');
 const INDEX_URL = 'https://docs.omi.me/llms.txt';
 const CLIP = 60_000;
 const {
@@ -25,6 +26,7 @@ async function docsIndexText(fetchFn) {
       const response = await fetchFn(INDEX_URL, { signal: AbortSignal.timeout(10_000) });
       if (!response.ok) return '';
       const text = await response.text();
+      registerPublishedSources(pagesFromIndex(text).map(row=>row.url));
       indexCache = { at: Date.now(), text };
       return text;
     })().finally(() => { indexLookup = null; });

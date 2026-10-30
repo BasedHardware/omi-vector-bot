@@ -3423,3 +3423,43 @@ test('a report five minutes after /done still opens a new Handoff', async (t) =>
   assert.equal(r.again.threads.length, 1);
   assert.equal(r.thread.sent.length, r.sentBefore);
 });
+
+
+test('production trace emits one metadata-only record for actual answer and private handoff paths', async t => {
+  const lines=[];
+  t.mock.method(console,'log',(...parts)=>{if(String(parts[0]).startsWith('[AnswerTrace] ')) lines.push(String(parts[0]).slice(14));});
+  modelReply={final_answer:'Open the Omi app. Source: https://help.omi.me/en/articles/12345678-synthetic',confidence:0.9};
+  const answer=makeMessage('How do I pair my Omi?');
+  await handleMessage(answer);
+  assert.equal(lines.length,1);
+  const first=JSON.parse(lines[0]);
+  assert.equal(first.delivery.reply,'confirmed');
+  assert.equal(first.stages.answer,'ok');
+  assert.equal(first.selectedReview.grounded,true);
+  const staff=enableStaffDelivery(t);
+  const person=makeMessage('I need to talk to a human about my Omi.');
+  await handleMessage(person);
+  assert.equal(lines.length,2);
+  const second=JSON.parse(lines[1]);
+  assert.notEqual(first.requestId,second.requestId);
+  assert.ok(second.escalationSignals.length);
+  assert.equal(staff.length,1);
+  assert.equal(second.delivery.staff,'confirmed');
+  for(const message of [answer,person]) {
+    assert.ok(!lines.join('').includes(message.id));
+    assert.ok(!lines.join('').includes(message.author.id));
+    assert.ok(!lines.join('').includes(message.content));
+  }
+  assert.ok(!lines.join('').includes('Open the Omi app'));
+});
+
+test('production trace reports delivery uncertainty without retaining thrown text', async t => {
+  const lines=[];
+  t.mock.method(console,'log',(...parts)=>{if(String(parts[0]).startsWith('[AnswerTrace] ')) lines.push(JSON.parse(String(parts[0]).slice(14)));});
+  const message=makeMessage('How do I pair my Omi?');
+  message.reply=async()=>{throw Error('PRIVATE-TRANSPORT-TOKEN');};
+  await handleMessage(message);
+  assert.equal(lines.length,1);
+  assert.equal(lines[0].delivery.reply,'uncertain');
+  assert.ok(!JSON.stringify(lines).includes('PRIVATE-TRANSPORT-TOKEN'));
+});

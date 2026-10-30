@@ -468,6 +468,7 @@ async function searchOfficialCode(question, { queries: planned = [], fetchImpl, 
     const rankingQueries = [question, ...planned, ...searches].filter(Boolean);
     const chunks = pages.flatMap((page) => chunkDocument(page));
     let sourceUrls = [];
+    require('./answerTrace').registerPublishedSources(chunks.map(row=>row.url));
     const text = formatEvidence(rankLocalChunks(rankingQueries, chunks, 8), { onSources: urls => { sourceUrls = urls; } });
     officialCodeCache.set(cacheKey, { at: Date.now(), text, sourceUrls });
     onSources?.([...sourceUrls]);

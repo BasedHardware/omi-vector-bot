@@ -1,3 +1,4 @@
+const answerTrace = require('./answerTrace');
 const { stripStaffLies, stripInventedLookup } = require('./honesty');
 const { createHash } = require('node:crypto');
 const { recordStage } = require('./answerStageEvidence');
@@ -163,7 +164,12 @@ function hasIndependentDirective(text) {
   return hasSafetyWarning(shown) || hasTroubleshootingStep(shown) || /https?:\/\//iu.test(shown);
 }
 
-function stripSupportRedirect(text, {language = 'en'} = {}) {
+function stripSupportRedirect(text, options = {}) {
+  const result = stripSupportRedirectImpl(text,options);
+  answerTrace.filter('support_redirect',text,result);
+  return result;
+}
+function stripSupportRedirectImpl(text, {language = 'en'} = {}) {
   const isRedirect = (sentence) => {
     // A warning not to send secrets is not an instruction to leave this thread.
     if (/\b(?:never|do not|don['’]t)\s+(?:e-?mail|send|share)|\bno\s+(?:env[ií]es|compartas)|不要(?:发送|分享)/i.test(sentence)) return false;

@@ -1,3 +1,4 @@
+const answerTrace = require('./answerTrace');
 require('dotenv').config();
 
 const { Client, GatewayIntentBits, Events, Partials } = require('discord.js');
@@ -224,6 +225,7 @@ async function replySafe(message, content, { pingAuthor = false, privacy = {} } 
   await assertCurrentOwnership();
   recordStage('send_input', content);
   const guarded = publicReplyPrivacy(content, { question: message.content, orderAvailable: orderFlow.isLive(), ...privacy });
+  answerTrace.filter('final_privacy', content, guarded.text);
   let text = ensureNonEmptyAnswer(rewriteUserMentions(ensureNonEmptyAnswer(fitPublicReply(guarded)), message));
   if (pingAuthor) text = attachAuthorMention(text, message);
   recordStage('send_payload', text);
@@ -231,11 +233,14 @@ async function replySafe(message, content, { pingAuthor = false, privacy = {} } 
     content: text,
     allowedMentions: replyMentions(message, { pingAuthor, repliedUser: false }),
   };
+  answerTrace.delivery('reply', 'attempted');
   try {
     const sent = await message.reply({
       ...payload,
       allowedMentions: replyMentions(message, { pingAuthor, repliedUser: true }),
     });
+    answerTrace.delivery('reply', 'confirmed');
+    answerTrace.stage('delivery', 'ok');
     markCurrentReplySent();
     rememberBotReply(sent, message);
     return sent;
@@ -245,6 +250,8 @@ async function replySafe(message, content, { pingAuthor = false, privacy = {} } 
     }
     console.error('[Bot] reply reference missing, sending in channel:', err.message);
     const sent = await message.channel.send(payload);
+    answerTrace.delivery('reply', 'confirmed');
+    answerTrace.stage('delivery', 'ok');
     markCurrentReplySent();
     rememberBotReply(sent, message);
     return sent;
@@ -650,9 +657,13 @@ async function handleMessage(message, { recovery = false } = {}) {
     try {
       // Do not require the unavailable database to report its own outage, and
       // never retire a recoverable claim because this informational note sent.
-      await message.reply({
+      await answerTrace.run(async () => {
+        answerTrace.delivery('reply', 'attempted');
+        await message.reply({
         content: 'I am having trouble saving this support request. Please email help@omi.me so the team can receive it.',
         allowedMentions: { parse: [], repliedUser: false },
+      });
+        answerTrace.delivery('reply', 'confirmed');
       });
     } catch { console.error('[SupportRuntime] outage note delivery unavailable'); }
     return { status: 'failed' };
@@ -678,7 +689,11 @@ async function recoverQueuedRequest(input) {
   }
 }
 
-async function answerMessage(message, { directHistory = [] } = {}) {
+async function answerMessage(message, options = {}) {
+  return answerTrace.run(() => answerMessageImpl(message, options));
+}
+
+async function answerMessageImpl(message, { directHistory = [] } = {}) {
   const startedAt = performance.now();
   const stageMs = { planner: 0, retrieval: 0, answer: 0, review: 0 };
   const stageUsage = newUsageCounters();
@@ -712,10 +727,11 @@ async function answerMessage(message, { directHistory = [] } = {}) {
   if (question.length < 5) {
     if (unreadMedia && !changes.length) {
       await assertCurrentOwnership();
+      answerTrace.delivery('reply', 'attempted');
       await message.reply({
         content: unreadMediaSentence(),
         allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
-      }).catch((err) => console.error('[Bot] media note failed:', err.message));
+      }).then(() => answerTrace.delivery('reply', 'confirmed')).catch((err) => console.error('[Bot] media note failed:', err.message));
     }
     return;
   }
@@ -763,6 +779,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     if (plannerPolicy.suppressAcknowledgment(null, asked || question)) return;
     const cannedEnglish = plannerPolicy.skipPlannerForCanned(currentRoute, asked || question);
     const holdPublicCopy = isHelpThread(channel) && !router.isPublicForumSafe(asked || question);
+    answerTrace.route(route.lane);
     let searchPlan = {
       standaloneQuestion: caseQuestion,
       customerGoal: asked || question,
@@ -772,6 +789,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       queries: [],
     };
     if (!cannedEnglish && process.env.CMD_API_KEY) {
+      answerTrace.stage('planner','started');
       const stageStart = performance.now();
       try {
         searchPlan = await understandQuestion({
@@ -781,7 +799,9 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           onUsage,
           sessionId: `discord-${channel.id}-search`,
         });
+        answerTrace.stage('planner','ok');
       } catch (err) {
+        answerTrace.stage('planner','failed');
         console.error('[Bot] search planning failed:', err.message);
       } finally {
         stageMs.planner += Math.round(performance.now() - stageStart);
@@ -789,6 +809,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
     }
     if (plannerPolicy.suppressAcknowledgment(searchPlan, asked || question)) return;
     if (plannerPolicy.suppressOffTopic(searchPlan, currentRoute)) return;
+    answerTrace.route(route.lane);
     const replyLanguage = searchPlan.replyLanguage === 'hi'
       ? /\p{Script=Devanagari}/u.test(asked || question) ? 'hi-Deva' : 'hi-Latn' : searchPlan.replyLanguage || 'en';
     const plannedPersonKind = cannedEnglish ? '' : plannerPolicy.personKind(searchPlan);
@@ -796,6 +817,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
       ? currentRoute
       : plannerPolicy.routeWithUnderstanding(route, searchPlan, asked || question);
     if (groundedShop) route = { ...route, area: 'shop', lane: 'shop', escalate: true, responseMode: 'grounded' };
+    answerTrace.route(route.lane);
     const forceGroundedPersonAnswer = Boolean(plannedPersonKind);
     const cannedEnglishReply = cannedEnglish ? router.cannedReply(route, asked || question) : '';
     const supportFollowup =
@@ -876,6 +898,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         searchPlan.standaloneQuestion || asked || question,
         threadHistory
       );
+      answerTrace.stage('retrieval','started');
       const retrievalStart = performance.now();
       const sourceUrls = [];
       const onSources = urls => sourceUrls.push(...urls);
@@ -892,6 +915,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         combineEvidence(docsText, feedbackText, officialCodeText),
         { sourceUrls, onSources: urls => { retrievedSourceUrls = urls; } }
       );
+      answerTrace.sources(retrievedSourceUrls);
+      answerTrace.stage('retrieval','ok');
       // Only application-owned source metadata can grant the confidence-only
       // exception. Feedback prose, static notes and model links cannot add it.
       if (!String(retrievedEvidence || '').trim()) observeSupport(observer => observer.signal(channel, {
@@ -911,6 +936,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         aiResponse = { final_answer: verifiedCanned, confidence: 0.95, escalate: false, reason: '' };
         cleanAnswer = verifiedCanned;
       } else try {
+        answerTrace.stage('answer','started');
         const answerStart = performance.now();
         try {
           aiResponse = await queryAgent({
@@ -928,6 +954,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         } finally {
           stageMs.answer += Math.round(performance.now() - answerStart);
         }
+        answerTrace.stage('answer','ok');
         recordStage('generated', aiResponse?.final_answer);
         if (aiResponse?.final_answer) {
           const draftLane = triage.merge(route, aiResponse, question).lane;
@@ -939,6 +966,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           );
           aiResponse.final_answer = prepared.draft;
           try {
+            answerTrace.stage('review','started');
             const reviewStart = performance.now();
             let checked;
             try {
@@ -966,6 +994,8 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             } finally {
               stageMs.review += Math.round(performance.now() - reviewStart);
             }
+            answerTrace.stage('review','ok');
+            answerTrace.review(checked,{selected:true});
             const approved = approvedReview(checked);
             if (!approved) observeSupport(observer => observer.signal(channel, {
               eventId: `${message.id}-review`, kind: 'review_rejected', area: route.area,
@@ -999,6 +1029,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
               aiResponse.escalate = false;
             }
           } catch (err) {
+            answerTrace.stage('review','failed');
             console.error('[Bot] review failed:', err.message);
             const links = officialHandoffLinks(retrievedEvidence);
             aiResponse.final_answer =
@@ -1018,6 +1049,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           aiResponse.reason = aiResponse.reason || router.staffReason(route, asked || question);
         }
       } catch (err) {
+        answerTrace.stage('answer','failed');
         console.error('[Bot] model failed:', err.message);
         skipModel = true;
         const down = router.whenModelDown(route, caseQuestion);
@@ -1145,6 +1177,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         cleanAnswer = prepared.text;
       }
     }
+    answerTrace.escalation(escalationSignals);
     const draft = github.draftFromQuestion(staffQuestion, triaged.area, {
       topic: nameMeta.topic,
       labels: triaged.labels,
@@ -1175,6 +1208,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         supportCase = await supportCases.linkHandoff(supportCase.id, { escalationId: await db.createEscalation(channel.id) });
       }
       const deliveredCase = ['delivered', 'accepted'].includes(supportCase.status);
+      if(deliveredCase) answerTrace.delivery('staff','previously_delivered');
       console.log(`[Bot] Escalating channel=${channel.id} area=${triaged.area} signals=${escalationSignals.join(',')}`);
       const techLane = router.isTechLane({ lane: triaged.lane, area: triaged.area });
       if (github.isConfigured() && techLane) {
@@ -1200,11 +1234,13 @@ async function answerMessage(message, { directHistory = [] } = {}) {
         if (existing) {
           try {
             await assertCurrentOwnership();
+            answerTrace.delivery('reply','attempted');
             await existing.send({
               content: rewriteUserMentions(fitPublicReply(publicReplyPrivacy(escalateReply(cleanAnswer, { ...publicPrivacy, privateIntakeNeeded,
                 pinged: true, conversation: true, footers: localizedFooters }), { ...publicPrivacy, privateIntakeNeeded, staffDelivered: true })), message),
               allowedMentions: replyMentions(message, { pingAuthor: false, repliedUser: false }),
             });
+            answerTrace.delivery('reply','confirmed');
             reused = true;
             duplicate = true;
             pinged = true;
@@ -1244,6 +1280,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
             labels: triaged.labels,
             dataLossRisk,
           });
+          answerTrace.delivery('staff',handoff.ok?'confirmed':'failed');
           pinged = Boolean(handoff.ok);
           deliveryFailed = !handoff.ok;
           cardHere = handoff.via === 'channel' && Boolean(channel.isThread?.());
@@ -1266,6 +1303,7 @@ async function answerMessage(message, { directHistory = [] } = {}) {
           );
         } catch (err) {
           if (isLeaseLost(err)) throw err;
+          answerTrace.delivery('staff','failed');
           deliveryFailed = !pinged;
           if (deliveryFailed) observeSupport(observer => observer.signal(channel, {
             eventId: `${message.id}-handoff`, kind: 'delivery_failed', area: triaged.area,
