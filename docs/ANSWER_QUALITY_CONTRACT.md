@@ -1,5 +1,8 @@
 # Customer answer quality: repair checklist
 
+**October30 status clarification:** Older dated diagnostics below describe their tested commits, not current refund-filter implementation. #95 financial filtering is merged on main9b7154d and not deployed; #96 device applicability and #94 acceptance/enforcement remain pending. #92 is a narrow current-contact handoff repair, not general #83 completion. Use SUPPORT_MASTER_PLAN.md for current gates and avoid treating historical probe results as present implementation.
+
+
 Updated October 26, 2026. This is an implementation contract, **not a claim that these checks are all built or live**. It extends A1/A2/A4, B2 and E2 in the [master plan](SUPPORT_MASTER_PLAN.md); memory and the reviewed improvement loop keep their existing gates.
 
 ## Priority and status
