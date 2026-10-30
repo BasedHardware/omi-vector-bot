@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "auditedOn": "2026-10-26",
+  "auditedOn": "2026-10-28",
   "timezone": "Asia/Kolkata",
-  "auditedMain": "a9c9508ac9be03a2bfd0f571e90f6779b6d96a48",
+  "auditedMain": "cffb46bd0cbc0cf773df6827783f5d82cc859bfb",
   "rubric": "25 fixed milestones; one point per main implementation, tested, independently reviewed and relevant live/tool-operation verification",
   "notAccuracy": true,
   "milestones": [
@@ -272,5 +272,8 @@
       "liveVerified": false,
       "evidence": "Full staged, enabled end-to-end demonstration has not happened."
     }
-  ]
+  ],
+  "stateObservedOn": "2026-10-30",
+  "currentMainObserved": "9b7154df6226dec6bfea5a32e2225e9f7d627019",
+  "currentChangeNote": "93/95 merged;96/94/92 pending. No new milestone credit or accuracy percentage."
 }
