@@ -449,9 +449,10 @@ function stripUnverifiedOutcomeClaims(answer, { question = '', financialContext 
       const requiredAction=/^(?:a person|the team|staff) (?:needs? to|must|has to) (?:review|process|approve|issue) your (?:refund|replacement|return|credit|warranty claim)(?: request)?[.!]?$/iu.test(shown);
       const attributed=/^you reported seeing an? ['‘’"“”](?:approved|issued|processed)['‘’"“”] label for your (?:refund|return|replacement|credit)(?:; a person needs to verify that status)?[.!]?$/iu.test(shown);
       const generic=/^(?:Refunds|Replacements|Returns|Credits|Warranty claims) are (?:issued|processed|approved|accepted) (?:only after (?:approval|review)|after (?:approval|review)|to the original payment method|within (?:[0-9]+|thirty) days of purchase)[.!]?$/iu.test(shown);
+      const reviewPrerequisite=/^The (?:request|account|charge|order) needs a team review before (?:any (?:adjustment|change)|a refund or timing|cancellation|an address change|a limit or plan change) can be confirmed[.!]?$/u.test(shown);
       const failedDelivery=/^I could not deliver this to the support team from here[.!]?$/u.test(shown);
       const statusQuestion=/^(?:Has|Is|Was) your (?:refund|replacement|return|credit|warranty claim) (?:been )?(?:approved|issued|processed|confirmed)[?？]$/iu.test(shown);
-      if(claim && !uncertainty && !hypothetical && !protective && !prospective && !attributed && !generic && !statusQuestion && !requiredAction && !failedDelivery) {
+      if(claim && !uncertainty && !hypothetical && !protective && !prospective && !attributed && !generic && !statusQuestion && !requiredAction && !failedDelivery && !reviewPrerequisite) {
         pending=true;changed=true;
         const links=unit.match(/\uE110\d+\uE111/g)||[];
         if(links.length)kept.push('Source: '+links.join(' '));

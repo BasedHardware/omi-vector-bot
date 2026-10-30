@@ -118,3 +118,9 @@ test('whole uncertainty forms cannot borrow an affirmative tail',()=>{
  for(const text of ['The SDK returns a successful response.',"I'm not sure whether your refund was approved."])
  assert.equal(strip(text),text,text);
 });
+
+test('application review prerequisites remain honest without asserting an outcome',()=>{
+ const strip=require('../honesty').stripUnverifiedOutcomeClaims;
+ const text='The charge needs a team review before any adjustment can be confirmed.';
+ assert.equal(strip(text,{financialContext:true}),text);
+});
