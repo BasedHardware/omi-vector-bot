@@ -408,7 +408,68 @@ function stripShopBleed(text, lane) {
   return cleaned || raw;
 }
 
+
+// Public replies have no authoritative refund/replacement outcome facts.
+// The private order lookup proves neither an approval nor a promised date.
+// Never accept a model field or the unrelated verifiedLookup boolean as proof.
+const FINANCIAL_SUBJECT = /refund[\p{L}\p{M}]*|reimburs[\p{L}\p{M}]*|replacement[\p{L}\p{M}]*|returns?|credits?|warranty\s+claims?|rückerstatt[\p{L}\p{M}]*|erstatt[\p{L}\p{M}]*|gutschrift[\p{L}\p{M}]*|ersatz(?:gerät|lieferung)?[\p{L}\p{M}]*|rückgabe[\p{L}\p{M}]*|garantie(?:antrag|anspruch)[\p{L}\p{M}]*|remboursement[\p{L}\p{M}]*|remplacement[\p{L}\p{M}]*|retours?|avoirs?|demande\s+de\s+garantie|reembolso[\p{L}\p{M}]*|reemplazo[\p{L}\p{M}]*|devoluci[oó]n[\p{L}\p{M}]*|cr[eé]dito[\p{L}\p{M}]*|reclama(?:ci[oó]n|[cç][aã]o)\s+de\s+garant[ií]a|substitui[cç][aã]o|devolu[cç][aã]o|rimborso|sostituzione|reso|credito|garanzia|iade[\p{L}\p{M}]*|değişim[\p{L}\p{M}]*|kredi[\p{L}\p{M}]*|garanti\s+taleb[\p{L}\p{M}]*|pengembalian\s+dana|penggantian|retur|kredit|klaim\s+garansi|退款|退货|退貨|换货|換貨|替换|替換|保修申请|返金|返品|交換|保証請求|환불|교환|반품|보증\s*청구|возврат[\p{L}\p{M}]*|возмещение[\p{L}\p{M}]*|замен[\p{L}\p{M}]*|кредит[\p{L}\p{M}]*|гарантийн[\p{L}\p{M}]*\s+заявк[\p{L}\p{M}]*|रिफंड|धनवापसी|प्रतिस्थापन|वापसी|क्रेडिट|वारंटी|refund|replacement|vaapsi|wapsi/iu;
+const FINANCIAL_OUTCOME = /(?<![\p{L}\p{M}])(?:approv(?:ed|ing)|issu(?:ed|ing)|process(?:ed|ing)|schedul[\p{L}\p{M}]*|authori[sz][\p{L}\p{M}]*|grant(?:ed|ing)|accept(?:ed|ing)|paid|refunded|dispatch[\p{L}\p{M}]*|shipp[\p{L}\p{M}]*|arriv[\p{L}\p{M}]*|deliver[\p{L}\p{M}]*|receiv[\p{L}\p{M}]*|credited|confirmed|complete|completed|sent|successful|on\s+(?:its|the)\s+way|in\s+transit|genehmigt|bestätigt|abgeschlossen|bewilligt|ausgestellt|bearbeitet|verarbeitet|geplant|unterwegs|angekommen|approuv[\p{L}\p{M}]*|confirmé[\p{L}\p{M}]*|effectué[\p{L}\p{M}]*|[eé]mis[\p{L}\p{M}]*|trait[eé][\p{L}\p{M}]*|programm[eé][\p{L}\p{M}]*|en\s+route|arriver[\p{L}\p{M}]*|aprob[\p{L}\p{M}]*|confirmad[\p{L}\p{M}]*|completad[\p{L}\p{M}]*|emitid[\p{L}\p{M}]*|procesad[\p{L}\p{M}]*|programad[\p{L}\p{M}]*|en\s+camino|llegar[\p{L}\p{M}]*|aprovad[\p{L}\p{M}]*|processad[\p{L}\p{M}]*|agendad[\p{L}\p{M}]*|a\s+caminho|chegar[\p{L}\p{M}]*|approvat[\p{L}\p{M}]*|emess[\p{L}\p{M}]*|elaborat[\p{L}\p{M}]*|programmat[\p{L}\p{M}]*|in\s+arrivo|onayland[\p{L}\p{M}]*|düzenlend[\p{L}\p{M}]*|işlend[\p{L}\p{M}]*|planland[\p{L}\p{M}]*|yolda|disetujui|diterbitkan|diproses|dijadwalkan|dikirim|akan\s+tiba|выпущен[\p{L}\p{M}]*|одобрен[\p{L}\p{M}]*|обработан[\p{L}\p{M}]*|запланирован[\p{L}\p{M}]*|отправлен[\p{L}\p{M}]*|в\s+пути|прибуд[\p{L}\p{M}]*|approve|issue|process|schedule)(?![\p{L}\p{M}])|退款成功|退貨成功|退货成功|返金完了|환불\s*완료|已?(?:获|獲)?(?:批准|核准|发放|發放|处理|處理|安排|寄出|発送)|(?:将|將)会?(?:到账|到賬|到达|到達)|承認(?:され|済)|発行(?:され|済)|処理(?:され|済)|予定(?:され|です)|発送(?:され|済)|届きます|승인(?:되|됐)|처리(?:되|됐)|발급(?:되|됐)|예정|배송\s*중|도착할|स्वीकृत|जारी|संसाधित|प्रक्रिया\s*में|निर्धारित|रास्ते\s*में|पहुंचेगा|हो\s*गया/iu;
+
+const FINANCIAL_COMMITMENT = /\b(?:will|going to)\s+(?:[\p{L}]+\s+){0,3}(?:refund|credit|replace|send|ship|approve|issue|process|deliver|reimburse)\b|\b(?:erstatten|gutschreiben|ersetzen|rembourserons|rembourserai|reembolsaremos|reembolsaré|reembolsaremos|rimborseremo|rimborserò|sostituiremo|iade edeceğiz|geri ödeyeceğiz|akan mengembalikan|akan mengganti|вернём|вернем|возместим|заменим)\b|(?:将|將)(?:为您|為您|给您|給您)?(?:退款|退货|退貨|换货|換貨)|返金します|交換品を送ります|환불해 드리|환불하겠|वापस करेंगे|रिफंड करेंगे|refund karenge/iu;
+
+function stripUnverifiedOutcomeClaims(answer, { question = '', financialContext = false } = {}) {
+  const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR }=require('./supportSteps');
+  const sourceLine=new RegExp(`^\\s*${SOURCE_LABEL_NAME}\\s*${SOURCE_LABEL_SEPARATOR}`,'iu');
+  let pending=financialContext===true || FINANCIAL_SUBJECT.test(String(question));
+  let changed=false;
+  const urls=[];
+  const text=String(answer||'').replace(/[\uE110\uE111]/g,'')
+    .replace(/https?:\/\/[^\s<>]+/giu,url=>`\uE110${urls.push(url)-1}\uE111`);
+  const result=text.split('\n').map(line=>{
+    if(sourceLine.test(line) && !line.replace(sourceLine,'').replace(/\uE110\d+\uE111|[\s,<>]/g,''))return line;
+    const kept=[];
+    for(const unit of line.split(/(?<=[.!?。！？।])\s+|(?<=[。！？।])/u)) {
+      const shown=unit.normalize('NFKC').replace(/\b(i|we|you|they|he|she|it)['’]ll\b/giu,'$1 will').replace(/\u0130/g,'i').replace(/[*_~`]/g,'').trim();
+      const mention=FINANCIAL_SUBJECT.exec(shown);
+      // "returns" in a code description is a verb, not a customer return.
+      const mentions=[...shown.matchAll(new RegExp(FINANCIAL_SUBJECT.source,'giu'))];
+      const technicalReturn=mentions.every(m=>/^returns?$/iu.test(m[0])) && /^(?:(?:(?:the|this|a)\s+)?(?:[\p{L}]+\s+){1,3}returns?|return)\s+(?:the|a|an)\s+(?:(?:processed|successful)\s+)?(?:transcript|value|result|object|response)[.!]?$/iu.test(shown);
+      const subject=Boolean(mention) && !technicalReturn;
+      const outcome=FINANCIAL_OUTCOME.test(shown)||FINANCIAL_COMMITMENT.test(shown);
+      const claim=outcome && !technicalReturn && (subject || pending);
+      // Exempt only a single uncertainty/prerequisite, not a prefix that can
+      // authorize an affirmative clause later in the same sentence.
+      const financialNoun='(?:refund|replacement|return|credit|warranty claim)';
+      const uncertainEnglish=new RegExp("^(?:I (?:cannot|can't|can’t|could not|do not|don't|don’t) (?:confirm|verify|know|guarantee|promise)|I(?: am|['’]m) not sure) (?:whether|if) (?:your|the) "+financialNoun+" (?:was|is|has been|will be) (?:approved|issued|processed|scheduled|sent|delivered|confirmed|complete)[.!?]?$",'iu');
+      const unavailableAction=new RegExp("^(?:I|we) (?:cannot|can't|can’t|could not|do not|don't|don’t) (?:approve|issue|process|schedule|authorize|refund) (?:your|the) "+financialNoun+"[.!]?$",'iu');
+      const uncertainty=uncertainEnglish.test(shown)||unavailableAction.test(shown)||
+        /^(?:Je ne peux pas confirmer si votre (?:remboursement|remplacement) (?:est|a été) (?:approuvé|émis|traité)|Ich kann nicht bestätigen, ob (?:deine|Ihre) (?:Rückerstattung|Gutschrift) (?:genehmigt|bearbeitet) wurde)[.!]?$/iu.test(shown);
+      const hypothetical=/^(?:If your return is approved(?: and you have a shipping label)?|Only after your return is approved and inspected), (?:the team will explain the next step|send the device back)[.!]?$/iu.test(shown);
+      const protective=/^(?:Do not|Don't|Never) ship the replacement (?:until|before) the refund is approved[.!]?$/iu.test(shown);
+      const prospective=/^(?:your|the)\s+(?:refund|replacement|return|credit|warranty claim)\s+(?:must|needs? to|has to|can only)\s+(?:first )?be approved(?: by the team)?(?: first)?[.!]?$/iu.test(shown);
+      const requiredAction=/^(?:a person|the team|staff) (?:needs? to|must|has to) (?:review|process|approve|issue) your (?:refund|replacement|return|credit|warranty claim)(?: request)?[.!]?$/iu.test(shown);
+      const attributed=/^you reported seeing an? ['‘’"“”](?:approved|issued|processed)['‘’"“”] label for your (?:refund|return|replacement|credit)(?:; a person needs to verify that status)?[.!]?$/iu.test(shown);
+      const generic=/^(?:Refunds|Replacements|Returns|Credits|Warranty claims) are (?:issued|processed|approved|accepted) (?:only after (?:approval|review)|after (?:approval|review)|to the original payment method|within (?:[0-9]+|thirty) days of purchase)[.!]?$/iu.test(shown);
+      const reviewPrerequisite=/^The (?:request|account|charge|order) needs a team review before (?:any (?:adjustment|change)|a refund or timing|cancellation|an address change|a limit or plan change) can be confirmed[.!]?$/u.test(shown);
+      const failedDelivery=/^I could not deliver this to the support team from here[.!]?$/u.test(shown);
+      const statusQuestion=/^(?:Has|Is|Was) your (?:refund|replacement|return|credit|warranty claim) (?:been )?(?:approved|issued|processed|confirmed)[?？]$/iu.test(shown);
+      if(claim && !uncertainty && !hypothetical && !protective && !prospective && !attributed && !generic && !statusQuestion && !requiredAction && !failedDelivery && !reviewPrerequisite) {
+        pending=true;changed=true;
+        const links=unit.match(/\uE110\d+\uE111/g)||[];
+        if(links.length)kept.push('Source: '+links.join(' '));
+        continue;
+      }
+      pending ||= subject;
+      kept.push(unit);
+    }
+    return kept.join(' ').trim();
+  }).filter(Boolean).join('\n').trim();
+  if(!changed)return String(answer||'').trim();
+  return result.replace(/\uE110(\d+)\uE111/g,(_,index)=>urls[Number(index)]);
+}
+
 module.exports = {
+  stripUnverifiedOutcomeClaims,
   looksLikeStaffLie,
   stripStaffLies,
   stripInventedLookup,

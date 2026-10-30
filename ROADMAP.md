@@ -536,4 +536,8 @@ See [Architecture](docs/ARCHITECTURE.md), [Implementation Checklist](docs/IMPLEM
 
 Prepare the production metadata trace as one separate PR, with red-before actual-handler tests, privacy/attempt/receipt/filter checks and independent review. It records stages, public catalog sources, claimed reviewer citations, filter codes and delivery status without customer/model text or platform IDs. This is observation only, with omitted-source markers for unknown metadata; broader #83 applicability and #85 operational retention remain open. No implementation/delivery score changes, paid run or deployment.
 
+## October30 production fix A
+
+Prepare one production-fix PR for unverified financial outcome statements across draft/review/final output. Its original #94 refund probe and independent adversarial findings have regression coverage; hardware applicability remains B. No paid run or financial capability is added. Final current-head CI/independent review and combined #94 integration remain before readiness; production stays the rollback baseline.
+
 Device applicability production fix (#83/#94): structured publisher restrictions, existing-parent read derivation, selected-block catalog, customer-owned identity and deterministic localized clarification are implemented on the candidate branch. Scope/ownership/compact-review/handler/SQL checks are in progress; independent review, current CI, combined probes and release smokes remain gates. No optional feature enabled and no new provider run authorized.

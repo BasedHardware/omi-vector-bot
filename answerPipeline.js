@@ -6,7 +6,7 @@ const {
   formatDiscordReply,
   DISCORD_REPLY_MAX,
 } = require('./utils');
-const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims } = require('./honesty');
+const { stripHowtoBleed, stripShopBleed, stripUnsupportedClaims, stripUnverifiedOutcomeClaims } = require('./honesty');
 const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR } = require('./supportSteps');
 const { publicReplyPrivacy } = require('./publicReplyPrivacy');
 const { recordStage } = require('./answerStageEvidence');
@@ -24,13 +24,15 @@ function ensureNonEmptyAnswer(answer) {
 function prepareDraftForReviewWithAudit(answer, lane, question, { earlierAudit } = {}) {
   recordStage('draft_input', answer);
   const original = String(answer || '').trim();
-  const draft = stripFalseCertainty(
+  const safetyDraft = stripFalseCertainty(
     stripUnsupportedClaims(
       stripShopBleed(stripHowtoBleed(sanitizeReply(answer), lane), lane),
       lane,
       question
     )
   );
+  const draft=stripUnverifiedOutcomeClaims(safetyDraft,{question});
+  answerTrace.filter('financial_outcome',safetyDraft,draft);
   answerTrace.filter('draft_safety', original, draft);
   const audit = mergeRemovalAudits(earlierAudit, removedAnswerUnits(original, draft));
   recordStage('draft_safety', draft);
