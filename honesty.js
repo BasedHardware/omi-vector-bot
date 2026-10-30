@@ -418,7 +418,7 @@ const FINANCIAL_UNCERTAINTY = /^(?:[-*•]\s*)?(?:I\s+(?:cannot|can['’]t|could
 const GENERIC_FINANCIAL_POLICY = /^(?:[-*•]\s*)?(?:refunds|reimbursements|returns|replacements|credits|warranty\s+claims|rückerstattungen|erstattungen|gutschriften|rückgaben|remboursements|remplacements|retours|reembolsos|reemplazos|devoluciones|cr[eé]ditos|rimborsi|sostituzioni|iadeler|pengembalian\s+dana)\b/iu;
 const POLICY_CONDITION = /\b(?:after|once|only|typically|usually|generally|policy|review|nach|erst|prüf|après|uniquement|examen|después|solo|revisi[oó]n|ap[oó]s|somente|an[aá]lise|dopo|solo|inceleme|sonra|setelah|peninjauan)\b/iu;
 const CASE_POSSESSION = /\b(?:your|this|our|dein[\p{L}\p{M}]*|ihr[\p{L}\p{M}]*|votre|ton|ta|vos|tus?|su|seu|sua|tuo|tua|sizin|anda|ваш[\p{L}\p{M}]*|твой[\p{L}\p{M}]*|aapka|tumhara)\b|您的?|你的?|お客様|あなた|고객|귀하|आपका|आपकी/iu;
-const ANAPHOR = /^(?:[-*•]\s*)?(?:it|they|this|that|es|sie|das|il|elle|cela|esto|eso|ele|ela|isso|questo|bunun|ini|itu|он|она|это|это|यह|yeh)\b/iu;
+const ANAPHOR = /\b(?:it|they|this|that|es|sie|das|il|elle|cela|esto|eso|ele|ela|isso|questo|bunun|ini|itu|он|она|это|это|यह|yeh)\b/iu;
 
 function stripUnverifiedOutcomeClaims(answer, { question = '', financialContext = false } = {}) {
   const { SOURCE_LABEL_NAME, SOURCE_LABEL_SEPARATOR }=require('./supportSteps');
@@ -435,27 +435,28 @@ function stripUnverifiedOutcomeClaims(answer, { question = '', financialContext 
       const shown=unit.normalize('NFKC').replace(/\u0130/g,'i').replace(/[*_~`]/g,'').trim();
       const mention=FINANCIAL_SUBJECT.exec(shown);
       // "returns" in a code description is a verb, not a customer return.
-      const subject=Boolean(mention) && !(mention[0].toLowerCase()==='returns' &&
-        mention.index>0 && !CASE_POSSESSION.test(shown) && !/^the\s+returns\b/iu.test(shown));
+      const technicalReturn=/^(?:(?:the|this|a)\s+)?(?:function|method|handler|query)\b/iu.test(shown) || /^return\s+(?:the|a)\s+(?:processed\s+)?(?:transcript|value|result|object|response)\b/iu.test(shown);
+      const subject=Boolean(mention) && !technicalReturn;
       const outcome=FINANCIAL_OUTCOME.test(shown);
       const count=[...shown.matchAll(new RegExp(FINANCIAL_OUTCOME.source,'giu'))].length;
       const terse=outcome && shown.split(/\s+/u).length<6;
-      const claim=outcome && (subject || (pending && (ANAPHOR.test(shown)||terse)));
+      const claim=outcome && !technicalReturn && (subject || (pending && (ANAPHOR.test(shown)||terse)));
       const before=mention?shown.slice(0,mention.index).trim():'';
       // Exempt only a single uncertainty/prerequisite, not a prefix that can
       // authorize an affirmative clause later in the same sentence.
       const uncertainty=Boolean(mention) && FINANCIAL_UNCERTAINTY.test(shown) && count<=1 &&
         !/[,;:，；：]|\b(?:and|but|et|y|und|mais|pero|aber|date|datum|fecha|data|because|since|car|parce|porque|denn|weil)\b/iu.test(before);
       const leadingCondition=shown.match(/^(?:if|when|falls|wenn|si|se|eğer|jika|only\s+after|after)\b[^,]{1,240},\s*/iu);
-      const hypothetical=Boolean(leadingCondition) && !FINANCIAL_OUTCOME.test(shown.slice(leadingCondition[0].length));
+      const hypothetical=Boolean(leadingCondition) && !/[;；]/u.test(leadingCondition[0]) && !(/^(?:only\s+after|after|when)\b/iu.test(shown) && /\b(?:was|were|has|had|wurde|wurden|a\s+été|ha\s+sido)\b/iu.test(leadingCondition[0])) && !FINANCIAL_OUTCOME.test(shown.slice(leadingCondition[0].length));
       const custodyCondition=shown.match(/^(?:do\s+not|don['’]t|never|avoid)\b[^.!?]{0,160}\b(?:until|unless|before)\b/iu);
-      const protective=Boolean(custodyCondition) && !FINANCIAL_OUTCOME.test(custodyCondition[0]);
+      const protective=Boolean(custodyCondition) && count===1 && !/[;；]/u.test(shown) && !FINANCIAL_OUTCOME.test(custodyCondition[0]);
       const prospective=count===1 && /\b(?:must|needs?\s+to|has\s+to|can\s+only)\s+(?:first\s+)?be\s+approved\b/iu.test(shown);
       const attributed=count===1 && /^you\s+reported\s+seeing\b/iu.test(shown) && /['‘’"“”](?:approved|issued|processed)['‘’"“”]\s+label/iu.test(shown);
-      const generic=GENERIC_FINANCIAL_POLICY.test(shown) && !CASE_POSSESSION.test(shown) &&
+      const generic=GENERIC_FINANCIAL_POLICY.test(shown) && count===1 && !CASE_POSSESSION.test(shown) && !/[,;；]|\b(?:and|but|et|und|y|mais|pero|aber)\b/iu.test(shown) &&
         !/\b(?:have\s+been|were|will\s+be|already|today|tomorrow|gestern|heute|demain|mañana)\b/iu.test(shown) &&
-        (POLICY_CONDITION.test(shown) || /^returns\s+are\s+accepted\b/iu.test(shown));
-      if(claim && !uncertainty && !hypothetical && !protective && !prospective && !attributed && !generic) {
+        (POLICY_CONDITION.test(shown) || /^returns\s+are\s+accepted\b/iu.test(shown) || /^refunds\s+are\s+processed\s+to\s+(?:the\s+)?original\s+payment\s+method[.!]?$/iu.test(shown));
+      const statusQuestion=/^(?:has|have|is|was|were|ist|wurde)\b[^;；]*[?？]$/iu.test(shown) && count===1;
+      if(claim && !uncertainty && !hypothetical && !protective && !prospective && !attributed && !generic && !statusQuestion) {
         pending=true;changed=true;
         const links=unit.match(/\uE110\d+\uE111/g)||[];
         if(links.length)kept.push('Source: '+links.join(' '));

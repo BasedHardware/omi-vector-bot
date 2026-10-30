@@ -89,3 +89,13 @@ test('conditions remain atomic, code returns remain code, and known money contex
   'Ihre Rückerstattung wurde bestätigt.','Votre remboursement est confirmé.','Tu reembolso está confirmado.','您的退款成功。',
   'Es wurde genehmigt.']) assert.equal(strip(text,{financialContext:true}),'',text);
 });
+
+test('independent review: prefaced statuses and mixed exemptions cannot assert an outcome',()=>{
+ const strip=require('../honesty').stripUnverifiedOutcomeClaims;
+ for(const text of ['Gute Nachrichten, es wurde inzwischen genehmigt.','Good news, it has been approved.',
+  'Refunds are usually reviewed, and a credit has been issued.',
+  'Do not ship the replacement until the refund is approved; your refund has been approved.',
+  'After your refund was approved, keep the receipt.']) assert.equal(strip(text,{financialContext:true}),'',text);
+ for(const text of ['Refunds are processed to the original payment method.','This function returns the processed transcript.',
+  'Return the processed transcript.','Has your refund been approved?']) assert.equal(strip(text),text,text);
+});
