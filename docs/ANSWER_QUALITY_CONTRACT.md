@@ -1,10 +1,13 @@
 # Customer answer quality: repair checklist
 
+**October30 status clarification:** Older dated diagnostics below describe their tested commits, not current refund-filter implementation. #95 financial filtering is merged on main9b7154d and not deployed; #96 device applicability and #94 acceptance/enforcement remain pending. #92 is a narrow current-contact handoff repair, not general #83 completion. Use SUPPORT_MASTER_PLAN.md for current gates and avoid treating historical probe results as present implementation.
+
+
 Updated October 26, 2026. This is an implementation contract, **not a claim that these checks are all built or live**. It extends A1/A2/A4, B2 and E2 in the [master plan](SUPPORT_MASTER_PLAN.md); memory and the reviewed improvement loop keep their existing gates.
 
 ## Priority and status
 
-The [master plan](SUPPORT_MASTER_PLAN.md) takes precedence. The old PR queue is cleared; #71/#75/#82 closed unmerged with unresolved requirements retained. #91 context preservation is merged at a461f86; its rollout failed source applicability and was rolled back. Context/delivery passed, but that does not waive the failed grounding check. #90 provenance integrates that main and awaits final review/CI; the frozen staff-flagging defect is rejected by both integrated #90 and current main. Shared unresolved-next-step/applicability weaknesses remain #83; no new paid run is authorized by these implementation checks. Preserve the maximum of three open PRs.
+The [master plan](SUPPORT_MASTER_PLAN.md) takes precedence. The old PR queue is cleared; #71/#75/#82 closed unmerged with unresolved requirements retained. #91 context preservation is merged at a461f86; its rollout failed source applicability and was rolled back. Context/delivery passed, but that does not waive the failed grounding check. #90 provenance is merged as cffb46b after final review/CI; the frozen staff-flagging defect is rejected by both integrated #90 and current main. Shared unresolved-next-step/applicability weaknesses remain #83; no new paid run is authorized by these implementation checks. Preserve the maximum of three open PRs.
 
 | Order | Customer failure to prevent | Required regression / acceptance | State |
 | --- | --- | --- | --- |
@@ -45,3 +48,8 @@ One customer problem per draft PR. Record baseline failure, passing checks at th
 ### Relative merge gate — Aryan's October 26 direction
 
 Require no material final-answer failure absent from main, no tested protected-handoff regression, and a candidate pass count at least as high as main. Zero material failures is not the gate; track inherited weaknesses separately. Compare final replies/decisions, not a main draft later corrected by review. Preserve frozen grades. Reusing earlier generated evidence requires demonstrated relevant source/runtime/config identity and full saved results; review the restored diff and pass current checks. This grants no new provider quota, deployment, optional enablement or risk waiver.
+
+
+## October29 diagnostic coverage, not accuracy completion
+
+#90 is merged but remains unreleased because declared provenance is not an enforced device-applicability verdict. New draft #94 adds six original fictional no-model boundary stress probes through production owners. Customer instruction role separation, off-topic suppression/person protection, invented staff receipt and ordinary sourced-answer controls pass. Refund-approval text and unidentified-hardware guidance remain actual acceptance failures; CI must stay blocked until a general repair makes those assertions pass with relevant controls/review. Injected hostile replies test application acceptance, not live-model injection resistance or protected-set coverage. #93’s metadata trace is a separate observation-only draft; no customer/model text is logged and no quality point is earned. #92 remains a partial next-actor repair. The maximum of three open PRs is reached and the third smoke/release remain held.

@@ -3424,6 +3424,79 @@ test('a report five minutes after /done still opens a new Handoff', async (t) =>
   assert.equal(r.thread.sent.length, r.sentBefore);
 });
 
+test('a current contact instruction survives FAQ redirect cleanup as one verified staff handoff', async t => {
+  const staff = enableStaffDelivery(t);
+  process.env.CMD_API_KEY = 'synthetic-never-live';
+  const source = 'https://help.omi.me/en/articles/synthetic-validation-range';
+  docsObserver = async (_q, opts) => {
+    opts.onSources?.([source]);
+    return `[S1 | Official Help Center | authoritative]\nValidation range\n${source}\nThe supported firmware range is not listed.`;
+  };
+  modelReply = { final_answer: 'The supported firmware range is not listed. Contact support for confirmation.', confidence: 0.9, escalate: false };
+  reviewerResponse = args => realReviewAnswer({ ...args, post: async () => ({ data: { choices: [{ message: {
+    content: JSON.stringify({ final_answer: args.draft, grounded: true, relevant: true, confidence: 0.9, escalate: false, sources_used: ['S1'] }),
+  } }] } }) });
+  const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Validation badge documentation' });
+  const result = await ask('Where is documentation for configurable validation badges?', { channel });
+  assert.equal(staff.length, 1);
+  assert.match(result.reply, /supported firmware range is not listed/);
+  assert.ok(result.reply.includes(source));
+  assert.equal((result.reply.match(/will reply in this thread/g) || []).length, 1);
+  assert.doesNotMatch(result.reply, /contact support|help@omi\.me|reply here in this thread|already investigating|accepted/i);
+  await handleMessage(result.message);
+  assert.equal(staff.length, 1, 'replayed input does not dispatch a second staff card');
+});
+
+test('current-contact staff delivery failure keeps uncertainty and the application-owned fallback', async () => {
+  process.env.CMD_API_KEY = 'synthetic-never-live';
+  modelReply = { final_answer: 'The supported range remains unclear. Please email help@omi.me for confirmation.', confidence: 0.9, escalate: false };
+  const result = await ask('Where is documentation for the validation indicator?');
+  assert.match(result.reply, /supported range remains unclear/);
+  assert.match(result.reply, /could not deliver|could not reach|couldn.t reach/i);
+  assert.equal((result.reply.match(/help@omi\.me/g) || []).length, 1);
+  assert.doesNotMatch(result.reply, /has this now|will reply in this thread|accepted|reply here in this thread/i);
+});
+
+test('a closed quoted fact does not erase a later independent contact action in the actual handler', async t => {
+  const staff = enableStaffDelivery(t);
+  for (const [answer, retainedFact] of [
+    ["The indicator is called 'Status'. Contact support for confirmation.", /indicator is called 'Status'/],
+    ['The indicator is called “Status”; contact support for confirmation.', /indicator is called “Status”/],
+    ['**The range is unknown.**\nContact support for confirmation.', /\*\*The range is unknown\.\*\*/],
+  ]) {
+    const before = staff.length;
+    modelReply = { final_answer: answer, confidence: 0.9, escalate: false };
+    const channel = makeChannel({ thread: true, parentId: TEST_CHANNEL, name: 'Validation indicator documentation' });
+    const result = await ask('Where is documentation for validation indicators?', { channel });
+    assert.equal(staff.length, before + 1);
+    assert.match(result.reply, retainedFact);
+    assert.match(result.reply, /will reply in this thread/);
+    assert.doesNotMatch(result.reply, /contact support|reply here in this thread/i);
+  }
+});
+
+test('optional future contact and useful missing-detail questions keep an ordinary FAQ path', async t => {
+  const staff = enableStaffDelivery(t);
+  for (const answer of [
+    'Open Status to see the indicator. If you later need help, contact support.',
+    'Open Status to see the indicator. Contact support if it still fails.',
+    'Open Status to see the indicator. Contact support in case the problem returns.',
+    'Open Status to see the indicator. Contact support should the problem return.',
+    'Open Status to see the indicator. Contact support as needed.',
+    'Open Status to see the indicator. Contact support or try the documented check first.',
+    'Open Status to see the indicator. Contact your IT administrator rather than help@omi.me.',
+    "The example says 'Check Status. Contact support.'",
+    'Open Status to see the indicator.\nIf needed:\nContact support.',
+    'The location depends on your platform. Are you using the desktop or phone app?',
+  ]) {
+    modelReply = { final_answer: answer, confidence: 0.9, escalate: false };
+    const result = await ask('Where is documentation for validation indicators?');
+    assert.equal(staff.length, 0, answer);
+    assert.doesNotMatch(result.reply, /has this now|will reply in this thread|accepted/i);
+    assert.match(result.reply, /Open Status|Check Status|desktop or phone app/);
+  }
+});
+
 
 test('production trace emits one metadata-only record for actual answer and private handoff paths', async t => {
   const lines=[];
