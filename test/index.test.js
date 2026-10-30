@@ -3488,8 +3488,8 @@ test('financial outcome guard preserves honest failed-delivery fallback without 
 test('known money route blocks a noun-free approving real review and still delivers staff case',async t=>{
  const staff=enableStaffDelivery(t);process.env.CMD_API_KEY='synthetic-only';
  t.after(()=>{process.env.CMD_API_KEY='';});plannerSupportKind='money';plannerReplyLanguage='de';
- modelReply={final_answer:'Gute Nachrichten, es wurde inzwischen genehmigt.',confidence:1,escalate:false};
- reviewerResponse=args=>realReviewAnswer({...args,post:async()=>({data:{choices:[{message:{content:JSON.stringify({final_answer:'Gute Nachrichten, es wurde inzwischen genehmigt.',grounded:true,relevant:true,confidence:1,escalate:false})}}]}})});
+ modelReply={final_answer:'Die gewünschte Transaktion wurde inzwischen genehmigt.',confidence:1,escalate:false};
+ reviewerResponse=args=>realReviewAnswer({...args,post:async()=>({data:{choices:[{message:{content:JSON.stringify({final_answer:'Die gewünschte Transaktion wurde inzwischen genehmigt.',grounded:true,relevant:true,confidence:1,escalate:false})}}]}})});
  const result=await ask('Bitte prüfen Sie die doppelte Abbuchung.');
  assert.equal(staff.length,1);assert.doesNotMatch(result.reply,/wurde genehmigt/iu);
 });

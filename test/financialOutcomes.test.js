@@ -97,5 +97,14 @@ test('independent review: prefaced statuses and mixed exemptions cannot assert a
   'Do not ship the replacement until the refund is approved; your refund has been approved.',
   'After your refund was approved, keep the receipt.']) assert.equal(strip(text,{financialContext:true}),'',text);
  for(const text of ['Refunds are processed to the original payment method.','This function returns the processed transcript.',
-  'Return the processed transcript.','Has your refund been approved?']) assert.equal(strip(text),text,text);
+  'Return the processed transcript.','Has your refund been approved?','A person needs to process your refund request.']) assert.equal(strip(text),text,text);
+});
+
+test('implicit financial subjects and exception prefixes stay fail-closed',()=>{
+ const strip=require('../honesty').stripUnverifiedOutcomeClaims;
+ for(const text of ['Die gewünschte Transaktion wurde inzwischen genehmigt.',
+ 'The function confirms your refund has been approved.',
+ 'Your refund must be approved, as it now is.',
+ "You reported seeing an 'approved' label for your refund, which proves it."])
+ assert.equal(strip(text,{financialContext:true}),'',text);
 });
