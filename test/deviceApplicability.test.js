@@ -90,3 +90,21 @@ test('audience, activity and platform restrictions never establish hardware iden
  for(const text of ['This guide is for new users.','This guide is for recording meetings.','For Android only, open Status.'])
  assert.equal(publisherDeviceScope('App help',text),null,text);
 });
+
+test('current target needs a complete assertion and real Markdown delimiter boundaries',()=>{
+ for(const text of ['I have a FieldBadge Mini, but I am asking about my Omi necklace.',
+ 'My FieldBadge Mini, my Omi necklace and my phone all disconnect.',
+ 'My FieldBadge Mini has not been delivered yet. My current recorder disconnects.',
+ '``My FieldBadge Mini disconnects.`` My current recorder disconnects.',
+ '~~~text\n~~~not-a-closing-fence\nMy FieldBadge Mini disconnects.\n~~~\nMy current recorder disconnects.',
+ 'I have a FieldBadge Mini, but my current recorder is different.'])
+ assert.ok(['','multiple'].includes(ownedDevice(text,[],['FieldBadge Mini'])),text);
+ for(const text of ['My FieldBadge Mini is not connecting.','I use a FieldBadge Mini.','Device: FieldBadge Mini'])
+ assert.equal(ownedDevice(text,[],['FieldBadge Mini']),'fieldbadge mini',text);
+});
+
+test('product punctuation cannot collapse distinct restricted identities',()=>{
+ const sourceCatalog=[{id:'S1',url:row.url,provenance:{deviceScope:{products:['Badge+Mini'],origin:'publisher-product'}}},{id:'S2',url:row.url+'-other',provenance:{deviceScope:{products:['Badge-Mini'],origin:'publisher-product'}}}];
+ const result=applicabilityDecision({question:'I use a Badge-Mini.',sourceCatalog,sourceIds:['S1','S2']});
+ assert.equal(result.blocked,true);
+});

@@ -2,7 +2,7 @@
 // source scope. Unknown scope never means universal applicability.
 const TRACE_DEVICES=new Set(['unknown','omi_necklace','omi_devkit','limitless_pendant','other','multiple']);
 const TRACE_SCOPES=new Set(['unknown','unrestricted','omi_necklace','omi_devkit','limitless_pendant','other','multiple']);
-const name=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+const name=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/\s+/gu,' ').trim();
 function product(value) {
  return typeof value==='string' && /^[\p{L}\p{N} ._+/-]{2,80}$/u.test(value) ? value.trim() : '';
 }
@@ -43,18 +43,28 @@ function deviceCode(value) {
  return n?'other':'unknown';
 }
 function ownershipProse(raw) {
- let fence=null,quote=null,out='';
+ let fence=null,quote=null,code=0,out='';
  for(const line of String(raw||'').split('\n')) {
-  const match=line.match(/^\s*(`{3,}|~{3,})/u);
-  if(match){if(!fence)fence={char:match[1][0],length:match[1].length};else if(match[1][0]===fence.char&&match[1].length>=fence.length)fence=null;continue;}
-  if(fence || /^\s*>|^ {4}|^\t/u.test(line))continue;
+  const marker=line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/u);
+  if(fence){
+   if(marker && marker[1][0]===fence.char && marker[1].length>=fence.length && !marker[2].trim())fence=null;
+   continue;
+  }
+  if(!quote && !code && marker){fence={char:marker[1][0],length:marker[1].length};continue;}
+  if(/^\s*>|^ {4}|^\t/u.test(line))continue;
   const chars=[...line];
   for(let i=0;i<chars.length;i++) {
    const c=chars[i],word=x=>/[\p{L}\p{N}]/u.test(x||'');
+   if(c==='`'&&!quote){
+    let end=i+1;while(chars[end]==='`')end++;
+    const length=end-i;
+    if(!code)code=length;else if(code===length)code=0;
+    i=end-1;out+=' ';continue;
+   }
+   if(code)continue;
    const contraction=(c==="'"||c==='’')&&word(chars[i-1])&&word(chars[i+1]);
-   if(quote){if(c===quote&&!contraction)quote=null;continue;}
-   if(c==='`'){quote='`';continue;}
-   if(!contraction && ['"','“',"'",'‘'].includes(c)){quote=({'“':'”','‘':'’'})[c]||c;continue;}
+   if(quote){if(c===quote&&!contraction){quote=null;out+=' ';}continue;}
+   if(!contraction && ['"','“',"'",'‘'].includes(c)){quote=({'“':'”','‘':'’'})[c]||c;out+=' ';continue;}
    out+=c;
   }
   out+='\n';
@@ -63,30 +73,28 @@ function ownershipProse(raw) {
 }
 function ownedDevice(question,history=[],products=[]) {
  const messages=[...history.filter(row=>row?.customerOwned===true && row.source!=='previous_post').map(row=>row.content),question];
+ const names=[...new Set([...products,'Omi necklace','Omi DevKit 2','Omi DevKit','Limitless Pendant'])];
+ const escaped=p=>p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
  let known='';
  for(const raw of messages) {
-  const text=ownershipProse(raw),names=[...new Set([...products,'Omi necklace','Omi DevKit 2','Omi DevKit','Limitless Pendant'])];
-  let inMessage=[];
-  for(const sentence of text.split(/\n+|(?<=[.!?])\s+/u)) {
-   if(/^(?:I (?:do not|don't|don’t|no longer) (?:use|have|own)|I am not using|I'm not using|Je n['’]utilise pas|Ich (?:habe|nutze) kein)\b/iu.test(sentence.trim())) {known='';inMessage=[];continue;}
-   const unavailable=/\b(?:not (?:yet )?(?:arrived|received|delivered)|hasn't arrived|hasn’t arrived|on order|preordered|pre-ordered|will arrive|waiting for delivery)\b/iu.test(sentence);
-   if(unavailable && names.some(p=>name(sentence).includes(name(p)))){known='';inMessage=[];continue;}
-   const found=names.filter(p=>{
-    const escaped=p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-    const prefix="(?:my|mon|ma|mein|meine|mi)\\s+|I\\s+(?:(?:now|currently)\\s+)?(?:use|have|own)\\s+(?:an?\\s+|the\\s+)?|I(?: am|['’]m)\\s+(?:(?:now|currently)\\s+)?using\\s+(?:an?\\s+|the\\s+)?|Device:\\s*";
-    return new RegExp('^\\s*(?:'+prefix+')'+escaped+'(?![\\p{L}\\p{N}])','iu').test(sentence);
-   });
-   if(!found.length)continue;
-   // A second owned product makes this request ambiguous, even when only the
-   // first name occurs immediately after the initial ownership prefix.
-   const additional=names.filter(p=>new RegExp('\\band\\s+(?:my\\s+|an?\\s+|the\\s+)?'+p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![\\p{L}\\p{N}])','iu').test(sentence));
-   if(/^\s*I\s+(?:now|currently)\s+/iu.test(sentence))inMessage=[];
-   inMessage.push(...found,...additional);
+  const text=ownershipProse(raw);
+  const mentioned=[...new Set(names.filter(p=>new RegExp('(?<![\\p{L}\\p{N}])'+escaped(p)+'(?![\\p{L}\\p{N}])','iu').test(text)).map(name))];
+  const specific=mentioned.filter(p=>!mentioned.some(other=>other!==p && other.startsWith(p+' ')));
+  if(specific.length>1){known='multiple';continue;}
+  if(!specific.length)continue;
+  // Only complete current-device assertions establish identity. A prefix plus
+  // an arbitrary suffix cannot select the target of this request. In particular
+  // future/delivery statements and another unnamed focus stay unestablished.
+  known='';
+  const target=specific[0],aliases=names.filter(p=>name(p)===target);
+  for(const sentence of text.split(/\n+|(?<=[.!?])\s+/u).map(v=>v.trim()).filter(Boolean)) {
+   for(const alias of aliases) {
+    const p=escaped(alias),end='[.!?]?$',article='(?:an?\\s+|the\\s+)?';
+    const direct=new RegExp('^(?:Device:\\s*'+p+'|I\\s+(?:(?:now|currently)\\s+)?(?:use|have|own)\\s+'+article+p+"|I(?: am|['’]m)\\s+(?:(?:now|currently)\\s+)?using\\s+"+article+p+'|(?:my|mon|ma|mein|meine|mi)\\s+'+p+')'+end,'iu');
+    const symptom=new RegExp('^My\\s+'+p+"\\s+(?:disconnects?|stops? (?:linking|connecting)|is (?:not )?(?:connecting|working|paired)|keeps? disconnecting|won['’]t (?:connect|pair|charge)|doesn['’]t (?:connect|pair|charge))(?:(?: when| as soon as| after| whenever| while) [^,;.!?]{1,120})?"+end,'iu');
+    if(direct.test(sentence)||symptom.test(sentence))known=target;
+   }
   }
-  const values=[...new Set(inMessage.map(name))];
-  const specific=values.filter(p=>!values.some(other=>other!==p && other.startsWith(p+' ')));
-  if(specific.length===1)known=specific[0];
-  else if(specific.length>1)known='multiple';
  }
  return known;
 }
