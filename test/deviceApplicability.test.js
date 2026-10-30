@@ -35,7 +35,7 @@ test('real formatter registry remains aligned across combined evidence and forge
 });
 test('unselected over-budget scope never enters the real registry; software scope stays separate',()=>{
  let catalog;
- formatEvidence([{...row,provenance:{applicabilityKind:'software',applicability:{product:'Recorder app'}}},{...row,url:row.url+'-second'}],{maxChars:100,onSources:(_urls,items)=>{catalog=items;}});
+ formatEvidence([{...row,body:'Open Status to see progress.',provenance:{applicabilityKind:'software',applicability:{product:'Recorder app'}}},{...row,url:row.url+'-second'}],{maxChars:100,onSources:(_urls,items)=>{catalog=items;}});
  assert.equal(catalog.length,1);
  assert.equal(applicabilityDecision({question:'Where is Settings?',sourceCatalog:catalog,sourceIds:['S1']}).blocked,false);
 });
@@ -61,4 +61,20 @@ test('clarification retains a localized custody warning and fixed device categor
  assert.match(result.question,/Quel appareil.*\n\nNe réinstallez/s);
  assert.equal(result.detectedDevice,'unknown');assert.equal(result.evidenceDeviceScope,'other');
  assert.ok(!JSON.stringify({detectedDevice:result.detectedDevice,evidenceDeviceScope:result.evidenceDeviceScope}).includes('FieldBadge'));
+});
+
+test('independent ownership controls reject future and third-party quotes but keep a negated symptom',()=>{
+ for(const text of ['I might use a FieldBadge Mini later.','I will use a FieldBadge Mini later.',"A friend said 'my FieldBadge Mini is broken'."])
+ assert.equal(ownedDevice(text,[],['FieldBadge Mini']),'',text);
+ assert.equal(ownedDevice('My FieldBadge Mini is not connecting.',[],['FieldBadge Mini']),'fieldbadge mini');
+});
+test('legacy software tags do not become hardware; publisher declarations exclude negation and Discord reports',async()=>{
+ const software={applicability:{product:'Recorder app',surface:'Android',version:'15'}};
+ const {text,catalog}=evidence([{...row,title:'App FAQ',body:'Open Status to see progress.',provenance:software}]);
+ assert.equal(applicabilityDecision({question:'Where is Status?',sourceCatalog:catalog,sourceIds:['S1']}).blocked,false);
+ assert.equal(applicabilityDecision({question:'Where is Status?',sourceCatalog:catalog,sourceIds:['S1']}).evidenceDeviceScope,'unknown');
+ assert.equal(publisherDeviceScope('FieldBadge Mini guide','This guide is not for FieldBadge Mini only; these steps work with all devices.'),null);
+ const chunks=chunkDocument({url:'https://discord.com/channels/1/2/3',title:'Using FieldBadge Mini with Omi',body:'Omi lets you use your FieldBadge Mini with the Omi app. Open Status.'});
+ assert.ok(chunks.every(row=>!row.provenance?.deviceScope));
+ const {catalog:discord}=evidence(chunks);assert.equal(applicabilityDecision({question:'My device broke.',sourceCatalog:discord,sourceIds:['S1']}).blocked,false);
 });

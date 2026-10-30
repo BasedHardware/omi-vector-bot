@@ -1,7 +1,7 @@
 const fs = require('fs');
 const { Pool } = require('pg');
 const { chunkDocument, cleanDocument, queryTerms, sourceAuthority } = require('./retrieval');
-const {publisherDeviceScope}=require('./deviceApplicability');
+const {restrictionFor}=require('./deviceApplicability');
 const { normalizeProvenance } = require('./sourceProvenance');
 
 function sslFor(connectionString) {
@@ -281,7 +281,7 @@ async function searchDocPages(question, limit = 8, sources = []) {
     [search, limit, wantedSources]
   );
   return rows.map(({scope_intro,...row})=>{
-    const scope=publisherDeviceScope(row.title,scope_intro);
+    const scope=restrictionFor({...row,body:scope_intro});
     return {...row,provenance:normalizeProvenance({...row.provenance,...(scope && !row.provenance?.deviceScope?{deviceScope:scope}:{})})};
   });
 }

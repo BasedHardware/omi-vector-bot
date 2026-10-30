@@ -69,7 +69,7 @@ function articleProvenance(html, url, now = Date.now()) {
   }
   const article=String(html||'').match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1]||'';
   const title=String(html||'').match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1]?.replace(/<[^>]+>/g,' ')||'';
-  const intro=article.replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<[^>]+>/g,' ');
+  const intro=article.replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<\/(?:p|h[1-6]|li|div)>/gi,'\n').replace(/<[^>]+>/g,' ');
   const restriction=publisherDeviceScope(title,intro);
   if (!found.length) return restriction?{deviceScope:restriction}:{};
   const unique = new Map(found.map(value => [JSON.stringify(value),value]));

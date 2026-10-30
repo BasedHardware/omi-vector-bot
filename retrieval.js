@@ -1,4 +1,4 @@
-const {publisherDeviceScope}=require('./deviceApplicability');
+const {restrictionFor}=require('./deviceApplicability');
 const MAX_DOCUMENT = 60_000;
 const CHUNK_SIZE = 1_400;
 const CHUNK_OVERLAP = 220;
@@ -143,7 +143,7 @@ function splitLongPart(part, size = CHUNK_SIZE) {
 
 function chunkDocument({ url, title, body, provenance }, { size = CHUNK_SIZE, overlap = CHUNK_OVERLAP } = {}) {
   const clean = cleanDocument(body);
-  const restriction=publisherDeviceScope(title,clean);
+  const restriction=restrictionFor({url,title,body:clean,provenance});
   provenance=normalizeProvenance({...provenance,...(restriction && !provenance?.deviceScope?{deviceScope:restriction}:{})});
   if (!clean) return [];
   const parts = clean
@@ -474,11 +474,13 @@ function formatEvidence(rows, { maxChars = 9_000, maxPerPage = 2, onSources } = 
     const section = row.section ? ` — ${row.section}` : '';
     const body = cleanDocument(row.body, 1_700).replace(/\[S\d+\s*\|/g,'[quoted source |');
     if (!body) continue;
-    const metadata = provenanceLine(row.provenance);
+    const restriction=restrictionFor(row);
+    const emittedProvenance=normalizeProvenance({...row.provenance,...(restriction?{deviceScope:restriction}:{})});
+    const metadata = provenanceLine(emittedProvenance);
     const block = `[${id} | ${sourceLabel(kind)} | ${trust}]\n${String(row.title || 'Untitled').replace(/[\r\n]/g,' ').replace(/\[S\d+\s*\|/g,'[quoted source |')}${section.replace(/[\r\n]/g,' ')}\n${url}\n${metadata ? metadata+'\n' : ''}${body}`;
     const separatorChars = blocks.length ? 2 : 0;
     if (used + separatorChars + block.length > maxChars && blocks.length) break;
-    catalog.push({id,url,provenance:normalizeProvenance(row.provenance),offset:used+separatorChars});
+    catalog.push({id,url,provenance:emittedProvenance,offset:used+separatorChars});
     blocks.push(block);
     if (url) sourceUrls.add(url);
     used += separatorChars + block.length;
