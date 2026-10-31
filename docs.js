@@ -1,3 +1,4 @@
+const {articleProvenance}=require('./sourceProvenance');
 const {registerPublishedSources}=require('./answerTrace');
 const INDEX_URL = 'https://docs.omi.me/llms.txt';
 const CLIP = 60_000;
@@ -59,10 +60,10 @@ function githubDocsPath(url) {
   }
 }
 
-function canonicalizeGithubDocsEvidence(evidence, { indexText, fetchImpl, sourceUrls = [], onSources } = {}) {
+function canonicalizeGithubDocsEvidence(evidence, { indexText, fetchImpl, sourceUrls = [], sourceCatalog=[], onSources } = {}) {
   const text = String(evidence || '');
   const finish = (result, canonical = url => url) => {
-    onSources?.([...new Set(sourceUrls.map(canonical))]);
+    onSources?.([...new Set(sourceUrls.map(canonical))],sourceCatalog.map(row=>({...row,url:canonical(row.url)})));
     return result;
   };
   if (!/github\.com\/BasedHardware\/omi\/blob\/[^/]+\/docs\//i.test(text)) return Promise.resolve(finish(text));
@@ -205,8 +206,9 @@ async function relevantDocs(question, { fetchImpl, store, queries: plannedQuerie
       try {
         const pageRes = await fetchFn(page.url, { signal: AbortSignal.timeout(10_000) });
         if (!pageRes.ok) return null;
-        const excerpt = clipPage(await pageRes.text());
-        return excerpt ? { url: page.url, title: page.title, body: excerpt } : null;
+        const html=await pageRes.text();
+        const excerpt = clipPage(html);
+        return excerpt ? { url: page.url, title: page.title, body: excerpt,provenance:articleProvenance(html,page.url) } : null;
       } catch (err) {
         console.error('[Docs] page fetch failed:', err.message);
         return null;

@@ -1,3 +1,4 @@
+const {articleProvenance}=require('../sourceProvenance');
 const { pagesFromIndex, clipPage } = require('../docs');
 const { PAGE_ROOT, loadOfficialSource } = require('../sourcecode');
 
@@ -56,9 +57,10 @@ async function loadDocs(fetchImpl, db) {
     try {
       const res = await fetchFn(page.url);
       if (!res.ok) return 0;
-      const body = clipPage(await res.text());
+      const html=await res.text();
+      const body = clipPage(html);
       if (!body) return 0;
-      await db.saveDocPage({ url: page.url, title: page.title, body });
+      await db.saveDocPage({ url: page.url, title: page.title, body,provenance:articleProvenance(html,page.url) });
       return 1;
     } catch (err) {
       console.error('[DB] doc page failed:', err.message);

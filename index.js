@@ -58,6 +58,8 @@ const { matchingRelease } = require('./releases');
 const { prepareDraftForReview, prepareDraftForReviewWithAudit, presentReviewedAnswer, fitPublicReply, ensureNonEmptyAnswer, addUnsyncedDataWarning, hasUnsyncedDataRisk, stripUnverifiedOrderClaims } = require('./answerPipeline');
 const { getRemovalAudit } = require('./answerFilterAudit');
 const { newUsageCounters, addStageUsage, timingLogLine } = require('./timing');
+const {combineEvidenceWithCatalog}=require('./retrieval');
+const {applicabilityDecision}=require('./deviceApplicability');
 const { approvedReview, reviewWithSecondLook } = require('./reviewDecision');
 const { reviewRejectionReply } = require('./supportReplyCopy');
 const githubNotices = require('./githubNoticeReceipts');
@@ -444,7 +446,7 @@ async function directContinuationHistory(message) {
   const entries = [];
   const originalText = messageCaption(original?.content || '');
   if (originalText) {
-    entries.push({ author: original?.author?.username || 'customer', content: originalText });
+    entries.push({ author: original?.author?.username || 'customer', content: originalText, customerOwned:original?.author?.id===message.author.id && original?.author?.bot!==true });
   }
   const botText = String(referenced.content || '').trim();
   if (botText) entries.push({ author: 'bot', content: botText });
@@ -474,6 +476,7 @@ async function getHistory(channel, excludeId, customerId) {
     .map((m) => ({
       author: m.author.bot ? 'bot' : m.author.username,
       content: m.content,
+      customerOwned:m.author.id===customerId && m.author.bot!==true,
     }));
   return clipThreadHistory(entries);
 }
@@ -900,20 +903,23 @@ async function answerMessageImpl(message, { directHistory = [] } = {}) {
       );
       answerTrace.stage('retrieval','started');
       const retrievalStart = performance.now();
-      const sourceUrls = [];
+      const sourceUrls = [];let docsCatalog=[],codeCatalog=[],retrievedSourceCatalog=[];
       const onSources = urls => sourceUrls.push(...urls);
+      const docsSources=(urls,items=[])=>{onSources(urls);docsCatalog=items;};
+      const codeSources=(urls,items=[])=>{onSources(urls);codeCatalog=items;};
       const [docsText, officialCodeText, feedbackText, releaseText] = await Promise.all([
-        relevantDocs(sourceQuestion, { queries: searchPlan.queries, subQuestions: searchPlan.subQuestions, onSources }),
-        route.area === 'shop' ? '' : github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries, onSources }),
+        relevantDocs(sourceQuestion, { queries: searchPlan.queries, subQuestions: searchPlan.subQuestions, onSources:docsSources }),
+        route.area === 'shop' ? '' : github.searchOfficialCode(sourceQuestion, { queries: searchPlan.queries, onSources:codeSources }),
         router.isTechLane(route) || route.lane === 'unknown'
           ? relevantFeedback(sourceQuestion, { queries: searchPlan.queries })
           : '',
         matchingRelease(sourceQuestion, { onSources }),
       ]);
       stageMs.retrieval += Math.round(performance.now() - retrievalStart);
+      const combined=combineEvidenceWithCatalog([{text:docsText,catalog:docsCatalog},{text:feedbackText},{text:officialCodeText,catalog:codeCatalog}]);
       const retrievedEvidence = await canonicalizeGithubDocsEvidence(
-        combineEvidence(docsText, feedbackText, officialCodeText),
-        { sourceUrls, onSources: urls => { retrievedSourceUrls = urls; } }
+        combined.text,
+        { sourceUrls,sourceCatalog:combined.catalog, onSources: (urls,items) => { retrievedSourceUrls = urls;retrievedSourceCatalog=items; } }
       );
       answerTrace.sources(retrievedSourceUrls);
       answerTrace.stage('retrieval','ok');
@@ -930,7 +936,12 @@ async function answerMessageImpl(message, { directHistory = [] } = {}) {
         releaseText,
       });
 
-      const verifiedCanned = plannerPolicy.verifiedCannedReply(route, asked || question, retrievedEvidence);
+      let verifiedCanned = plannerPolicy.verifiedCannedReply(route, asked || question, retrievedEvidence);
+      if(verifiedCanned){
+        const scope=applicabilityDecision({question,threadHistory,sourceCatalog:retrievedSourceCatalog,answer:verifiedCanned,language:replyLanguage});
+        answerTrace.devices(scope);
+        if(scope.blocked)verifiedCanned=scope.question;
+      }
       if (verifiedCanned) {
         skipModel = true;
         aiResponse = { final_answer: verifiedCanned, confidence: 0.95, escalate: false, reason: '' };
@@ -977,6 +988,7 @@ async function answerMessageImpl(message, { directHistory = [] } = {}) {
                 removedBySafetyFilters: prepared.removed,
                 safetyAuditTruncated: prepared.auditTruncated,
                 understanding: searchPlan,
+                sourceCatalog:retrievedSourceCatalog,
                 policy: toolFacts,
                 lane: draftLane,
                 handoffPlanned: handoffPlanned || aiResponse.escalate === true,
@@ -1000,18 +1012,18 @@ async function answerMessageImpl(message, { directHistory = [] } = {}) {
             if (!approved) observeSupport(observer => observer.signal(channel, {
               eventId: `${message.id}-review`, kind: 'review_rejected', area: route.area,
             }, message.author.id));
-            reviewedGrounded = Boolean(approved);
+            reviewedGrounded = Boolean(approved || checked.safeClarification);
             aiResponse.final_answer = approved
               ? github.reviewedPullMention(checked.final_answer, relatedPull)
-              : checked.safeHandoff
+              : checked.safeHandoff || checked.safeClarification
                 ? checked.final_answer
                 : reviewRejectionReply(replyLanguage);
             recordStage('review_selected', aiResponse.final_answer);
-            aiResponse.confidence = Math.min(
+            aiResponse.confidence = checked.safeClarification===true ? 1 : Math.min(
               Number(aiResponse.confidence) || 0.4,
               Number(checked.confidence) || 0.4
             );
-            if (checked.escalate || !approved) {
+            if (checked.escalate || (!approved && !checked.safeClarification)) {
               aiResponse.escalate = true;
               aiResponse.reason =
                 aiResponse.reason ||

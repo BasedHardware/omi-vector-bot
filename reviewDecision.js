@@ -12,7 +12,7 @@ async function reviewWithSecondLook(args, { review, log = console.log } = {}) {
   answerTrace.review(first);
   recordStage('review_returned', first?.final_answer);
   const firstAudit = getRemovalAudit(first);
-  if (approvedReview(first) || (first?.safeHandoff && !firstAudit.removed.length && !firstAudit.truncated)) return first;
+  if (first?.safeClarification===true || approvedReview(first) || (first?.safeHandoff && !firstAudit.removed.length && !firstAudit.truncated)) return first;
 
   let approved = false;
   try {

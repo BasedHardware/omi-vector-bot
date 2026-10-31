@@ -1,6 +1,7 @@
 // Production metadata only. Never persist text, platform IDs, error messages or hashes of text.
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { randomUUID } = require('node:crypto');
+const {TRACE_DEVICES,TRACE_SCOPES}=require('./deviceApplicability');
 const context = new AsyncLocalStorage();
 const PREFIX = '[AnswerTrace] ';
 const LANES = new Set(['faq','tech','firmware','shop','money','privacy','account','unknown']);
@@ -70,6 +71,7 @@ function review(result, { secondLook=false, selected=false }={}) {
     if(result && typeof result==='object') s.reviewOrigins.set(result,row);
   }
 }
+function devices(value) {const s=context.getStore();if(s){s.detectedDevice=TRACE_DEVICES.has(value?.detectedDevice)?value.detectedDevice:'unknown';s.evidenceDeviceScope=TRACE_SCOPES.has(value?.evidenceDeviceScope)?value.evidenceDeviceScope:'unknown';}}
 function route(lane) { const s=context.getStore(); if(s) s.lane=LANES.has(lane)?lane:'unknown'; }
 function escalation(signals) {
   const s=context.getStore(); if(!s) return;
@@ -85,7 +87,7 @@ function delivery(kind, result) {
 }
 async function run(operation, { log=line=>console.log(line) }={}) {
   if(context.getStore()) return operation();
-  const s={requestId:randomUUID(),lane:'unknown',stages:Object.fromEntries([...STAGES].map(name=>[name,'skipped'])),sources:new Map(),sourcesOmitted:false,
+  const s={detectedDevice:'unknown',evidenceDeviceScope:'unknown',requestId:randomUUID(),lane:'unknown',stages:Object.fromEntries([...STAGES].map(name=>[name,'skipped'])),sources:new Map(),sourcesOmitted:false,
     attempts:[],attemptsOmitted:false,reviews:[],reviewOrigins:new WeakMap(),selectedReview:null,filters:new Set(),signals:new Set(),reply:'not_attempted',staff:'not_requested'};
   return context.run(s,async()=>{
     try { return await operation(); }
@@ -94,7 +96,7 @@ async function run(operation, { log=line=>console.log(line) }={}) {
       for(const row of s.attempts) if(row.result==='started') row.result='failed';
       for(const [name,result] of Object.entries(s.stages)) if(result==='started') s.stages[name]='failed';
       if(s.reply==='attempted') s.reply='uncertain';
-      const row={version:1,requestId:s.requestId,lane:s.lane,stages:s.stages,
+      const row={version:1,detectedDevice:s.detectedDevice,evidenceDeviceScope:s.evidenceDeviceScope,requestId:s.requestId,lane:s.lane,stages:s.stages,
         retrievedSources:[...s.sources.values()],sourcesOmitted:s.sourcesOmitted,
         providerAttempts:s.attempts,attemptsOmitted:s.attemptsOmitted,reviews:s.reviews,selectedReview:s.selectedReview,filters:[...s.filters],
         escalationSignals:[...s.signals],delivery:{reply:s.reply,staff:s.staff}};
@@ -102,4 +104,4 @@ async function run(operation, { log=line=>console.log(line) }={}) {
     }
   });
 }
-module.exports={run,stage,filter,sources,review,route,escalation,delivery,publicSource,registerPublishedSources,attempt,PREFIX};
+module.exports={devices,run,stage,filter,sources,review,route,escalation,delivery,publicSource,registerPublishedSources,attempt,PREFIX};

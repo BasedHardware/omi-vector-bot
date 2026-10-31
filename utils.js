@@ -440,7 +440,7 @@ function clipThreadHistory(entries, maxEach = 800, maxItems = 24) {
       const previous = isPreviousPost(m);
       const content = clipForDiscord(String(m.content || '').trim(), previous ? 2000 : maxEach);
       if (!content) return null;
-      return { author: m.author, content, ...(previous ? { source: 'previous_post', trust: 'conversation_only' } : {}) };
+      return { author: m.author, content, ...(m.customerOwned===true?{customerOwned:true}:{}), ...(previous ? { source: 'previous_post', trust: 'conversation_only' } : {}) };
     })
     .filter(Boolean);
   const previous = clipped.filter(isPreviousPost).slice(0, Math.min(2, Math.max(0, maxItems - 2)));
